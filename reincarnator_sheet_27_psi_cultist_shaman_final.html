@@ -1999,7 +1999,7 @@ const ITEM_CATALOG = {
       {name:'Частотный ЭМ генератор', weight:'1 Вещь', price:30000, avail:'Редкая', desc:'Раз в круг шанс 3 из 6 отключить тонкую электронику 1-4 Поколения на 1 круг. ПР2/МАБ/5 минут.'}
     ]},
     weapons: { label:'Оружие', items:[
-      {name:'Бластер стражника', weight:'2 Вещи', price:3600, avail:'Базовая', desc:'Дл45, Ат−2, МУ14 энергия, ПР1/«искра», Сл2, раны 2, автомат, мощь. Устойчив к отключениям из-за ЭМИ.'},
+      {name:'Бластер стражника', weight:'2 Вещи', price:3600, avail:'Базовая', desc:'Дл45, Ат−2, МУ14 энергия, ПР1/«искра», Сл2, автомат, клинит. Устойчив к отключениям из-за ЭМИ.'},
       {name:'Вибромеч', weight:'4 Вещи', price:12000, avail:'Базовая', desc:'Цвайхендер: Ат+3, Пр−2, МУ14 удар, ПР5/«искра», Сл4, пул, мощь. Устойчив к ЭМИ.'},
       {name:'Гатлинг', weight:'4 Вещи', price:9900, avail:'Базовая', desc:'Дл60, Ат−1, МУ12 патрон, ПР5/11мм, Сл5, автомат, пальба, раны 2. Успешная атака наносит +1 попадание.'},
       {name:'Мина / граната М', weight:'1 Вещь', price:1000, avail:'Базовая', desc:'Медленное. 2 попадания с МУ15 взрыв, раны 4 в точке и в радиусе 3м ещё по 6 попаданий с МУ10 патрон.'},
@@ -2014,10 +2014,10 @@ const ITEM_CATALOG = {
       {name:'Гранатомёт', weight:'4 Вещи', price:12000, avail:'Дефицитная', desc:'Дл45, Ат−7, ПР0/граната Г3 или М, или ЭМИ-мина, Сл5, однозарядный (особые правила стр. 147).'},
       {name:'Гравирез (меч)', weight:'2 Вещи', price:9000, avail:'Дефицитная', desc:'Из реликвии «ракушка». Можно парировать выстрелы. Ат+4, Пр−10, МУ14 удар, Сл3, пул, раны к6, ксенотех.'},
       {name:'Излучатель феодала', weight:'2 Вещи', price:7500, avail:'Дефицитная', desc:'Пучковое лучевое ружьё регулярных войск. Дл45, Ат−5, МУ16 энергия, ПР1/«искра», пул, травма, ксенотех.'},
-      {name:'Кинетическая чакра', weight:'2 Вещи', price:10000, avail:'Дефицитная', desc:'Бросок кольца на 30м с Ат+1, МУ14 энергия, ПР2/«искра», раны 4, пул, раны 6, мощь.'},
-      {name:'Лазерное ружьё', weight:'2 Вещи', price:15000, avail:'Дефицитная', desc:'Стреляет бесшумно. Дл75, Ат−3, МУ[15+категория успеха] энергия, ПР2/«искра», раны 6, пул, мощь.'},
+      {name:'Кинетическая чакра', weight:'2 Вещи', price:10000, avail:'Дефицитная', desc:'Бросок кольца на 30м с Ат+1, МУ14 энергия, ПР2/«искра», раны 4, пул, травма, ксенотех.'},
+      {name:'Лазерное ружьё', weight:'2 Вещи', price:15000, avail:'Дефицитная', desc:'Стреляет бесшумно. Дл75, Ат−3, МУ[15+категория успеха атаки] энергия, ПР2/«искра», Сл2, раны 6, пул.'},
       {name:'Перламутровый меч', weight:'1 Вещь', price:15000, avail:'Дефицитная', desc:'Элитный клинок культуры дикарей. Ат+0, Пр+0, МУ14 удар, Сл2, мощь.'},
-      {name:'Пистолет «Шина» 91', weight:'1 Вещь', price:5000, avail:'Дефицитная', desc:'Оружие сил самообороны Княжества. Дл30, Ат−1, МУ13 патрон, ПР3/7,62мм, раны 2, пул, мощь, скорость.'},
+      {name:'Пистолет «Шина» 91', weight:'1 Вещь', price:5000, avail:'Дефицитная', desc:'Оружие сил самообороны Княжества. Дл30, Ат−1, МУ13 патрон, ПР3/7,62мм, травма, скорость.'},
       {name:'Ранцевый огнемёт', weight:'1 Огр.', price:10000, avail:'Дефицитная', desc:'Продаётся без зарядов горючки. Дл15, Ат+1, МУ15 температура, ПР5/заряд горючки, Сл5, пул, мощь.'},
       {name:'Ружьё расхитителей', weight:'2 Вещи', price:4500, avail:'Дефицитная', desc:'Широко распространено во всех Княжествах. Дл75, Ат−5, МУ14 патрон, ПР2/7,62мм, Сл3, пул, мощь, травма.'},
       {name:'Силовой молот', weight:'4 Вещи', price:12000, avail:'Дефицитная', desc:'Ат+3, Пр−3, МУ15 удар, ПР4/«искра», Сл2, мощь, травма, скорость. Если сила не 6+, то медленное.'},
@@ -6701,11 +6701,20 @@ function parseSK(name){
 // в отличие от Дл, которое книга даёт отдельным числом и которое действительно нужно как отдельный
 // стат карточки (см. parseWeaponStats).
 const WEAPON_HIT_TYPES = ['удар','патрон','энергия','температура'];
-const WEAPON_TAG_WORDS = ['пул','разрыв','травма','клинит','медленное','автомат','скорость','однозарядное'];
+const WEAPON_TAG_WORDS = ['пул','разрыв','травма','клинит','медленное','автомат','скорость','однозарядное','оптика','пальба','высокие технологии','ксенотех','мощь'];
 function highlightWeaponTags(text){
   const html = escapeHtml(text);
   const alt = [...WEAPON_HIT_TYPES, ...WEAPON_TAG_WORDS, 'раны\\s*\\d+', 'Сл\\d+'].join('|');
   return html.replace(new RegExp('(' + alt + ')', 'gi'), '<span class="tag">$1</span>');
+}
+// Проверка конкретной черты оружия (см. "Черты оружия" в памятке книги) — тег должен быть отдельным
+// словом/фразой, отграниченной запятой/точкой/границей строки, а не подстрокой внутри другого слова
+// (важно для коротких тегов вроде "пул" — не должен ловить, например, "пуля", если такое слово когда-
+// нибудь встретится в тексте предмета). Проверяется по statText (стат-блок), а не по имени/cleanName —
+// у оружия вроде «Автомат «Бархан»» слово "автомат" в САМОМ НАЗВАНИИ не должно считаться чертой само
+// по себе, черта определяется только явным тегом в стат-блоке.
+function hasWeaponTag(statText, word){
+  return new RegExp('(^|[,.;]\\s*)' + word + '(\\s*[,.;]|$)', 'i').test(statText||'');
 }
 // Ат/МУ — обязательные признаки "это оружие" (нет совпадения — кнопка не показывается, предмет как
 // был просто текстом, так и остаётся). Пр — ИМЕННО "Пр" с маленькой "р" (Парирование, встречается не у
@@ -6721,6 +6730,9 @@ const WEAPON_DL_RE = /Дл\s*(\d+)/;
 // оружия") — не просто тег для подсветки: это и есть число, которым книга различает Лёгкое (Сл≤3) и
 // Тяжёлое (Сл4+) оружие для навыка боя (см. weaponCombatSkill ниже).
 const WEAPON_SL_RE = /Сл\s*(\d+)/;
+// "раны N" — базовое число ран за попадание (см. черту "Раны Х" в памятке: без неё — 1 рана за
+// попадание, с ней — указанное число). Используется в резолве попаданий (см. resolveWeaponAttackOutcome).
+const WEAPON_WOUNDS_RE = /раны\s*(\d+)/i;
 function parseWeaponStats(fullName){
   if(!fullName) return null;
   const atM = WEAPON_AT_RE.exec(fullName), muM = WEAPON_MU_RE.exec(fullName);
@@ -6740,10 +6752,29 @@ function parseWeaponStats(fullName){
     else { cleanName = fullName.trim(); statText = fullName.trim(); }
   }
   const prM = WEAPON_PR_RE.exec(fullName), dlM = WEAPON_DL_RE.exec(fullName), slM = WEAPON_SL_RE.exec(fullName);
+  const woundsM = WEAPON_WOUNDS_RE.exec(statText);
   return {
     cleanName, statText,
     at: normSigned(atM[1]), mu: parseInt(muM[1],10), hitType: muM[2]||null,
     pr: prM ? normSigned(prM[1]) : null, dl: dlM ? parseInt(dlM[1],10) : null, sl: slM ? parseInt(slM[1],10) : null,
+    wounds: woundsM ? parseInt(woundsM[1],10) : 1, // "Раны Х" — X, иначе по умолчанию 1 (см. черту "Раны Х")
+    hasExplicitWounds: !!woundsM, // отличает реальную черту "Раны Х" от дефолта 1 — нужно для приоритета над "Мощь" (см. moshh/resolveWeaponAttackOutcome)
+    // Черты, влияющие на бросок атаки/резолв попаданий (см. "Черты оружия" в памятке книги) —
+    // все проверяются по statText, см. комментарий у hasWeaponTag выше.
+    klinit: hasWeaponTag(statText, 'клинит'),
+    razryv: hasWeaponTag(statText, 'разрыв'),
+    pul: hasWeaponTag(statText, 'пул'),
+    avtomat: hasWeaponTag(statText, 'автомат'),
+    optika: hasWeaponTag(statText, 'оптика'),
+    odnozaryadnoe: hasWeaponTag(statText, 'однозарядное'),
+    palba: hasWeaponTag(statText, 'пальба'),
+    highTech: hasWeaponTag(statText, 'высокие технологии'),
+    xenoteh: hasWeaponTag(statText, 'ксенотех'),
+    // "Мощь" — раны за попадание = выпавший к12 (см. resolveWeaponAttackOutcome) ВМЕСТО плоского числа;
+    // если у оружия при этом явно указаны и "раны N", и "мощь" — по решению игрока раны побеждают,
+    // мощь в резолве игнорируется (см. hasExplicitWounds выше), но сам факт конфликта подсвечивается
+    // предупреждением на карточке (см. renderWeapons), а не тихо проглатывается.
+    moshh: hasWeaponTag(statText, 'мощь'),
   };
 }
 // Навык боя по оружию (см. памятку "Архаичное/Безоружный/Лёгкое/Тяжёлое" — используется для бросков
@@ -6757,7 +6788,12 @@ function weaponCombatSkill(w){
   if(/лук|арбалет/i.test(w.name)) return 'arhaichnoe_oruzhie';
   return (w.sl!=null && w.sl>=4) ? 'tyazheloe_oruzhie' : 'legkoe_oruzhie';
 }
-function blankWeaponSlot(){ return {name:'',properties:'',at:0,mu:0,dl:null,pr:null,sl:null,itemId:null,itemCategory:null,itemNameSnapshot:null}; }
+function blankWeaponSlot(){
+  return {name:'',properties:'',at:0,mu:0,dl:null,pr:null,sl:null,wounds:1,hasExplicitWounds:false,
+    klinit:false,razryv:false,pul:false,avtomat:false,optika:false,odnozaryadnoe:false,palba:false,highTech:false,xenoteh:false,moshh:false,
+    loaded:true, // "заряжено" — только у однозарядное/пальба показывается как переключатель (см. renderWeapons), ручной, не влияет на бросок
+    itemId:null,itemCategory:null,itemNameSnapshot:null};
+}
 // Бросок атаки экипированным оружием — заведён как ещё два SAVE_ROLL_DEFS (тот же приём, что и у
 // raspr_sluh_* выше: несколько записей регистрируются в цикле, base()/tags() читают текущее состояние
 // персонажа при каждом вызове, а не на момент регистрации) — переиспользует ВЕСЬ существующий
@@ -6765,20 +6801,69 @@ function blankWeaponSlot(){ return {name:'',properties:'',at:0,mu:0,dl:null,pr:n
 // WS-рассылку) без единой новой строчки в нём самом. Максимум = 10 + навык боя (по оружию, см.
 // weaponCombatSkill) + Ат оружия — сам навык боя игрок при этом продолжает выбирать жестом как
 // обычный модификатор поверх этой базы (anchorMod:0, как у остальных небазовых бросков).
+// Штраф Ат от "Высокие технологии"/"Ксенотех" (см. "Черты оружия") — если у персонажа нет требуемого
+// навыка 2+, Ат оружия падает на 2 (а МУ на 1, но МУ ни на что механически не влияет в этом листе, см.
+// комментарий у parseWeaponStats выше про его роль как чисто информационного стата — штраф к МУ поэтому
+// только упоминается тегом-предупреждением на карточке, не пересчитывает что-либо).
+function weaponTechPenalty(w){
+  let at = 0; const notes = [];
+  if(w.highTech && !(character.stats.uchenost>=2 || character.stats.tehnika>=2)){ at -= 2; notes.push('Высокие технологии: нет учёности/техники 2+ — Ат−2, МУ−1'); }
+  if(w.xenoteh && !(character.stats.iskazheniya_i_relikvii>=2)){ at -= 2; notes.push('Ксенотех: нет искажений и реликвий 2+ — Ат−2, МУ−1'); }
+  return {at, notes};
+}
 [0,1].forEach(idx=>{
   STAT_LABELS['attack_weapon'+idx] = `Атака — Оружие ${idx+1}`;
   SAVE_ROLL_DEFS['attack_weapon'+idx] = {
     label: `Атака — Оружие ${idx+1}`, anchorMod: 0,
     base(){
       const w = character.weapons[idx], sk = weaponCombatSkill(w);
-      return sk ? 10 + character.stats[sk] + (w.at||0) : 10;
+      if(!sk) return 10;
+      const penalty = weaponTechPenalty(w);
+      const optikaOn = w.optika && !!document.getElementById('weaponOptika'+idx)?.checked;
+      return 10 + character.stats[sk] + (w.at||0) + penalty.at + (optikaOn?6:0);
     },
     tags(){
       const w = character.weapons[idx], sk = weaponCombatSkill(w);
       if(!sk) return [];
-      return [`${STAT_LABELS[sk]}: ${10 + character.stats[sk]}`, `Ат оружия: ${w.at>=0?'+':''}${w.at}`];
+      const t = [`${STAT_LABELS[sk]}: ${10 + character.stats[sk]}`, `Ат оружия: ${w.at>=0?'+':''}${w.at}`];
+      const penalty = weaponTechPenalty(w);
+      if(penalty.at) t.push(`Штраф требования: ${penalty.at}`);
+      if(w.optika && document.getElementById('weaponOptika'+idx)?.checked) t.push('Оптика (30м+, реакция): +6');
+      return t;
     },
-    formula(){ return 'Навык боя (по оружию) + Ат оружия'; }
+    formula(){ return 'Навык боя (по оружию) + Ат оружия ± черты'; }
+  };
+  // Автоматическое оружие (см. "Черты оружия" → "Автоматическое оружие") — два дополнительных режима
+  // огня поверх обычной прицельной атаки выше, оба заведены тем же приёмом SAVE_ROLL_DEFS.
+  STAT_LABELS['burst_weapon'+idx] = `Длинная очередь — Оружие ${idx+1}`;
+  SAVE_ROLL_DEFS['burst_weapon'+idx] = {
+    label: `Длинная очередь — Оружие ${idx+1}`, anchorMod: 0,
+    base(){
+      const w = character.weapons[idx], sk = weaponCombatSkill(w);
+      if(!sk) return 10;
+      const penalty = weaponTechPenalty(w);
+      const far = !!document.getElementById('weaponBurstFar'+idx)?.checked;
+      return 10 + character.stats[sk] + (w.at||0) + penalty.at + (far?-6:0);
+    },
+    tags(){
+      const w = character.weapons[idx], sk = weaponCombatSkill(w);
+      if(!sk) return [];
+      const t = [`${STAT_LABELS[sk]}: ${10 + character.stats[sk]}`, `Ат оружия: ${w.at>=0?'+':''}${w.at}`];
+      const penalty = weaponTechPenalty(w);
+      if(penalty.at) t.push(`Штраф требования: ${penalty.at}`);
+      if(document.getElementById('weaponBurstFar'+idx)?.checked) t.push('Дистанция >12м: −6');
+      return t;
+    },
+    formula(){ return 'Навык боя + Ат оружия (−6, если дистанция >12м); успех даёт [КУ+3] попаданий'; }
+  };
+  // Подавляющий огонь — отдельный спасброс атаки с ФИКСИРОВАННЫМ Максимумом 12 (книга прямо говорит
+  // "фиксированным" — ни навык боя, ни Ат оружия сюда не идут, в отличие от обычной атаки/очереди выше).
+  STAT_LABELS['suppress_weapon'+idx] = `Подавляющий огонь — Оружие ${idx+1}`;
+  SAVE_ROLL_DEFS['suppress_weapon'+idx] = {
+    label: `Подавляющий огонь — Оружие ${idx+1}`, anchorMod: 0,
+    base(){ return 12; },
+    tags(){ return ['Фиксированный Максимум: 12']; },
+    formula(){ return 'Фиксированный Максимум 12; успех даёт [КУ] попаданий по каждой цели в зоне'; }
   };
 });
 function findInventoryItemById(itemId){
@@ -6791,6 +6876,8 @@ function findInventoryItemById(itemId){
 }
 function weaponSlotFromItem(item, category, stats){
   return { name:stats.cleanName, properties:highlightWeaponTags(stats.statText), at:stats.at, mu:stats.mu, dl:stats.dl, pr:stats.pr, sl:stats.sl,
+    wounds:stats.wounds, hasExplicitWounds:stats.hasExplicitWounds, klinit:stats.klinit, razryv:stats.razryv, pul:stats.pul, avtomat:stats.avtomat, optika:stats.optika,
+    odnozaryadnoe:stats.odnozaryadnoe, palba:stats.palba, highTech:stats.highTech, xenoteh:stats.xenoteh, moshh:stats.moshh, loaded:true,
     itemId:item.id, itemCategory:category, itemNameSnapshot:item.name };
 }
 // Держит слоты в синхроне с реальным инвентарём при КАЖДОЙ отрисовке (см. renderWeapons) — вместо
@@ -6884,6 +6971,60 @@ function weaponEquipButtonHtml(category, item, stats){
   const freeIdx = character.weapons.findIndex(w=>!w.itemId);
   if(freeIdx !== -1) return `<button class="small" onclick="equipWeapon('${category}','${item.id}',${freeIdx})">⚔ Экипировать</button>`;
   return `<button class="small" onpointerdown="event.preventDefault();openWeaponSlotPicker('${category}','${item.id}',event.clientX,event.clientY)">⚔ Заменить</button>`;
+}
+// "Заряжено/Разряжено" — ручной переключатель у Однозарядное/Пальба (см. "Черты оружия": оба требуют
+// перезарядку между атаками, но тратят на это ИГРОВОЕ действие — этот лист не отслеживает ходы/действия
+// вообще, поэтому переключатель информационный, не блокирует сам бросок атаки, просто напоминание для
+// игрока/Мастера, кто уже перезарядился в этом кругу).
+window.toggleWeaponLoaded = function(idx){
+  if(!character) return;
+  character.weapons[idx].loaded = !character.weapons[idx].loaded;
+  renderAll();
+};
+// Резолв попаданий после УСПЕШНОЙ атаки (или клинит-замятия) — вызывается из executeRoll ниже для
+// любого броска с statKey вида attack_weapon*/burst_weapon*/suppress_weapon*. Не трогает d20-часть
+// (это уже сделал executeRoll/recordAndShareRoll) — только то, что происходит ПОСЛЕ: сколько попаданий,
+// сколько ран каждое наносит, и бросок к12 за попадание (расположение/тяжесть — см. "Пул"/по умолчанию
+// в памятке), результат уходит в общий лог тем же путём, что и любой другой быстрый бросок (recordAndShareQuickRoll).
+// Возвращает 'jammed', если сработал Клинит — вызывающий код (executeRoll) по этому сигналу не
+// показывает попап переброса (клинит прямо запрещает переброс итога).
+const WEAPON_ATTACK_KEY_RE = /^(attack|burst|suppress)_weapon(\d)$/;
+function resolveWeaponAttackOutcome(statKey, roll, success, category){
+  const m = WEAPON_ATTACK_KEY_RE.exec(statKey);
+  if(!m || !character) return;
+  const fireMode = m[1], idx = parseInt(m[2],10);
+  const w = character.weapons[idx];
+  if(!w || !w.name) return;
+  if(w.klinit && roll===13){
+    recordAndShareQuickRoll({weaponJam:true, weaponName:w.name});
+    return 'jammed';
+  }
+  if(!success) return;
+  let hitCount;
+  if(fireMode==='burst') hitCount = category+3;
+  else if(fireMode==='suppress') hitCount = category;
+  else hitCount = (w.razryv || w.pul) ? 1 : category; // Разрыв/Пул — "оружие наносит лишь одно попадание"
+  // "Мощь позволяет наносить к12 ран" — раны за попадание берутся из уже брошенного к12 (тот самый,
+  // что и так кидается на каждое попадание — см. цикл ниже) ВМЕСТО плоского wounds; отдельного броска
+  // на раны это не требует, к12 просто служит и локацией, и раной одновременно. Не работает, если у
+  // оружия явно указаны "раны N" — hasExplicitWounds тогда побеждает (см. её назначение выше).
+  const moshhActive = w.moshh && !w.hasExplicitWounds;
+  const razryvBonus = (fireMode==='attack' && w.razryv && roll>=11) ? 4 : 0; // Разрыв: успех (к20) 11+ → +4 раны, поверх любого источника ран
+  const hits = [];
+  if(fireMode==='attack' && w.pul){
+    // "Проверяя попадания, вы бросаете [категория успеха × к12] и выбираете лучший" — одно попадание,
+    // но category бросков к12 за него, берётся наибольший (лучший) результат. Пул+Мощь: тот же лучший
+    // бросок идёт и на раны — "учитывает высший вариант к12", отдельного броска на раны нет.
+    const rolls12 = Array.from({length:category}, ()=>randInt(12));
+    const best = Math.max(...rolls12);
+    hits.push({location: best, rolls12, wounds: (moshhActive ? best : w.wounds) + razryvBonus});
+  } else {
+    for(let i=0;i<hitCount;i++){
+      const loc = randInt(12);
+      hits.push({location: loc, wounds: (moshhActive ? loc : w.wounds) + razryvBonus});
+    }
+  }
+  recordAndShareQuickRoll({weaponHits:true, weaponName:w.name, fireMode, hits});
 }
 let _zonePickerEl = null;
 function closeZonePicker(){ if(_zonePickerEl){ _zonePickerEl.remove(); _zonePickerEl=null; } }
@@ -8094,7 +8235,11 @@ function executeRoll(statKey, base, mod, popup, mode){
 
   launchRollAnimation({diceType:'d20', mode, max, rolls, roll}, startRect).then(()=>{
     closeRollOverlay();
-    showRerollPopup(statKey, mod, mode);
+    // Атака оружием — резолв попаданий/ран/к12 (см. resolveWeaponAttackOutcome) ПОСЛЕ обычного d20,
+    // не вместо него; 'jammed' (Клинит на нат.13) — единственный случай, когда переброс не предлагается,
+    // остальные statKey (не про атаку) resolveWeaponAttackOutcome просто игнорирует (return без действий).
+    const attackOutcome = resolveWeaponAttackOutcome(statKey, roll, success, category);
+    if(attackOutcome!=='jammed') showRerollPopup(statKey, mod, mode);
   });
 }
 
@@ -8834,11 +8979,36 @@ function renderWeapons(){
   el.innerHTML = character.weapons.map((w,i)=>{
     const skill = weaponCombatSkill(w);
     const attackBtn = skill ? `<button class="small" onpointerdown="event.preventDefault();openSaveRollPicker('attack_weapon${i}',event.clientX,event.clientY)" title="Нажмите и протяните — бросок атаки: ${escapeAttr(STAT_LABELS[skill])} ${character.stats[skill]+10>=0?'+':''}${character.stats[skill]+10}, Ат оружия ${w.at>=0?'+':''}${w.at}">🎯 Атака</button>` : '';
+    // Автоматическое оружие — два доп. режима огня (см. SAVE_ROLL_DEFS.burst_weapon*/suppress_weapon*
+    // выше), плюс чекбокс дистанции >12м, который читает base() очереди при открытии поповера.
+    const autoBtns = (skill && w.avtomat) ? `
+      <div class="field-row" style="margin-top:4px; align-items:center; gap:10px;">
+        <button class="small" onpointerdown="event.preventDefault();openSaveRollPicker('burst_weapon${i}',event.clientX,event.clientY)" title="Длинная очередь: успех даёт [КУ+3] попаданий">💥 Очередь</button>
+        <button class="small" onpointerdown="event.preventDefault();openSaveRollPicker('suppress_weapon${i}',event.clientX,event.clientY)" title="Подавляющий огонь: фикс. Максимум 12, успех даёт [КУ] попаданий по каждой цели в зоне">🌫 Подавление</button>
+        <label style="font-size:11px; display:flex; align-items:center; gap:4px;"><input type="checkbox" id="weaponBurstFar${i}"> дистанция &gt;12м (−6 к очереди)</label>
+      </div>` : '';
+    // Оптика — необязательный +6, включённый чекбоксом читается тем же base() атаки/очереди выше в
+    // момент открытия поповера (то есть до жеста, не задним числом).
+    const optikaToggle = (skill && w.optika) ? `
+      <div class="field-row" style="margin-top:4px; align-items:center;">
+        <label style="font-size:11px; display:flex; align-items:center; gap:4px;"><input type="checkbox" id="weaponOptika${i}"> 🔭 Оптика: цель 30м+, реакция (+6 к атаке)</label>
+      </div>` : '';
+    // Однозарядное/Пальба — требуют перезарядку действием между атаками (см. "Черты оружия"), этот
+    // лист не считает ходы/действия — переключатель чисто информационный (см. toggleWeaponLoaded).
+    const reloadToggle = (w.odnozaryadnoe || w.palba) ? `<button class="small" onclick="toggleWeaponLoaded(${i})">${w.loaded?'🔋 Заряжено':'🪫 Разряжено — перезарядить (действие)'}</button>` : '';
+    const techPenalty = weaponTechPenalty(w);
+    const notes = techPenalty.notes.slice();
+    // "Мощь не работает, если указаны раны" — оба тега сейчас не должны встречаться на одном оружии
+    // одновременно (проверено по всему каталогу), но если игрок впишет такое вручную — раны побеждают
+    // молча (см. moshhActive в resolveWeaponAttackOutcome), а карточка явно предупреждает об этом,
+    // а не просто тихо игнорирует один из тегов.
+    if(w.moshh && w.hasExplicitWounds) notes.push('Мощь не применяется — у оружия явно указаны раны, раны побеждают');
+    const techWarning = notes.length ? `<div class="muted" style="margin-top:4px;">⚠ ${notes.map(escapeHtml).join(' · ')}</div>` : '';
     return `
     <div class="item-line">
       <div class="field-row" style="align-items:center; justify-content:space-between; margin-bottom:0;">
         <b>Оружие ${i+1}</b>
-        <span>${attackBtn} ${w.itemId ? `<button class="small" onclick="unequipWeapon(${i})">⚔ Снять</button>` : ''}</span>
+        <span>${attackBtn} ${reloadToggle} ${w.itemId ? `<button class="small" onclick="unequipWeapon(${i})">⚔ Снять</button>` : ''}</span>
       </div>
       <div class="field-row" style="margin-top:4px;">
         <div class="field"><label>Название</label><input type="text" value="${escapeAttr(w.name)}" oninput="updateWeaponField(${i},'name',this.value)"></div>
@@ -8850,6 +9020,9 @@ function renderWeapons(){
         ${w.dl!=null ? `<div class="field" style="max-width:90px;"><label>Дл</label><input type="number" value="${w.dl}" oninput="updateWeaponField(${i},'dl',this.value)"></div>` : ''}
         ${w.pr!=null ? `<div class="field" style="max-width:90px;"><label>Пр</label><input type="number" value="${w.pr}" oninput="updateWeaponField(${i},'pr',this.value)"></div>` : ''}
       </div>
+      ${autoBtns}
+      ${optikaToggle}
+      ${techWarning}
     </div>`;
   }).join('');
 }
@@ -9636,6 +9809,19 @@ const _rollLogSeenIds = new Set(session.log.map(e=>e.id));
 // броска характеристики (без поля kind) продолжают форматироваться старой веткой ниже без изменений.
 function formatQuickRollEntry(e){
   const who = escapeHtml(e.player||'?');
+  if(e.weaponJam){
+    return {cls:'failure', html:`<span class="who">${who}</span><span class="rest">Оружие «${escapeHtml(e.weaponName)}» заклинило (нат.13) — переброс невозможен</span>`};
+  }
+  if(e.weaponHits){
+    // Каждое попадание — к12 (расположение/тяжесть, см. "Пул" в памятке для режима "лучший из
+    // [категория] бросков") рядом с готовым числом ран этого попадания (см. resolveWeaponAttackOutcome
+    // — уже посчитано там, включая бонус Разрыва при успехе 11+; здесь только форматирование).
+    const hitsTxt = e.hits.map(h=>{
+      const locTxt = h.rolls12 ? `к12=[${h.rolls12.join(', ')}]→${h.location}` : `к12=${h.location}`;
+      return `${locTxt} (${h.wounds} ${h.wounds===1?'рана':h.wounds<5?'раны':'ран'})`;
+    }).join('; ');
+    return {cls:'success', html:`<span class="who">${who}</span><span class="rest">Попадания «${escapeHtml(e.weaponName)}»: ${hitsTxt}</span>`};
+  }
   if(e.itemCheck){
     const modeLabel = e.mode==='advantage'?'Преимущество':e.mode==='disadvantage'?'Помеха':'Чистый';
     return {cls: e.usesLost?'failure':'success',
