@@ -1,0 +1,13 @@
+# Third-party binaries auto-downloaded by start-ngrok.bat/.sh on first run — not source, large.
+cloudflared.exe
+ngrok.exe
+ngrok
+ngrok.zip
+ngrok.tgz
+
+# Ad-hoc zip snapshots taken before git history existed for this project — superseded by git log now.
+files.zip
+backups/
+
+# Claude Code tool-internal state, not project source.
+.claude/
