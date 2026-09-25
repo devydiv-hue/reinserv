@@ -4495,7 +4495,11 @@ function newCharacter(){
     restEquipMod:0, // "мод. снаряжения" used by the "Отдых на Равнине" roll (вын. + мод. снаряжения)
     states:{ bodrost:true, istoshenie:false, ispug:false, stress:false }, // Состояния circles — бодрость по умолчанию активна при создании персонажа (просили явно; остальные три — не активны)
     conditionsNotes:'', // "Состояния и травмы" free text box
-    weapons:[ {name:'',properties:'',at:0,mu:0}, {name:'',properties:'',at:0,mu:0} ], // Оружие 1/2
+    // Оружие 1/2 — dl/pr:null означает "не показывать это поле в карточке" (не у всякого оружия есть
+    // Дальность/Парирование), itemId/itemCategory/itemNameSnapshot — привязка к конкретному предмету
+    // инвентаря, откуда слот заполнен (см. equipWeapon/resyncWeaponSlots), null у пустого/вручную
+    // заполненного слота.
+    weapons:[ blankWeaponSlot(), blankWeaponSlot() ],
     armor:{ body:0, helmet:0, properties:'' } // Броня block
   };
   ALL_STATS.forEach(s=>{ c.stats[s]=0; c.log[s]=[]; });
@@ -6685,6 +6689,202 @@ function parseSK(name){
   const m = /СК\s*(\d+)/.exec(name||'');
   return m ? parseInt(m[1],10) : null;
 }
+
+/* ======================================================================
+   ОРУЖИЕ — «Экипировать»/«Снять»/«Заменить» у предметов инвентаря (invRowHtml, см. ниже), заполняет
+   карточки "Оружие 1/2" (см. renderWeapons). Тот же принцип, что и у брони (parseArmorStats выше) —
+   текст самого предмета читается по формату книги, ничего не гадаем: не распознали — кнопка просто не
+   появляется, как и у "Надеть" для брони.
+   ====================================================================== */
+// Слово сразу после "МУ<число>" — тип попадания; и оно, и теги-свойства (пул/разрыв/... ), и "раны N"
+// просто ПОДСВЕЧИВАЮТСЯ в исходном тексте (см. highlightWeaponTags), а не выносятся в отдельные поля —
+// в отличие от Дл, которое книга даёт отдельным числом и которое действительно нужно как отдельный
+// стат карточки (см. parseWeaponStats).
+const WEAPON_HIT_TYPES = ['удар','патрон','энергия','температура'];
+const WEAPON_TAG_WORDS = ['пул','разрыв','травма','клинит','медленное','автомат','скорость','однозарядное'];
+function highlightWeaponTags(text){
+  const html = escapeHtml(text);
+  const alt = [...WEAPON_HIT_TYPES, ...WEAPON_TAG_WORDS, 'раны\\s*\\d+', 'Сл\\d+'].join('|');
+  return html.replace(new RegExp('(' + alt + ')', 'gi'), '<span class="tag">$1</span>');
+}
+// Ат/МУ — обязательные признаки "это оружие" (нет совпадения — кнопка не показывается, предмет как
+// был просто текстом, так и остаётся). Пр — ИМЕННО "Пр" с маленькой "р" (Парирование, встречается не у
+// всякого оружия) — специально НЕ "ПР" заглавными: та же аббревиатура заглавными — это "Проверка
+// Ресурса" патронов/зарядов (см. parseResourceCheck, кнопка ⚄ ПР(X) у того же предмета) — регистр в
+// тексте книги — единственное, что их отличает друг от друга, поэтому регэксп регистрозависим намеренно
+// (без флага i), не опечатка.
+const WEAPON_AT_RE = /Ат\s*([+−-]\s*\d+)/;
+const WEAPON_MU_RE = /МУ\s*(\d+)\s*(удар|патрон|энергия|температура)?/;
+const WEAPON_PR_RE = /Пр\s*([+−-]\s*\d+)/;
+const WEAPON_DL_RE = /Дл\s*(\d+)/;
+// "Сл<N>" — ЗХ силы для комфортного боя этим оружием (см. памятку "Технические характеристики
+// оружия") — не просто тег для подсветки: это и есть число, которым книга различает Лёгкое (Сл≤3) и
+// Тяжёлое (Сл4+) оружие для навыка боя (см. weaponCombatSkill ниже).
+const WEAPON_SL_RE = /Сл\s*(\d+)/;
+function parseWeaponStats(fullName){
+  if(!fullName) return null;
+  const atM = WEAPON_AT_RE.exec(fullName), muM = WEAPON_MU_RE.exec(fullName);
+  if(!atM || !muM) return null;
+  const normSigned = s => parseInt(s.replace(/\s+/g,'').replace('−','-'),10);
+  // Имя vs. текст свойств — два формата, встречающихся в данных: "Имя — текст." (предмет добавлен из
+  // каталога, см. btnAddFromCatalog — там name и desc склеиваются через " — ") или "Имя (текст)"
+  // (стартовые таблицы, см. JUNK_GEN_WEAPON_TABLE и т.п. — там стат-блок в скобках в конце названия).
+  // Если ни один шаблон не совпал (нестандартно вписанное игроком оружие) — показываем всю строку и
+  // как имя, и как текст: лучше повториться, чем молча обрезать реальное название.
+  const dashIdx = fullName.indexOf(' — ');
+  let cleanName, statText;
+  if(dashIdx !== -1){ cleanName = fullName.slice(0,dashIdx).trim(); statText = fullName.slice(dashIdx+3).trim(); }
+  else {
+    const pm = /^(.*?)\s*\(([^()]*)\)\s*$/.exec(fullName);
+    if(pm){ cleanName = pm[1].trim(); statText = pm[2].trim(); }
+    else { cleanName = fullName.trim(); statText = fullName.trim(); }
+  }
+  const prM = WEAPON_PR_RE.exec(fullName), dlM = WEAPON_DL_RE.exec(fullName), slM = WEAPON_SL_RE.exec(fullName);
+  return {
+    cleanName, statText,
+    at: normSigned(atM[1]), mu: parseInt(muM[1],10), hitType: muM[2]||null,
+    pr: prM ? normSigned(prM[1]) : null, dl: dlM ? parseInt(dlM[1],10) : null, sl: slM ? parseInt(slM[1],10) : null,
+  };
+}
+// Навык боя по оружию (см. памятку "Архаичное/Безоружный/Лёгкое/Тяжёлое" — используется для бросков
+// атаки, см. SAVE_ROLL_DEFS.attack_weapon0/1): нет Дальности → холодное оружие → архаичное; есть
+// Дальность, но это лук/арбалет по названию → архаичное стрелковое (несмотря на Дл — книга прямо
+// исключает луки/арбалеты из лёгкого/тяжёлого); иначе — порох/энергия, Лёгкое при Сл≤3 (или Сл не
+// указана), Тяжёлое при Сл 4+.
+function weaponCombatSkill(w){
+  if(!w || !w.name) return null;
+  if(w.dl == null) return 'arhaichnoe_oruzhie';
+  if(/лук|арбалет/i.test(w.name)) return 'arhaichnoe_oruzhie';
+  return (w.sl!=null && w.sl>=4) ? 'tyazheloe_oruzhie' : 'legkoe_oruzhie';
+}
+function blankWeaponSlot(){ return {name:'',properties:'',at:0,mu:0,dl:null,pr:null,sl:null,itemId:null,itemCategory:null,itemNameSnapshot:null}; }
+// Бросок атаки экипированным оружием — заведён как ещё два SAVE_ROLL_DEFS (тот же приём, что и у
+// raspr_sluh_* выше: несколько записей регистрируются в цикле, base()/tags() читают текущее состояние
+// персонажа при каждом вызове, а не на момент регистрации) — переиспользует ВЕСЬ существующий
+// механизм броска (openRollPicker/openSaveRollPicker/гекс-жест Помеха-Преимущество-Чистый/лог/
+// WS-рассылку) без единой новой строчки в нём самом. Максимум = 10 + навык боя (по оружию, см.
+// weaponCombatSkill) + Ат оружия — сам навык боя игрок при этом продолжает выбирать жестом как
+// обычный модификатор поверх этой базы (anchorMod:0, как у остальных небазовых бросков).
+[0,1].forEach(idx=>{
+  STAT_LABELS['attack_weapon'+idx] = `Атака — Оружие ${idx+1}`;
+  SAVE_ROLL_DEFS['attack_weapon'+idx] = {
+    label: `Атака — Оружие ${idx+1}`, anchorMod: 0,
+    base(){
+      const w = character.weapons[idx], sk = weaponCombatSkill(w);
+      return sk ? 10 + character.stats[sk] + (w.at||0) : 10;
+    },
+    tags(){
+      const w = character.weapons[idx], sk = weaponCombatSkill(w);
+      if(!sk) return [];
+      return [`${STAT_LABELS[sk]}: ${10 + character.stats[sk]}`, `Ат оружия: ${w.at>=0?'+':''}${w.at}`];
+    },
+    formula(){ return 'Навык боя (по оружию) + Ат оружия'; }
+  };
+});
+function findInventoryItemById(itemId){
+  if(!character) return null;
+  for(const cat of ['on_body','pockets','backpack','tiny']){
+    const item = character.inventory[cat].find(x=>x.id===itemId);
+    if(item) return {item, category:cat};
+  }
+  return null;
+}
+function weaponSlotFromItem(item, category, stats){
+  return { name:stats.cleanName, properties:highlightWeaponTags(stats.statText), at:stats.at, mu:stats.mu, dl:stats.dl, pr:stats.pr, sl:stats.sl,
+    itemId:item.id, itemCategory:category, itemNameSnapshot:item.name };
+}
+// Держит слоты в синхроне с реальным инвентарём при КАЖДОЙ отрисовке (см. renderWeapons) — вместо
+// точечных хуков в removeInventoryItem/rerollInventoryItem/onInvDrop/editInventoryItem (пришлось бы
+// помнить про экипировку в каждом из них по отдельности, легко забыть при следующей правке). Правка
+// ручных полей карточки (updateWeaponField) саму запись предмета в инвентаре не трогает — снапшот
+// itemNameSnapshot и текущее item.name совпадают, resync её не перезатирает.
+function resyncWeaponSlots(){
+  if(!character) return;
+  character.weapons.forEach((w,i)=>{
+    if(!w.itemId) return;
+    const found = findInventoryItemById(w.itemId);
+    if(!found){ character.weapons[i] = blankWeaponSlot(); return; } // предмет удалён из инвентаря — слот пустеет
+    const {item, category} = found;
+    if(item.name === w.itemNameSnapshot){ w.itemCategory = category; return; } // предмет не менялся (разве что переложен в другой отсек) — ручные правки карточки не трогаем
+    const stats = parseWeaponStats(item.name);
+    character.weapons[i] = stats ? weaponSlotFromItem(item, category, stats) : blankWeaponSlot(); // переброшен в другой предмет (⚄ Переброс) и/или больше не похож на оружие
+  });
+}
+window.equipWeapon = function(category, itemId, slotIdx){
+  if(!character) return;
+  const item = character.inventory[category] && character.inventory[category].find(x=>x.id===itemId);
+  const stats = item && parseWeaponStats(item.name);
+  if(!item || !stats) return;
+  const prevName = character.weapons[slotIdx].name;
+  character.weapons[slotIdx] = weaponSlotFromItem(item, category, stats);
+  logEvent(character, prevName
+    ? `Оружие заменено (слот ${slotIdx+1}): «${prevName}» → «${stats.cleanName}».`
+    : `Экипировано оружие (слот ${slotIdx+1}): «${stats.cleanName}».`);
+  renderAll();
+};
+window.unequipWeapon = function(slotIdx){
+  if(!character) return;
+  const prevName = character.weapons[slotIdx].name;
+  character.weapons[slotIdx] = blankWeaponSlot();
+  if(prevName) logEvent(character, `Оружие снято (слот ${slotIdx+1}): «${prevName}».`);
+  renderAll();
+};
+// "Заменить" — оба слота заняты, нужно явно выбрать, какой: два гекса "1"/"2" (тот же визуальный
+// язык/размер, что у гексов-модификаторов брoска — просто наведение здесь только подсвечивает и
+// показывает подсказку, выбор — обычным кликом, без протяжного жеста, т.к. выбор всего из двух
+// вариантов). Переиспользует общий слот оверлея бросков/каталога (_rollOverlayEl/closeRollOverlay) —
+// то же самое Esc/клик-по-фону/блокировка кликов "сквозь" попап получаются бесплатно.
+function openWeaponSlotPicker(category, itemId, clientX, clientY){
+  if(!character) return;
+  closeRollOverlay();
+  const overlay = document.createElement('div');
+  overlay.className = 'roll-overlay';
+  const popup = document.createElement('div');
+  popup.className = 'roll-popup';
+  popup.style.visibility = 'hidden';
+  popup.innerHTML = `<div class="quad-title">Оба слота заняты — заменить какой?</div>
+    <div class="hex-line" style="justify-content:center;">
+      <div class="hex" data-slot="0">1</div><div class="hex" data-slot="1">2</div>
+    </div>
+    <div class="roll-max-preview" id="weaponSlotHint"></div>`;
+  overlay.appendChild(popup);
+  document.body.appendChild(overlay);
+  _rollOverlayEl = overlay;
+  document.body.classList.add('roll-modal-active');
+  const pr = popup.getBoundingClientRect();
+  let left = clientX - pr.width/2, top = clientY - pr.height/2;
+  left = Math.max(6, Math.min(left, window.innerWidth - pr.width - 6));
+  top = Math.max(6, Math.min(top, window.innerHeight - pr.height - 6));
+  popup.style.left = left+'px'; popup.style.top = top+'px';
+  popup.style.visibility = 'visible';
+  const hint = popup.querySelector('#weaponSlotHint');
+  const hexes = [...popup.querySelectorAll('.hex')];
+  const updateHint = (i)=>{ hint.innerHTML = character.weapons[i].name ? `Сейчас: <b>${escapeHtml(character.weapons[i].name)}</b>` : 'Слот пуст'; };
+  hexes.forEach(hex=>{
+    const i = parseInt(hex.dataset.slot,10);
+    hex.addEventListener('mouseenter', ()=>{
+      hexes.forEach(h=>h.classList.remove('hovered'));
+      hex.classList.add('hovered'); updateHint(i);
+      hex.classList.remove('hex-shine'); void hex.offsetWidth; hex.classList.add('hex-shine');
+    });
+    hex.addEventListener('click', ()=>{ equipWeapon(category, itemId, i); closeRollOverlay(); });
+  });
+  updateHint(0);
+  overlay.addEventListener('pointerdown',(e)=>{ if(e.target===overlay) closeRollOverlay(); });
+  document.addEventListener('keydown', _rollEscHandler);
+}
+window.openWeaponSlotPicker = openWeaponSlotPicker;
+// Кнопка у предмета инвентаря (см. invRowHtml) — три состояния по месту, как и просили: свободный слот
+// есть и предмет не экипирован → "Экипировать" (заполняет его автоматически, без выбора — выбирать
+// нечего); предмет уже в одном из слотов → "Снять"; оба слота заняты и предмет не в них → "Заменить"
+// (открывает гекс-выбор слота выше).
+function weaponEquipButtonHtml(category, item, stats){
+  const slotIdx = character.weapons.findIndex(w=>w.itemId===item.id);
+  if(slotIdx !== -1) return `<button class="small" onclick="unequipWeapon(${slotIdx})">⚔ Снять</button>`;
+  const freeIdx = character.weapons.findIndex(w=>!w.itemId);
+  if(freeIdx !== -1) return `<button class="small" onclick="equipWeapon('${category}','${item.id}',${freeIdx})">⚔ Экипировать</button>`;
+  return `<button class="small" onpointerdown="event.preventDefault();openWeaponSlotPicker('${category}','${item.id}',event.clientX,event.clientY)">⚔ Заменить</button>`;
+}
 let _zonePickerEl = null;
 function closeZonePicker(){ if(_zonePickerEl){ _zonePickerEl.remove(); _zonePickerEl=null; } }
 // "Надеть" — открывает список из 6 галочек (предзаполнен распознанными зонами, если предмет уже
@@ -8437,6 +8637,10 @@ function invRowHtml(item, category){
   // отдельно от "надето": может быть и разовой едой, а не только снаряжением.
   const restMod = parseRestMod(item.name);
   const restModBtn = restMod==null ? '' : `<button class="small" onclick="toggleRestMod('${category}','${item.id}')" title="Отдых ${restMod>=0?'+':''}${restMod} на Равнине, если включено">${item.restModActive?'Не использовать':'Использовать'} (отдых ${restMod>=0?'+':''}${restMod})</button>`;
+  // "Экипировать"/"Снять"/"Заменить" — только у предметов, где в тексте узнаётся оружейный стат-блок
+  // (Ат.../МУ..., см. parseWeaponStats) — тот же принцип, что и isArmorLike выше для "Надеть".
+  const weaponStats = parseWeaponStats(item.name);
+  const weaponBtn = weaponStats ? weaponEquipButtonHtml(category, item, weaponStats) : '';
   return `<div class="item-line" draggable="true" ondragstart="onInvDragStart(event,'${category}','${item.id}')">
     <b>${item.name}</b> <span class="muted">(вес: ${item.weight})</span> <span class="tag">${item.source}</span>${worn?` <span class="tag worn-tag">Надето: ${item.wornZones.map(z=>ARMOR_ZONE_LABELS[z]).join(', ')}</span>`:''}${item.wornBoots?` <span class="tag worn-tag">Надето (сапоги)</span>`:''}${item.restModActive?` <span class="tag worn-tag">Отдых ${restMod>=0?'+':''}${restMod} включён</span>`:''}
     <div class="choice-btns" style="margin-top:4px;">
@@ -8444,6 +8648,7 @@ function invRowHtml(item, category){
       ${wearBtn}
       ${bootBtn}
       ${restModBtn}
+      ${weaponBtn}
       ${prControls}
       ${rerollBtn}
       <button class="small" onclick="removeInventoryItem('${category}','${item.id}')">✕</button>
@@ -8625,21 +8830,32 @@ function renderRest(){
 function renderWeapons(){
   const el = document.getElementById('weaponsBox');
   if(!character){ el.innerHTML=''; return; }
-  el.innerHTML = character.weapons.map((w,i)=>`
+  resyncWeaponSlots(); // подхватывает экипировку из инвентаря (снятие/переброс/перемещение предмета) перед отрисовкой
+  el.innerHTML = character.weapons.map((w,i)=>{
+    const skill = weaponCombatSkill(w);
+    const attackBtn = skill ? `<button class="small" onpointerdown="event.preventDefault();openSaveRollPicker('attack_weapon${i}',event.clientX,event.clientY)" title="Нажмите и протяните — бросок атаки: ${escapeAttr(STAT_LABELS[skill])} ${character.stats[skill]+10>=0?'+':''}${character.stats[skill]+10}, Ат оружия ${w.at>=0?'+':''}${w.at}">🎯 Атака</button>` : '';
+    return `
     <div class="item-line">
-      <b>Оружие ${i+1}</b>
+      <div class="field-row" style="align-items:center; justify-content:space-between; margin-bottom:0;">
+        <b>Оружие ${i+1}</b>
+        <span>${attackBtn} ${w.itemId ? `<button class="small" onclick="unequipWeapon(${i})">⚔ Снять</button>` : ''}</span>
+      </div>
       <div class="field-row" style="margin-top:4px;">
-        <div class="field"><label>Название и свойства</label><input type="text" value="${escapeAttr(w.name)}" oninput="updateWeaponField(${i},'name',this.value)"></div>
+        <div class="field"><label>Название</label><input type="text" value="${escapeAttr(w.name)}" oninput="updateWeaponField(${i},'name',this.value)"></div>
       </div>
+      ${w.properties ? `<div class="muted" style="margin:2px 0 6px;">${w.properties}</div>` : ''}
       <div class="field-row">
-        <div class="field" style="max-width:100px;"><label>Ат</label><input type="number" value="${w.at}" oninput="updateWeaponField(${i},'at',this.value)"></div>
-        <div class="field" style="max-width:100px;"><label>МУ</label><input type="number" value="${w.mu}" oninput="updateWeaponField(${i},'mu',this.value)"></div>
+        <div class="field" style="max-width:90px;"><label>Ат</label><input type="number" value="${w.at}" oninput="updateWeaponField(${i},'at',this.value)"></div>
+        <div class="field" style="max-width:90px;"><label>МУ</label><input type="number" value="${w.mu}" oninput="updateWeaponField(${i},'mu',this.value)"></div>
+        ${w.dl!=null ? `<div class="field" style="max-width:90px;"><label>Дл</label><input type="number" value="${w.dl}" oninput="updateWeaponField(${i},'dl',this.value)"></div>` : ''}
+        ${w.pr!=null ? `<div class="field" style="max-width:90px;"><label>Пр</label><input type="number" value="${w.pr}" oninput="updateWeaponField(${i},'pr',this.value)"></div>` : ''}
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 window.updateWeaponField = function(idx, field, value){
   if(!character) return;
-  character.weapons[idx][field] = (field==='at'||field==='mu') ? (parseInt(value,10)||0) : value;
+  character.weapons[idx][field] = ['at','mu','dl','pr'].includes(field) ? (parseInt(value,10)||0) : value;
 };
 
 function renderHistory(){
