@@ -28,6 +28,15 @@ function findSheetFile() {
 
 // ---- Раздача самого файла листа персонажа по обычному HTTP ----
 const httpServer = http.createServer((req, res) => {
+  // Лёгкая проверка «жив ли сервер» — для хостинга (health check) и для самого листа: пока идёт сессия, он
+  // раз в несколько минут обращается сюда обычным HTTP-запросом, чтобы бесплатный хостинг (Bonto и
+  // подобные) не усыплял приложение «за неактивностью» посреди игры — WebSocket-трафик такие платформы
+  // активностью могут не считать. Отдельный маршрут, чтобы не гонять ради этого всю страницу (~1,4 МБ).
+  if ((req.url || '/').split('?')[0] === '/healthz') {
+    res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
+    res.end('ok');
+    return;
+  }
   const sheetFile = findSheetFile();
   if (!sheetFile) {
     res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });

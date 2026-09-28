@@ -10060,17 +10060,57 @@ function loadAutosaveIfPresent(){
   if(!isValidPayload(payload)) return;
   applyLoadedPayload(payload);
 }
+// Роль сессии хранится и в sessionStorage (своя у каждой вкладки, переживает её перезагрузку), и в
+// localStorage (общий — чтобы сессия восстановилась и в новой вкладке, и после перезапуска браузера).
+// При восстановлении своя вкладочная запись важнее: раньше Мастер и игрок в двух вкладках одного
+// браузера перезаписывали общий ключ друг другу, и после перезагрузки вкладка Мастера могла подняться
+// игроком (и наоборот).
 function saveSessionState(){
-  try{ localStorage.setItem(SESSION_STATE_KEY, JSON.stringify({role:session.role, ownName:session.ownName})); }catch(e){}
+  const v = JSON.stringify({role:session.role, ownName:session.ownName});
+  try{ sessionStorage.setItem(SESSION_STATE_KEY, v); }catch(e){}
+  try{ localStorage.setItem(SESSION_STATE_KEY, v); }catch(e){}
 }
-function clearSessionState(){ try{ localStorage.removeItem(SESSION_STATE_KEY); }catch(e){} }
+function clearSessionState(){
+  try{ sessionStorage.removeItem(SESSION_STATE_KEY); }catch(e){}
+  try{ localStorage.removeItem(SESSION_STATE_KEY); }catch(e){}
+}
+// Вкладки одного браузера узнают друг о друге через BroadcastChannel: подключённая вкладка отвечает на
+// вопрос «кто уже в сессии?» своей ролью. Нужно новой вкладке (см. restoreSessionIfPresent), чтобы не
+// подключаться автоматически в роли, которую уже держит соседняя, — иначе она сразу вытесняла бы её
+// (тот же id), например, открыв вторую вкладку, чтобы стать в ней Мастером, игрок терял свою.
+const _sessionTabs = (typeof BroadcastChannel!=='undefined') ? new BroadcastChannel('reincarnator_session_tabs') : null;
+if(_sessionTabs) _sessionTabs.onmessage = (ev)=>{
+  const m = ev.data || {};
+  if(m.type==='who-is-connected' && session.role && session.ws && session.ws.readyState===WebSocket.OPEN) _sessionTabs.postMessage({type:'connected', role:session.role});
+};
+function otherTabHoldsRole(role){
+  return new Promise(resolve=>{
+    if(!_sessionTabs) return resolve(false);
+    let done = false;
+    const finish = (v)=>{ if(done) return; done = true; _sessionTabs.removeEventListener('message', onMsg); resolve(v); };
+    const onMsg = (ev)=>{ const m = ev.data || {}; if(m.type==='connected' && m.role===role) finish(true); };
+    _sessionTabs.addEventListener('message', onMsg);
+    _sessionTabs.postMessage({type:'who-is-connected'});
+    setTimeout(()=>finish(false), 400);
+  });
+}
 function restoreSessionIfPresent(){
   if(!sessionAvailable() || location.protocol==='file:') return; // same conditions connectSession itself checks — skip silently instead of surfacing its alert unprompted on a plain page load
-  let state;
-  try{ state = JSON.parse(localStorage.getItem(SESSION_STATE_KEY)||'null'); }catch(e){ return; }
+  let own, shared;
+  try{
+    own = JSON.parse(sessionStorage.getItem(SESSION_STATE_KEY) || 'null');   // эта же вкладка до перезагрузки
+    shared = JSON.parse(localStorage.getItem(SESSION_STATE_KEY) || 'null');  // последняя сессия этого браузера
+  }catch(e){ return; }
+  const state = own || shared;
   if(!state || !state.role) return;
   document.getElementById('sessionOwnName').value = state.ownName || '';
-  connectSession(state.role); // same reconnect path as clicking "Я — Мастер"/"Я — игрок" by hand
+  if(own){ connectSession(state.role); return; } // перезагрузка своей вкладки — сразу, тем же путём, что кнопки
+  otherTabHoldsRole(state.role).then(busy=>{
+    if(session.role) return; // за эти доли секунды уже подключились вручную
+    if(!busy){ connectSession(state.role); return; }
+    document.getElementById('sessionSetupHint').textContent =
+      `Сессия (${state.role==='gm'?'Мастер':'игрок'}) уже открыта в другой вкладке этого браузера. Чтобы подключиться здесь — нажмите «Я — Мастер» или «Я — игрок». Второй игрок в том же браузере — через приватное окно.`;
+  });
 }
 
 const session = {
@@ -11761,8 +11801,13 @@ function getOrCreateClientId(){
   try{ localStorage.setItem(KEY, id); }catch(e){} // приватный режим/квота — не критично, просто не переживёт reload
   return id;
 }
-function wsUrl(){
-  return (location.protocol==='https:' ? 'wss://' : 'ws://') + location.host + '/?cid=' + encodeURIComponent(getOrCreateClientId());
+// У Мастера свой id (тот же базовый + '-gm'): иначе Мастер и игрок, открытые в одном браузере (обычное
+// дело при проверке в одиночку), получали один и тот же id — сервер считал их одним участником, вторая
+// вкладка вытесняла первую, а сообщения стола «самому себе» сервер не пересылает. Id игрока не меняется —
+// к нему привязаны его жетон на столе и очередь выдач Мастера.
+function sessionClientId(role){ const base = getOrCreateClientId(); return role==='gm' ? base + '-gm' : base; }
+function wsUrl(role){
+  return (location.protocol==='https:' ? 'wss://' : 'ws://') + location.host + '/?cid=' + encodeURIComponent(sessionClientId(role));
 }
 let _reconnectTimer = null;
 let _reconnectDelay = 2000;
@@ -11773,14 +11818,27 @@ let _reconnectDelay = 2000;
 // Сравниваем именно «ответ на прошлый сигнал», а не «тишину N секунд»: в фоновой вкладке браузер
 // замедляет таймеры до раза в минуту, и проверка по времени давала бы ложные переподключения. Проверка
 // включается только после первого hb-ack — со старым server.js (который не отвечает) ничего не рвётся.
-let _hbTimer = null;
-function stopHeartbeat(){ if(_hbTimer){ clearInterval(_hbTimer); _hbTimer = null; } }
+// Мёртвым соединение считается только после ДВУХ сигналов подряд без ответа и 45 с полной тишины: фоновую
+// вкладку браузер может ненадолго «заморозить», и после разморозки таймер срабатывает раньше, чем
+// обрабатываются уже пришедшие ответы, — одиночный «пропуск» тогда ложный.
+// Отдельно раз в 4 минуты — обычный HTTP-запрос /healthz: бесплатный хостинг (Bonto) усыпляет приложение
+// после 30 минут «неактивности» и WebSocket-трафик ею может не считать — сон рвал бы игру у всех разом.
+let _hbTimer = null, _awakeTimer = null;
+function stopHeartbeat(){
+  if(_hbTimer){ clearInterval(_hbTimer); _hbTimer = null; }
+  if(_awakeTimer){ clearInterval(_awakeTimer); _awakeTimer = null; }
+}
 function startHeartbeat(ws){
   stopHeartbeat();
-  ws._lastHeard = Date.now(); ws._hbSentAt = 0; ws._serverHb = false;
+  ws._lastHeard = Date.now(); ws._hbSentAt = 0; ws._hbMissed = 0; ws._serverHb = false;
+  _awakeTimer = setInterval(()=>{
+    if(session.ws!==ws || ws.readyState!==WebSocket.OPEN) return;
+    try{ fetch('/healthz?t=' + Date.now(), {cache:'no-store'}).catch(()=>{}); }catch(e){}
+  }, 4*60*1000);
   _hbTimer = setInterval(()=>{
     if(session.ws!==ws || ws.readyState!==WebSocket.OPEN){ stopHeartbeat(); return; }
-    if(ws._serverHb && ws._hbSentAt && ws._lastHeard < ws._hbSentAt && Date.now() - ws._hbSentAt > 15000){
+    if(ws._serverHb && ws._hbSentAt) ws._hbMissed = ws._lastHeard < ws._hbSentAt ? (ws._hbMissed||0) + 1 : 0;
+    if(ws._hbMissed >= 2 && Date.now() - ws._lastHeard > 45000){
       console.warn('[Сессия] Сервер не ответил на сигнал связи — соединение считается оборванным, переподключаемся');
       stopHeartbeat();
       const onclose = ws.onclose;
@@ -11812,7 +11870,7 @@ function connectSession(role){
   session.role = role;
   session.ownName = document.getElementById('sessionOwnName').value.trim() || (role==='gm' ? 'Мастер' : 'Игрок');
   document.getElementById('sessionSetupHint').textContent = 'Подключение…';
-  const ws = new WebSocket(wsUrl());
+  const ws = new WebSocket(wsUrl(role));
   session.ws = ws;
   ws.onopen = ()=>{ console.log('[Сессия] WebSocket открыт'); };
   ws.onmessage = (ev)=>{
@@ -11861,7 +11919,7 @@ function connectSession(role){
     // подключение (см. connectSession выше) — с нарастающей паузой, чтобы не долбить сервер непрерывно.
     if(session.role){
       const delay = _reconnectDelay;
-      _reconnectDelay = Math.min(_reconnectDelay * 1.5, 30000);
+      _reconnectDelay = Math.min(_reconnectDelay * 1.5, 10000); // не дольше 10 с: хостинг просыпается за ~2 с, долгие паузы только затягивали возврат в игру
       _reconnectTimer = setTimeout(()=>connectSession(role), delay);
     }
     updateSessionStatusUI();
@@ -11888,6 +11946,17 @@ function handleReplacedByOtherTab(){
   document.getElementById('sessionSetupHint').textContent =
     'Сессия открыта в другой вкладке этого браузера, здесь она отключена. Чтобы продолжить здесь — нажмите «Я — Мастер» или «Я — игрок».';
 }
+// Сеть вернулась или вкладка снова на экране — не ждать очередной паузы переподключения, а сразу. Для
+// уже живого соединения — сбросить счёт сигналов связи: после долгого сна вкладки он мог устареть.
+function reconnectNowIfWaiting(){
+  if(session.ws && session.ws.readyState===WebSocket.OPEN){ session.ws._hbSentAt = 0; session.ws._hbMissed = 0; return; }
+  if(!session.role || !_reconnectTimer) return;
+  clearTimeout(_reconnectTimer); _reconnectTimer = null;
+  _reconnectDelay = 2000;
+  connectSession(session.role);
+}
+window.addEventListener('online', reconnectNowIfWaiting);
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible') reconnectNowIfWaiting(); });
 function leaveSession(){
   if(_reconnectTimer){ clearTimeout(_reconnectTimer); _reconnectTimer = null; }
   stopHeartbeat();
