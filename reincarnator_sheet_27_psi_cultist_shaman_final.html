@@ -1807,13 +1807,13 @@ const ITEM_CATALOG = {
       {name:'Лук из ПВХ-трубы', weight:'2 Вещи', price:300, avail:'Дефицитная', desc:'Дл15, Ат−3, МУ8 патрон, ПР2/стрелы, Сл2, медленное.'},
       {name:'Лук с сердечником', weight:'2 Вещи', price:600, avail:'Дефицитная', desc:'Дл21, Ат−3, МУ9 патрон, ПР2/стрелы, Сл2, медленное. Первый урон наносит раны 2.'},
       {name:'Пистолет-трубка', weight:'Крш.', price:100, avail:'Дефицитная', desc:'Дл12, Ат−4, МУ7 патрон, ПР2/шарики, раны 2, клинит.'},
-      {name:'Самодельный меч', weight:'2 Вещи', price:800, avail:'Дефицитная', desc:'Ат+4, Пр−1, МУ10 удар, раны 2. При силе 2 и ниже — медленное.'},
-      {name:'Топорик из пластин', weight:'1 Вещь', price:550, avail:'Дефицитная', desc:'Ат+2, Пр−4, МУ10 удар, раны 2, разрыв, травма. Если сила 5+, то ещё пул.'},
-      {name:'Автомат-трубка', weight:'2 Вещи', price:800, avail:'Редкая', desc:'Дл30, Ат−2, МУ8 патрон, Сл2, пул, раны 2.'},
+      {name:'Самодельный меч', weight:'2 Вещи', price:800, avail:'Дефицитная', desc:'Ат+4, Пр−1, МУ10 удар, раны 2. При силе 2 и ниже — медленное. Первый урон в бою наносит раны 3.'},
+      {name:'Топорик из пластин', weight:'1 Вещь', price:550, avail:'Дефицитная', desc:'Ат+2, Пр−4, МУ10 удар, Сл2, разрыв, травма. Если сила 5+, то ещё пул.'},
+      {name:'Автомат-трубка', weight:'2 Вещи', price:800, avail:'Редкая', desc:'Дл30, Ат−2, МУ8 патрон, Сл2, раны 2, автомат, клинит, скорость.'},
       {name:'Копьё дикарей', weight:'2 Вещи', price:650, avail:'Редкая', desc:'Ат+3, Пр−5, МУ11 удар, Сл2, пул, раны 2.'},
       {name:'Лёгкий арбалет', weight:'2 Вещи', price:700, avail:'Редкая', desc:'Дл24, Ат−4, МУ11 патрон, ПР5/болты, Сл2, пул, раны 2, однозарядное.'},
       {name:'Пистолет СДК', weight:'Крш.', price:450, avail:'Редкая', desc:'Дл15, Ат−3, МУ9 патрон, ПР2/9мм, медленное, раны 2.'},
-      {name:'Трубчатое ружьё', weight:'2 Вещи', price:800, avail:'Редкая', desc:'Дл60, Ат−3, МУ9 патрон, ПР2/шарики, Сл2, раны 2.'}
+      {name:'Трубчатое ружьё', weight:'2 Вещи', price:800, avail:'Редкая', desc:'Дл60, Ат−3, МУ9 патрон, ПР2/шарики, раны 2.'}
     ]},
     ammo: { label:'Заряды', items:[
       {name:'Стрелы в колчане', weight:'2 Вещи', price:120, avail:'Базовая', desc:'1 заряд для лука. Собирая стрелы на поле боя — шанс 2 из 6 заполнить 1 заряд.'},
@@ -1999,7 +1999,7 @@ const ITEM_CATALOG = {
       {name:'Частотный ЭМ генератор', weight:'1 Вещь', price:30000, avail:'Редкая', desc:'Раз в круг шанс 3 из 6 отключить тонкую электронику 1-4 Поколения на 1 круг. ПР2/МАБ/5 минут.'}
     ]},
     weapons: { label:'Оружие', items:[
-      {name:'Бластер стражника', weight:'2 Вещи', price:3600, avail:'Базовая', desc:'Дл45, Ат−2, МУ14 энергия, ПР1/«искра», Сл2, автомат, клинит. Устойчив к отключениям из-за ЭМИ.'},
+      {name:'Бластер стражника', weight:'2 Вещи', price:3600, avail:'Базовая', desc:'Дл45, Ат−2, МУ14 энергия, ПР1/«искра», Сл2, раны 2, автомат, клинит. Устойчив к отключениям из-за ЭМИ.'},
       {name:'Вибромеч', weight:'4 Вещи', price:12000, avail:'Базовая', desc:'Цвайхендер: Ат+3, Пр−2, МУ14 удар, ПР5/«искра», Сл4, пул, мощь. Устойчив к ЭМИ.'},
       {name:'Гатлинг', weight:'4 Вещи', price:9900, avail:'Базовая', desc:'Дл60, Ат−1, МУ12 патрон, ПР5/11мм, Сл5, автомат, пальба, раны 2. Успешная атака наносит +1 попадание.'},
       {name:'Мина / граната М', weight:'1 Вещь', price:1000, avail:'Базовая', desc:'Медленное. 2 попадания с МУ15 взрыв, раны 4 в точке и в радиусе 3м ещё по 6 попаданий с МУ10 патрон.'},
@@ -2013,19 +2013,19 @@ const ITEM_CATALOG = {
       {name:'Гнев П − 40 мм', weight:'5 Вещей', price:9000, avail:'Дефицитная', desc:'Дл120, Ат−7, МУ14 патрон, ПР4/40мм, Сл5, пул, раны 2к6, травма. Если сила не 7+, то медленное.'},
       {name:'Гранатомёт', weight:'4 Вещи', price:12000, avail:'Дефицитная', desc:'Дл45, Ат−7, ПР0/граната Г3 или М, или ЭМИ-мина, Сл5, однозарядный (особые правила стр. 147).'},
       {name:'Гравирез (меч)', weight:'2 Вещи', price:9000, avail:'Дефицитная', desc:'Из реликвии «ракушка». Можно парировать выстрелы. Ат+4, Пр−10, МУ14 удар, Сл3, пул, раны к6, ксенотех.'},
-      {name:'Излучатель феодала', weight:'2 Вещи', price:7500, avail:'Дефицитная', desc:'Пучковое лучевое ружьё регулярных войск. Дл45, Ат−5, МУ16 энергия, ПР1/«искра», пул, травма, ксенотех.'},
-      {name:'Кинетическая чакра', weight:'2 Вещи', price:10000, avail:'Дефицитная', desc:'Бросок кольца на 30м с Ат+1, МУ14 энергия, ПР2/«искра», раны 4, пул, травма, ксенотех.'},
+      {name:'Излучатель феодала', weight:'2 Вещи', price:7500, avail:'Дефицитная', desc:'Пучковое лучевое ружьё регулярных войск. Дл45, Ат−5, МУ16 энергия, ПР1/«искра», Сл3, пул, травма, ксенотех.'},
+      {name:'Кинетическая чакра', weight:'2 Вещи', price:10000, avail:'Дефицитная', desc:'Бросок кинетического кольца на 30м с Ат+1, МУ14 удар, ПР2/«МАБ», Сл2, раны 4, пул, травма, ксенотех.'},
       {name:'Лазерное ружьё', weight:'2 Вещи', price:15000, avail:'Дефицитная', desc:'Стреляет бесшумно. Дл75, Ат−3, МУ[15+категория успеха атаки] энергия, ПР2/«искра», Сл2, раны 6, пул.'},
       {name:'Перламутровый меч', weight:'1 Вещь', price:15000, avail:'Дефицитная', desc:'Элитный клинок культуры дикарей. Ат+0, Пр+0, МУ14 удар, Сл2, мощь.'},
-      {name:'Пистолет «Шина» 91', weight:'1 Вещь', price:5000, avail:'Дефицитная', desc:'Оружие сил самообороны Княжества. Дл30, Ат−1, МУ13 патрон, ПР3/7,62мм, травма, скорость.'},
+      {name:'Пистолет «Шина» 91', weight:'1 Вещь', price:5000, avail:'Дефицитная', desc:'Оружие сил самообороны Княжества. Дл30, Ат−1, МУ13 патрон, ПР3/7,62мм, раны 2, травма, скорость.'},
       {name:'Ранцевый огнемёт', weight:'1 Огр.', price:10000, avail:'Дефицитная', desc:'Продаётся без зарядов горючки. Дл15, Ат+1, МУ15 температура, ПР5/заряд горючки, Сл5, пул, мощь.'},
       {name:'Ружьё расхитителей', weight:'2 Вещи', price:4500, avail:'Дефицитная', desc:'Широко распространено во всех Княжествах. Дл75, Ат−5, МУ14 патрон, ПР2/7,62мм, Сл3, пул, мощь, травма.'},
-      {name:'Силовой молот', weight:'4 Вещи', price:12000, avail:'Дефицитная', desc:'Ат+3, Пр−3, МУ15 удар, ПР4/«искра», Сл2, мощь, травма, скорость. Если сила не 6+, то медленное.'},
+      {name:'Силовой молот', weight:'4 Вещи', price:12000, avail:'Дефицитная', desc:'Ат+3, Пр−3, МУ15 удар, ПР4/«искра», Сл2, мощь, травма. Если сила не 6+, то медленное.'},
       {name:'Термическая граната', weight:'1 Вещь', price:2100, avail:'Дефицитная', desc:'По 4 раны целям с защитой от температуры 6- в радиусе 6м, поджигая на [размер цели, min 1] круг.'},
-      {name:'Шрапнельная пушка', weight:'3 Вещи', price:6000, avail:'Дефицитная', desc:'Дл15, Ат+3, МУ13 патрон, ПР1/картечь, Сл3, раны 3. Проверьте атаку по каждой цели в радиусе 3м.'},
+      {name:'Шрапнельная пушка', weight:'3 Вещи', price:6000, avail:'Дефицитная', desc:'Дл15, Ат+3, МУ13 патрон, ПР1/картечь, Сл2. Проверьте атаку по каждой цели в радиусе 3м.'},
       {name:'Щитовой излучатель', weight:'3 Вещи', price:12000, avail:'Дефицитная', desc:'Успехом Броска техники (−6) на круг даёт щит, снижающий попадания МУ на 2 и раны на 1. ПР5/МАБ/круг.'},
       {name:'Электропрут', weight:'2 Вещи', price:4500, avail:'Дефицитная', desc:'Ат+3, Пр−3, МУ9 удар, ПР5/«искра», Сл2. Каждое попадание даёт разряд с МУ14 энергия, раны 2.'},
-      {name:'Бронебой', weight:'3 Вещи', price:15000, avail:'Редкая', desc:'Снайперское ружьё. Дл150, Ат−7, МУ17 патрон, ПР2/10,2мм, Сл3, оптика, раны 4, травма.'},
+      {name:'Бронебой', weight:'3 Вещи', price:15000, avail:'Редкая', desc:'Снайперское ружьё. Дл150, Ат−7, МУ17 патрон, ПР2/10,2мм, Сл3, оптика, раны 4.'},
       {name:'Веерный лазер', weight:'5 Вещей', price:15000, avail:'Редкая', desc:'Тяжёлая лазерная установка. Дл60, Ат+2, МУ16 энергия, ПР5/МАБ, Сл6, автомат, пальба, раны 3, скорость.'},
       {name:'Пистолет Шакиров', weight:'2 Вещи', price:9000, avail:'Редкая', desc:'Дл30, Ат−4, МУ13 патрон, ПР4/10,2мм, Сл3, пул, раны 4, травма. Если сила не 5+, то медленное.'},
       {name:'Плазмомёт чёрных', weight:'2 Вещи', price:30000, avail:'Редкая', desc:'Плазмомёт Империи. Дл45, Ат−2, МУ17 энергия, ПР2/МАБ, Сл3, автомат, высокие технологии, мощь.'},
@@ -2087,11 +2087,11 @@ const ITEM_CATALOG = {
       {name:'Пистолет повстанцев', weight:'1 Вещь', price:16000, avail:'Базовая', desc:'Оружие повстанцев предвоенной эпохи. Дл30, Ат−4, МУ13 патрон, ПР2/10,2мм, раны 4, травма.'},
       {name:'П-лучемёт', weight:'2 Вещи', price:25000, avail:'Базовая', desc:'Пучковое ружьё. Дл60, Ат−2, МУ18 энергия, ПР4/«искра», Сл2, раны 3, пальба.'},
       {name:'П-лучестрел', weight:'1 Крш.', price:18000, avail:'Базовая', desc:'Пучковый пистолет. Дл30, Ат−2, МУ16 энергия, ПР3/«искра», Сл2, раны 3, пальба, автомат, высокие технологии.'},
-      {name:'Ружьё повстанцев', weight:'2 Вещи', price:20000, avail:'Базовая', desc:'Ружьё из предвоенной эпохи. Дл120, Ат−4, МУ14 патрон, ПР2/10,2мм, Сл3, раны 4, травма.'},
+      {name:'Ружьё повстанцев', weight:'2 Вещи', price:20000, avail:'Базовая', desc:'Ружьё из предвоенной эпохи. Дл120, Ат−4, МУ14 патрон, ПР2/10,2мм, Сл3, раны 4, скорость.'},
       {name:'ВИМ (варп-карабин)', weight:'2 Вещи', price:45000, avail:'Дефицитная', desc:'Дл120, Ат−2, МУ15 патрон, ПР2/10,2мм, Сл3, автомат, раны 4, травма, скорость, высокие технологии.'},
       {name:'Мед-излучатель', weight:'3 Вещи', price:45000, avail:'Дефицитная', desc:'Успехом Броска медицины (−8) на 1 минуту даёт [3 за категорию успеха] временных ОЗ. ПР3/МАБ/бой.'},
       {name:'Плазмо-пистолет', weight:'1 Крш.', price:36000, avail:'Дефицитная', desc:'Боевое довоенное оружие. Дл30, Ат−4, МУ17 энергия, ПР2/«искра», пальба, мощь, высокие технологии.'},
-      {name:'Плазмомёт мод. 112', weight:'2 Вещи', price:60000, avail:'Дефицитная', desc:'Плазменное ружьё. Дл60, Ат−3, МУ18 энергия, ПР1/МАБ, Сл3, автомат, мощь, высокие технологии.'},
+      {name:'Плазмомёт мод. 112', weight:'2 Вещи', price:60000, avail:'Дефицитная', desc:'Плазменное ружьё. Дл60, Ат−3, МУ18 энергия, ПР1/МАБ, Сл3, мощь, высокие технологии.'},
       {name:'ПБС (глушитель)', weight:'1 Крш.', price:9000, avail:'Дефицитная', desc:'Снижает звук и пламя от порохового выстрела, МУ оружия −1, универсален для всех стволов.'},
       {name:'Резонатор фаз-ружьё', weight:'2 Вещи', price:45000, avail:'Дефицитная', desc:'Из реликвии «молот». Дл90, Ат−3, МУ15 патрон, ПР3/МАБ, Сл3, раны 4 (6, если у цели 10+ ОЗ), ксенотех.'},
       {name:'Тяжёлая ЭЛЛ-пушка', weight:'6 Вещей', price:50000, avail:'Дефицитная', desc:'Лазер. Дл300, Ат−8, МУ18 энергия, ПР3/МАБ, Сл5, раны 6, пул, пальба. Медленное при силе < 8.'},
@@ -6775,6 +6775,11 @@ function parseWeaponStats(fullName){
     // мощь в резолве игнорируется (см. hasExplicitWounds выше), но сам факт конфликта подсвечивается
     // предупреждением на карточке (см. renderWeapons), а не тихо проглатывается.
     moshh: hasWeaponTag(statText, 'мощь'),
+    // "Скорость" — первая успешная атака В БОЮ наносит на 1 попадание больше (см. resolveWeaponAttackOutcome).
+    // Этот лист не отслеживает начало/конец боя сам — "доступность" бонуса живёт как ручной чекбокс на
+    // карточке (см. speedBonusAvailable у слота/toggleWeaponSpeedBonus), который игрок сам отмечает
+    // обратно после боя, а не автоматический таймер/счётчик ходов.
+    skorost: hasWeaponTag(statText, 'скорость'),
   };
 }
 // Навык боя по оружию (см. памятку "Архаичное/Безоружный/Лёгкое/Тяжёлое" — используется для бросков
@@ -6790,8 +6795,9 @@ function weaponCombatSkill(w){
 }
 function blankWeaponSlot(){
   return {name:'',properties:'',at:0,mu:0,dl:null,pr:null,sl:null,wounds:1,hasExplicitWounds:false,
-    klinit:false,razryv:false,pul:false,avtomat:false,optika:false,odnozaryadnoe:false,palba:false,highTech:false,xenoteh:false,moshh:false,
+    klinit:false,razryv:false,pul:false,avtomat:false,optika:false,odnozaryadnoe:false,palba:false,highTech:false,xenoteh:false,moshh:false,skorost:false,
     loaded:true, // "заряжено" — только у однозарядное/пальба показывается как переключатель (см. renderWeapons), ручной, не влияет на бросок
+    speedBonusAvailable:true, // "Скорость" — доступность бонусного попадания, см. skorost выше; ручной чекбокс, не сбрасывается автоматически
     itemId:null,itemCategory:null,itemNameSnapshot:null};
 }
 // Бросок атаки экипированным оружием — заведён как ещё два SAVE_ROLL_DEFS (тот же приём, что и у
@@ -6877,7 +6883,8 @@ function findInventoryItemById(itemId){
 function weaponSlotFromItem(item, category, stats){
   return { name:stats.cleanName, properties:highlightWeaponTags(stats.statText), at:stats.at, mu:stats.mu, dl:stats.dl, pr:stats.pr, sl:stats.sl,
     wounds:stats.wounds, hasExplicitWounds:stats.hasExplicitWounds, klinit:stats.klinit, razryv:stats.razryv, pul:stats.pul, avtomat:stats.avtomat, optika:stats.optika,
-    odnozaryadnoe:stats.odnozaryadnoe, palba:stats.palba, highTech:stats.highTech, xenoteh:stats.xenoteh, moshh:stats.moshh, loaded:true,
+    odnozaryadnoe:stats.odnozaryadnoe, palba:stats.palba, highTech:stats.highTech, xenoteh:stats.xenoteh, moshh:stats.moshh, skorost:stats.skorost,
+    loaded:true, speedBonusAvailable:true,
     itemId:item.id, itemCategory:category, itemNameSnapshot:item.name };
 }
 // Держит слоты в синхроне с реальным инвентарём при КАЖДОЙ отрисовке (см. renderWeapons) — вместо
@@ -6981,6 +6988,11 @@ window.toggleWeaponLoaded = function(idx){
   character.weapons[idx].loaded = !character.weapons[idx].loaded;
   renderAll();
 };
+window.toggleWeaponSpeedBonus = function(idx){
+  if(!character) return;
+  character.weapons[idx].speedBonusAvailable = !character.weapons[idx].speedBonusAvailable;
+  renderAll();
+};
 // Резолв попаданий после УСПЕШНОЙ атаки (или клинит-замятия) — вызывается из executeRoll ниже для
 // любого броска с statKey вида attack_weapon*/burst_weapon*/suppress_weapon*. Не трогает d20-часть
 // (это уже сделал executeRoll/recordAndShareRoll) — только то, что происходит ПОСЛЕ: сколько попаданий,
@@ -7004,6 +7016,12 @@ function resolveWeaponAttackOutcome(statKey, roll, success, category){
   if(fireMode==='burst') hitCount = category+3;
   else if(fireMode==='suppress') hitCount = category;
   else hitCount = (w.razryv || w.pul) ? 1 : category; // Разрыв/Пул — "оружие наносит лишь одно попадание"
+  // "Скорость" — первая успешная атака В БОЮ наносит на 1 попадание больше. Бой этот лист не
+  // отслеживает — "доступность" живёт как ручной чекбокс на карточке (см. speedBonusAvailable),
+  // включённый по умолчанию при экипировке/замене оружия, снимается здесь при использовании и
+  // возвращается игроком вручную после боя (см. toggleWeaponSpeedBonus/renderWeapons).
+  const speedBonusUsed = w.skorost && w.speedBonusAvailable;
+  if(speedBonusUsed){ hitCount += 1; w.speedBonusAvailable = false; }
   // "Мощь позволяет наносить к12 ран" — раны за попадание берутся из уже брошенного к12 (тот самый,
   // что и так кидается на каждое попадание — см. цикл ниже) ВМЕСТО плоского wounds; отдельного броска
   // на раны это не требует, к12 просто служит и локацией, и раной одновременно. Не работает, если у
@@ -7025,6 +7043,7 @@ function resolveWeaponAttackOutcome(statKey, roll, success, category){
     }
   }
   recordAndShareQuickRoll({weaponHits:true, weaponName:w.name, fireMode, hits});
+  if(speedBonusUsed) renderWeapons(); // сразу отражает снятый чекбокс "Скорость" на карточке, не дожидаясь следующего несвязанного renderAll()
 }
 let _zonePickerEl = null;
 function closeZonePicker(){ if(_zonePickerEl){ _zonePickerEl.remove(); _zonePickerEl=null; } }
@@ -8996,6 +9015,9 @@ function renderWeapons(){
     // Однозарядное/Пальба — требуют перезарядку действием между атаками (см. "Черты оружия"), этот
     // лист не считает ходы/действия — переключатель чисто информационный (см. toggleWeaponLoaded).
     const reloadToggle = (w.odnozaryadnoe || w.palba) ? `<button class="small" onclick="toggleWeaponLoaded(${i})">${w.loaded?'🔋 Заряжено':'🪫 Разряжено — перезарядить (действие)'}</button>` : '';
+    // "Скорость" — доступность бонусного попадания на первую атаку в бою (см. skorost/speedBonusAvailable,
+    // снимается в resolveWeaponAttackOutcome) — ручной чекбокс, игрок сам возобновляет после боя.
+    const skorostToggle = w.skorost ? `<label style="font-size:11px; display:flex; align-items:center; gap:4px; margin:2px 0;"><input type="checkbox" ${w.speedBonusAvailable?'checked':''} onchange="toggleWeaponSpeedBonus(${i})"> ⚡ Скорость: бонусное попадание на первую атаку в бою доступно</label>` : '';
     const techPenalty = weaponTechPenalty(w);
     const notes = techPenalty.notes.slice();
     // "Мощь не работает, если указаны раны" — оба тега сейчас не должны встречаться на одном оружии
@@ -9014,6 +9036,7 @@ function renderWeapons(){
         <div class="field"><label>Название</label><input type="text" value="${escapeAttr(w.name)}" oninput="updateWeaponField(${i},'name',this.value)"></div>
       </div>
       ${w.properties ? `<div class="muted" style="margin:2px 0 6px;">${w.properties}</div>` : ''}
+      ${skorostToggle}
       <div class="field-row">
         <div class="field" style="max-width:90px;"><label>Ат</label><input type="number" value="${w.at}" oninput="updateWeaponField(${i},'at',this.value)"></div>
         <div class="field" style="max-width:90px;"><label>МУ</label><input type="number" value="${w.mu}" oninput="updateWeaponField(${i},'mu',this.value)"></div>
