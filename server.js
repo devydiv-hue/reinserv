@@ -123,8 +123,24 @@ function encodePingFrame() {
   return Buffer.from([0x89, 0x00]); // FIN=1, opcode=0x9 (ping), пустой payload
 }
 const PING_INTERVAL_MS = 25000;
+// Обратная сторона той же проблемы: если клиент пропал «тихо» (ноутбук уснул, сеть отвалилась без
+// закрытия соединения), TCP может ещё минуты не сообщать об ошибке — всё это время сервер считал его
+// подключённым и отправлял ему сообщения в пустоту (например, выданную Мастером удачу). Теперь сервер
+// помнит, когда от соединения последний раз что-то приходило (pong на наш ping, сигнал 'hb' от листа
+// раз в 20 с или любое обычное сообщение), и закрывает то, что молчит дольше STALE_AFTER_MS, — дальше
+// обычный путь: peer-left после грейс-периода, а клиент, если он всё-таки жив, переподключится сам.
+// Порог с запасом больше двух интервалов — не рвать живые соединения из-за одной задержки.
+const STALE_AFTER_MS = 70000;
 setInterval(() => {
-  clients.forEach(socket => { try { socket.write(encodePingFrame()); } catch (e) { /* сокет уже мог закрыться */ } });
+  const now = Date.now();
+  clients.forEach((socket, id) => {
+    if (now - (socket._lastSeen || now) > STALE_AFTER_MS) {
+      console.log('[Server] Client', id, 'молчит больше', STALE_AFTER_MS / 1000, 'с — закрываем как оборванный');
+      try { socket.destroy(); } catch (e) {}
+      return;
+    }
+    try { socket.write(encodePingFrame()); } catch (e) { /* сокет уже мог закрыться */ }
+  });
 }, PING_INTERVAL_MS);
 
 // Клиент присылает свой собственный, постоянный (в localStorage) id строкой запроса ?cid=... —
@@ -163,8 +179,16 @@ httpServer.on('upgrade', (req, socket) => {
   // осиротевшим и закрываем, тот же приём, что уже используется в самом листе персонажа для защиты от
   // зомби-сокетов при повторном connectSession(). Без этого старый socket так и остался бы в clients,
   // и broadcastExcept/send(clients.get(msg.to)) продолжали бы слать И туда тоже.
+  // Перед закрытием старому сокету сообщаем 'replaced': если он на самом деле жив (тот же браузер
+  // открыл лист во второй вкладке — id хранится в общем для вкладок localStorage), клиент не должен
+  // переподключаться сам, иначе две вкладки бесконечно выбивают друг друга каждые ~2 секунды.
+  // Если старый сокет действительно мёртв (обычный реконнект), сообщение просто никуда не дойдёт.
   const stale = clients.get(id);
-  if (stale && stale !== socket) { try { stale.destroy(); } catch (e) {} }
+  if (stale && stale !== socket) {
+    try { stale.end(encodeFrame(JSON.stringify({ type: 'replaced', from: 'server' }))); } catch (e) {}
+    setTimeout(() => { try { stale.destroy(); } catch (e) {} }, 1000);
+  }
+  socket._lastSeen = Date.now();
   clients.set(id, socket);
   // Вернулся до истечения grace-периода (см. pendingLeave выше) — остальные участники так и не узнают,
   // что было кратковременное отключение, их peer-соединение к этому id ни разу не рвалось с их стороны.
@@ -174,6 +198,7 @@ httpServer.on('upgrade', (req, socket) => {
 
   let buffer = Buffer.alloc(0);
   socket.on('data', chunk => {
+    socket._lastSeen = Date.now(); // любые байты (включая pong) — признак, что клиент жив, см. STALE_AFTER_MS
     buffer = Buffer.concat([buffer, chunk]);
     // Один вызов 'data' может содержать несколько кадров, один кадр, или только часть одного -
     // цикл забирает все кадры, которые уже накопились целиком, и останавливается, если текущий
@@ -193,10 +218,19 @@ httpServer.on('upgrade', (req, socket) => {
       const maskKey = frameBuf.slice(info.headerLen - 4, info.headerLen);
       const payload = unmask(frameBuf.slice(info.headerLen, info.total), maskKey);
 
+      // Этот сокет уже вытеснен новым соединением с тем же id (см. 'replaced' выше) — пока он
+      // закрывается, его сообщения никуда не пересылаем, иначе они уходили бы от имени живого клиента.
+      if (clients.get(id) !== socket) continue;
       let msg;
       try { msg = JSON.parse(payload.toString('utf8')); } catch (e) { continue; }
+      // JSON может быть и не объектом ("null", число, строка, массив) — присвоение msg.from ниже на таком
+      // значении бросало TypeError прямо в обработчике 'data', и весь процесс сервера падал у всех сразу.
+      if (!msg || typeof msg !== 'object' || Array.isArray(msg)) continue;
+      // Сигнал «я жив» от листа — только для этого сервера: отвечаем тому же клиенту (по ответу он сам
+      // понимает, что сервер жив) и никому не пересылаем.
+      if (msg.type === 'hb') { send(socket, { type: 'hb-ack', from: 'server' }); continue; }
       msg.from = id;
-      if (msg.to) {
+      if (typeof msg.to === 'string' && msg.to) {
         const target = clients.get(msg.to);
         if (target) send(target, msg);
       } else {

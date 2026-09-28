@@ -970,6 +970,172 @@
     animation:dieNumberShine .6s ease-out;
   }
   @keyframes dieNumberShine{ 0%{ background-position:170% 0; } 100%{ background-position:-70% 0; } }
+
+  /* ============================================================
+     ИГРОВОЙ СТОЛ (#tableTabView, модуль GameTable в отдельном блоке script в конце файла).
+     Слои снизу вверх — ровно в порядке DOM внутри .gt-viewport: фон+сетка (canvas) → зоны и рисунки
+     (canvas) → жетоны (HTML) → временное: линейка, ping, указка Мастера (canvas) → панели интерфейса.
+     Поле — тот же «пергамент», что и у панелей листа (--card), инструменты — тёмные «чернильные»
+     пилюли, активный инструмент закрашен тем же акцентом --stamp, что и активная вкладка.
+     ============================================================ */
+  .gt-viewport{
+    position:relative; height:calc(100vh - 222px); min-height:420px;
+    border:2px solid var(--ink); border-radius:14px; overflow:hidden; background:var(--card);
+    box-shadow: 0 18px 34px -16px rgba(0,0,0,.75), 0 1px 0 rgba(246,236,212,.08);
+    touch-action:none; user-select:none; -webkit-user-select:none; outline:none; cursor:default;
+  }
+  .gt-viewport.tool-ruler, .gt-viewport.tool-ping, .gt-viewport.tool-draw, .gt-viewport.tool-token{ cursor:crosshair; }
+  .gt-viewport.tool-text{ cursor:text; }
+  .gt-viewport.space-pan{ cursor:grab; }
+  .gt-viewport.panning{ cursor:grabbing; }
+  .gt-canvas{ position:absolute; left:0; top:0; pointer-events:none; }
+  .gt-token-layer{ position:absolute; left:0; top:0; width:0; height:0; transform-origin:0 0; pointer-events:none; --gt-inv:1; }
+  .gt-token{ position:absolute; left:0; top:0; pointer-events:auto; cursor:pointer; }
+  .gt-token.movable{ cursor:grab; }
+  .gt-token.dragging{ z-index:5; cursor:grabbing; }
+  .gt-token-disc{
+    position:absolute; inset:0; border-radius:50%; background:var(--tok,#9c2f1c);
+    border:3px solid var(--ink); overflow:hidden;
+    box-shadow: 0 3px 0 rgba(0,0,0,.35), inset 0 0 0 2px rgba(246,236,212,.35);
+    display:flex; align-items:center; justify-content:center;
+    color:var(--vellum-bright); font-family:var(--font-display); font-weight:700; line-height:1;
+    text-shadow:0 1px 2px rgba(0,0,0,.6); transform:rotate(var(--rot,0deg));
+    transition: box-shadow .12s ease;
+  }
+  .gt-token-disc img{ width:100%; height:100%; object-fit:cover; pointer-events:none; -webkit-user-drag:none; }
+  .gt-token.selected .gt-token-disc{
+    box-shadow: 0 0 0 calc(3px * var(--gt-inv)) var(--card), 0 0 0 calc(6px * var(--gt-inv)) var(--stamp), 0 3px 0 rgba(0,0,0,.35);
+  }
+  .gt-token.dragging .gt-token-disc{ box-shadow: 0 0 0 calc(3px * var(--gt-inv)) var(--card), 0 0 0 calc(6px * var(--gt-inv)) var(--stamp), 0 12px 20px rgba(0,0,0,.45); }
+  .gt-token.hidden-tok{ opacity:.55; }
+  .gt-token.hidden-tok .gt-token-disc{ border-style:dashed; }
+  .gt-hidden-badge{
+    position:absolute; right:-2px; top:-2px; font-style:normal; font-size:14px; line-height:1;
+    background:var(--ink); color:var(--vellum-bright); border-radius:50%; padding:2px 3px;
+    transform:scale(var(--gt-inv)); transform-origin:100% 0;
+  }
+  .gt-token-label{
+    position:absolute; left:50%; top:100%; margin-top:4px; pointer-events:none;
+    transform:translateX(-50%) scale(var(--gt-inv)); transform-origin:50% 0;
+    display:flex; flex-direction:column; align-items:center; gap:1px; white-space:nowrap;
+    background:rgba(28,23,18,.9); color:var(--vellum-bright); border-radius:8px; padding:2px 8px 3px;
+    font-size:11px; line-height:1.2; box-shadow:0 2px 0 rgba(0,0,0,.3);
+  }
+  .gt-token-label b{ font-weight:700; letter-spacing:.02em; }
+  .gt-token-label .gt-stats{ display:flex; gap:8px; font-size:10.5px; }
+  .gt-hp{ color:#f0b7a8; }
+  .gt-hp.down{ color:#ff6b57; font-weight:700; }
+  .gt-psi{ color:#c9b8ec; }
+  .gt-off{ color:var(--vellum-muted); font-size:10px; }
+
+  .gt-ui{ position:absolute; z-index:10; }
+  .gt-bar{
+    display:flex; gap:3px; flex-wrap:wrap; align-items:center; padding:4px;
+    background:rgba(28,23,18,.93); border-radius:999px; box-shadow:0 8px 18px -8px rgba(0,0,0,.7);
+  }
+  .gt-toolbar{ top:10px; left:10px; max-width:calc(100% - 200px); }
+  .gt-subbar{ top:58px; left:10px; max-width:calc(100% - 20px); display:none; border-radius:16px; }
+  .gt-zoombar{ top:10px; right:10px; }
+  button.gt-tool{
+    display:inline-flex; align-items:center; gap:6px; padding:6px 11px; font-size:10.5px;
+    background:transparent; color:var(--vellum-muted); border:1.5px solid transparent; box-shadow:none;
+  }
+  button.gt-tool:hover{ background:rgba(246,236,212,.1); color:var(--vellum-bright); border-color:transparent; }
+  button.gt-tool.active{ background:var(--stamp); color:var(--vellum-bright); border-color:var(--stamp); }
+  button.gt-tool:disabled{ opacity:.3; }
+  button.gt-tool svg{ width:15px; height:15px; flex-shrink:0; }
+  .gt-zoom-label{ color:var(--vellum-bright); font-size:11px; font-weight:700; min-width:40px; text-align:center; cursor:pointer; }
+  .gt-sep{ width:1px; align-self:stretch; background:rgba(246,236,212,.18); margin:3px 3px; }
+  .gt-swatch{
+    width:18px; height:18px; border-radius:50%; border:2px solid rgba(246,236,212,.35); padding:0; box-shadow:none;
+    background:var(--c); cursor:pointer;
+  }
+  button.gt-swatch:hover{ background:var(--c); border-color:var(--vellum-bright); }
+  .gt-swatch.active{ border-color:var(--vellum-bright); box-shadow:0 0 0 2px var(--stamp); }
+  .gt-range{ display:inline-flex; align-items:center; gap:5px; color:var(--vellum-muted); font-size:10px; text-transform:uppercase; padding:0 4px; }
+  .gt-range input{ width:70px; accent-color:var(--stamp); }
+  @media (max-width:820px){
+    .gt-lbl{ display:none; }
+    button.gt-tool{ padding:6px 8px; }
+    .gt-toolbar{ max-width:calc(100% - 20px); }
+    .gt-zoombar{ top:auto; bottom:10px; }
+  }
+
+  .gt-status{
+    right:10px; bottom:10px; padding:4px 10px; border-radius:999px; font-size:10.5px;
+    background:rgba(28,23,18,.8); color:var(--vellum-muted); pointer-events:none;
+  }
+  .gt-status b{ color:var(--vellum-bright); }
+  @media (max-width:820px){ .gt-status{ display:none; } }
+  .gt-infocard{
+    left:10px; bottom:10px; display:none; min-width:150px; padding:8px 12px; border-radius:12px; pointer-events:none; /* только информация — не перекрывает поле для кликов */
+    background:var(--card); border:2px solid var(--ink); box-shadow:0 10px 20px -10px rgba(0,0,0,.6); font-size:12px;
+  }
+  .gt-infocard .gt-ic-name{ font-family:var(--font-display); font-weight:700; font-size:13px; }
+  .gt-infocard .gt-ic-sub{ color:var(--ink-soft); font-size:10.5px; text-transform:uppercase; letter-spacing:.03em; }
+  .gt-infocard .gt-ic-stats{ display:flex; gap:12px; margin-top:3px; font-weight:700; }
+  .gt-infocard .gt-ic-stats .hp{ color:var(--stamp); }
+  .gt-infocard .gt-ic-stats .psi{ color:#5a3f8a; }
+  .gt-hint{
+    left:50%; bottom:10px; transform:translateX(-50%); display:none; pointer-events:none;
+    padding:5px 12px; border-radius:999px; background:rgba(28,23,18,.88); color:var(--vellum-bright); font-size:11px; white-space:nowrap;
+  }
+  .gt-toast{
+    left:50%; bottom:46px; transform:translate(-50%,6px); opacity:0; pointer-events:none;
+    padding:6px 14px; border-radius:999px; background:var(--stamp); color:var(--vellum-bright); font-size:11.5px; font-weight:700;
+    transition: opacity .18s ease, transform .18s ease; box-shadow:0 8px 18px -8px rgba(0,0,0,.7);
+  }
+  .gt-toast.show{ opacity:1; transform:translate(-50%,0); }
+
+  .gt-menu{
+    display:none; min-width:190px; padding:5px; background:var(--card); border:2px solid var(--ink); border-radius:10px;
+    box-shadow:0 14px 26px -10px rgba(0,0,0,.65); z-index:20;
+  }
+  .gt-menu-title{ padding:4px 10px 6px; font-family:var(--font-display); font-weight:700; font-size:12px; border-bottom:1px dotted var(--ink); margin-bottom:3px; }
+  .gt-menu button{
+    display:flex; align-items:center; width:100%; text-align:left; border:none; box-shadow:none; border-radius:6px;
+    padding:6px 10px; background:transparent; font-size:10.5px; color:var(--ink);
+  }
+  .gt-menu button:hover{ background:var(--ink); color:var(--card); }
+  .gt-menu button.danger{ color:var(--stamp); }
+  .gt-menu button.danger:hover{ background:var(--stamp); color:var(--vellum-bright); }
+  .gt-menu .gt-menu-sizes{ display:flex; gap:3px; padding:3px 6px 5px; flex-wrap:wrap; }
+  .gt-menu .gt-menu-sizes button{ width:auto; padding:3px 8px; border:1.5px solid var(--ink); border-radius:999px; font-size:9.5px; }
+  .gt-menu .gt-menu-sizes button.active{ background:var(--stamp); border-color:var(--stamp); color:var(--vellum-bright); }
+  .gt-menu hr{ border:none; border-top:1px dotted var(--ink-soft); margin:4px 4px; }
+
+  .gt-popover{
+    display:none; width:260px; max-width:calc(100% - 20px); padding:12px 12px 10px; background:var(--card);
+    border:2px solid var(--ink); border-radius:12px; box-shadow:0 16px 30px -10px rgba(0,0,0,.7); z-index:21;
+    user-select:text; -webkit-user-select:text;
+  }
+  .gt-pop-title{ font-family:var(--font-display); font-weight:700; font-size:13px; margin-bottom:8px; }
+  .gt-pop-note{ font-size:11px; color:var(--ink-soft); margin:-3px 0 8px; }
+  .gt-f{ display:block; font-size:10px; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.03em; margin-bottom:8px; }
+  .gt-f input, .gt-f select, .gt-f textarea{ display:block; margin-top:3px; }
+  .gt-f textarea{
+    width:100%; min-height:60px; font-family:var(--font); font-size:13px; background:var(--paper); color:var(--ink);
+    border:1.5px solid var(--ink); border-radius:6px; padding:6px 8px; resize:vertical;
+  }
+  .gt-f input[type=url]{
+    font-family:var(--font); background:var(--paper); color:var(--ink); border:1.5px solid var(--ink);
+    border-radius:6px; padding:6px 8px; font-size:13px; width:100%;
+  }
+  .gt-f-row{ display:flex; gap:8px; }
+  .gt-f-row .gt-f{ flex:1; }
+  .gt-check{ display:flex; align-items:center; gap:6px; font-size:12px; margin:2px 0 8px; }
+  .gt-check input{ accent-color:var(--stamp); width:16px; height:16px; }
+  .gt-swatches{ display:flex; gap:5px; flex-wrap:wrap; margin:3px 0 10px; align-items:center; }
+  .gt-sw{ position:relative; cursor:pointer; }
+  .gt-sw input{ position:absolute; opacity:0; pointer-events:none; }
+  .gt-sw span{ display:block; width:22px; height:22px; border-radius:50%; background:var(--c); border:2px solid var(--ink); }
+  .gt-sw input:checked + span{ box-shadow:0 0 0 2px var(--card), 0 0 0 4px var(--stamp); }
+  .gt-pop-actions{ display:flex; justify-content:flex-end; gap:6px; margin-top:4px; }
+  .gt-empty-hint{
+    position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); text-align:center; pointer-events:none;
+    color:var(--ink-soft); font-size:12px; max-width:340px; opacity:.85; z-index:1;
+  }
+  .gt-empty-hint b{ display:block; font-family:var(--font-display); font-size:15px; color:var(--ink); margin-bottom:4px; }
 </style>
   <!-- Совместная сессия (лог бросков + правки от ГМ + комната голоса/видео/данных) — см. секцию
        #sessionPanel в конце файла. Сигналинг — через WebSocket к server.js (простой релей, без
@@ -1024,6 +1190,7 @@
   <div class="tab-bar" id="mainTabBar">
     <button type="button" class="tab-btn active" id="tabBtnSheet">Лист персонажа</button>
     <button type="button" class="tab-btn" id="tabBtnXp">Начисление опыта</button>
+    <button type="button" class="tab-btn" id="tabBtnTable">Игровой стол</button>
   </div>
 
   <div id="sheetTabView">
@@ -1325,6 +1492,27 @@
     Места, где в правилах прямо сказано «в зависимости от отыгрыша», система не выбирает сама — их нужно подтвердить вручную (см. панель наверху после генерации).
   </div>
   </div><!-- /sheetTabView -->
+
+  <!-- Игровой стол — см. модуль GameTable в отдельном блоке script в конце файла. Порядок детей
+       .gt-viewport = порядок слоёв: фон/сетка → зоны+рисунки → жетоны → временное → интерфейс. -->
+  <div id="tableTabView" style="display:none;">
+    <div class="gt-viewport" id="gtViewport" tabindex="0" aria-label="Игровой стол">
+      <canvas class="gt-canvas" id="gtCanvasBg"></canvas>
+      <canvas class="gt-canvas" id="gtCanvasDraw"></canvas>
+      <div class="gt-token-layer" id="gtTokenLayer"></div>
+      <canvas class="gt-canvas" id="gtCanvasFx"></canvas>
+      <div class="gt-empty-hint" id="gtEmptyHint"></div>
+      <div class="gt-ui gt-bar gt-toolbar" id="gtToolbar"></div>
+      <div class="gt-ui gt-bar gt-subbar" id="gtSubbar"></div>
+      <div class="gt-ui gt-bar gt-zoombar" id="gtZoombar"></div>
+      <div class="gt-ui gt-status" id="gtStatus"></div>
+      <div class="gt-ui gt-infocard" id="gtInfoCard"></div>
+      <div class="gt-ui gt-hint" id="gtHint"></div>
+      <div class="gt-ui gt-toast" id="gtToast"></div>
+      <div class="gt-ui gt-menu" id="gtMenu"></div>
+      <div class="gt-ui gt-popover" id="gtPopover"></div>
+    </div>
+  </div>
 
   <div id="xpTabView" style="display:none;">
     <div class="panel">
@@ -8371,6 +8559,7 @@ function captureUndoSnapshotIfChanged(){
   if(changed){
     if(typeof session!=='undefined' && session.role==='player') sendSheetSnapshotToGM();
     if(typeof saveAutosave==='function') saveAutosave();
+    gtHook(g=>g.onLocalCharacterChanged()); // HP/Psi своего жетона на игровом столе читаются прямо из character
   }
 }
 function performUndo(){
@@ -9735,17 +9924,15 @@ function renderXpChecklist(){
   renderXpChecklistGroup('xpChecklistMajor', 'major', XP_DEEDS_MAJOR);
   document.getElementById('btnXpReset').disabled = session.role==='player';
 }
-// Рассылает дельту опыта ВСЕМ подключённым игрокам разом (без "to" — сервер рассылает всем, кроме
-// отправителя, тот же приём, что у relayRollToAllPlayersExcept) плюс сам чек-лист отдельным
-// сообщением, чтобы у игрока обновилось read-only отображение отметок. Точечная дельта, а не
-// sheet-push — не трогает остальной лист игрока, тот же принцип, что у giveLuckToPlayer.
+// Дельта опыта — каждому игроку этой встречи отдельной выдачей с подтверждением (см. sendGrant: она же
+// сразу обновляет копию листа у Мастера и дойдёт даже до того, кто прямо сейчас переподключается), плюс
+// сам чек-лист отдельным сообщением, чтобы у игрока обновилось read-only отображение отметок. Точечная
+// дельта, а не sheet-push — не трогает остальной лист игрока, тот же принцип, что у giveLuckToPlayer.
 function broadcastXp(delta){
-  sendMsg({type:'give-xp-all', delta});
+  // Все на связи + все из состава встречи (см. xpRoster) — отключившемуся выдача дождётся его в очереди
+  new Set([...Object.keys(session.players), ...Object.keys(xpRoster)]).forEach(id=>sendGrant(id, {kind:'xp', delta}));
   sendMsg({type:'xp-checklist-sync', checklist: session.xpChecklist});
-  // Локальные копии ГМа обновляем сразу же, не дожидаясь эха от игроков — иначе случайный "Править
-  // лист"/sheet-push сразу после отметки деяния тихо откатил бы игроку только что начисленный опыт
-  // затёртым старым значением из этой самой копии (тот же риск, что решает giveLuckToPlayer).
-  Object.values(session.players).forEach(p=>{ if(p.character) p.character.xp = (p.character.xp||0) + delta; });
+  renderPlayersList(); // ⏳ у тех, до кого выдача ещё не дошла
 }
 function toggleXpDeed(group, index){
   if(session.role==='player') return; // страховка — сам чекбокс и так disabled у игрока, но событие могло прийти и в обход разметки
@@ -9756,27 +9943,102 @@ function toggleXpDeed(group, index){
   renderXpChecklist();
   broadcastXp(checked ? weight : -weight);
 }
+// (Мастер) Состав встречи: все игроки, подключавшиеся с последнего сброса чек-листа, id -> имя.
+// session.players — только те, кто на связи прямо сейчас (через 8 с после обрыва игрок оттуда удаляется),
+// а опыт за деяние положен всей группе, включая того, у кого в этот момент отвалилась сеть: ему выдача
+// ждёт в очереди (см. sendGrant) и дойдёт при переподключении. Сброс чек-листа (новая встреча) —
+// состав заново, из тех, кто на связи.
+const XP_ROSTER_KEY = 'reincarnator_xp_roster_v1';
+let xpRoster = (function(){
+  try{ const v = JSON.parse(localStorage.getItem(XP_ROSTER_KEY)||'{}'); return v && typeof v==='object' && !Array.isArray(v) ? v : {}; }
+  catch(e){ return {}; }
+})();
+function saveXpRoster(){ try{ localStorage.setItem(XP_ROSTER_KEY, JSON.stringify(xpRoster)); }catch(e){} }
+function addToXpRoster(id, name){ if(!id) return; xpRoster[id] = String(name||'Игрок').slice(0,60); saveXpRoster(); }
 function resetXpChecklist(){
   if(session.role==='player') return;
   if(!confirm('Снять все отметки в чек-листе начисления опыта? Уже начисленный игрокам опыт это не тронет — только сами галочки, для новой игровой встречи.')) return;
   session.xpChecklist = blankXpChecklist();
+  xpRoster = {};
+  Object.keys(session.players).forEach(id=>{ xpRoster[id] = session.players[id].name || 'Игрок'; });
+  saveXpRoster();
   saveXpChecklist();
   renderXpChecklist();
   sendMsg({type:'xp-checklist-sync', checklist: session.xpChecklist});
 }
+const MAIN_TABS = { sheet:['sheetTabView','tabBtnSheet'], xp:['xpTabView','tabBtnXp'], table:['tableTabView','tabBtnTable'] };
 function toggleMainTab(tab){
-  const isSheet = tab==='sheet';
-  document.getElementById('sheetTabView').style.display = isSheet ? '' : 'none';
-  document.getElementById('xpTabView').style.display = isSheet ? 'none' : '';
-  document.getElementById('tabBtnSheet').classList.toggle('active', isSheet);
-  document.getElementById('tabBtnXp').classList.toggle('active', !isSheet);
+  Object.keys(MAIN_TABS).forEach(k=>{
+    const [view, btn] = MAIN_TABS[k];
+    document.getElementById(view).style.display = k===tab ? '' : 'none';
+    document.getElementById(btn).classList.toggle('active', k===tab);
+  });
+  gtHook(g=>g.setVisible(tab==='table')); // стол рисует canvas только пока виден (размер поля известен только тогда)
 }
 document.getElementById('tabBtnSheet').addEventListener('click', ()=>toggleMainTab('sheet'));
 document.getElementById('tabBtnXp').addEventListener('click', ()=>toggleMainTab('xp'));
+document.getElementById('tabBtnTable').addEventListener('click', ()=>toggleMainTab('table'));
 document.getElementById('btnXpReset').addEventListener('click', resetXpChecklist);
 
 const ROLL_LOG_KEY = 'reincarnator_roll_log_v1';
-function loadRollLog(){ try{ return JSON.parse(localStorage.getItem(ROLL_LOG_KEY)||'[]'); }catch(e){ return []; } }
+function loadRollLog(){
+  // Через тот же sanitizeRollEntry, что и записи из сети: лог, уже отравленный до этой проверки
+  // (чужой HTML или запись без нужных полей), при следующей загрузке страницы вычищается сам.
+  try{
+    const raw = JSON.parse(localStorage.getItem(ROLL_LOG_KEY)||'[]');
+    return Array.isArray(raw) ? raw.map(sanitizeRollEntry).filter(Boolean) : [];
+  }catch(e){ return []; }
+}
+// Граница доверия для записей лога бросков. Всё, что пришло не из этой вкладки (WebSocket 'roll' и
+// 'roll-sync', DataChannel dice_roll, сохранённый localStorage), пересобирается по белому списку:
+// числа — только числа, строки — обрезанные строки (их экранирует уже сам рендер), неизвестные поля
+// отбрасываются. Раньше запись с HTML в числовом поле (например count) рендерилась через innerHTML у
+// Мастера, рассылалась им всем и сохранялась — а запись без rolls роняла renderRollLog так рано при
+// загрузке, что не восстанавливались ни персонаж, ни сессия. Возвращает null для явного мусора.
+function sanitizeRollEntry(e){
+  if(!e || typeof e!=='object' || Array.isArray(e)) return null;
+  if(typeof e.id!=='string' || !e.id || e.id.length>120) return null;
+  const str = (v, n)=> v==null ? '' : String(v).slice(0, n);
+  const int = (v, d)=>{ const x = Number(v); return Number.isFinite(x) ? Math.round(x) : d; };
+  const ints = (a, n)=> Array.isArray(a) ? a.slice(0, n).map(x=>int(x, 0)) : [];
+  const bool = (v)=> v===true ? true : v===false ? false : null;
+  const rollMode = (v)=> v==='advantage' || v==='disadvantage' ? v : 'plain';
+  const out = { id:e.id, player:str(e.player, 60) };
+  if(e.kind==='quick'){
+    out.kind = 'quick';
+    if(e.weaponJam){ out.weaponJam = true; out.weaponName = str(e.weaponName, 120); return out; }
+    if(e.weaponHits){
+      out.weaponHits = true; out.weaponName = str(e.weaponName, 120); out.fireMode = str(e.fireMode, 20);
+      out.hits = (Array.isArray(e.hits) ? e.hits : []).slice(0, 60).map(h=>{
+        const o = { location:int(h && h.location, 0), wounds:int(h && h.wounds, 0) };
+        if(h && Array.isArray(h.rolls12)) o.rolls12 = ints(h.rolls12, 30);
+        return o;
+      });
+      return out;
+    }
+    if(e.itemCheck){
+      Object.assign(out, { itemCheck:true, diceType:'d6', sides:6, itemName:str(e.itemName, 120), max:int(e.max, 0),
+        mode:rollMode(e.mode), count:int(e.count, 0), kept:ints(e.kept, 60), usesLost:int(e.usesLost, 0) });
+      return out;
+    }
+    if(e.diceType==='d20'){
+      Object.assign(out, { diceType:'d20', mode:rollMode(e.mode), max:int(e.max, 0), rolls:ints(e.rolls, 2), roll:int(e.roll, 0),
+        success:bool(e.success), category:int(e.category, null) });
+      if(!out.rolls.length) out.rolls = [out.roll];
+      return out;
+    }
+    out.diceType = ['d4','d6','d12'].indexOf(e.diceType)>=0 ? e.diceType : 'd6';
+    out.sides = int(e.sides, 6);
+    if(e.mode==='max'){ Object.assign(out, { mode:'max', max:int(e.max, 0), roll:int(e.roll, 0), success:bool(e.success) }); return out; }
+    Object.assign(out, { count:int(e.count, 0), rolls:ints(e.rolls, 100), sum:int(e.sum, 0) });
+    return out;
+  }
+  // Основной бросок характеристики (recordAndShareRoll)
+  Object.assign(out, { statLabel:str(e.statLabel, 80), mod:int(e.mod, 0), roll:int(e.roll, 0), max:int(e.max, 0),
+    success:bool(e.success), category:int(e.category, null), mode:rollMode(e.mode), rolls:ints(e.rolls, 2) });
+  if(!out.rolls.length) out.rolls = [out.roll];
+  return out;
+}
 function saveRollLog(){ try{ localStorage.setItem(ROLL_LOG_KEY, JSON.stringify(session.log.slice(-500))); }catch(e){} }
 
 // ---- «Страховка»: пережить обновление/случайное закрытие вкладки без потери персонажа или сессии.
@@ -9870,19 +10132,22 @@ function renderRollLog(){
   const el = document.getElementById('rollLogList');
   if(!session.log.length){ el.innerHTML = '<span class="muted">Пока пусто.</span>'; return; }
   const entries = session.log.slice(-150).slice().reverse();
-  el.innerHTML = entries.map(e=>{
-    if(e.kind==='quick'){
-      const f = formatQuickRollEntry(e);
-      return `<div class="roll-log-entry ${f.cls}">${f.html}</div>`;
-    }
-    const cls = e.success===true?'success':e.success===false?'failure':'';
-    const outcome = e.success===true?`Успех, КУ${e.category}`:e.success===false?'Провал':'';
-    const modTxt = (e.mod>=0?'+':'')+e.mod;
-    const modeTxt = e.mode==='advantage' ? ' · Преимущество' : e.mode==='disadvantage' ? ' · Помеха' : '';
-    const rollsTxt = e.rolls && e.rolls.length>1 ? ` [к20: ${e.rolls.join(', ')} → взят ${e.roll}]` : '';
-    const special = e.success!=null ? natTagText(e.roll, e.success, evaluateD20Check(e.roll, e.max).natConsequences) : '';
-    return `<div class="roll-log-entry ${cls}"><span class="who">${escapeHtml(e.player||'?')}</span><span class="rest">${escapeHtml(e.statLabel)} (${modTxt})${modeTxt}${rollsTxt} — к20=${e.roll} / Макс.${e.max} — ${outcome}${special}</span></div>`;
-  }).join('');
+  // Ошибка в одной записи пропускает только её — раньше она роняла весь рендер лога, а он вызывается
+  // при загрузке страницы раньше восстановления персонажа и сессии (см. updateSessionStatusUI).
+  el.innerHTML = entries.map(e=>{ try{ return renderRollLogEntry(e); }catch(err){ console.warn('[Лог бросков] запись пропущена', e && e.id, err); return ''; } }).join('');
+}
+function renderRollLogEntry(e){
+  if(e.kind==='quick'){
+    const f = formatQuickRollEntry(e);
+    return `<div class="roll-log-entry ${f.cls}">${f.html}</div>`;
+  }
+  const cls = e.success===true?'success':e.success===false?'failure':'';
+  const outcome = e.success===true?`Успех, КУ${e.category}`:e.success===false?'Провал':'';
+  const modTxt = (e.mod>=0?'+':'')+e.mod;
+  const modeTxt = e.mode==='advantage' ? ' · Преимущество' : e.mode==='disadvantage' ? ' · Помеха' : '';
+  const rollsTxt = e.rolls && e.rolls.length>1 ? ` [к20: ${e.rolls.join(', ')} → взят ${e.roll}]` : '';
+  const special = e.success!=null ? natTagText(e.roll, e.success, evaluateD20Check(e.roll, e.max).natConsequences) : '';
+  return `<div class="roll-log-entry ${cls}"><span class="who">${escapeHtml(e.player||'?')}</span><span class="rest">${escapeHtml(e.statLabel)} (${modTxt})${modeTxt}${rollsTxt} — к20=${e.roll} / Макс.${e.max} — ${outcome}${special}</span></div>`;
 }
 // Local store+render is unconditional (offline-first); relay is a separate, explicit step so a
 // received entry never bounces back out to whoever just sent it.
@@ -9898,6 +10163,13 @@ function addRollLogEntry(entry, silent){
   if(session.log.length>500) session.log = session.log.slice(-500);
   if(!silent){ saveRollLog(); renderRollLog(); }
   return true;
+}
+// Все вызовы игрового стола (модуль GameTable в отдельном блоке script в конце файла) из существующего кода
+// идут только через эту обёртку: стол может ещё не существовать (ранние renderAll при загрузке) и никакая
+// его ошибка не должна прервать обработку сессии/листа персонажа.
+function gtHook(fn){
+  if(typeof GameTable==='undefined') return;
+  try{ fn(GameTable); }catch(e){ console.error('[Игровой стол]', e); }
 }
 function sendMsg(msg, toId){
   if(!session.ws || session.ws.readyState !== WebSocket.OPEN) return;
@@ -10005,16 +10277,23 @@ function updateSessionStatusUI(){
   }
   renderRollLog();
   renderXpChecklist(); // роль (и то, чьи это отметки) могла только что смениться — переключает disabled у чекбоксов
+  gtHook(g=>g.refreshRole());
 }
 function renderPlayersList(){
   const el = document.getElementById('playersList');
   const ids = Object.keys(session.players);
-  if(!ids.length){ el.innerHTML = '<span class="muted">Пока никто не подключился.</span>'; return; }
-  el.innerHTML = ids.map(id=>{
+  // Отключившиеся, которым ещё что-то не дошло (удача/опыт/HP) — Мастер видит, что выдача в пути, а не пропала
+  const offline = Object.keys(grantOutbox).filter(id=>!session.players[id] && pendingGrants(id).length);
+  const offlineHtml = offline.length ? `<div class="muted" style="margin-top:4px;">Не на связи, дойдёт при подключении: ${
+    offline.map(id=>`${escapeHtml(xpRoster[id]||'игрок')} ⏳${pendingGrants(id).length}`).join(', ')}</div>` : '';
+  if(!ids.length){ el.innerHTML = '<span class="muted">Пока никто не подключился.</span>' + offlineHtml; return; }
+  el.innerHTML = offlineHtml + ids.map(id=>{
     const p = session.players[id];
     const disabled = p.character ? '' : 'disabled title="Ждём лист от игрока…"';
     const luckNow = p.character ? (p.character.luck==null?1:p.character.luck) : null;
-    return `<div class="player-row"><span class="session-status-dot on"></span><span class="name">${escapeHtml(p.name||'(без имени)')}</span>
+    const pending = pendingGrants(id).length; // выдачи, которые игрок ещё не подтвердил (см. sendGrant)
+    const pendingTxt = pending ? `<span class="muted" title="Выдачи (удача/опыт/HP), которые ещё не дошли до игрока — дойдут сами, как только он будет на связи">⏳${pending}</span>` : '';
+    return `<div class="player-row"><span class="session-status-dot on"></span><span class="name">${escapeHtml(p.name||'(без имени)')}</span>${pendingTxt}
       <button class="small" data-giveluck="${id}" ${disabled} title="Выдать 1 удачу">🍀+1${luckNow!=null?` (сейчас ${luckNow})`:''}</button>
       <button class="small" data-editplayer="${id}" ${disabled}>Править лист</button></div>`;
   }).join('');
@@ -10031,9 +10310,118 @@ function renderPlayersList(){
 function giveLuckToPlayer(playerId){
   const p = session.players[playerId];
   if(!p || !p.character) return;
-  sendMsg({type:'give-luck', delta:1}, playerId);
-  p.character.luck = (p.character.luck==null?1:p.character.luck) + 1; // копия ГМа сразу отражает выдачу, не дожидаясь ответа
+  sendGrant(playerId, {kind:'luck', delta:1}); // копия ГМа отражает выдачу сразу (см. sendGrant)
   renderPlayersList();
+}
+
+/* ======================================================================
+   ВЫДАЧИ МАСТЕРА С ПОДТВЕРЖДЕНИЕМ — удача, опыт, правка HP/Psi с игрового стола.
+   Раньше это были разовые сообщения: если игрок в этот момент был отключён (сеть моргнула, ноутбук
+   уснул), сервер молча отбрасывал сообщение, а копия листа у Мастера, обновлённая сразу, при следующем
+   листе от игрока тихо откатывалась — Мастер думал, что выдал, игрок не получал ничего.
+   Теперь каждая выдача — запись с уникальным gid в очереди Мастера (localStorage, переживает и его
+   перезагрузку). Она досылается, пока игрок её не подтвердит (grant-ack), — при каждом его
+   (пере)подключении и приходе его листа. Игрок применяет выдачу ровно один раз (помнит gid), повтор
+   просто подтверждает ещё раз.
+   ====================================================================== */
+const GRANT_OUTBOX_KEY = 'reincarnator_grant_outbox_v1';     // (Мастер) playerId -> [выдачи в порядке создания]
+const GRANT_APPLIED_KEY = 'reincarnator_grants_applied_v1';  // (игрок) gid уже применённых выдач
+let grantOutbox = (function(){
+  try{ const v = JSON.parse(localStorage.getItem(GRANT_OUTBOX_KEY)||'{}'); return v && typeof v==='object' && !Array.isArray(v) ? v : {}; }
+  catch(e){ return {}; }
+})();
+function saveGrantOutbox(){ try{ localStorage.setItem(GRANT_OUTBOX_KEY, JSON.stringify(grantOutbox)); }catch(e){} }
+function pendingGrants(playerId){ return grantOutbox[playerId] || []; }
+function loadAppliedGrants(){ try{ const v = JSON.parse(localStorage.getItem(GRANT_APPLIED_KEY)||'[]'); return Array.isArray(v) ? v : []; }catch(e){ return []; } }
+function grantAlreadyApplied(gid){ return loadAppliedGrants().indexOf(gid)>=0; }
+function markGrantApplied(gid){
+  const list = loadAppliedGrants();
+  if(list.indexOf(gid)<0) list.push(gid);
+  try{ localStorage.setItem(GRANT_APPLIED_KEY, JSON.stringify(list.slice(-500))); }catch(e){}
+}
+function sanitizeGrant(g){
+  if(!g || typeof g!=='object' || typeof g.gid!=='string' || !g.gid || g.gid.length>64) return null;
+  const int = (v)=>{ const x = Number(v); return Number.isFinite(x) ? Math.round(x) : null; };
+  if(g.kind==='luck' || g.kind==='xp'){ const delta = int(g.delta); return delta ? {gid:g.gid, kind:g.kind, delta} : null; }
+  if(g.kind==='vitals'){
+    const value = int(g.value);
+    if(value===null) return null;
+    return {gid:g.gid, kind:'vitals', which: g.which==='psi' ? 'psi' : 'hp', mode: g.mode==='delta' ? 'delta' : 'set', value};
+  }
+  return null;
+}
+// Одна и та же арифметика и для самого игрока, и для копии листа у Мастера. Возвращает строку для журнала
+// изменений листа или '' (ничего не изменилось).
+function applyGrant(c, g){
+  if(!c || !g) return '';
+  if(g.kind==='luck'){
+    c.luck = (c.luck==null ? 1 : c.luck) + g.delta;
+    return `Мастер выдал удачу (${g.delta>=0?'+':''}${g.delta}) — теперь ${c.luck}.`;
+  }
+  if(g.kind==='xp'){
+    c.xp = (c.xp||0) + g.delta;
+    return `Мастер начислил опыт (${g.delta>=0?'+':''}${g.delta}) — теперь ${c.xp}.`;
+  }
+  if(g.kind==='vitals'){
+    const key = g.which==='psi' ? 'psiCurrent' : 'hpCurrent';
+    const max = g.which==='psi' ? psiMax(c) : hpMax(c);
+    const before = c[key];
+    const after = clampLower(Math.round(g.mode==='delta' ? (Number(before)||0) + g.value : g.value), max);
+    if(after===before) return '';
+    c[key] = after;
+    return `Мастер изменил ${g.which==='psi'?'пси-запас':'здоровье'} на игровом столе: ${before} → ${after}.`;
+  }
+  return '';
+}
+function sendGrant(playerId, fields){
+  const g = Object.assign({gid:'g'+Date.now().toString(36)+Math.random().toString(36).slice(2,8)}, fields);
+  const list = grantOutbox[playerId] || (grantOutbox[playerId] = []);
+  list.push(g);
+  if(list.length>200) list.splice(0, list.length-200);
+  saveGrantOutbox();
+  const p = session.players[playerId];
+  if(p && p.character) applyGrant(p.character, g); // копия Мастера — сразу, не дожидаясь подтверждения
+  sendMsg({type:'grant', grant:g}, playerId);
+}
+const _grantResentAt = {};
+function resendPendingGrants(playerId, force){
+  const list = pendingGrants(playerId);
+  if(!list.length) return;
+  const now = Date.now();
+  if(!force && _grantResentAt[playerId] && now - _grantResentAt[playerId] < 3000) return; // лист игрока приходит часто — не засыпаем его повторами
+  _grantResentAt[playerId] = now;
+  list.forEach(g=>sendMsg({type:'grant', grant:g}, playerId));
+}
+// Свежий лист от игрока ещё не содержит того, что он не успел получить, — поверх него заново накладываем
+// неподтверждённые выдачи, чтобы копия Мастера (и жетон на столе) не «откатывались» на время доставки.
+function reapplyPendingGrants(playerId){
+  const p = session.players[playerId];
+  if(p && p.character) pendingGrants(playerId).forEach(g=>applyGrant(p.character, g));
+}
+function acknowledgeGrant(playerId, gid){
+  const list = grantOutbox[playerId];
+  if(!list) return;
+  const i = list.findIndex(g=>g.gid===gid);
+  if(i<0) return;
+  list.splice(i, 1);
+  if(!list.length) delete grantOutbox[playerId];
+  saveGrantOutbox();
+  renderPlayersList();
+}
+// (игрок) Применить выдачу от Мастера. Подтверждение уходит ДО renderAll — тот сам шлёт Мастеру свежий
+// лист, и по одному и тому же сокету подтверждение приходит раньше листа (см. reapplyPendingGrants).
+function receiveGrant(raw, gmId){
+  const g = sanitizeGrant(raw);
+  if(!g || !character) return; // нет листа — не подтверждаем, Мастер дошлёт позже
+  if(!grantAlreadyApplied(g.gid)){
+    const text = applyGrant(character, g);
+    markGrantApplied(g.gid);
+    sendMsg({type:'grant-ack', gid:g.gid}, gmId);
+    if(text) logEvent(character, text);
+    renderAll();
+  } else {
+    sendMsg({type:'grant-ack', gid:g.gid}, gmId);
+  }
 }
 
 /* ======================================================================
@@ -10110,11 +10498,15 @@ const RoomTransport = (function(){
     p.dc = dc;
     dc.onmessage = (ev)=>{
       let msg; try{ msg = JSON.parse(ev.data); }catch(e){ return; }
-      if(msg && msg.type==='dice_roll' && msg.entry){
-        const isNew = addRollLogEntry(msg.entry); // тот же общий лог, не второй
-        console.log('[Бросок] получен по DataChannel', msg.entry.id, 'от', p.name, isNew ? '— добавлен' : '— дубликат, уже был (это нормально: доставка через WS тоже могла дойти)');
+      if(!msg || typeof msg!=='object' || Array.isArray(msg)) return;
+      if(msg.type==='dice_roll'){
+        const entry = sanitizeRollEntry(msg.entry); // см. sanitizeRollEntry — чужие записи только через неё
+        if(!entry) return;
+        const isNew = addRollLogEntry(entry); // тот же общий лог, не второй
+        console.log('[Бросок] получен по DataChannel', entry.id, 'от', p.name, isNew ? '— добавлен' : '— дубликат, уже был (это нормально: доставка через WS тоже могла дойти)');
         return;
       }
+      msg.from = p.id; // отправитель — по самому каналу, не по тексту сообщения (как server.js ставит from для WS)
       fireGameEvent(msg);
     };
     dc.onerror = (e)=>console.error('[Комната] Ошибка DataChannel', e);
@@ -10124,7 +10516,7 @@ const RoomTransport = (function(){
     let p = peers.get(peerId);
     if(p) return p;
     const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
-    p = { pc, dc:null, polite: politeWith(peerId), makingOffer:false, ignoreOffer:false, name: name||peerId };
+    p = { id: peerId, pc, dc:null, polite: politeWith(peerId), makingOffer:false, ignoreOffer:false, name: name||peerId };
     peers.set(peerId, p);
     ensureTile(peerId, p.name);
     setTileState(peerId, 'Подключение…');
@@ -10183,7 +10575,8 @@ const RoomTransport = (function(){
   function teardownPeer(peerId){
     const p = peers.get(peerId);
     if(!p) return;
-    try{ if(p.dc) p.dc.close(); }catch(e){}
+    // Закрываем сами и намеренно — onerror канала на это («User-Initiated Abort, Close called») не ошибка
+    try{ if(p.dc){ p.dc.onerror = null; p.dc.close(); } }catch(e){}
     try{ p.pc.close(); }catch(e){}
     peers.delete(peerId);
     removeTile(peerId);
@@ -10210,9 +10603,14 @@ const RoomTransport = (function(){
     if(!peerId || peerId===session.myId) return;
     if(msg.type==='room-join'){
       if(!joined) return; // мы сами ещё не в комнате — не откликаемся на чужое приглашение
-      const isNewPeer = !peers.has(peerId);
+      if(msg.reply){ ensurePeer(peerId, msg.name); return; } // ответ на НАШ вход — соединение с этой стороны просто создаём, без встречного ответа
+      // Первичный вход (кнопка «Войти в комнату») всегда значит, что у того участника соединений ещё нет —
+      // в том числе после перезагрузки страницы тем же постоянным id. Старое соединение с ним к этому
+      // моменту мёртвое (другой DTLS-сертификат, его сторона ничего о нём не знает), и раньше оно здесь
+      // переиспользовалось без ответа — голос между ними не восстанавливался, пока кто-то не перезайдёт.
+      if(peers.has(peerId)) teardownPeer(peerId);
       ensurePeer(peerId, msg.name);
-      if(isNewPeer) sendMsg({type:'room-join', name: session.ownName}, peerId); // симметричный ответ — см. комментарий у joinRoom()
+      sendMsg({type:'room-join', name: session.ownName, reply:true}, peerId); // симметричный ответ — см. комментарий у joinRoom()
       return;
     }
     if(msg.type==='room-leave'){ teardownPeer(peerId); return; }
@@ -10222,11 +10620,20 @@ const RoomTransport = (function(){
     try{
       if(msg.type==='offer' || msg.type==='answer'){
         const desc = msg.payload;
-        const offerCollision = desc.type==='offer' && (p.makingOffer || pc.signalingState!=='stable');
+        if(!desc || (desc.type!=='offer' && desc.type!=='answer')) return;
+        // isSettingRemoteAnswerPending — часть канонического Perfect Negotiation: пока применяется
+        // пришедший answer, signalingState ещё не 'stable', и без этого флага встречный offer в это узкое
+        // окно (например, двое одновременно включают камеру) ошибочно считался коллизией — невежливая
+        // сторона его отбрасывала, и досогласование соединения застревало.
+        const readyForOffer = !p.makingOffer && (pc.signalingState==='stable' || p.isSettingRemoteAnswerPending);
+        const offerCollision = desc.type==='offer' && !readyForOffer;
         p.ignoreOffer = !p.polite && offerCollision;
         if(p.ignoreOffer) return;
-        if(offerCollision) await Promise.all([pc.setLocalDescription({type:'rollback'}), pc.setRemoteDescription(desc)]);
-        else await pc.setRemoteDescription(desc);
+        p.isSettingRemoteAnswerPending = desc.type==='answer';
+        try{
+          if(offerCollision) await Promise.all([pc.setLocalDescription({type:'rollback'}), pc.setRemoteDescription(desc)]);
+          else await pc.setRemoteDescription(desc);
+        } finally { p.isSettingRemoteAnswerPending = false; }
         if(desc.type==='offer'){ await pc.setLocalDescription(); sendMsg({type:'answer', payload: pc.localDescription}, peerId); }
       } else if(msg.type==='ice-candidate'){
         try{ await pc.addIceCandidate(msg.payload); }
@@ -11227,15 +11634,26 @@ const DicePanel = (function(){
 function handleIncomingMessage(msg){
   if(!msg || !msg.type) return;
   const fromId = msg.from;
+  // Сообщения, которые по смыслу шлёт только Мастер (перезапись листа, выдача удачи/опыта, синхронизация
+  // лога и чек-листа), игрок принимает только от того, кого знает как Мастера (session.gmId из gm-hello).
+  // Сервер сам ставит from по соединению, подделать его нельзя — раньше любой участник мог, например,
+  // переписать чужой лист или начислить опыт всем.
+  const fromGm = session.role==='player' && !!fromId && fromId===session.gmId;
   if(msg.type==='roll'){
-    const isNew = addRollLogEntry(msg.entry);
-    console.log('[Бросок] получен по WS', msg.entry && msg.entry.id, 'от', fromId, isNew ? '— добавлен' : '— ОТБРОШЕН как дубликат (совпал id с уже виденным)');
-    if(isNew && session.role==='gm') relayRollToAllPlayersExcept(fromId, msg.entry);
+    const entry = sanitizeRollEntry(msg.entry); // см. sanitizeRollEntry — чужие записи только через неё
+    if(!entry) return;
+    const isNew = addRollLogEntry(entry);
+    console.log('[Бросок] получен по WS', entry.id, 'от', fromId, isNew ? '— добавлен' : '— ОТБРОШЕН как дубликат (совпал id с уже виденным)');
+    if(isNew && session.role==='gm') relayRollToAllPlayersExcept(fromId, entry);
   } else if(msg.type==='roll-sync'){
+    if(!fromGm) return;
     // silent=true — см. комментарий у addRollLogEntry: сотни save+render подряд здесь были причиной
     // многосекундного подвисания интерфейса ровно в момент подключения игрока.
     let anyNew = false;
-    (msg.entries||[]).forEach(e=>{ if(addRollLogEntry(e, true)) anyNew = true; });
+    (Array.isArray(msg.entries) ? msg.entries : []).forEach(raw=>{
+      const e = sanitizeRollEntry(raw);
+      if(e && addRollLogEntry(e, true)) anyNew = true;
+    });
     if(anyNew){ saveRollLog(); renderRollLog(); }
   } else if(msg.type==='offer' || msg.type==='answer' || msg.type==='ice-candidate' || msg.type==='room-join' || msg.type==='room-leave'){
     RoomTransport.handleSignal(msg);
@@ -11243,19 +11661,24 @@ function handleIncomingMessage(msg){
     if(session.role==='player'){
       session.gmId = fromId; session.gmName = msg.name;
       updateSessionStatusUI();
+      gtHook(g=>g.onGmHello()); // до sheet-snapshot: запрос стола заодно заново регистрирует игрока у перезагрузившегося Мастера
       sendSheetSnapshotToGM();
+      sendOwnRollBackfill(); // броски, сделанные, пока связи не было, иначе так и не дошли бы ни до кого
     }
   } else if(msg.type==='player-hello'){
     if(session.role==='gm'){
       const existed = !!session.players[fromId];
       session.players[fromId] = Object.assign({name:msg.name, character:null, extra:null}, session.players[fromId]);
       session.players[fromId].name = msg.name;
+      addToXpRoster(fromId, msg.name); // см. xpRoster — опыт встречи дойдёт и после обрыва дольше 8 с
       renderPlayersList();
       // A personal reply (not just the earlier broadcast on connect) so a player who joins after the
       // GM is already up still learns who the GM is, whatever order the two of them connected in.
       sendMsg({type:'gm-hello', name: session.ownName}, fromId);
       sendMsg({type:'roll-sync', entries: session.log}, fromId);
       sendMsg({type:'xp-checklist-sync', checklist: session.xpChecklist}, fromId); // догоняющий игрок сразу видит уже отмеченные деяния этой встречи
+      gtHook(g=>g.onPlayerHello(fromId)); // game-table snapshot этому игроку
+      resendPendingGrants(fromId, true); // выдачи, не дошедшие до него, пока он был отключён
     }
   } else if(msg.type==='peer-left'){
     RoomTransport.teardownPeer(msg.id);
@@ -11263,43 +11686,57 @@ function handleIncomingMessage(msg){
     else if(session.role==='player' && msg.id===session.gmId){
       session.gmName = null; updateSessionStatusUI();
     }
+    gtHook(g=>g.onPeerLeft(msg.id));
   } else if(msg.type==='sheet-snapshot'){
-    if(session.role==='gm' && session.players[fromId]){
+    if(session.role==='gm' && session.players[fromId] && isValidPayload(msg.payload)){
       session.players[fromId].character = msg.payload.character;
       session.players[fromId].extra = msg.payload.extra;
+      reapplyPendingGrants(fromId); // ещё не подтверждённые выдачи — поверх свежего листа, чтобы копия не откатывалась
+      resendPendingGrants(fromId);  // лист пришёл — игрок на связи (в т.ч. после перезагрузки самого Мастера)
       renderPlayersList();
+      gtHook(g=>g.onPlayerSheet(fromId)); // HP/Psi жетона игрока — из только что пришедшего листа
     }
   } else if(msg.type==='sheet-push'){
-    if(session.role==='player'){
+    // isValidPayload — тот же критерий, что при загрузке сохранения: пустой/битый пакет раньше обнулял
+    // персонажа в памяти до перезагрузки страницы.
+    if(fromGm && isValidPayload(msg.payload)){
+      // Лист Мастера уже учитывает эти выдачи (правка шла от его копии, куда они наложены) — отмечаем их
+      // применёнными, чтобы досылка из очереди не начислила то же самое второй раз поверх этого листа.
+      (Array.isArray(msg.grantsIncluded) ? msg.grantsIncluded : []).forEach(gid=>{
+        if(typeof gid!=='string' || !gid) return;
+        markGrantApplied(gid);
+        sendMsg({type:'grant-ack', gid}, fromId);
+      });
       applyLoadedPayload(msg.payload);
       alert('Мастер обновил ваш лист персонажа.');
     }
-  } else if(msg.type==='give-luck'){
-    // Точечная дельта, не полный sheet-push (см. giveLuckToPlayer) — не трогает остальной лист.
-    if(session.role==='player' && character){
-      const delta = msg.delta||1;
-      character.luck = (character.luck==null?1:character.luck) + delta;
-      logEvent(character, `Мастер выдал удачу (+${delta}) — теперь ${character.luck}.`);
-      renderAll();
-    }
-  } else if(msg.type==='give-xp-all'){
-    // Тот же приём, что у give-luck выше, но рассылается ВСЕМ игрокам разом (см. broadcastXp) — книга
-    // про начисление опыта именно группе целиком, а не одному игроку по выбору Мастера.
-    if(session.role==='player' && character){
-      const delta = msg.delta||0;
-      const cur = character.xp||0;
-      character.xp = cur + delta;
-      logEvent(character, `Мастер начислил опыт (${delta>=0?'+':''}${delta}) — теперь ${character.xp}.`);
-      renderAll();
-    }
+  } else if(msg.type==='grant'){
+    // Удача/опыт/HP от Мастера — см. раздел ВЫДАЧИ МАСТЕРА С ПОДТВЕРЖДЕНИЕМ.
+    if(fromGm) receiveGrant(msg.grant, fromId);
+  } else if(msg.type==='grant-ack'){
+    if(session.role==='gm' && fromId && typeof msg.gid==='string') acknowledgeGrant(fromId, msg.gid);
+  } else if(msg.type==='roll-backfill'){
+    // Игрок после переподключения досылает свои последние броски (см. sendOwnRollBackfill). Новые из них
+    // Мастер добавляет к себе и одним roll-sync рассылает остальным — дубликаты гасит дедуп по id.
+    if(session.role!=='gm' || !fromId) return;
+    const fresh = [];
+    (Array.isArray(msg.entries) ? msg.entries : []).slice(-200).forEach(raw=>{
+      const e = sanitizeRollEntry(raw);
+      if(e && addRollLogEntry(e, true)) fresh.push(e);
+    });
+    if(fresh.length){ saveRollLog(); renderRollLog(); sendMsg({type:'roll-sync', entries: fresh}); }
   } else if(msg.type==='xp-checklist-sync'){
-    // Только отображение — сам опыт уже применён (или будет) отдельным give-xp-all; это сообщение лишь
+    // Только отображение — сам опыт уже применён (или будет) отдельной выдачей; это сообщение лишь
     // синхронизирует read-only галочки чек-листа у игрока с тем, что реально отметил Мастер.
-    if(session.role==='player' && msg.checklist){
-      session.xpChecklist = msg.checklist;
+    const c = msg.checklist;
+    const validShape = !!c && Array.isArray(c.minor) && Array.isArray(c.major) && c.minor.length===XP_DEEDS_MINOR.length && c.major.length===XP_DEEDS_MAJOR.length;
+    if(fromGm && validShape){
+      session.xpChecklist = { minor: c.minor.map(v=>v===true), major: c.major.map(v=>v===true) };
       saveXpChecklist();
       renderXpChecklist();
     }
+  } else if(typeof msg.type==='string' && msg.type.indexOf('gt-')===0){
+    gtHook(g=>g.handleMessage(msg)); // игровой стол: gt-snapshot/update/command/request/vitals/ping/pointer/drag
   }
 }
 // Постоянный id клиента (переживает переподключение WebSocket) — раньше сервер выдавал СЛУЧАЙНЫЙ id на
@@ -11329,6 +11766,32 @@ function wsUrl(){
 }
 let _reconnectTimer = null;
 let _reconnectDelay = 2000;
+// Сигнал «я жив» раз в 20 с (сервер отвечает 'hb-ack' и никуда его не пересылает). Две задачи: сервер
+// по нему (и по pong) замечает тихо пропавших клиентов, а сам лист — тихо пропавший сервер: если ответ
+// на ПРЕДЫДУЩИЙ сигнал так и не пришёл, соединение считается мёртвым и переустанавливается (браузер сам
+// может минутами считать такой сокет открытым, а sendMsg всё это время молча отправлял бы в пустоту).
+// Сравниваем именно «ответ на прошлый сигнал», а не «тишину N секунд»: в фоновой вкладке браузер
+// замедляет таймеры до раза в минуту, и проверка по времени давала бы ложные переподключения. Проверка
+// включается только после первого hb-ack — со старым server.js (который не отвечает) ничего не рвётся.
+let _hbTimer = null;
+function stopHeartbeat(){ if(_hbTimer){ clearInterval(_hbTimer); _hbTimer = null; } }
+function startHeartbeat(ws){
+  stopHeartbeat();
+  ws._lastHeard = Date.now(); ws._hbSentAt = 0; ws._serverHb = false;
+  _hbTimer = setInterval(()=>{
+    if(session.ws!==ws || ws.readyState!==WebSocket.OPEN){ stopHeartbeat(); return; }
+    if(ws._serverHb && ws._hbSentAt && ws._lastHeard < ws._hbSentAt && Date.now() - ws._hbSentAt > 15000){
+      console.warn('[Сессия] Сервер не ответил на сигнал связи — соединение считается оборванным, переподключаемся');
+      stopHeartbeat();
+      const onclose = ws.onclose;
+      ws.onclose = null; ws.onmessage = null; ws.onerror = null;
+      try{ ws.close(); }catch(e){}
+      if(onclose) onclose(); // тот же путь, что при обычном обрыве: пауза и connectSession
+      return;
+    }
+    try{ ws.send(JSON.stringify({type:'hb'})); ws._hbSentAt = Date.now(); }catch(e){}
+  }, 20000);
+}
 function connectSession(role){
   if(!sessionAvailable()){ alert('Этот браузер не поддерживает WebSocket — совместная сессия недоступна, но лист продолжает работать как обычно.'); return; }
   if(location.protocol==='file:'){
@@ -11354,12 +11817,20 @@ function connectSession(role){
   ws.onopen = ()=>{ console.log('[Сессия] WebSocket открыт'); };
   ws.onmessage = (ev)=>{
     let msg; try{ msg = JSON.parse(ev.data); }catch(e){ return; }
+    if(!msg || typeof msg!=='object') return;
+    ws._lastHeard = Date.now(); // см. startHeartbeat
+    if(msg.type==='hb-ack' && msg.from==='server'){ ws._serverHb = true; return; }
     if(msg.type==='welcome'){
       session.myId = msg.id;
+      startHeartbeat(ws);
       console.log('[Сессия] Подключено, id=', msg.id);
       document.getElementById('sessionSetupHint').textContent = '';
       _reconnectDelay = 2000; // успешное подключение сбрасывает нарастающую паузу для следующего возможного обрыва
       sendMsg({type: role==='gm' ? 'gm-hello' : 'player-hello', name: session.ownName});
+      // Мастер после (пере)подключения — свои последние броски всем: сделанные во время его обрыва иначе
+      // не дошли бы до игроков (игроки свои досылают сами, см. sendOwnRollBackfill). Идёт следом за
+      // gm-hello по тому же сокету — к этому моменту игроки уже знают, что это Мастер (roll-sync только от него).
+      if(role==='gm') sendMsg({type:'roll-sync', entries: session.log.slice(-100)});
       updateSessionStatusUI();
       saveSessionState(); // remembered across refresh/reopen — see restoreSessionIfPresent()
       // Раньше здесь стояло RoomTransport.leaveRoom()+joinRoom() — потому что id раньше менялся на
@@ -11376,10 +11847,13 @@ function connectSession(role){
       if(RoomTransport.isJoined()) RoomTransport.resyncAfterReconnect();
       return;
     }
+    if(msg.type==='replaced' && msg.from==='server'){ ws._replaced = true; return; } // см. onclose ниже
     handleIncomingMessage(msg);
   };
   ws.onclose = ()=>{
     console.warn('[Сессия] Соединение с сервером закрыто');
+    if(session.ws===ws) stopHeartbeat();
+    if(ws._replaced){ handleReplacedByOtherTab(); return; }
     document.getElementById('sessionSetupHint').textContent = '';
     // leaveSession() уже обнуляет session.role синхронно ДО закрытия сокета — значит, если он всё ещё
     // задан к моменту срабатывания onclose, это не явный выход, а обрыв связи (сеть моргнула, сервер
@@ -11398,8 +11872,25 @@ function connectSession(role){
       'Не удалось подключиться к серверу. Если вы Мастер — проверьте, что server.js запущен (start.bat). Если вы игрок — проверьте ссылку у Мастера.';
   };
 }
+// Сервер закрыл это соединение, потому что с тем же id подключилось другое — почти всегда это вторая
+// вкладка того же браузера (id клиента лежит в общем для вкладок localStorage, а сессия
+// восстанавливается сама при открытии). Раньше вытесненная вкладка через 2 с переподключалась и в свою
+// очередь выбивала новую — бесконечно. Теперь она просто отключается локально: роль и сохранённое
+// состояние сессии НЕ стираются (им пользуется активная вкладка), а вернуть сессию сюда можно тем же
+// «Я — Мастер»/«Я — игрок» — тогда уже отключится другая вкладка.
+function handleReplacedByOtherTab(){
+  if(_reconnectTimer){ clearTimeout(_reconnectTimer); _reconnectTimer = null; }
+  stopHeartbeat();
+  RoomTransport.leaveRoom();
+  if(session.editingPlayerId) exitGmEditMode();
+  session.role=null; session.ws=null; session.myId=null; session.players={}; session.gmId=null; session.gmName=null;
+  updateSessionStatusUI();
+  document.getElementById('sessionSetupHint').textContent =
+    'Сессия открыта в другой вкладке этого браузера, здесь она отключена. Чтобы продолжить здесь — нажмите «Я — Мастер» или «Я — игрок».';
+}
 function leaveSession(){
   if(_reconnectTimer){ clearTimeout(_reconnectTimer); _reconnectTimer = null; }
+  stopHeartbeat();
   RoomTransport.leaveRoom(); // закрыть медиа/каналы ДО закрытия сокета — иначе некому отправить room-leave
   if(session.ws){ try{ session.ws.close(); }catch(e){} }
   session.role=null; session.ws=null; session.myId=null; session.players={}; session.gmId=null; session.gmName=null;
@@ -11414,28 +11905,87 @@ function sendSheetSnapshotToGM(){
   if(session.role!=='player' || !character || !session.gmId) return;
   sendMsg({type:'sheet-snapshot', payload: buildSavePayload()}, session.gmId);
 }
+// Player → GM после каждого (пере)подключения: свои последние броски. sendMsg без открытого сокета
+// ничего не ставит в очередь, поэтому бросок, сделанный во время обрыва, раньше оставался только у
+// самого игрока. Шлём все свои недавние — Мастер сам отсеет уже виденные (дедуп по id).
+function sendOwnRollBackfill(){
+  if(session.role!=='player' || !session.gmId) return;
+  const prefix = getDeviceId()+':';
+  const own = session.log.filter(e=>typeof e.id==='string' && e.id.indexOf(prefix)===0).slice(-100);
+  if(own.length) sendMsg({type:'roll-backfill', entries: own}, session.gmId);
+}
 function enterGmEditMode(playerId){
   const p = session.players[playerId];
   if(!p || !p.character){ alert('От этого игрока ещё не пришёл лист персонажа.'); return; }
   if(session.editingPlayerId){ alert('Уже редактируется лист другого игрока — сначала отправьте или отмените.'); return; }
   session.editingBackup = character ? { payload: buildSavePayload() } : null;
   session.editingPlayerId = playerId;
+  // Лист игрока на момент начала правки — «общий предок» для слияния при отправке (см. mergeEditedSheet)
+  session.editingBase = JSON.parse(JSON.stringify({character: p.character, extra: p.extra || {}}));
   applyLoadedPayload({character: JSON.parse(JSON.stringify(p.character)), extra: p.extra});
   renderGmEditBanner();
 }
 function exitGmEditMode(){
   const backup = session.editingBackup;
-  session.editingPlayerId = null; session.editingBackup = null;
+  session.editingPlayerId = null; session.editingBackup = null; session.editingBase = null;
   if(backup) applyLoadedPayload(backup.payload);
   else { character = null; document.getElementById('fName').value=''; document.getElementById('fPlayer').value=''; renderAll(); }
   renderGmEditBanner();
+}
+// Трёхстороннее слияние листа при отправке правки Мастера: base — лист игрока в момент открытия правки,
+// mine — что получилось у Мастера, theirs — самый свежий лист от игрока (включая всё, что тот поменял за
+// время правки, и наложенные выдачи). Поле, которое трогал только один из двух, берётся у него; поле,
+// изменённое обоими по-разному, — конфликт (побеждает Мастер, но его спрашивают). Вложенные объекты
+// (инвентарь, характеристики, состояния…) сливаются по своим полям, массивы — целиком. Журнал изменений —
+// журнал игрока плюс новые записи, появившиеся за правку у Мастера.
+const SHEET_FIELD_LABELS = {
+  hpCurrent:'здоровье', psiCurrent:'пси-запас', luck:'удача', xp:'опыт', inventory:'инвентарь', weapons:'оружие',
+  armor:'броня', states:'состояния', conditionsNotes:'состояния и травмы', credits:'кредиты', creditsLog:'кредиты',
+  stats:'характеристики', abilities:'способности', level:'уровень', notes:'заметки', size:'размер',
+  appearance:'внешность', advantages:'преимущества', flaws:'недостатки', name:'имя персонажа', player:'игрок'
+};
+function mergeEditedSheet(base, mine, theirs){
+  const same = (a, b)=> JSON.stringify(a)===JSON.stringify(b);
+  const isObj = (v)=> !!v && typeof v==='object' && !Array.isArray(v);
+  const conflicts = new Set();
+  function merge(b, m, t, topKey){
+    if(isObj(b) && isObj(m) && isObj(t)){
+      const out = {};
+      new Set([...Object.keys(b), ...Object.keys(m), ...Object.keys(t)]).forEach(k=>{
+        const v = merge(b[k], m[k], t[k], topKey || k);
+        if(v!==undefined) out[k] = v;
+      });
+      return out;
+    }
+    if(same(m, b)) return t;               // Мастер не трогал — свежее от игрока
+    if(same(t, b) || same(t, m)) return m; // игрок не трогал (или сделал то же самое) — правка Мастера
+    conflicts.add(SHEET_FIELD_LABELS[topKey] || topKey);
+    return m;
+  }
+  const bc = base.character || {}, mc = mine.character || {}, tc = theirs.character || {};
+  const character = merge(
+    Object.assign({}, bc, {history:undefined}), Object.assign({}, mc, {history:undefined}), Object.assign({}, tc, {history:undefined}), null);
+  const seen = new Set((bc.history||[]).map(h=>JSON.stringify(h)));
+  character.history = (tc.history||[]).concat((mc.history||[]).filter(h=>!seen.has(JSON.stringify(h)))).slice(-500);
+  const extra = merge(base.extra||{}, mine.extra||{}, theirs.extra||{}, null);
+  return {character, extra, conflicts: [...conflicts]};
 }
 function sendEditedSheetToPlayer(){
   const playerId = session.editingPlayerId;
   const p = session.players[playerId];
   if(!p){ exitGmEditMode(); return; }
   const payload = buildSavePayload();
-  sendMsg({type:'sheet-push', payload}, playerId);
+  // Пока Мастер правил, игрок мог сам что-то изменить (HP в бою, потратить предмет), а Мастер — выдать
+  // ему удачу/опыт: раньше отправка целиком затирала всё это версией, открытой в начале правки.
+  if(session.editingBase && p.character){
+    const m = mergeEditedSheet(session.editingBase, payload, {character: p.character, extra: p.extra || {}});
+    if(m.conflicts.length && !confirm(
+      `Пока вы правили лист, игрок сам изменил то же, что и вы: ${m.conflicts.join(', ')}.\n\n` +
+      `OK — отправить ваши значения этих полей (остальные изменения игрока сохранятся).\nОтмена — вернуться к правке.`)) return;
+    payload.character = m.character; payload.extra = m.extra;
+  }
+  const grantsIncluded = pendingGrants(playerId).map(g=>g.gid); // уже наложены на копию — см. обработку sheet-push у игрока
+  sendMsg({type:'sheet-push', payload, grantsIncluded}, playerId);
   p.character = payload.character; p.extra = payload.extra; // GM's own copy reflects the push immediately
   exitGmEditMode();
   renderPlayersList();
@@ -11470,6 +12020,1655 @@ loadAutosaveIfPresent();
 restoreSessionIfPresent();
 
 renderAll();
+</script>
+<script>
+/* ======================================================================
+   ИГРОВОЙ СТОЛ — визуальный и интерактивный слой над существующей сессией, не отдельная игра.
+
+   Состояние стола (gameTableState: карта, жетоны, рисунки, зоны) и действия над ним — разные вещи:
+   действие — это команда, состояние меняет только авторитетная сторона.
+     - Авторитет — Мастер (или сам человек, пока сессии нет вообще — локальный стол). Он принимает
+       команды (свои и игроков), проверяет права, применяет их к authState, увеличивает version,
+       сохраняет в localStorage (STATE_KEY) и рассылает игрокам gt-update с операциями.
+     - Игрок ничего не меняет сам: шлёт gt-command Мастеру и показывает только подтверждённое
+       состояние (viewState — снимок от Мастера, локальная копия в CACHE_KEY неавторитетна).
+   Транспорт — существующие sendMsg/handleIncomingMessage (WebSocket-релей), новые только типы
+   сообщений gt-*. RoomTransport (DataChannel) — лишь для временного: ping, указка Мастера, живое
+   перетаскивание жетона; каждое такое событие дублируется через WS с меньшей частотой, так что
+   без голосовой комнаты стол работает так же, просто чуть менее плавно.
+
+   HP/Psi жетона игрока нигде в состоянии стола не хранятся: жетон ссылается на игрока (ownerId =
+   тот же id, что ключ session.players), а цифры каждый раз берутся из его character через
+   существующие hpMax/psiMax. Правка HP с жетона — выдача с подтверждением (sendGrant, как удача), он
+   меняет свой character, и обратно оно приходит уже обычным sheet-snapshot.
+   ====================================================================== */
+const GameTable = (function(){
+  const CELL = 64;                      // пикселей на клетку при масштабе 100%
+  const METERS_PER_CELL = 3;            // главное правило: 1 клетка = 3 м
+  const SIZE_CELLS = {small:0.6, normal:1, large:2, huge:3};
+  const SIZE_LABELS = {small:'Маленький', normal:'Обычный', large:'Большой 2×2', huge:'Огромный 3×3'};
+  const ZOOM_STEPS = [0.25,0.5,0.75,1,1.25,1.5,2,3];
+  const ZOOM_MIN = 0.25, ZOOM_MAX = 3;
+  const STATE_KEY = 'reincarnator_game_table_state_v1';   // авторитетный стол (Мастер / локальный)
+  const CACHE_KEY = 'reincarnator_game_table_cache_v1';   // последний снимок от Мастера (игрок)
+  const CAMERA_KEY = 'reincarnator_game_table_camera_v1';
+  const STYLE_KEY = 'reincarnator_game_table_draw_style_v1';
+  const LOCAL_OWNER = 'local';          // жетон «моего персонажа» на локальном столе без сессии
+  const PALETTE = ['#9c2f1c','#1c1712','#3f6b4a','#2f4f7a','#6b3f7a','#b07a1f','#5c5240','#2f6f73'];
+  const DRAW_COLORS = ['#9c2f1c','#1c1712','#2f4f7a','#3f6b4a','#b07a1f','#f6ecd4'];
+  const DRAWING_TYPES = ['pen','line','arrow','rect','circle','polygon','text'];
+  const PING_MS = 1700;
+  const PENDING_MS = 4000;              // сколько ждём подтверждения своего хода от Мастера
+  const PREVIEW_MS = 1500;              // сколько живёт чужое «живое» перетаскивание без новых событий
+
+  /* ---------- состояние ---------- */
+  function newId(p){ return (p||'')+Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
+  function blankState(tableId){
+    return {schema:1, tableId: tableId===undefined ? newId('tbl') : tableId, version:0,
+            map:{metersPerCell:METERS_PER_CELL, background:null}, tokens:{}, drawings:[], zones:[]};
+  }
+  function num(v, d){ v = Number(v); return isFinite(v) ? v : d; }
+  function clamp(v, a, b){ return v<a ? a : v>b ? b : v; }
+  function r3(v){ return Math.round(v*1000)/1000; }
+  function clone(o){ return JSON.parse(JSON.stringify(o)); }
+  function safeUrl(u){ u = String(u||'').trim(); return /^https?:\/\/[^\s"'<>]+$/i.test(u) && u.length<2048 ? u : ''; }
+  function safeColor(c, d){ return /^#[0-9a-f]{6}$/i.test(c||'') ? c.toLowerCase() : d; }
+
+  function sanitizeToken(t){
+    t = t || {};
+    const kind = t.kind==='player' ? 'player' : 'gm';
+    const out = {
+      id: String(t.id||newId('t')).slice(0,64), kind,
+      x: r3(clamp(num(t.x,0), -10000, 10000)), y: r3(clamp(num(t.y,0), -10000, 10000)),
+      size: SIZE_CELLS[t.size] ? t.size : 'normal',
+      color: safeColor(t.color, PALETTE[0]),
+      rotation: num(t.rotation,0) % 360,          // задел: поворот есть в данных, UI для него пока нет
+      name: String(t.name||'').slice(0,60),
+      avatar: safeUrl(t.avatar),
+      hidden: kind==='gm' && !!t.hidden
+    };
+    if(kind==='player') out.ownerId = String(t.ownerId||'').slice(0,64);
+    else out.hp = (t.hp===null || t.hp===undefined || t.hp==='') ? null : Math.round(clamp(num(t.hp,0), -9999, 9999));
+    return out;
+  }
+  function sanitizeDrawing(d){
+    if(!d || DRAWING_TYPES.indexOf(d.type)<0) return null;
+    const pts = (Array.isArray(d.points) ? d.points : []).slice(0,4000)
+      .map(p=>[r3(clamp(num(p&&p[0],0),-10000,10000)), r3(clamp(num(p&&p[1],0),-10000,10000))]);
+    if(!pts.length) return null;
+    const out = {id:String(d.id||newId('d')).slice(0,64), type:d.type, points:pts,
+      color:safeColor(d.color, DRAW_COLORS[0]), width:clamp(num(d.width,4),1,48), opacity:clamp(num(d.opacity,1),0.1,1)};
+    if(d.type==='text'){ out.text = String(d.text||'').slice(0,400); out.fontSize = clamp(num(d.fontSize,22),8,160); if(!out.text.trim()) return null; }
+    return out;
+  }
+  function sanitizeMap(m){
+    m = m || {};
+    const b = m.background;
+    const url = b && safeUrl(b.url);
+    return {metersPerCell: clamp(num(m.metersPerCell, METERS_PER_CELL), 0.5, 100),
+            background: url ? {url, x:r3(num(b.x,0)), y:r3(num(b.y,0)), w:clamp(num(b.w,20),1,1000)} : null};
+  }
+  function normalizeState(raw, fallbackTableId){
+    raw = raw || {};
+    const s = blankState(typeof raw.tableId==='string' ? raw.tableId.slice(0,64) : fallbackTableId);
+    s.version = Math.max(0, Math.floor(num(raw.version,0)));
+    s.map = sanitizeMap(raw.map);
+    Object.keys(raw.tokens||{}).forEach(k=>{ const t = sanitizeToken(raw.tokens[k]); s.tokens[t.id] = t; });
+    (Array.isArray(raw.drawings) ? raw.drawings : []).forEach(d=>{ const c = sanitizeDrawing(d); if(c) s.drawings.push(c); });
+    s.zones = Array.isArray(raw.zones) ? raw.zones : []; // задел под зоны/AoE — пока только хранятся
+    return s;
+  }
+  function loadJson(key){ try{ return JSON.parse(localStorage.getItem(key)||'null'); }catch(e){ return null; } }
+  function saveJson(key, val){ try{ localStorage.setItem(key, JSON.stringify(val)); }catch(e){ console.warn('[Игровой стол] не удалось сохранить', key, e); } }
+
+  let authState = (function(){ const raw = loadJson(STATE_KEY); return raw ? normalizeState(raw) : blankState(); })();
+  let viewState = (function(){ const raw = loadJson(CACHE_KEY); return raw ? normalizeState(raw, null) : blankState(null); })();
+
+  function role(){ return (typeof session!=='undefined' && session.role) || null; }
+  function isPlayer(){ return role()==='player'; }
+  function isAuthority(){ return role()!=='player'; }
+  function st(){ return isPlayer() ? viewState : authState; }
+  function tok(id){ return st().tokens[id]; }
+  function myOwnerId(){ const r = role(); return r==='player' ? session.myId : r ? null : LOCAL_OWNER; }
+  function tokenVisibleHere(t){ return isAuthority() || !t.hidden; }
+  function ownToken(){ const me = myOwnerId(); return me ? Object.values(st().tokens).find(t=>t.kind==='player' && t.ownerId===me) : null; }
+  function canControl(t){ return !!t && (isAuthority() || (t.kind==='player' && t.ownerId===myOwnerId())); }
+
+  let saveTimer = null, cacheTimer = null;
+  function scheduleSave(){ clearTimeout(saveTimer); saveTimer = setTimeout(()=>{ saveTimer=null; saveJson(STATE_KEY, authState); }, 250); }
+  function scheduleCacheSave(){ clearTimeout(cacheTimer); cacheTimer = setTimeout(()=>{ cacheTimer=null; saveJson(CACHE_KEY, viewState); }, 400); }
+  window.addEventListener('beforeunload', ()=>{
+    if(saveTimer){ clearTimeout(saveTimer); saveJson(STATE_KEY, authState); }
+    if(cacheTimer){ clearTimeout(cacheTimer); saveJson(CACHE_KEY, viewState); }
+    if(camTimer){ clearTimeout(camTimer); saveJson(CAMERA_KEY, cam); }
+  });
+
+  /* ---------- HP/Psi: только чтение из существующего character ---------- */
+  let remoteVitals = {}; // (игрок) ownerId -> {name,hp,hpMax,psi,psiMax} — проекция, которую рассылает Мастер, не хранилище
+  function vitalsOfCharacter(c, name){
+    if(!c || !c.stats) return null;
+    try{ return {name, hp:c.hpCurrent, hpMax:hpMax(c), psi:c.psiCurrent, psiMax:psiMax(c)}; }catch(e){ return null; }
+  }
+  function ownCharacterName(){
+    const f = document.getElementById('fName');
+    return (f && f.value.trim()) || (session.ownName) || 'Мой персонаж';
+  }
+  function playerDisplayName(p){ return (p && ((p.extra && p.extra.name) || p.name)) || ''; }
+  function vitalsFor(t){
+    if(t.kind!=='player') return null;
+    const r = role();
+    if(t.ownerId===myOwnerId()){
+      // GM edit mode подменяет character чужим листом — свой жетон в это время не трогаем
+      return (typeof character!=='undefined' && character && !session.editingPlayerId) ? vitalsOfCharacter(character, ownCharacterName()) : null;
+    }
+    if(r==='gm'){
+      const p = session.players[t.ownerId];
+      return p && p.character ? vitalsOfCharacter(p.character, playerDisplayName(p) || t.name) : null;
+    }
+    return remoteVitals[t.ownerId] || null;
+  }
+  function computeVitals(){
+    const out = {};
+    Object.keys(session.players||{}).forEach(id=>{
+      const p = session.players[id];
+      const v = p && p.character ? vitalsOfCharacter(p.character, playerDisplayName(p)) : null;
+      if(v) out[id] = v;
+    });
+    return out;
+  }
+  let vitalsTimer = null;
+  function broadcastVitals(){
+    if(role()!=='gm') return;
+    clearTimeout(vitalsTimer);
+    vitalsTimer = setTimeout(()=>{ vitalsTimer=null; sendMsg({type:'gt-vitals', vitals:computeVitals()}); }, 150);
+  }
+  // "8" — установить, "-3"/"+2" — изменить на столько, "=-2" — установить отрицательное (HP в книге уходит ниже нуля)
+  function parseVitalInput(raw){
+    const s = String(raw||'').trim().replace(/[−–—]/g,'-').replace(/\s+/g,'');
+    let m = s.match(/^=(-?\d+)$/);
+    if(m) return {mode:'set', value:parseInt(m[1],10)};
+    m = s.match(/^([+-])(\d+)$/);
+    if(m) return {mode:'delta', value:(m[1]==='-'?-1:1)*parseInt(m[2],10)};
+    m = s.match(/^(\d+)$/);
+    if(m) return {mode:'set', value:parseInt(m[1],10)};
+    return null;
+  }
+  // Одна и та же арифметика у Мастера (его копия листа игрока) и у самого игрока — через существующие hpMax/psiMax/clampLower
+  function applyVitalsChange(c, which, mode, value){
+    const key = which==='psi' ? 'psiCurrent' : 'hpCurrent';
+    const max = which==='psi' ? psiMax(c) : hpMax(c);
+    const before = c[key];
+    const target = mode==='delta' ? (Number(before)||0) + value : value;
+    const after = clampLower(Math.round(target), max);
+    if(after===before) return null;
+    c[key] = after;
+    return {before, after};
+  }
+  function changePlayerVitals(t, which, raw){
+    const parsed = parseVitalInput(raw);
+    if(!parsed){ toast('Не понял число — например 8, −3 или +2'); return; }
+    const label = which==='psi' ? 'Пси-запас' : 'Здоровье';
+    if(t.ownerId===myOwnerId()){ // свой персонаж (локальный стол) — прямо в лист, тем же путём, что и поле HP листа
+      if(!character){ toast('Сначала создайте персонажа'); return; }
+      const ch = applyVitalsChange(character, which, parsed.mode, parsed.value);
+      if(ch){ logEvent(character, `${label}: ${ch.before} → ${ch.after} (игровой стол).`); renderAll(); }
+      return;
+    }
+    const p = role()==='gm' ? session.players[t.ownerId] : null;
+    if(!p || !p.character){ toast('Игрок не в сети — его лист сейчас недоступен'); return; }
+    // Выдача с подтверждением (sendGrant в основном скрипте) — та же, что у удачи и опыта: дойдёт и до
+    // игрока, который прямо сейчас переподключается, и сразу обновляет копию листа у Мастера. Игрок
+    // применяет её к своему character и шлёт обратно обычный sheet-snapshot.
+    sendGrant(t.ownerId, {kind:'vitals', which, mode:parsed.mode, value:parsed.value});
+    renderTokens(); broadcastVitals();
+    if(typeof renderPlayersList==='function') renderPlayersList();
+  }
+
+  /* ---------- команды → операции (только авторитет) ---------- */
+  function applyOp(s, op){
+    switch(op.op){
+      case 'token-upsert': s.tokens[op.token.id] = op.token; break;
+      case 'token-remove': delete s.tokens[op.id]; break;
+      case 'drawing-add':
+        if(!s.drawings.some(d=>d.id===op.drawing.id)){
+          if(Number.isInteger(op.index) && op.index>=0 && op.index<=s.drawings.length) s.drawings.splice(op.index,0,op.drawing);
+          else s.drawings.push(op.drawing);
+        }
+        break;
+      case 'drawing-remove': { const ids = new Set(op.ids||[]); s.drawings = s.drawings.filter(d=>!ids.has(d.id)); break; }
+      case 'drawings-set': s.drawings = op.drawings; break;
+      case 'map-set': s.map = op.map; break;
+    }
+  }
+  function sanitizeOp(op){
+    if(!op || typeof op!=='object') return null;
+    switch(op.op){
+      case 'token-upsert': return op.token ? {op:op.op, token:sanitizeToken(op.token)} : null;
+      case 'token-remove': return {op:op.op, id:String(op.id)};
+      case 'drawing-add': { const d = sanitizeDrawing(op.drawing); return d ? {op:op.op, drawing:d, index:op.index} : null; }
+      case 'drawing-remove': return {op:op.op, ids:(op.ids||[]).map(String)};
+      case 'drawings-set': return {op:op.op, drawings:(op.drawings||[]).map(sanitizeDrawing).filter(Boolean)};
+      case 'map-set': return {op:op.op, map:sanitizeMap(op.map)};
+    }
+    return null;
+  }
+  // Скрытый жетон для игроков не существует вовсе: его upsert уходит им как remove, в снимок не попадает
+  function playerOps(ops){ return ops.map(op=> op.op==='token-upsert' && op.token.hidden ? {op:'token-remove', id:op.token.id} : op); }
+  function playerSnapshot(){
+    const s = authState, tokens = {};
+    Object.values(s.tokens).forEach(t=>{ if(!t.hidden) tokens[t.id] = t; });
+    return {schema:1, tableId:s.tableId, version:s.version, map:s.map, tokens, drawings:s.drawings, zones:s.zones};
+  }
+  function sendSnapshot(toId){ if(role()==='gm') sendMsg({type:'gt-snapshot', state:playerSnapshot()}, toId); }
+
+  function execCommand(cmd, from){ // from — id игрока для чужой команды, пусто для своей
+    if(!cmd || typeof cmd!=='object') return {ok:false, reason:'Пустая команда'};
+    const s = authState, remote = !!from, ops = [];
+    const deny = (reason)=>({ok:false, reason});
+    switch(cmd.c){
+      case 'player-token-create': {
+        const ownerId = remote ? from : String(cmd.ownerId || myOwnerId() || '');
+        if(!ownerId) return deny('Не удалось определить игрока');
+        if(Object.values(s.tokens).some(t=>t.kind==='player' && t.ownerId===ownerId)) return deny('Жетон этого игрока уже на поле');
+        const p = session.players && session.players[ownerId];
+        const name = ownerId===myOwnerId() ? ownCharacterName() : (playerDisplayName(p) || 'Игрок');
+        ops.push({op:'token-upsert', token:sanitizeToken({id:newId('t'), kind:'player', ownerId, x:cmd.x, y:cmd.y,
+          size:'normal', color:colorForOwner(ownerId), name})});
+        break;
+      }
+      case 'token-create': {
+        if(remote) return deny('Создавать жетоны может только Мастер');
+        ops.push({op:'token-upsert', token:sanitizeToken(Object.assign({}, cmd.token, {id:newId('t'), kind:'gm'}))});
+        break;
+      }
+      case 'token-move': {
+        let denied = false;
+        (Array.isArray(cmd.moves) ? cmd.moves : []).slice(0,100).forEach(m=>{
+          const t = m && s.tokens[m.id];
+          if(!t) return;
+          if(remote && !(t.kind==='player' && t.ownerId===from)){ denied = true; return; }
+          ops.push({op:'token-upsert', token:sanitizeToken(Object.assign({}, t, {x:m.x, y:m.y}))});
+        });
+        if(!ops.length) return deny(denied ? 'Можно двигать только свой жетон' : 'Жетон не найден');
+        break;
+      }
+      case 'token-update': {
+        if(remote) return deny('Менять жетоны может только Мастер');
+        const t = s.tokens[cmd.id];
+        if(!t) return deny('Жетон не найден');
+        const patch = {};
+        ['name','hp','size','color','hidden','avatar','rotation'].forEach(k=>{ if(cmd.patch && k in cmd.patch) patch[k] = cmd.patch[k]; });
+        ops.push({op:'token-upsert', token:sanitizeToken(Object.assign({}, t, patch))});
+        break;
+      }
+      case 'token-delete': {
+        if(remote) return deny('Удалять жетоны может только Мастер');
+        (cmd.ids||[]).forEach(id=>{ if(s.tokens[id]) ops.push({op:'token-remove', id}); });
+        break;
+      }
+      case 'drawing-add': case 'drawing-remove': case 'drawings-set': case 'map-set': {
+        if(remote) return deny('Рисовать может только Мастер');
+        const op = sanitizeOp(Object.assign({}, cmd, {op:cmd.c}));
+        if(op) ops.push(op);
+        break;
+      }
+      default: return deny('Неизвестная команда');
+    }
+    if(!ops.length) return deny('Нечего менять');
+    commit(ops);
+    return {ok:true, ops};
+  }
+  function commit(ops){
+    ops.forEach(op=>applyOp(authState, op));
+    authState.version++;
+    scheduleSave();
+    afterOps(ops);
+    if(role()==='gm') sendMsg({type:'gt-update', tableId:authState.tableId, version:authState.version, ops:playerOps(ops)});
+  }
+  function afterOps(ops){
+    let draw = false, bg = false;
+    ops.forEach(op=>{
+      if(op.op==='token-upsert'){ delete pendingPos[op.token.id]; delete previewPos[op.token.id]; }
+      if(op.op==='token-remove'){ selected.delete(op.id); }
+      if(op.op.indexOf('drawing')===0) draw = true;
+      if(op.op==='map-set') bg = true;
+    });
+    renderTokens();
+    requestRender({draw, bg, fx:true});
+  }
+  // Своё действие: авторитет применяет сразу, игрок отправляет Мастеру
+  function act(cmd){
+    if(isAuthority()){
+      const r = execCommand(cmd);
+      if(!r.ok) toast(r.reason);
+      return r.ok;
+    }
+    if(!session.gmId){ toast('Мастер не в сети — действие не отправлено'); return false; }
+    sendMsg({type:'gt-command', cmd}, session.gmId);
+    return true;
+  }
+
+  /* ---------- приём сообщений ---------- */
+  let lastSnapshotRequest = 0;
+  function requestSnapshot(){
+    if(!isPlayer() || !session.gmId) return;
+    const now = Date.now();
+    if(now - lastSnapshotRequest < 1500) return;
+    lastSnapshotRequest = now;
+    sendMsg({type:'gt-request', name:session.ownName}, session.gmId);
+  }
+  function fromGm(msg){ return isPlayer() && !!msg.from && msg.from===session.gmId; }
+  let awaitingOwnToken = false;
+  function handleMessage(msg){
+    const from = msg.from;
+    switch(msg.type){
+      case 'gt-snapshot': {
+        if(!fromGm(msg) || !msg.state) return;
+        const s = normalizeState(msg.state, null);
+        if(s.tableId===viewState.tableId && s.version < viewState.version) return; // более старый снимок поверх нового не принимаем
+        viewState = s;
+        Object.keys(pendingPos).forEach(k=>delete pendingPos[k]);
+        scheduleCacheSave();
+        renderTokens(); requestRender({bg:true, draw:true, fx:true});
+        break;
+      }
+      case 'gt-update': {
+        if(!fromGm(msg)) return;
+        const v = Math.floor(num(msg.version, -1));
+        if(msg.tableId!==viewState.tableId){ requestSnapshot(); return; }
+        if(v <= viewState.version) return;               // уже видели
+        if(v !== viewState.version+1){ requestSnapshot(); return; } // пропустили обновление — целиком снимок
+        const ops = (Array.isArray(msg.ops) ? msg.ops : []).map(sanitizeOp).filter(Boolean);
+        ops.forEach(op=>applyOp(viewState, op));
+        viewState.version = v;
+        scheduleCacheSave();
+        afterOps(ops);
+        if(awaitingOwnToken){ const mine = ownToken(); if(mine){ awaitingOwnToken = false; selected.clear(); selected.add(mine.id); renderTokens(); } }
+        break;
+      }
+      case 'gt-command': {
+        if(role()!=='gm' || !from || !msg.cmd) return;
+        const r = execCommand(msg.cmd, from);
+        if(!r.ok) sendMsg({type:'gt-reject', reason:r.reason}, from);
+        break;
+      }
+      case 'gt-reject': {
+        if(!fromGm(msg)) return;
+        Object.keys(pendingPos).forEach(k=>{ delete pendingPos[k]; refreshTokenPos(k); });
+        awaitingOwnToken = false;
+        toast(String(msg.reason||'Мастер отклонил действие').slice(0,120));
+        break;
+      }
+      case 'gt-request': {
+        if(role()!=='gm' || !from) return;
+        // Игрок, подключённый ещё до перезагрузки Мастера, не присылает player-hello заново — без этого
+        // его sheet-snapshot у Мастера отбрасывался бы (нет записи в session.players)
+        if(!session.players[from]){
+          session.players[from] = {name:String(msg.name||'Игрок').slice(0,60), character:null, extra:null};
+          if(typeof addToXpRoster==='function') addToXpRoster(from, session.players[from].name);
+          if(typeof renderPlayersList==='function') renderPlayersList();
+        }
+        sendSnapshot(from);
+        sendMsg({type:'gt-vitals', vitals:computeVitals()}, from);
+        break;
+      }
+      case 'gt-vitals': if(fromGm(msg)){ remoteVitals = msg.vitals && typeof msg.vitals==='object' ? msg.vitals : {}; renderTokens(); } break;
+      case 'gt-ping': case 'gt-pointer': case 'gt-drag': handleTransient(msg); break;
+    }
+  }
+
+  /* ---------- временные события: DataChannel + WS как запасной путь ---------- */
+  let tSeqCounter = 0;
+  function nextSeq(){ tSeqCounter = (tSeqCounter+1) % 1000; return Date.now()*1000 + tSeqCounter; }
+  const gates = {};
+  function gated(key, ms, fn){ // не чаще раза в ms, с отложенным последним вызовом (финальная точка не теряется)
+    const g = gates[key] || (gates[key] = {last:0, timer:null, fn:null});
+    const now = performance.now();
+    g.fn = fn;
+    if(now - g.last >= ms){ g.last = now; clearTimeout(g.timer); g.timer = null; g.fn = null; fn(); return; }
+    if(!g.timer) g.timer = setTimeout(()=>{ g.timer = null; g.last = performance.now(); const f = g.fn; g.fn = null; if(f) f(); }, ms - (now - g.last));
+  }
+  function sendTransient(ev, wsMs){
+    ev.seq = nextSeq();
+    const e2 = Object.assign({}, ev);
+    gated('dc:'+ev.type, 30, ()=>{ try{ RoomTransport.sendGameEvent(e2); }catch(e){} });
+    if(role()) gated('ws:'+ev.type, wsMs||0, ()=>sendMsg(e2));
+  }
+  const lastSeq = {}, seenPings = new Set();
+  function handleTransient(msg){
+    const from = msg.from;
+    if(!from || from===session.myId) return;
+    const key = from+'|'+msg.type;
+    if(msg.type==='gt-ping'){
+      if(!msg.eid || seenPings.has(msg.eid)) return;
+      seenPings.add(msg.eid); if(seenPings.size>300) seenPings.clear();
+      addPing(num(msg.x,0), num(msg.y,0), safeColor(msg.color, PALETTE[0]), String(msg.name||'').slice(0,40));
+      return;
+    }
+    const seq = num(msg.seq, 0);
+    if(lastSeq[key] && seq <= lastSeq[key]) return; // пришло позже более свежего (DC и WS обгоняют друг друга)
+    lastSeq[key] = seq;
+    if(msg.type==='gt-pointer'){
+      if(!isPlayer() || from!==session.gmId) return; // указка — только от Мастера
+      gmPointer = msg.off ? null : {x:num(msg.x,0), y:num(msg.y,0), t:performance.now()};
+      requestRender({fx:true});
+    } else if(msg.type==='gt-drag'){
+      (Array.isArray(msg.moves) ? msg.moves : []).slice(0,100).forEach(m=>{
+        const t = m && tok(m.id);
+        if(!t || !tokenVisibleHere(t)) return;
+        // Мастер может показывать движение любого (видимого) жетона, игрок — только своего
+        const senderIsGm = isPlayer() && from===session.gmId;
+        const senderOwns = t.kind==='player' && t.ownerId===from;
+        if(!senderIsGm && !senderOwns) return;
+        if(dragPos[t.id]) return; // сами сейчас держим этот жетон
+        previewPos[t.id] = {x:num(m.x,t.x), y:num(m.y,t.y), t:performance.now()};
+        refreshTokenPos(t.id);
+      });
+      requestRender({fx:true});
+    }
+  }
+
+  /* ---------- камера ---------- */
+  let camNeedsCenter = false;
+  let cam = (function(){
+    const c = loadJson(CAMERA_KEY);
+    if(c && isFinite(c.x) && isFinite(c.y) && isFinite(c.z)) return {x:c.x, y:c.y, z:clamp(c.z, ZOOM_MIN, ZOOM_MAX)};
+    camNeedsCenter = true; // первый показ — начало координат в центр поля (размер поля ещё неизвестен)
+    return {x:0, y:0, z:1};
+  })();
+  let camTimer = null;
+  function toWorld(p){ return {x:(p.x-cam.x)/(CELL*cam.z), y:(p.y-cam.y)/(CELL*cam.z)}; }
+  function toScreen(w){ return {x:cam.x + w.x*CELL*cam.z, y:cam.y + w.y*CELL*cam.z}; }
+  function applyCamera(){
+    layer.style.transform = `translate(${cam.x}px,${cam.y}px) scale(${cam.z})`;
+    layer.style.setProperty('--gt-inv', (1/cam.z).toFixed(4));
+    const zl = document.getElementById('gtZoomLabel');
+    if(zl) zl.textContent = Math.round(cam.z*100)+'%';
+    requestRender({bg:true, draw:true, fx:true});
+    if(camNeedsCenter) return; // ещё не центрировали по реальному размеру поля — такую камеру не запоминаем
+    clearTimeout(camTimer);
+    camTimer = setTimeout(()=>{ camTimer = null; saveJson(CAMERA_KEY, cam); }, 400);
+  }
+  function zoomAt(px, py, z){
+    z = clamp(z, ZOOM_MIN, ZOOM_MAX);
+    const w = toWorld({x:px, y:py});
+    cam.z = z; cam.x = px - w.x*CELL*z; cam.y = py - w.y*CELL*z;
+    applyCamera();
+  }
+  function zoomStep(dir){
+    const cur = cam.z;
+    let z = dir>0 ? ZOOM_STEPS.find(s=>s>cur+0.001) : ZOOM_STEPS.slice().reverse().find(s=>s<cur-0.001);
+    if(z===undefined) z = dir>0 ? ZOOM_MAX : ZOOM_MIN;
+    zoomAt(vw/2, vh/2, z);
+  }
+  function centerOn(wx, wy){ cam.x = vw/2 - wx*CELL*cam.z; cam.y = vh/2 - wy*CELL*cam.z; applyCamera(); }
+  function centerOnTokens(){
+    const ts = Object.values(st().tokens).filter(tokenVisibleHere);
+    if(!ts.length){ centerOn(0,0); return; }
+    const xs = ts.map(t=>t.x), ys = ts.map(t=>t.y);
+    centerOn((Math.min(...xs)+Math.max(...xs))/2, (Math.min(...ys)+Math.max(...ys))/2);
+  }
+
+  /* ---------- DOM / локальное состояние интерфейса ---------- */
+  let viewport, layer, bgC, drC, fxC, bgX, drX, fxX, toolbar, subbar, zoombar, statusEl, infoCard, hintEl, toastEl, menuEl, popEl, emptyHint;
+  let vw = 0, vh = 0, dpr = 1, visible = false;
+  let tool = 'select', drawTool = 'pen';
+  let drawStyle = Object.assign({color:DRAW_COLORS[0], width:4, opacity:1}, loadJson(STYLE_KEY)||{});
+  const selected = new Set();
+  const tokenEls = new Map();
+  const dragPos = {};     // id -> {x,y}   своё текущее перетаскивание (ещё не отправлено)
+  const pendingPos = {};  // id -> {x,y,t} (игрок) отправлено Мастеру, ждём подтверждения
+  const previewPos = {};  // id -> {x,y,t} чужое «живое» перетаскивание
+  let interaction = null, placing = null, ruler = null, polyDraft = null, eraseIds = null;
+  let pings = [], gmPointer = null, pointerBroadcast = false;
+  let undoStack = [], redoStack = [];
+  let spaceHeld = false, lastRole = undefined, lastMouse = null;
+  const touches = new Map();
+  let pinch = null;
+
+  function colorForOwner(id){ let h = 0; String(id).split('').forEach(ch=>{ h = (h*31 + ch.charCodeAt(0))>>>0; }); return PALETTE[h % PALETTE.length]; }
+  function initials(name){
+    const parts = String(name||'?').trim().split(/\s+/).filter(Boolean);
+    const s = parts.length>1 ? parts[0][0]+parts[1][0] : (parts[0]||'?').slice(0,2);
+    return s.toUpperCase();
+  }
+  function tokenName(t, v){ return (v && v.name) || t.name || (t.kind==='player' ? 'Игрок' : 'Жетон'); }
+  function offlineText(t){
+    if(t.ownerId===myOwnerId()) return 'нет персонажа';
+    if(role()==='gm') return session.players[t.ownerId] ? 'ждём лист' : 'не в сети';
+    return 'нет данных';
+  }
+  function displayPos(t){ return dragPos[t.id] || pendingPos[t.id] || previewPos[t.id] || t; }
+
+  /* ---------- жетоны (HTML-слой) ---------- */
+  function renderTokens(){
+    if(!visible) return;
+    const s = st(), seen = new Set();
+    Object.values(s.tokens).forEach(t=>{
+      if(!tokenVisibleHere(t)) return;
+      seen.add(t.id);
+      let el = tokenEls.get(t.id);
+      if(!el){
+        el = document.createElement('div');
+        el.className = 'gt-token';
+        el.dataset.id = t.id;
+        tokenEls.set(t.id, el);
+        layer.appendChild(el);
+      }
+      updateTokenEl(el, t);
+    });
+    tokenEls.forEach((el, id)=>{ if(!seen.has(id)){ el.remove(); tokenEls.delete(id); selected.delete(id); } });
+    emptyHint.style.display = seen.size || st().drawings.length ? 'none' : '';
+    renderInfoCard();
+  }
+  function positionTokenEl(el, t){
+    const pos = displayPos(t), sz = SIZE_CELLS[t.size]*CELL;
+    el.style.width = el.style.height = sz+'px';
+    el.style.transform = `translate(${pos.x*CELL - sz/2}px,${pos.y*CELL - sz/2}px)`;
+  }
+  function updateTokenEl(el, t){
+    positionTokenEl(el, t);
+    el.classList.toggle('selected', selected.has(t.id));
+    el.classList.toggle('movable', canControl(t));
+    el.classList.toggle('hidden-tok', !!t.hidden);
+    el.classList.toggle('dragging', !!dragPos[t.id]);
+    const v = vitalsFor(t);
+    const key = JSON.stringify([t.name, t.color, t.avatar, t.hp, t.kind, t.hidden, t.size, t.rotation, v && [v.name, v.hp, v.hpMax, v.psi, v.psiMax]]);
+    if(el._gtKey===key) return;
+    el._gtKey = key;
+    const name = tokenName(t, v), sz = SIZE_CELLS[t.size]*CELL;
+    const face = t.avatar
+      ? `<img src="${escapeHtml(t.avatar)}" alt="" draggable="false" referrerpolicy="no-referrer">`
+      : `<span style="font-size:${Math.round(sz*0.36)}px">${escapeHtml(initials(name))}</span>`;
+    let stats = '';
+    const fmt = (a)=> (a===null || a===undefined || a==='') ? '—' : escapeHtml(String(a));
+    if(t.kind==='player'){
+      stats = v ? `<span class="gt-stats"><span class="gt-hp${Number(v.hp)<=0?' down':''}">♥ ${fmt(v.hp)} / ${fmt(v.hpMax)}</span><span class="gt-psi">✦ ${fmt(v.psi)} / ${fmt(v.psiMax)}</span></span>`
+                : `<span class="gt-off">${offlineText(t)}</span>`;
+    } else if(t.hp!==null && t.hp!==undefined){
+      stats = `<span class="gt-stats"><span class="gt-hp${t.hp<=0?' down':''}">♥ ${fmt(t.hp)}</span></span>`;
+    }
+    el.innerHTML = `<div class="gt-token-disc" style="--tok:${t.color};--rot:${t.rotation||0}deg">${face}</div>`+
+      (t.hidden ? '<i class="gt-hidden-badge" title="Скрыт от игроков">⊘</i>' : '')+
+      `<div class="gt-token-label"><b>${escapeHtml(name)}</b>${stats}</div>`;
+  }
+  function refreshTokenPos(id){ const el = tokenEls.get(id), t = tok(id); if(el && t){ positionTokenEl(el, t); el.classList.toggle('dragging', !!dragPos[id]); } }
+  function setSelection(ids){ selected.clear(); ids.forEach(id=>selected.add(id)); tokenEls.forEach((el,id)=>el.classList.toggle('selected', selected.has(id))); renderInfoCard(); }
+  function renderInfoCard(){
+    if(selected.size!==1){ infoCard.style.display = 'none'; return; }
+    const t = tok([...selected][0]);
+    if(!t){ infoCard.style.display = 'none'; return; }
+    const v = vitalsFor(t);
+    const kindTxt = t.kind==='player' ? 'Игрок' : 'Жетон Мастера';
+    let stats = '';
+    if(t.kind==='player') stats = v ? `<span class="hp">HP ${escapeHtml(String(v.hp))} / ${escapeHtml(String(v.hpMax))}</span><span class="psi">Psi ${escapeHtml(String(v.psi))} / ${escapeHtml(String(v.psiMax))}</span>` : '<span class="muted">лист недоступен</span>';
+    else if(t.hp!==null && t.hp!==undefined) stats = `<span class="hp">HP ${escapeHtml(String(t.hp))}</span>`;
+    infoCard.innerHTML = `<div class="gt-ic-sub">${kindTxt} · ${SIZE_LABELS[t.size]}${t.hidden?' · скрыт':''}</div><div class="gt-ic-name">${escapeHtml(tokenName(t, v))}</div>`+
+      (stats ? `<div class="gt-ic-stats">${stats}</div>` : '');
+    infoCard.style.display = 'block';
+  }
+
+  /* ---------- canvas: фон/сетка, зоны+рисунки, временное ---------- */
+  let rq = null;
+  const dirty = {bg:false, draw:false, fx:false};
+  function requestRender(f){
+    if(f){ if(f.bg) dirty.bg = true; if(f.draw) dirty.draw = true; if(f.fx) dirty.fx = true; }
+    if(!rq) rq = requestAnimationFrame(flush);
+  }
+  function flush(){
+    rq = null;
+    if(!visible || !vw) return;
+    if(dirty.bg){ dirty.bg = false; drawBackground(); }
+    if(dirty.draw){ dirty.draw = false; drawDrawings(); }
+    if(dirty.fx){ dirty.fx = false; drawFx(); }
+  }
+  function resize(){
+    if(!viewport) return;
+    const w = viewport.clientWidth, h = viewport.clientHeight;
+    if(!w || !h) return;
+    dpr = window.devicePixelRatio || 1; vw = w; vh = h;
+    [bgC, drC, fxC].forEach(c=>{ c.width = Math.round(w*dpr); c.height = Math.round(h*dpr); c.style.width = w+'px'; c.style.height = h+'px'; });
+    if(camNeedsCenter && visible){ camNeedsCenter = false; centerOn(0, 0); }
+    requestRender({bg:true, draw:true, fx:true});
+  }
+  function setWorldTransform(ctx){ const k = CELL*cam.z*dpr; ctx.setTransform(k,0,0,k, cam.x*dpr, cam.y*dpr); }
+  const bgImages = {};
+  function drawBackground(){
+    const ctx = bgX;
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.fillStyle = '#efe6cc';
+    ctx.fillRect(0,0,vw,vh);
+    // Задел под карту-подложку: только ссылка на картинку (не base64 через WebSocket)
+    const bg = st().map && st().map.background;
+    if(bg){
+      let img = bgImages[bg.url];
+      if(!img){ img = bgImages[bg.url] = new Image(); img.referrerPolicy = 'no-referrer'; img.onload = ()=>requestRender({bg:true}); img.src = bg.url; }
+      if(img.complete && img.naturalWidth){
+        const p = toScreen({x:bg.x, y:bg.y}), w = bg.w*CELL*cam.z, h = w*img.naturalHeight/img.naturalWidth;
+        ctx.drawImage(img, p.x, p.y, w, h);
+      }
+    }
+    const step = CELL*cam.z;
+    const x0 = Math.floor(-cam.x/step), x1 = Math.ceil((vw-cam.x)/step);
+    const y0 = Math.floor(-cam.y/step), y1 = Math.ceil((vh-cam.y)/step);
+    const minorA = cam.z < 0.5 ? 0.09 : 0.15;
+    for(let pass=0; pass<2; pass++){
+      ctx.beginPath();
+      for(let i=x0; i<=x1; i++){ if((i%5===0)!==(pass===1)) continue; const x = Math.round(cam.x+i*step)+0.5; ctx.moveTo(x,0); ctx.lineTo(x,vh); }
+      for(let j=y0; j<=y1; j++){ if((j%5===0)!==(pass===1)) continue; const y = Math.round(cam.y+j*step)+0.5; ctx.moveTo(0,y); ctx.lineTo(vw,y); }
+      ctx.strokeStyle = pass ? 'rgba(28,23,18,.28)' : `rgba(28,23,18,${minorA})`;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+    // Мягкая виньетка по краям — поле читается как лист, а не как бесконечная таблица
+    const g = ctx.createRadialGradient(vw/2, vh/2, Math.min(vw,vh)*0.35, vw/2, vh/2, Math.max(vw,vh)*0.75);
+    g.addColorStop(0, 'rgba(92,82,64,0)'); g.addColorStop(1, 'rgba(92,82,64,.16)');
+    ctx.fillStyle = g; ctx.fillRect(0,0,vw,vh);
+  }
+  function drawZones(/*ctx*/){ /* задел: зоны (опасность/эффект/запрет/шум/…) и AoE рисуются здесь, под рисунками */ }
+  function drawDrawings(){
+    const ctx = drX;
+    ctx.setTransform(1,0,0,1,0,0);
+    ctx.clearRect(0,0,drC.width,drC.height);
+    drawZones(ctx);
+    st().drawings.forEach(d=>{ if(eraseIds && eraseIds.has(d.id)) return; drawShape(ctx, d); });
+  }
+  function drawShape(ctx, d){
+    const pts = d.points;
+    if(!pts || !pts.length) return;
+    ctx.save();
+    const op = d.opacity==null ? 1 : d.opacity;
+    ctx.globalAlpha = op;
+    ctx.strokeStyle = d.color; ctx.fillStyle = d.color;
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    if(d.type==='text'){
+      const p = toScreen({x:pts[0][0], y:pts[0][1]}), fs = d.fontSize*cam.z;
+      ctx.setTransform(dpr,0,0,dpr,0,0);
+      ctx.font = `700 ${fs}px 'Roboto Condensed', 'Arial Narrow', Arial, sans-serif`;
+      ctx.textBaseline = 'top';
+      ctx.lineWidth = Math.max(2, fs*0.16);
+      ctx.strokeStyle = d.color.toLowerCase()==='#f6ecd4' ? 'rgba(28,23,18,.85)' : 'rgba(239,230,204,.9)';
+      String(d.text).split('\n').forEach((line, i)=>{ ctx.strokeText(line, p.x, p.y+i*fs*1.2); ctx.fillText(line, p.x, p.y+i*fs*1.2); });
+      ctx.restore();
+      return;
+    }
+    setWorldTransform(ctx);
+    ctx.lineWidth = d.width/CELL;
+    const a = pts[0], b = pts[pts.length-1];
+    ctx.beginPath();
+    switch(d.type){
+      case 'pen':
+        ctx.moveTo(a[0], a[1]);
+        if(pts.length===1) ctx.lineTo(a[0]+0.0001, a[1]);
+        for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i][0], pts[i][1]);
+        ctx.stroke();
+        break;
+      case 'line': case 'arrow': {
+        ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+        if(d.type==='arrow'){
+          const ang = Math.atan2(b[1]-a[1], b[0]-a[0]), hl = Math.max(14, d.width*3.2)/CELL;
+          ctx.beginPath();
+          ctx.moveTo(b[0], b[1]);
+          ctx.lineTo(b[0]-hl*Math.cos(ang-0.42), b[1]-hl*Math.sin(ang-0.42));
+          ctx.lineTo(b[0]-hl*Math.cos(ang+0.42), b[1]-hl*Math.sin(ang+0.42));
+          ctx.closePath(); ctx.fill(); ctx.stroke();
+        }
+        break;
+      }
+      case 'rect':
+        ctx.rect(Math.min(a[0],b[0]), Math.min(a[1],b[1]), Math.abs(b[0]-a[0]), Math.abs(b[1]-a[1]));
+        ctx.globalAlpha = op*0.14; ctx.fill(); ctx.globalAlpha = op; ctx.stroke();
+        break;
+      case 'circle':
+        ctx.arc(a[0], a[1], Math.hypot(b[0]-a[0], b[1]-a[1]), 0, Math.PI*2);
+        ctx.globalAlpha = op*0.14; ctx.fill(); ctx.globalAlpha = op; ctx.stroke();
+        break;
+      case 'polygon':
+        ctx.moveTo(a[0], a[1]);
+        for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i][0], pts[i][1]);
+        if(pts.length>2){ ctx.closePath(); ctx.globalAlpha = op*0.14; ctx.fill(); ctx.globalAlpha = op; }
+        ctx.stroke();
+        break;
+    }
+    ctx.restore();
+  }
+
+  /* ---------- измерение: клетки × 3 м ---------- */
+  function fmtNum(v){ return String(Math.round(v*10)/10).replace('.', ','); }
+  function plCells(n){
+    if(!Number.isInteger(n)) return 'клетки';
+    const a = n%10, b = n%100;
+    if(a===1 && b!==11) return 'клетка';
+    if(a>=2 && a<=4 && (b<12 || b>14)) return 'клетки';
+    return 'клеток';
+  }
+  // opts.limitMeters — задел под будущую дальность движения ("15 / 18 м"), сейчас не передаётся
+  function measureLabel(cells, opts){
+    const mpc = (st().map && st().map.metersPerCell) || METERS_PER_CELL;
+    const c = Math.round(cells*10)/10, m = Math.round(cells*mpc*10)/10;
+    const meters = opts && opts.limitMeters ? `${fmtNum(m)} / ${fmtNum(opts.limitMeters)} м` : `${fmtNum(m)} м`;
+    return `${fmtNum(c)} ${plCells(c)} · ${meters}`;
+  }
+  function pathLength(pts){ let s = 0; for(let i=1;i<pts.length;i++) s += Math.hypot(pts[i].x-pts[i-1].x, pts[i].y-pts[i-1].y); return s; }
+  function pill(ctx, x, y, text, bg){
+    ctx.font = "700 12px 'Roboto Condensed', 'Arial Narrow', Arial, sans-serif";
+    const w = ctx.measureText(text).width + 16, h = 22;
+    let bx = x + 12, by = y - h - 8;
+    if(bx + w > vw - 4) bx = x - w - 12;
+    if(by < 4) by = y + 12;
+    ctx.fillStyle = bg || 'rgba(28,23,18,.92)';
+    ctx.beginPath();
+    const r = h/2;
+    ctx.moveTo(bx+r, by); ctx.lineTo(bx+w-r, by); ctx.arc(bx+w-r, by+r, r, -Math.PI/2, Math.PI/2); ctx.lineTo(bx+r, by+h); ctx.arc(bx+r, by+r, r, Math.PI/2, Math.PI*1.5);
+    ctx.fill();
+    ctx.fillStyle = '#f6ecd4'; ctx.textBaseline = 'middle';
+    ctx.fillText(text, bx+8, by+h/2+0.5);
+  }
+  function strokePath(ctx, pts, color, dash){
+    ctx.save();
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.strokeStyle = 'rgba(239,230,204,.9)'; ctx.lineWidth = 6;
+    ctx.beginPath(); pts.forEach((p,i)=> i ? ctx.lineTo(p.x,p.y) : ctx.moveTo(p.x,p.y)); ctx.stroke();
+    ctx.strokeStyle = color; ctx.lineWidth = 2.5;
+    if(dash) ctx.setLineDash(dash);
+    ctx.stroke();
+    ctx.restore();
+  }
+  function dot(ctx, p, r, color){ ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI*2); ctx.fillStyle = color; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = '#efe6cc'; ctx.stroke(); }
+
+  function drawFx(){
+    const ctx = fxX, now = performance.now();
+    let animate = false;
+    ctx.setTransform(1,0,0,1,0,0);
+    ctx.clearRect(0,0,fxC.width,fxC.height);
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    // линейка (с промежуточными точками)
+    if(ruler){
+      const wp = ruler.points.concat(ruler.cur ? [ruler.cur] : []);
+      const sp = wp.map(toScreen);
+      strokePath(ctx, sp, '#9c2f1c', [8,6]);
+      sp.forEach((p,i)=>dot(ctx, p, i===sp.length-1 ? 5 : 4, '#9c2f1c'));
+      const last = sp[sp.length-1];
+      pill(ctx, last.x, last.y, measureLabel(pathLength(wp)) + (ruler.points.length>1 ? ` · ${ruler.points.length} точ.` : ''));
+    }
+    // перетаскивание жетона: откуда → куда и сколько это метров
+    if(interaction && interaction.type==='drag' && interaction.moved){
+      const t = tok(interaction.primary), start = interaction.starts[interaction.primary], cur = dragPos[interaction.primary];
+      if(t && start && cur){
+        const a = toScreen(start), b = toScreen(cur);
+        strokePath(ctx, [a,b], '#1c1712', [6,6]);
+        dot(ctx, a, 4, '#1c1712');
+        pill(ctx, b.x, b.y - SIZE_CELLS[t.size]*CELL*cam.z/2, measureLabel(Math.hypot(cur.x-start.x, cur.y-start.y)));
+      }
+    }
+    if(placing && placing.cur){
+      const t = tok(placing.ids[0]);
+      if(t){ const a = toScreen(t), b = toScreen(placing.cur); strokePath(ctx, [a,b], '#1c1712', [6,6]); pill(ctx, b.x, b.y, measureLabel(Math.hypot(placing.cur.x-t.x, placing.cur.y-t.y))); }
+    }
+    // рамка выделения
+    if(interaction && interaction.type==='box'){
+      const a = interaction.start, b = interaction.cur;
+      ctx.save();
+      ctx.fillStyle = 'rgba(156,47,28,.08)'; ctx.strokeStyle = '#9c2f1c'; ctx.lineWidth = 1.5; ctx.setLineDash([5,4]);
+      ctx.fillRect(Math.min(a.x,b.x), Math.min(a.y,b.y), Math.abs(b.x-a.x), Math.abs(b.y-a.y));
+      ctx.strokeRect(Math.min(a.x,b.x)+0.5, Math.min(a.y,b.y)+0.5, Math.abs(b.x-a.x), Math.abs(b.y-a.y));
+      ctx.restore();
+    }
+    // черновик фигуры + размер в метрах (круг — радиус, удобно для будущих AoE)
+    if(interaction && interaction.type==='shape'){
+      const d = interaction.draft;
+      drawShape(ctx, d);
+      ctx.setTransform(dpr,0,0,dpr,0,0);
+      if(d.type!=='pen' && d.points.length>1){
+        const a = d.points[0], b = d.points[d.points.length-1], sb = toScreen({x:b[0], y:b[1]});
+        let label;
+        if(d.type==='rect') label = `${fmtNum(Math.abs(b[0]-a[0])*METERS_PER_CELL)} × ${fmtNum(Math.abs(b[1]-a[1])*METERS_PER_CELL)} м`;
+        else if(d.type==='circle') label = 'радиус ' + measureLabel(Math.hypot(b[0]-a[0], b[1]-a[1]));
+        else label = measureLabel(Math.hypot(b[0]-a[0], b[1]-a[1]));
+        pill(ctx, sb.x, sb.y, label);
+      }
+    }
+    if(polyDraft){
+      const pts = polyDraft.points.concat(lastMouse ? [[lastMouse.x, lastMouse.y]] : []);
+      drawShape(ctx, Object.assign({}, polyDraft.style, {type:'polygon', points:pts}));
+      ctx.setTransform(dpr,0,0,dpr,0,0);
+      polyDraft.points.forEach((p,i)=>dot(ctx, toScreen({x:p[0], y:p[1]}), i===0 ? 6 : 3.5, polyDraft.style.color));
+    }
+    // ping — расходящиеся кольца, живут ~1,7 с, в состояние стола не попадают
+    pings = pings.filter(p=>now - p.t0 < PING_MS);
+    pings.forEach(p=>{
+      const s = toScreen(p), k = (now - p.t0)/PING_MS;
+      for(let i=0;i<3;i++){
+        const q = (k*1.6 - i*0.28);
+        if(q<=0 || q>=1) continue;
+        ctx.beginPath(); ctx.arc(s.x, s.y, 8 + q*46, 0, Math.PI*2);
+        ctx.strokeStyle = p.color; ctx.globalAlpha = 1-q; ctx.lineWidth = 3; ctx.stroke();
+      }
+      ctx.globalAlpha = Math.max(0, 1 - k*k);
+      dot(ctx, s, 6, p.color);
+      if(p.name){ ctx.font = "700 11px 'Roboto Condensed', Arial, sans-serif"; ctx.fillStyle = '#1c1712'; ctx.textBaseline = 'top'; ctx.fillText(p.name, s.x + 10, s.y + 8); }
+      ctx.globalAlpha = 1;
+    });
+    if(pings.length) animate = true;
+    // указка Мастера (у игроков) — гаснет через ~2,5 с без движения
+    if(gmPointer){
+      const age = now - gmPointer.t;
+      if(age > 2600) gmPointer = null;
+      else {
+        const s = toScreen(gmPointer);
+        ctx.globalAlpha = age > 1600 ? 1 - (age-1600)/1000 : 1;
+        ctx.beginPath(); ctx.arc(s.x, s.y, 11, 0, Math.PI*2); ctx.fillStyle = 'rgba(156,47,28,.22)'; ctx.fill();
+        dot(ctx, s, 5, '#9c2f1c');
+        ctx.font = "700 10px 'Roboto Condensed', Arial, sans-serif"; ctx.fillStyle = '#9c2f1c'; ctx.textBaseline = 'top';
+        ctx.fillText(session.gmName || 'Мастер', s.x + 12, s.y + 6);
+        ctx.globalAlpha = 1;
+        animate = true;
+      }
+    }
+    // сроки жизни чужих превью и своих неподтверждённых ходов
+    Object.keys(previewPos).forEach(id=>{ if(now - previewPos[id].t > PREVIEW_MS){ delete previewPos[id]; refreshTokenPos(id); } else animate = true; });
+    let expired = false;
+    Object.keys(pendingPos).forEach(id=>{ if(now - pendingPos[id].t > PENDING_MS){ delete pendingPos[id]; refreshTokenPos(id); expired = true; } else animate = true; });
+    if(expired) toast('Мастер не подтвердил перемещение');
+    if(animate) requestRender({fx:true});
+  }
+  function addPing(x, y, color, name){ pings.push({x, y, color, name, t0:performance.now()}); requestRender({fx:true}); }
+  function doPing(w){
+    const mine = ownToken();
+    const color = role()==='gm' || !role() ? '#9c2f1c' : (mine ? mine.color : colorForOwner(session.myId||'me'));
+    const name = session.ownName || (role()==='gm' ? 'Мастер' : '');
+    addPing(w.x, w.y, color, '');
+    sendTransient({type:'gt-ping', eid:newId('p'), x:r3(w.x), y:r3(w.y), color, name});
+  }
+
+  /* ---------- попадание по рисункам (ластик) ---------- */
+  function distToSeg(p, a, b){
+    const dx = b[0]-a[0], dy = b[1]-a[1], l2 = dx*dx + dy*dy;
+    let t = l2 ? ((p.x-a[0])*dx + (p.y-a[1])*dy)/l2 : 0;
+    t = clamp(t, 0, 1);
+    return Math.hypot(p.x-(a[0]+t*dx), p.y-(a[1]+t*dy));
+  }
+  function hitDrawing(d, w){
+    const tol = 8/(CELL*cam.z) + d.width/CELL/2, pts = d.points, a = pts[0], b = pts[pts.length-1];
+    switch(d.type){
+      case 'pen': if(pts.length===1) return Math.hypot(w.x-a[0], w.y-a[1]) <= tol;
+                  for(let i=1;i<pts.length;i++) if(distToSeg(w, pts[i-1], pts[i])<=tol) return true; return false;
+      case 'line': case 'arrow': return distToSeg(w, a, b) <= tol;
+      case 'rect': return w.x>=Math.min(a[0],b[0])-tol && w.x<=Math.max(a[0],b[0])+tol && w.y>=Math.min(a[1],b[1])-tol && w.y<=Math.max(a[1],b[1])+tol;
+      case 'circle': return Math.hypot(w.x-a[0], w.y-a[1]) <= Math.hypot(b[0]-a[0], b[1]-a[1]) + tol;
+      case 'polygon': {
+        let inside = false;
+        for(let i=0, j=pts.length-1; i<pts.length; j=i++){
+          const xi=pts[i][0], yi=pts[i][1], xj=pts[j][0], yj=pts[j][1];
+          if(((yi>w.y)!==(yj>w.y)) && (w.x < (xj-xi)*(w.y-yi)/(yj-yi)+xi)) inside = !inside;
+        }
+        if(inside) return true;
+        for(let i=0;i<pts.length;i++) if(distToSeg(w, pts[i], pts[(i+1)%pts.length])<=tol) return true;
+        return false;
+      }
+      case 'text': {
+        const lines = String(d.text).split('\n'), fsC = d.fontSize/CELL;
+        const wC = Math.max(...lines.map(l=>l.length))*fsC*0.52, hC = lines.length*fsC*1.2;
+        return w.x>=a[0]-tol && w.x<=a[0]+wC+tol && w.y>=a[1]-tol && w.y<=a[1]+hC+tol;
+      }
+    }
+    return false;
+  }
+
+  /* ---------- рисунки: команды + отмена/повтор (только Мастер/локально) ---------- */
+  function drawingAction(cmd, inverse){
+    if(!isAuthority()) return;
+    const r = execCommand(cmd);
+    if(!r.ok){ toast(r.reason); return; }
+    undoStack.push({cmd, inverse});
+    if(undoStack.length>100) undoStack.shift();
+    redoStack = [];
+    renderSubbar();
+  }
+  function undo(){ const e = undoStack.pop(); if(!e) return; execCommand(e.inverse); redoStack.push(e); renderSubbar(); }
+  function redo(){ const e = redoStack.pop(); if(!e) return; execCommand(e.cmd); undoStack.push(e); renderSubbar(); }
+  function addDrawing(d){
+    const clean = sanitizeDrawing(Object.assign({}, d, {id:newId('d')}));
+    if(!clean) return;
+    drawingAction({c:'drawing-add', drawing:clean}, {c:'drawing-remove', ids:[clean.id]});
+  }
+  function removeDrawings(ids){
+    if(!ids.length) return;
+    const prev = clone(authState.drawings);
+    drawingAction({c:'drawing-remove', ids}, {c:'drawings-set', drawings:prev});
+  }
+  function clearDrawings(){
+    if(!authState.drawings.length) return;
+    if(!confirm('Стереть все рисунки на столе? (можно отменить — Ctrl+Z)')) return;
+    drawingAction({c:'drawings-set', drawings:[]}, {c:'drawings-set', drawings:clone(authState.drawings)});
+  }
+
+  /* ---------- жетоны: действия ---------- */
+  function moveTokens(moves){
+    moves = moves.map(m=>({id:m.id, x:r3(m.x), y:r3(m.y)}));
+    if(isAuthority()){ act({c:'token-move', moves}); return; }
+    if(!session.gmId){ toast('Мастер не в сети — ход не отправлен'); moves.forEach(m=>refreshTokenPos(m.id)); return; }
+    const now = performance.now();
+    moves.forEach(m=>{ pendingPos[m.id] = {x:m.x, y:m.y, t:now}; refreshTokenPos(m.id); });
+    act({c:'token-move', moves});
+    requestRender({fx:true});
+  }
+  function snapPos(x, y, size){
+    const c = SIZE_CELLS[size] || 1;
+    const even = Number.isInteger(c) && c%2===0; // 2×2 — центр на пересечении линий, остальные — в центре клетки
+    const f = v => even ? Math.round(v) : Math.floor(v) + 0.5;
+    return {x:f(x), y:f(y)};
+  }
+  function myTokenAction(){
+    const mine = ownToken();
+    if(mine){ setSelection([mine.id]); centerOn(mine.x, mine.y); return; }
+    if(role()==='gm'){ toast('У Мастера нет своего жетона игрока'); return; }
+    const c = toWorld({x:vw/2, y:vh/2}), sn = snapPos(c.x, c.y, 'normal');
+    if(isAuthority()){ act({c:'player-token-create', x:sn.x, y:sn.y}); const t = ownToken(); if(t) setSelection([t.id]); return; }
+    awaitingOwnToken = true;
+    if(!act({c:'player-token-create', x:sn.x, y:sn.y})) awaitingOwnToken = false;
+  }
+  function deleteTokens(ids){
+    ids = ids.filter(id=>tok(id));
+    if(!ids.length || !isAuthority()) return;
+    const names = ids.map(id=>tokenName(tok(id), vitalsFor(tok(id))));
+    if((ids.length>1 || tok(ids[0]).kind==='player') && !confirm(`Удалить с поля: ${names.join(', ')}?`)) return;
+    act({c:'token-delete', ids});
+  }
+
+  /* ---------- ввод: мышь / перо / касание ---------- */
+  function localPt(e){ const r = viewport.getBoundingClientRect(); return {x:e.clientX - r.left - viewport.clientLeft, y:e.clientY - r.top - viewport.clientTop}; }
+  function tokenFromEvent(e){ const el = e.target.closest && e.target.closest('.gt-token'); return el ? tok(el.dataset.id) : null; }
+  function onPointerDown(e){
+    if(e.target.closest('.gt-ui')) return;
+    closeMenu(); closePopover();
+    viewport.focus({preventScroll:true});
+    if(e.pointerType==='touch'){
+      touches.set(e.pointerId, localPt(e));
+      if(touches.size===2){ cancelInteraction(); startPinch(); return; }
+      if(touches.size>2) return;
+    }
+    const p = localPt(e), w = toWorld(p);
+    lastMouse = w;
+    if(e.button===1 || (e.button===0 && spaceHeld)){ startPan(e, p); e.preventDefault(); return; }
+    if(e.button!==0) return;
+    if(e.altKey){ doPing(w); return; }
+    if(placing){ finishPlacing(w, e.shiftKey); return; }
+    const t = tokenFromEvent(e);
+    try{ viewport.setPointerCapture(e.pointerId); }catch(err){}
+    switch(tool){
+      case 'select': {
+        if(t && canControl(t)){
+          if(e.ctrlKey || e.metaKey){ const ids = new Set(selected); ids.has(t.id) ? ids.delete(t.id) : ids.add(t.id); setSelection([...ids]); return; }
+          if(!selected.has(t.id)) setSelection([t.id]);
+          const ids = [...selected].filter(id=>canControl(tok(id)));
+          const starts = {};
+          ids.forEach(id=>{ const tt = tok(id); const pp = displayPos(tt); starts[id] = {x:pp.x, y:pp.y}; });
+          interaction = {type:'drag', primary:t.id, ids, starts, startW:w, startP:p, moved:false, clicked:t.id};
+          return;
+        }
+        if(e.pointerType==='touch'){ startPan(e, p); return; }
+        interaction = {type:'box', start:p, cur:p, additive:e.ctrlKey||e.metaKey};
+        if(!interaction.additive) setSelection([]);
+        return;
+      }
+      case 'ruler': {
+        if(ruler && ruler.mode==='waypoints'){ ruler.points.push(w); ruler.cur = w; }
+        else ruler = {points:[w], cur:w, mode:'drag'};
+        interaction = {type:'ruler', startP:p, moved:false};
+        showHint();
+        requestRender({fx:true});
+        return;
+      }
+      case 'ping': doPing(w); return;
+      case 'token': if(isAuthority()) openTokenForm(null, w, p); return;
+      case 'text': if(isAuthority()) openTextForm(w, p); return;
+      case 'draw': {
+        if(!isAuthority()) return;
+        if(drawTool==='eraser'){ eraseIds = new Set(); interaction = {type:'erase'}; eraseAt(w); return; }
+        if(drawTool==='polygon'){
+          if(!polyDraft) polyDraft = {points:[], style:Object.assign({}, drawStyle)};
+          const first = polyDraft.points[0];
+          if(first && polyDraft.points.length>2 && Math.hypot(w.x-first[0], w.y-first[1])*CELL*cam.z < 10){ finishPolygon(); return; }
+          polyDraft.points.push([r3(w.x), r3(w.y)]);
+          showHint(); requestRender({fx:true});
+          return;
+        }
+        interaction = {type:'shape', draft:Object.assign({}, drawStyle, {type:drawTool, points:[[r3(w.x), r3(w.y)]]}), startP:p};
+        requestRender({fx:true});
+        return;
+      }
+    }
+  }
+  function onPointerMove(e){
+    if(e.pointerType==='touch' && touches.has(e.pointerId)){
+      touches.set(e.pointerId, localPt(e));
+      if(pinch){ updatePinch(); return; }
+    }
+    const p = localPt(e), w = toWorld(p);
+    lastMouse = w;
+    if(pointerBroadcast && role()==='gm' && !interaction) sendTransient({type:'gt-pointer', x:r3(w.x), y:r3(w.y)}, 90);
+    if(!interaction){
+      if(placing){ movePlacing(w, e.shiftKey); return; }
+      if(ruler && ruler.mode==='waypoints'){ ruler.cur = w; requestRender({fx:true}); }
+      if(polyDraft) requestRender({fx:true});
+      return;
+    }
+    const it = interaction;
+    switch(it.type){
+      case 'pan':
+        cam.x = it.cam.x + (p.x - it.startP.x); cam.y = it.cam.y + (p.y - it.startP.y);
+        applyCamera();
+        break;
+      case 'drag': {
+        if(!it.moved && Math.hypot(p.x-it.startP.x, p.y-it.startP.y) < 4) return;
+        it.moved = true;
+        const s0 = it.starts[it.primary];
+        let nx = s0.x + (w.x - it.startW.x), ny = s0.y + (w.y - it.startW.y);
+        if(e.shiftKey){ const sn = snapPos(nx, ny, tok(it.primary).size); nx = sn.x; ny = sn.y; }
+        const dx = nx - s0.x, dy = ny - s0.y;
+        const moves = [];
+        it.ids.forEach(id=>{ dragPos[id] = {x:it.starts[id].x+dx, y:it.starts[id].y+dy}; refreshTokenPos(id); if(!tok(id).hidden) moves.push({id, x:r3(dragPos[id].x), y:r3(dragPos[id].y)}); });
+        if(moves.length) sendTransient({type:'gt-drag', moves}, 120);
+        requestRender({fx:true});
+        break;
+      }
+      case 'box': it.cur = p; requestRender({fx:true}); break;
+      case 'ruler':
+        if(Math.hypot(p.x-it.startP.x, p.y-it.startP.y) >= 4) it.moved = true;
+        ruler.cur = w; requestRender({fx:true});
+        break;
+      case 'shape': {
+        const d = it.draft, pt = [r3(w.x), r3(w.y)];
+        if(d.type==='pen'){
+          const last = d.points[d.points.length-1];
+          if(Math.hypot(pt[0]-last[0], pt[1]-last[1])*CELL*cam.z >= 2 && d.points.length < 4000) d.points.push(pt);
+        } else d.points = [d.points[0], pt];
+        requestRender({fx:true});
+        break;
+      }
+      case 'erase': eraseAt(w); break;
+    }
+  }
+  function onPointerUp(e){
+    if(e.pointerType==='touch'){
+      touches.delete(e.pointerId);
+      if(pinch){ if(touches.size<2) pinch = null; return; }
+    }
+    const it = interaction;
+    if(!it) return;
+    interaction = null;
+    viewport.classList.remove('panning');
+    switch(it.type){
+      case 'drag': {
+        if(!it.moved){ if(!(e.ctrlKey||e.metaKey)) setSelection([it.clicked]); break; }
+        const moves = it.ids.map(id=>({id, x:dragPos[id].x, y:dragPos[id].y}));
+        it.ids.forEach(id=>{ delete dragPos[id]; });
+        moveTokens(moves);
+        it.ids.forEach(refreshTokenPos);
+        break;
+      }
+      case 'box': {
+        const a = toWorld(it.start), b = toWorld(it.cur);
+        const x0 = Math.min(a.x,b.x), x1 = Math.max(a.x,b.x), y0 = Math.min(a.y,b.y), y1 = Math.max(a.y,b.y);
+        const ids = new Set(it.additive ? selected : []);
+        if(Math.abs(it.cur.x-it.start.x) > 3 || Math.abs(it.cur.y-it.start.y) > 3){
+          Object.values(st().tokens).forEach(t=>{ if(tokenVisibleHere(t) && canControl(t)){ const pp = displayPos(t); if(pp.x>=x0 && pp.x<=x1 && pp.y>=y0 && pp.y<=y1) ids.add(t.id); } });
+        }
+        setSelection([...ids]);
+        break;
+      }
+      case 'ruler':
+        if(ruler.mode==='drag'){
+          if(it.moved) ruler = null;            // обычное измерение — исчезает при отпускании
+          else ruler.mode = 'waypoints';        // клик без протягивания — режим промежуточных точек
+        }
+        showHint();
+        break;
+      case 'shape': {
+        const d = it.draft;
+        const a = d.points[0], b = d.points[d.points.length-1];
+        const tiny = Math.hypot(b[0]-a[0], b[1]-a[1])*CELL*cam.z < 3;
+        if(d.type==='pen' || !tiny) addDrawing(d);
+        break;
+      }
+      case 'erase': {
+        const ids = [...eraseIds];
+        eraseIds = null;
+        if(ids.length) removeDrawings(ids); else requestRender({draw:true});
+        break;
+      }
+    }
+    requestRender({fx:true});
+  }
+  function eraseAt(w){
+    let hit = false;
+    st().drawings.forEach(d=>{ if(!eraseIds.has(d.id) && hitDrawing(d, w)){ eraseIds.add(d.id); hit = true; } });
+    if(hit) requestRender({draw:true});
+  }
+  function startPan(e, p){
+    interaction = {type:'pan', startP:p, cam:{x:cam.x, y:cam.y}};
+    viewport.classList.add('panning');
+    try{ viewport.setPointerCapture(e.pointerId); }catch(err){}
+  }
+  function startPinch(){
+    const [a, b] = [...touches.values()];
+    const mid = {x:(a.x+b.x)/2, y:(a.y+b.y)/2};
+    pinch = {dist:Math.max(10, Math.hypot(b.x-a.x, b.y-a.y)), z:cam.z, anchor:toWorld(mid)};
+  }
+  function updatePinch(){
+    const [a, b] = [...touches.values()];
+    if(!a || !b) return;
+    const mid = {x:(a.x+b.x)/2, y:(a.y+b.y)/2};
+    const z = clamp(pinch.z * Math.hypot(b.x-a.x, b.y-a.y)/pinch.dist, ZOOM_MIN, ZOOM_MAX);
+    cam.z = z; cam.x = mid.x - pinch.anchor.x*CELL*z; cam.y = mid.y - pinch.anchor.y*CELL*z;
+    applyCamera();
+  }
+  function cancelInteraction(){
+    if(interaction && interaction.type==='drag') interaction.ids.forEach(id=>{ delete dragPos[id]; refreshTokenPos(id); });
+    if(interaction && interaction.type==='erase'){ eraseIds = null; requestRender({draw:true}); }
+    interaction = null;
+    viewport && viewport.classList.remove('panning');
+    requestRender({fx:true});
+  }
+  function cancelAll(){
+    cancelInteraction();
+    if(placing){ placing.ids.forEach(id=>{ delete dragPos[id]; refreshTokenPos(id); }); placing = null; }
+    ruler = null; polyDraft = null;
+    closeMenu(); closePopover(); showHint();
+    requestRender({fx:true});
+  }
+  function onWheel(e){
+    e.preventDefault();
+    const p = localPt(e);
+    const k = e.deltaMode===1 ? 0.05 : e.deltaMode===2 ? 0.5 : 0.0015;
+    zoomAt(p.x, p.y, cam.z * Math.exp(-e.deltaY * k));
+  }
+  function onDblClick(e){
+    if(e.target.closest('.gt-ui')) return;
+    if(tool==='ruler' && ruler){ ruler = null; showHint(); requestRender({fx:true}); return; }
+    if(polyDraft){ finishPolygon(); return; }
+    const t = tokenFromEvent(e);
+    if(t && tool==='select' && isAuthority()) openTokenForm(t, null, localPt(e));
+  }
+  function finishPolygon(){
+    if(!polyDraft) return;
+    const pts = [];
+    polyDraft.points.forEach(p=>{ const l = pts[pts.length-1]; if(!l || Math.hypot(p[0]-l[0], p[1]-l[1])*CELL*cam.z > 2) pts.push(p); });
+    const style = polyDraft.style;
+    polyDraft = null;
+    if(pts.length>=2) addDrawing(Object.assign({}, style, {type:'polygon', points:pts}));
+    showHint(); requestRender({fx:true});
+  }
+  function startPlacing(ids){
+    ids = ids.filter(id=>canControl(tok(id)));
+    if(!ids.length) return;
+    const t0 = tok(ids[0]);
+    placing = {ids, offsets:{}, cur:null};
+    ids.forEach(id=>{ const t = tok(id); placing.offsets[id] = {x:t.x - t0.x, y:t.y - t0.y}; });
+    setSelection(ids);
+    showHint();
+  }
+  function movePlacing(w, snap){
+    let c = {x:w.x, y:w.y};
+    if(snap) c = snapPos(c.x, c.y, tok(placing.ids[0]).size);
+    placing.cur = c;
+    placing.ids.forEach(id=>{ dragPos[id] = {x:c.x + placing.offsets[id].x, y:c.y + placing.offsets[id].y}; refreshTokenPos(id); });
+    requestRender({fx:true});
+  }
+  function finishPlacing(w, snap){
+    movePlacing(w, snap);
+    const moves = placing.ids.map(id=>({id, x:dragPos[id].x, y:dragPos[id].y}));
+    placing.ids.forEach(id=>{ delete dragPos[id]; });
+    placing = null;
+    moveTokens(moves);
+    moves.forEach(m=>refreshTokenPos(m.id));
+    showHint(); requestRender({fx:true});
+  }
+  function onContextMenu(e){
+    if(e.target.closest('.gt-ui')) return;
+    e.preventDefault();
+    if(polyDraft){ finishPolygon(); return; }
+    if(ruler){ ruler = null; showHint(); requestRender({fx:true}); return; }
+    if(placing){ cancelAll(); return; }
+    const p = localPt(e), w = toWorld(p), t = tokenFromEvent(e);
+    if(t) openTokenMenu(t, p); else openFieldMenu(w, p);
+  }
+  function onKeyDown(e){
+    if(!visible) return;
+    const ae = document.activeElement, tag = ae && ae.tagName;
+    const typing = tag==='INPUT' || tag==='TEXTAREA' || tag==='SELECT' || (ae && ae.isContentEditable);
+    if(e.key==='Escape' && (popEl.style.display==='block' || menuEl.style.display==='block')){ closePopover(); closeMenu(); e.stopPropagation(); return; }
+    if(typing) return;
+    const isZ = e.code==='KeyZ', isY = e.code==='KeyY';
+    if((e.ctrlKey || e.metaKey) && (isZ || isY)){
+      // Ctrl+Z листа персонажа (performUndo) на вкладке стола не срабатывает — там отмена рисунков
+      e.preventDefault(); e.stopPropagation();
+      if(!isAuthority()) return;
+      if(isY || e.shiftKey) redo(); else undo();
+      return;
+    }
+    if(e.code==='Space'){ if(!spaceHeld){ spaceHeld = true; viewport.classList.add('space-pan'); } e.preventDefault(); return; }
+    if(e.key==='Escape'){ cancelAll(); if(!placing) setSelection([]); return; }
+    if((e.key==='Delete' || e.key==='Backspace') && isAuthority() && selected.size){ e.preventDefault(); deleteTokens([...selected]); return; }
+    if(e.key==='Enter' && polyDraft){ finishPolygon(); return; }
+    if(e.ctrlKey || e.metaKey || e.altKey) return;
+    if(e.key==='+' || e.key==='='){ zoomStep(1); return; }
+    if(e.key==='-' || e.key==='_'){ zoomStep(-1); return; }
+    const hot = {KeyV:'select', KeyR:'ruler', KeyG:'ping', KeyD:'draw', KeyT:'text'}[e.code];
+    if(hot && (isAuthority() || ['select','ruler','ping'].indexOf(hot)>=0)){ setTool(hot); }
+  }
+  function onKeyUp(e){ if(e.code==='Space'){ spaceHeld = false; viewport && viewport.classList.remove('space-pan'); } }
+
+  /* ---------- панели ---------- */
+  const ICONS = {
+    select:'<path d="M5 3l13 7.5-5.8 1.6L9.6 18z"/>',
+    token:'<circle cx="12" cy="12" r="9"/><circle cx="12" cy="10" r="2.8"/><path d="M7.3 17.4c1.2-2.3 2.8-3.4 4.7-3.4s3.5 1.1 4.7 3.4"/>',
+    ruler:'<path d="M3 16.5L16.5 3 21 7.5 7.5 21z"/><path d="M7 12.5l2 2M10 9.5l2 2M13 6.5l2 2"/>',
+    draw:'<path d="M4 20l1.2-4.8L16 4.4l3.6 3.6L8.8 18.8z"/><path d="M13.8 6.6l3.6 3.6"/>',
+    text:'<path d="M5 7V5h14v2M12 5v14M9 19h6"/>',
+    ping:'<circle cx="12" cy="12" r="2.4"/><circle cx="12" cy="12" r="6.2"/><circle cx="12" cy="12" r="9.8" opacity=".45"/>',
+    pointer:'<path d="M12 2.5v5M12 16.5v5M2.5 12h5M16.5 12h5"/><circle cx="12" cy="12" r="3.6"/>',
+    me:'<circle cx="12" cy="8" r="4"/><path d="M4.5 20.5c1.4-3.8 4.2-5.8 7.5-5.8s6.1 2 7.5 5.8"/>',
+    more:'<circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>',
+    pen:'<path d="M3 17c3-7 6 3 9-4s5-3 9-7"/>',
+    line:'<path d="M5 19L19 5"/>',
+    arrow:'<path d="M5 19L19 5M11 5h8v8"/>',
+    rect:'<rect x="4" y="6" width="16" height="12" rx="1"/>',
+    circle:'<circle cx="12" cy="12" r="8"/>',
+    polygon:'<path d="M12 3.5l8 5.8-3 10.2H7L4 9.3z"/>',
+    eraser:'<path d="M8 20h11M4.5 15.5l9-9 6 6-7.5 7.5H8.5z"/>',
+    undo:'<path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 010 11H11"/>',
+    redo:'<path d="M15 14l5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 000 11H13"/>',
+    trash:'<path d="M4 7h16M9 7V4h6v3M6.5 7l1 13h9l1-13"/>',
+    center:'<circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>',
+    plus:'<path d="M12 5v14M5 12h14"/>', minus:'<path d="M5 12h14"/>'
+  };
+  function icon(n){ return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS[n]||''}</svg>`; }
+  function toolBtn(id, label, hotkey){
+    return `<button type="button" class="gt-tool${tool===id?' active':''}" data-tool="${id}" title="${label}${hotkey?' ('+hotkey+')':''}">${icon(id)}<span class="gt-lbl">${label}</span></button>`;
+  }
+  function actBtn(ic, label, act, extra){ return `<button type="button" class="gt-tool${extra||''}" data-act="${act}" title="${label}">${icon(ic)}${label ? `<span class="gt-lbl">${label}</span>` : ''}</button>`; }
+  function renderToolbar(){
+    const auth = isAuthority(), r = role();
+    const h = [toolBtn('select','Выбор','V')];
+    if(auth) h.push(toolBtn('token','Жетон'));
+    h.push(toolBtn('ruler','Измерение','R'));
+    if(auth){ h.push(toolBtn('draw','Рисование','D')); h.push(toolBtn('text','Текст','T')); }
+    h.push(toolBtn('ping','Ping','G / Alt+клик'));
+    h.push('<span class="gt-sep"></span>');
+    if(r==='gm') h.push(actBtn('pointer','Указка','pointer', pointerBroadcast ? ' active' : ''));
+    if(r!=='gm') h.push(actBtn('me','Мой жетон','my-token'));
+    if(auth) h.push(`<button type="button" class="gt-tool" data-act="more" title="Ещё">${icon('more')}</button>`);
+    toolbar.innerHTML = h.join('');
+    viewport.className = 'gt-viewport tool-' + tool + (spaceHeld ? ' space-pan' : '');
+  }
+  function renderSubbar(){
+    if(!subbar) return;
+    if(!(isAuthority() && (tool==='draw' || tool==='text'))){ subbar.style.display = 'none'; return; }
+    const h = [];
+    if(tool==='draw'){
+      [['pen','Карандаш'],['line','Линия'],['arrow','Стрелка'],['rect','Прямоугольник'],['circle','Круг'],['polygon','Полигон'],['eraser','Ластик']]
+        .forEach(([id,label])=>h.push(`<button type="button" class="gt-tool${drawTool===id?' active':''}" data-draw="${id}" title="${label}">${icon(id)}</button>`));
+      h.push('<span class="gt-sep"></span>');
+    }
+    DRAW_COLORS.forEach(c=>h.push(`<button type="button" class="gt-swatch${drawStyle.color===c?' active':''}" data-color="${c}" style="--c:${c}" title="${c}"></button>`));
+    h.push(`<label class="gt-range" title="Толщина">толщ.<input type="range" min="1" max="24" step="1" value="${drawStyle.width}" data-style="width"></label>`);
+    h.push(`<label class="gt-range" title="Прозрачность">прозр.<input type="range" min="0.2" max="1" step="0.05" value="${drawStyle.opacity}" data-style="opacity"></label>`);
+    h.push('<span class="gt-sep"></span>');
+    h.push(`<button type="button" class="gt-tool" data-act="undo" title="Отменить (Ctrl+Z)" ${undoStack.length?'':'disabled'}>${icon('undo')}</button>`);
+    h.push(`<button type="button" class="gt-tool" data-act="redo" title="Повторить (Ctrl+Shift+Z)" ${redoStack.length?'':'disabled'}>${icon('redo')}</button>`);
+    h.push(`<button type="button" class="gt-tool" data-act="clear-drawings" title="Стереть все рисунки">${icon('trash')}</button>`);
+    subbar.innerHTML = h.join('');
+    subbar.style.display = 'flex';
+  }
+  function renderZoombar(){
+    zoombar.innerHTML = `<button type="button" class="gt-tool" data-act="zoom-out" title="Отдалить (−)">${icon('minus')}</button>`+
+      `<span class="gt-zoom-label" id="gtZoomLabel" data-act="zoom-reset" title="Масштаб 100%">${Math.round(cam.z*100)}%</span>`+
+      `<button type="button" class="gt-tool" data-act="zoom-in" title="Приблизить (+)">${icon('plus')}</button>`+
+      `<button type="button" class="gt-tool" data-act="center" title="Показать все жетоны">${icon('center')}</button>`;
+  }
+  function renderStatus(){
+    const r = role(), connected = !!(session.ws && session.ws.readyState===WebSocket.OPEN);
+    let txt;
+    if(!r) txt = 'Локальный стол · без сессии';
+    else if(r==='gm') txt = connected ? `<b>Мастер</b> · игроков: ${Object.keys(session.players).length}` : '<b>Мастер</b> · переподключение…';
+    else txt = session.gmId && session.gmName ? `<b>Игрок</b> · стол Мастера «${escapeHtml(session.gmName)}»` : '<b>Игрок</b> · ждём Мастера…';
+    statusEl.innerHTML = txt;
+    emptyHint.innerHTML = isAuthority()
+      ? '<b>Пустое поле</b>' + (role()==='gm' ? 'Жетон — поставить NPC или жетон игрока.' : 'Жетон — поставить NPC, «Мой жетон» — своего персонажа.') + ' Колесо — масштаб, средняя кнопка или пробел+перетаскивание — сдвиг поля.'
+      : '<b>Стол Мастера</b>«Мой жетон» — поставить своего персонажа. Колесо — масштаб, средняя кнопка или пробел+перетаскивание — сдвиг поля.';
+  }
+  function setTool(t){
+    if(tool===t) return;
+    if(polyDraft) finishPolygon();
+    ruler = null; placing && cancelAll();
+    tool = t;
+    renderToolbar(); renderSubbar(); showHint();
+    requestRender({fx:true});
+  }
+  function showHint(){
+    let h = '';
+    if(placing) h = 'Клик — поставить · Shift — по сетке · Esc — отмена';
+    else if(polyDraft) h = 'Клик — вершина · двойной клик, Enter или клик по первой точке — замкнуть · Esc — отмена';
+    else if(ruler && ruler.mode==='waypoints') h = 'Клик — ещё точка · двойной клик, правый клик или Esc — убрать';
+    else if(tool==='ruler') h = 'Протяните — измерить · клик — измерение по точкам';
+    hintEl.textContent = h;
+    hintEl.style.display = h ? 'block' : 'none';
+  }
+  let toastTimer = null;
+  function toast(text){
+    if(!toastEl) return;
+    toastEl.textContent = text;
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(()=>toastEl.classList.remove('show'), 2600);
+  }
+  function onToolbarClick(e){
+    const b = e.target.closest('[data-tool],[data-act],[data-draw],[data-color]');
+    if(!b) return;
+    if(b.dataset.tool){ setTool(b.dataset.tool); return; }
+    if(b.dataset.draw){ if(polyDraft) finishPolygon(); drawTool = b.dataset.draw; renderSubbar(); showHint(); return; }
+    if(b.dataset.color){ drawStyle.color = b.dataset.color; saveJson(STYLE_KEY, drawStyle); renderSubbar(); return; }
+    switch(b.dataset.act){
+      case 'pointer':
+        pointerBroadcast = !pointerBroadcast;
+        if(!pointerBroadcast) sendTransient({type:'gt-pointer', off:true}, 0);
+        toast(pointerBroadcast ? 'Указка включена — игроки видят, куда вы наводите' : 'Указка выключена');
+        renderToolbar();
+        break;
+      case 'my-token': myTokenAction(); break;
+      case 'more': openMoreMenu(b); break;
+      case 'undo': undo(); break;
+      case 'redo': redo(); break;
+      case 'clear-drawings': clearDrawings(); break;
+      case 'zoom-in': zoomStep(1); break;
+      case 'zoom-out': zoomStep(-1); break;
+      case 'zoom-reset': zoomAt(vw/2, vh/2, 1); break;
+      case 'center': centerOnTokens(); break;
+    }
+  }
+  function onStyleInput(e){
+    const k = e.target.dataset && e.target.dataset.style;
+    if(!k) return;
+    drawStyle[k] = parseFloat(e.target.value);
+    saveJson(STYLE_KEY, drawStyle);
+  }
+
+  /* ---------- меню и формы ---------- */
+  function placeFloating(el, x, y){
+    el.style.display = 'block';
+    el.style.left = '0px'; el.style.top = '0px';
+    const w = el.offsetWidth, h = el.offsetHeight;
+    el.style.left = clamp(x, 8, Math.max(8, vw - w - 8)) + 'px';
+    el.style.top = clamp(y, 8, Math.max(8, vh - h - 8)) + 'px';
+  }
+  function closeMenu(){ if(menuEl){ menuEl.style.display = 'none'; menuEl.innerHTML = ''; } }
+  function openMenu(p, title, items){
+    closePopover();
+    menuEl.innerHTML = (title ? `<div class="gt-menu-title">${escapeHtml(title)}</div>` : '') + items.map(it=>{
+      if(it==='-') return '<hr>';
+      if(it.html) return it.html;
+      return `<button type="button" class="${it.danger?'danger':''}" data-mi="${it.id}">${escapeHtml(it.label)}</button>`;
+    }).join('');
+    const handlers = {};
+    items.forEach(it=>{ if(it.id) handlers[it.id] = it.run; });
+    menuEl.onclick = (e)=>{
+      const b = e.target.closest('[data-mi],[data-size]');
+      if(!b) return;
+      if(b.dataset.size){ const fn = handlers['size']; closeMenu(); fn && fn(b.dataset.size); return; }
+      const fn = handlers[b.dataset.mi];
+      closeMenu();
+      if(fn) fn();
+    };
+    placeFloating(menuEl, p.x + 4, p.y + 4);
+  }
+  function openTokenMenu(t, p){
+    const v = vitalsFor(t), name = tokenName(t, v);
+    if(!selected.has(t.id) && canControl(t)) setSelection([t.id]);
+    if(isAuthority()){
+      const ids = selected.has(t.id) ? [...selected] : [t.id];
+      const items = [
+        {id:'move', label:'Переместить', run:()=>startPlacing(ids)},
+        {id:'edit', label:'Изменить…', run:()=>openTokenForm(t, null, p)},
+        {id:'hp', label:'Изменить HP…', run:()=>openVitalForm(t, 'hp', p)}
+      ];
+      if(t.kind==='player') items.push({id:'psi', label:'Изменить Psi…', run:()=>openVitalForm(t, 'psi', p)});
+      items.push({id:'size', run:(size)=>act({c:'token-update', id:t.id, patch:{size}}),
+        html:`<div class="gt-menu-sizes">${Object.keys(SIZE_CELLS).map(s=>`<button type="button" data-size="${s}" class="${t.size===s?'active':''}">${SIZE_LABELS[s].split(' ')[0]}</button>`).join('')}</div>`});
+      if(t.kind==='gm') items.push({id:'hide', label:t.hidden ? 'Показать игрокам' : 'Скрыть от игроков', run:()=>act({c:'token-update', id:t.id, patch:{hidden:!t.hidden}})});
+      items.push('-', {id:'del', label: ids.length>1 ? `Удалить (${ids.length})` : 'Удалить', danger:true, run:()=>deleteTokens(ids)});
+      openMenu(p, name, items);
+      return;
+    }
+    if(canControl(t)){
+      openMenu(p, name, [
+        {id:'sel', label:'Выбрать', run:()=>setSelection([t.id])},
+        {id:'move', label:'Переместить', run:()=>startPlacing([t.id])},
+        {id:'sheet', label:'Открыть персонажа', run:()=>{ toggleMainTab('sheet'); const el = document.getElementById('hpValue'); if(el) el.scrollIntoView({block:'center', behavior:'smooth'}); }}
+      ]);
+    }
+  }
+  function openFieldMenu(w, p){
+    const items = [{id:'ping', label:'Ping сюда', run:()=>doPing(w)}];
+    if(isAuthority()) items.unshift({id:'new', label:'Новый жетон здесь…', run:()=>openTokenForm(null, w, p)});
+    if(selected.size && [...selected].every(id=>canControl(tok(id)))){
+      items.push({id:'here', label: selected.size>1 ? 'Переместить выбранные сюда' : 'Переместить выбранный сюда', run:()=>{ startPlacing([...selected]); finishPlacing(w, false); }});
+    }
+    openMenu(p, '', items);
+  }
+  function openMoreMenu(btn){
+    const r = btn.getBoundingClientRect(), vr = viewport.getBoundingClientRect();
+    const p = {x:r.left - vr.left, y:r.bottom - vr.top + 2};
+    const bg = authState.map.background;
+    const items = [
+      {id:'bg', label: bg ? 'Сменить фон карты…' : 'Фон карты по ссылке…', run:()=>openBackgroundForm(p)}
+    ];
+    if(bg) items.push({id:'bgoff', label:'Убрать фон карты', run:()=>act({c:'map-set', map:Object.assign({}, authState.map, {background:null})})});
+    items.push({id:'clear', label:'Стереть все рисунки', run:clearDrawings});
+    items.push('-', {id:'reset', label:'Очистить стол целиком…', danger:true, run:resetTable});
+    openMenu(p, '', items);
+  }
+  function resetTable(){
+    if(!confirm('Очистить игровой стол целиком — все жетоны, рисунки и фон? Это нельзя отменить.')) return;
+    authState = blankState();
+    undoStack = []; redoStack = [];
+    saveJson(STATE_KEY, authState);
+    setSelection([]);
+    renderTokens(); renderSubbar(); requestRender({bg:true, draw:true, fx:true});
+    if(role()==='gm') sendMsg({type:'gt-snapshot', state:playerSnapshot()});
+  }
+  function closePopover(){ if(popEl){ popEl.style.display = 'none'; popEl.innerHTML = ''; } }
+  function openPopover(p, html, onSubmit){
+    closeMenu();
+    popEl.innerHTML = `<form class="gt-pop-form" autocomplete="off">${html}</form>`;
+    const form = popEl.querySelector('form');
+    form.onsubmit = (e)=>{ e.preventDefault(); if(onSubmit(form)!==false) closePopover(); };
+    form.querySelectorAll('[data-cancel]').forEach(b=>b.onclick = closePopover);
+    form.addEventListener('keydown', (e)=>{ if(e.key==='Escape'){ e.preventDefault(); closePopover(); viewport.focus({preventScroll:true}); } });
+    placeFloating(popEl, p.x + 8, p.y + 8);
+    const first = form.querySelector('input[type=text],input[type=number],textarea') || form.querySelector('input:not([type=radio]):not([type=checkbox]),select');
+    if(first){ first.focus(); if(first.select) first.select(); }
+    return form;
+  }
+  function swatchesHtml(cur){
+    return `<div class="gt-swatches">${PALETTE.map(c=>`<label class="gt-sw" style="--c:${c}"><input type="radio" name="color" value="${c}" ${c===cur?'checked':''}><span></span></label>`).join('')}</div>`;
+  }
+  function sizeOptions(cur){ return Object.keys(SIZE_CELLS).map(s=>`<option value="${s}" ${s===cur?'selected':''}>${SIZE_LABELS[s]}</option>`).join(''); }
+  function openTokenForm(t, w, p){
+    const editing = !!t, isPlayerTok = editing && t.kind==='player';
+    let whoHtml = '';
+    if(!editing && role()==='gm'){
+      const free = Object.keys(session.players).filter(id=>!Object.values(authState.tokens).some(x=>x.kind==='player' && x.ownerId===id));
+      if(free.length) whoHtml = `<label class="gt-f">Кто<select name="who"><option value="">NPC / объект</option>${free.map(id=>`<option value="${escapeHtml(id)}">Игрок: ${escapeHtml(playerDisplayName(session.players[id])||id)}</option>`).join('')}</select></label>`;
+    }
+    const cur = t || {name:'', hp:null, size:'normal', color:PALETTE[1], avatar:'', hidden:false};
+    const html = `<div class="gt-pop-title">${editing ? 'Жетон «'+escapeHtml(tokenName(t, vitalsFor(t)))+'»' : 'Новый жетон'}</div>`+
+      (isPlayerTok ? '<div class="gt-pop-note">Имя, HP и Psi берутся из листа игрока.</div>' : '')+
+      whoHtml+
+      (isPlayerTok ? '' : `<label class="gt-f">Имя<input type="text" name="name" maxlength="60" value="${escapeHtml(cur.name||'')}" placeholder="Например, Болотный упырь"></label>`)+
+      `<div class="gt-f-row">`+
+      (isPlayerTok ? '' : `<label class="gt-f">HP<input type="number" name="hp" step="1" value="${cur.hp===null||cur.hp===undefined?'':cur.hp}" placeholder="—"></label>`)+
+      `<label class="gt-f">Размер<select name="size">${sizeOptions(cur.size)}</select></label></div>`+
+      `<label class="gt-f" style="margin-bottom:2px">Цвет</label>${swatchesHtml(cur.color)}`+
+      `<label class="gt-f">Картинка (ссылка, необязательно)<input type="url" name="avatar" maxlength="2000" value="${escapeHtml(cur.avatar||'')}" placeholder="https://…"></label>`+
+      (isPlayerTok ? '' : `<label class="gt-check"><input type="checkbox" name="hidden" ${cur.hidden?'checked':''}> Скрыт от игроков</label>`)+
+      `<div class="gt-pop-actions"><button type="button" class="small" data-cancel>Отмена</button><button type="submit" class="small primary">${editing?'Сохранить':'Создать'}</button></div>`;
+    const form = openPopover(p, html, (f)=>{
+      const fd = new FormData(f);
+      const who = fd.get('who');
+      const avatar = String(fd.get('avatar')||'').trim();
+      if(avatar && !safeUrl(avatar)){ toast('Ссылка на картинку должна начинаться с http:// или https://'); return false; }
+      const base = {size:fd.get('size'), color:fd.get('color')||cur.color, avatar};
+      if(who){ // жетон конкретного игрока, поставленный Мастером
+        const at = w || {x:0, y:0}, sn = snapPos(at.x, at.y, base.size);
+        const r = execCommand({c:'player-token-create', ownerId:who, x:sn.x, y:sn.y});
+        if(!r.ok){ toast(r.reason); return false; }
+        const nt = Object.values(authState.tokens).find(x=>x.kind==='player' && x.ownerId===who);
+        if(nt && (base.size!=='normal' || base.avatar || fd.get('color'))) act({c:'token-update', id:nt.id, patch:base});
+        return;
+      }
+      if(!isPlayerTok){
+        base.name = String(fd.get('name')||'').trim() || 'Жетон';
+        const hpRaw = String(fd.get('hp')||'').trim();
+        base.hp = hpRaw==='' ? null : parseInt(hpRaw, 10);
+        base.hidden = fd.get('hidden')==='on';
+      }
+      if(editing){ act({c:'token-update', id:t.id, patch:base}); return; }
+      const sn = snapPos(w.x, w.y, base.size);
+      act({c:'token-create', token:Object.assign(base, {x:sn.x, y:sn.y})});
+    });
+    const whoSel = form.querySelector('select[name=who]');
+    if(whoSel) whoSel.onchange = ()=>{
+      const npc = !whoSel.value;
+      ['name','hp','hidden'].forEach(n=>{ const el = form.querySelector(`[name=${n}]`); if(el){ el.disabled = !npc; const lab = el.closest('label'); if(lab) lab.style.opacity = npc ? '' : '.4'; } });
+    };
+  }
+  function openVitalForm(t, which, p){
+    const v = vitalsFor(t), label = which==='psi' ? 'Psi' : 'HP';
+    let now = '—';
+    if(t.kind==='player'){ if(!v){ toast('Лист игрока сейчас недоступен'); return; } now = which==='psi' ? `${v.psi} / ${v.psiMax}` : `${v.hp} / ${v.hpMax}`; }
+    else now = t.hp===null || t.hp===undefined ? '—' : String(t.hp);
+    const html = `<div class="gt-pop-title">${label} · ${escapeHtml(tokenName(t, v))}</div>`+
+      `<div class="gt-pop-note">Сейчас: <b>${escapeHtml(now)}</b>. Число — установить, −3 / +2 — изменить${t.kind==='player'?', изменение уйдёт в лист игрока':''}.</div>`+
+      `<label class="gt-f">Новое значение<input type="text" name="v" inputmode="numeric" placeholder="например −3"></label>`+
+      `<div class="gt-pop-actions"><button type="button" class="small" data-cancel>Отмена</button><button type="submit" class="small primary">Применить</button></div>`;
+    openPopover(p, html, (f)=>{
+      const raw = f.querySelector('[name=v]').value;
+      if(t.kind==='player'){ changePlayerVitals(t, which, raw); return; }
+      const parsed = parseVitalInput(raw);
+      if(!parsed){ toast('Не понял число — например 17, −3 или +2'); return false; }
+      const hp = parsed.mode==='delta' ? (Number(t.hp)||0) + parsed.value : parsed.value;
+      act({c:'token-update', id:t.id, patch:{hp}});
+    });
+  }
+  function openTextForm(w, p){
+    const html = `<div class="gt-pop-title">Надпись на карте</div>`+
+      `<label class="gt-f">Текст<textarea name="text" maxlength="400"></textarea></label>`+
+      `<label class="gt-f">Размер<select name="fs"><option value="16">Мелкий</option><option value="22" selected>Обычный</option><option value="34">Крупный</option><option value="56">Заголовок</option></select></label>`+
+      `<div class="gt-pop-actions"><button type="button" class="small" data-cancel>Отмена</button><button type="submit" class="small primary">Добавить</button></div>`;
+    const form = openPopover(p, html, (f)=>{
+      const text = f.querySelector('[name=text]').value;
+      if(!text.trim()) return false;
+      addDrawing(Object.assign({}, drawStyle, {type:'text', text, fontSize:parseInt(f.querySelector('[name=fs]').value,10), points:[[r3(w.x), r3(w.y)]]}));
+    });
+    const ta = form.querySelector('textarea');
+    ta.addEventListener('keydown', (e)=>{ if(e.key==='Enter' && (e.ctrlKey || e.metaKey)){ e.preventDefault(); form.requestSubmit(); } });
+  }
+  function openBackgroundForm(p){
+    const bg = authState.map.background || {url:'', x:0, y:0, w:20};
+    const html = `<div class="gt-pop-title">Фон карты</div>`+
+      `<div class="gt-pop-note">Только ссылка на картинку — сам файл через сессию не пересылается. Левый верхний угол ставится в центр поля.</div>`+
+      `<label class="gt-f">Ссылка<input type="url" name="url" value="${escapeHtml(bg.url)}" placeholder="https://…"></label>`+
+      `<label class="gt-f">Ширина карты в клетках<input type="number" name="w" min="1" max="1000" step="1" value="${bg.w}"></label>`+
+      `<div class="gt-pop-actions"><button type="button" class="small" data-cancel>Отмена</button><button type="submit" class="small primary">Применить</button></div>`;
+    openPopover(p, html, (f)=>{
+      const url = safeUrl(f.querySelector('[name=url]').value);
+      if(!url){ toast('Нужна ссылка, начинающаяся с http:// или https://'); return false; }
+      const c = authState.map.background ? {x:bg.x, y:bg.y} : toWorld({x:vw/2, y:vh/2});
+      act({c:'map-set', map:{metersPerCell:authState.map.metersPerCell, background:{url, x:Math.round(c.x), y:Math.round(c.y), w:num(f.querySelector('[name=w]').value, 20)}}});
+    });
+  }
+
+  /* ---------- крючки из существующего кода (все вызываются через gtHook) ---------- */
+  function setVisible(v){
+    visible = !!v;
+    if(!visible){ cancelAll(); return; }
+    resize();
+    applyCamera();
+    renderToolbar(); renderSubbar(); renderZoombar(); renderStatus(); showHint();
+    renderTokens();
+    requestRender({bg:true, draw:true, fx:true});
+  }
+  function refreshRole(){
+    const r = role();
+    if(r!==lastRole){
+      lastRole = r;
+      cancelAll();
+      setSelection([]);
+      undoStack = []; redoStack = [];
+      remoteVitals = {};
+      tokenEls.forEach(el=>el.remove()); tokenEls.clear();
+      if(!isAuthority() && ['token','draw','text'].indexOf(tool)>=0) tool = 'select';
+      if(r!=='gm') pointerBroadcast = false;
+      if(viewport){ renderToolbar(); renderSubbar(); renderTokens(); requestRender({bg:true, draw:true, fx:true}); }
+    }
+    if(viewport) renderStatus();
+  }
+  function onPlayerHello(id){ sendSnapshot(id); sendMsg({type:'gt-vitals', vitals:computeVitals()}, id); renderStatus(); }
+  function onGmHello(){ lastSnapshotRequest = 0; requestSnapshot(); }
+  function onPlayerSheet(){ renderTokens(); broadcastVitals(); }
+  function onPeerLeft(id){
+    if(role()==='gm'){ renderTokens(); broadcastVitals(); renderStatus(); }
+    if(isPlayer() && id===session.gmId){ gmPointer = null; requestRender({fx:true}); }
+  }
+  function onLocalCharacterChanged(){ if(visible) renderTokens(); }
+
+  function init(){
+    viewport = document.getElementById('gtViewport');
+    if(!viewport) return;
+    layer = document.getElementById('gtTokenLayer');
+    bgC = document.getElementById('gtCanvasBg'); drC = document.getElementById('gtCanvasDraw'); fxC = document.getElementById('gtCanvasFx');
+    bgX = bgC.getContext('2d'); drX = drC.getContext('2d'); fxX = fxC.getContext('2d');
+    toolbar = document.getElementById('gtToolbar'); subbar = document.getElementById('gtSubbar'); zoombar = document.getElementById('gtZoombar');
+    statusEl = document.getElementById('gtStatus'); infoCard = document.getElementById('gtInfoCard'); hintEl = document.getElementById('gtHint');
+    toastEl = document.getElementById('gtToast'); menuEl = document.getElementById('gtMenu'); popEl = document.getElementById('gtPopover');
+    emptyHint = document.getElementById('gtEmptyHint');
+    viewport.addEventListener('pointerdown', onPointerDown);
+    viewport.addEventListener('pointermove', onPointerMove);
+    viewport.addEventListener('pointerup', onPointerUp);
+    viewport.addEventListener('pointercancel', (e)=>{ touches.delete(e.pointerId); pinch = null; cancelInteraction(); });
+    viewport.addEventListener('pointerleave', ()=>{ if(pointerBroadcast && role()==='gm') sendTransient({type:'gt-pointer', off:true}, 0); });
+    viewport.addEventListener('wheel', onWheel, {passive:false});
+    viewport.addEventListener('dblclick', onDblClick);
+    viewport.addEventListener('contextmenu', onContextMenu);
+    viewport.addEventListener('dragstart', (e)=>e.preventDefault());
+    [toolbar, subbar, zoombar].forEach(el=>el.addEventListener('click', onToolbarClick));
+    subbar.addEventListener('input', onStyleInput);
+    window.addEventListener('keydown', onKeyDown, true); // capture: раньше Ctrl+Z листа персонажа
+    window.addEventListener('keyup', onKeyUp, true);
+    window.addEventListener('blur', ()=>{ spaceHeld = false; viewport.classList.remove('space-pan'); });
+    if(typeof ResizeObserver!=='undefined') new ResizeObserver(()=>{ if(visible) resize(); }).observe(viewport);
+    else window.addEventListener('resize', ()=>{ if(visible) resize(); });
+    RoomTransport.onGameEvent((ev)=>{ if(ev && typeof ev.type==='string' && ev.type.indexOf('gt-')===0) handleTransient(ev); });
+    // Стол Мастера сохранён в общем для вкладок localStorage. Вкладка, которая сейчас не Мастер (например,
+    // вытесненная второй вкладкой — см. handleReplacedByOtherTab), подхватывает чужие сохранения, а не
+    // держит устаревшую копию, которой потом перезаписала бы актуальный стол при первом же действии.
+    window.addEventListener('storage', (e)=>{
+      if(e.key!==STATE_KEY || !e.newValue || role()==='gm') return;
+      let fresh; try{ fresh = normalizeState(JSON.parse(e.newValue)); }catch(err){ return; }
+      authState = fresh;
+      undoStack = []; redoStack = [];
+      if(isAuthority()){ setSelection([]); renderTokens(); renderSubbar(); requestRender({bg:true, draw:true, fx:true}); }
+    });
+    refreshRole();
+    renderToolbar(); renderZoombar(); renderStatus();
+  }
+
+  return { init, setVisible, refreshRole, handleMessage, onPlayerHello, onGmHello, onPlayerSheet, onPeerLeft, onLocalCharacterChanged,
+           get state(){ return st(); }, get camera(){ return cam; } };
+})();
+try{ GameTable.init(); }catch(e){ console.error('[Игровой стол] не удалось запустить', e); }
 </script>
 </body>
 </html>
