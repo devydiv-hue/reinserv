@@ -1171,6 +1171,31 @@
     color:var(--ink-soft); font-size:12px; max-width:340px; opacity:.85; z-index:1;
   }
   .gt-empty-hint b{ display:block; font-family:var(--font-display); font-size:15px; color:var(--ink); margin-bottom:4px; }
+  /* Атака с карты: травмы под жетоном (🦴N, красная 🦴M — от оружия с чертой «травма»), форма «Бой», лог */
+  .bone-red{ display:inline-block; filter: sepia(1) saturate(9) hue-rotate(-38deg) brightness(.85); }
+  .gt-trauma-row{ display:flex; gap:6px; font-size:10.5px; font-weight:700; }
+  .gt-trauma-red-n{ color:#ff6b57; }
+  .gt-popover{ max-height:calc(100% - 16px); overflow-y:auto; }
+  details.gt-combat{ border-top:1px dotted var(--ink-soft); margin:4px 0 6px; padding-top:6px; }
+  details.gt-combat > summary{ cursor:pointer; font-family:var(--font-display); font-weight:700; font-size:12px; margin-bottom:6px; }
+  details.gt-combat select{ font-size:12px; }
+  .roll-log-entry.undone .rest{ text-decoration:line-through; text-decoration-color:var(--stamp); opacity:.7; }
+  /* Лог слева от стола: свёрнут — узкая вкладка «📜 Лог», развёрнут — панель во всю высоту поля. Список внутри — тот же
+     #rollLogList, что и в панели сессии листа (переезжает, а не копируется). */
+  .gt-layout{ display:flex; gap:10px; align-items:stretch; }
+  .gt-layout > .gt-viewport{ flex:1; min-width:0; }
+  .gt-logdock{ flex:0 0 auto; display:flex; height:calc(100vh - 222px); min-height:420px; }
+  .gt-logdock-toggle{ writing-mode:vertical-rl; display:flex; align-items:center; gap:6px; padding:12px 6px; border-radius:12px; font-size:11px; }
+  .gt-logdock-toggle span{ letter-spacing:.12em; }
+  .gt-logdock-body{ display:none; flex-direction:column; width:300px; margin-left:6px; padding:10px 10px 8px; background:var(--card);
+    border:2px solid var(--ink); border-radius:14px; box-shadow:0 18px 34px -16px rgba(0,0,0,.75); overflow:hidden; }
+  .gt-logdock.open .gt-logdock-body{ display:flex; }
+  .gt-logdock.open .gt-logdock-toggle{ background:var(--stamp); border-color:var(--stamp); color:var(--vellum-bright); }
+  .gt-logdock-title{ font-family:var(--font-display); font-weight:700; font-size:12px; margin-bottom:6px; flex-shrink:0; }
+  .gt-logdock .roll-log-list{ max-height:none; flex:1; overflow-y:auto; }
+  .gt-logdock .roll-log-entry{ flex-wrap:wrap; }
+  @media (max-width:820px){ .gt-logdock{ position:relative; z-index:15; } .gt-logdock-body{ position:absolute; left:34px; top:0; bottom:0; width:min(300px, 80vw); } }
+  .roll-log-entry .log-undo{ margin-left:6px; padding:0 7px; font-size:12px; line-height:1.5; vertical-align:middle; }
 </style>
   <!-- Совместная сессия (лог бросков + правки от ГМ + комната голоса/видео/данных) — см. секцию
        #sessionPanel в конце файла. Сигналинг — через WebSocket к server.js (простой релей, без
@@ -1532,6 +1557,12 @@
   <!-- Игровой стол — см. модуль GameTable в отдельном блоке script в конце файла. Порядок детей
        .gt-viewport = порядок слоёв: фон/сетка → зоны+рисунки → жетоны → временное → интерфейс. -->
   <div id="tableTabView" style="display:none;">
+    <div class="gt-layout">
+    <!-- Лог бросков слева от стола — не копия: сам список #rollLogList переезжает сюда, пока открыт стол (см. GameTable.setVisible) -->
+    <aside class="gt-logdock" id="gtLogDock">
+      <button type="button" class="gt-logdock-toggle" id="gtLogToggle" title="Общий лог бросков — развернуть/свернуть">📜<span>Лог</span></button>
+      <div class="gt-logdock-body" id="gtLogDockBody"><div class="gt-logdock-title">Общий лог бросков</div></div>
+    </aside>
     <div class="gt-viewport" id="gtViewport" tabindex="0" aria-label="Игровой стол">
       <canvas class="gt-canvas" id="gtCanvasBg"></canvas>
       <canvas class="gt-canvas" id="gtCanvasDraw"></canvas>
@@ -1547,6 +1578,7 @@
       <div class="gt-ui gt-toast" id="gtToast"></div>
       <div class="gt-ui gt-menu" id="gtMenu"></div>
       <div class="gt-ui gt-popover" id="gtPopover"></div>
+    </div>
     </div>
   </div>
 
@@ -2241,7 +2273,7 @@ const ITEM_CATALOG = {
       {name:'Гранатомёт', weight:'4 Вещи', price:12000, avail:'Дефицитная', desc:'Дл45, Ат−7, ПР0/граната Г3 или М, или ЭМИ-мина, Сл5, однозарядный (особые правила стр. 147).'},
       {name:'Гравирез (меч)', weight:'2 Вещи', price:9000, avail:'Дефицитная', desc:'Из реликвии «ракушка». Можно парировать выстрелы. Ат+4, Пр−10, МУ14 удар, Сл3, пул, раны к6, ксенотех.'},
       {name:'Излучатель феодала', weight:'2 Вещи', price:7500, avail:'Дефицитная', desc:'Пучковое лучевое ружьё регулярных войск. Дл45, Ат−5, МУ16 энергия, ПР1/«искра», Сл3, пул, травма, ксенотех.'},
-      {name:'Кинетическая чакра', weight:'2 Вещи', price:10000, avail:'Дефицитная', desc:'Бросок кинетического кольца на 30м с Ат+1, МУ14 удар, ПР2/«МАБ», Сл2, раны 4, пул, травма, ксенотех.'},
+      {name:'Кинетическая чакра', weight:'2 Вещи', price:10000, avail:'Дефицитная', desc:'Бросок кинетического кольца на 30м. Дл30, Ат+1, МУ14 удар, ПР2/«МАБ», Сл2, раны 4, пул, травма, ксенотех.'},
       {name:'Лазерное ружьё', weight:'2 Вещи', price:15000, avail:'Дефицитная', desc:'Стреляет бесшумно. Дл75, Ат−3, МУ[15+категория успеха атаки] энергия, ПР2/«искра», Сл2, раны 6, пул.'},
       {name:'Перламутровый меч', weight:'1 Вещь', price:15000, avail:'Дефицитная', desc:'Элитный клинок культуры дикарей. Ат+0, Пр+0, МУ14 удар, Сл2, мощь.'},
       {name:'Пистолет «Шина» 91', weight:'1 Вещь', price:5000, avail:'Дефицитная', desc:'Оружие сил самообороны Княжества. Дл30, Ат−1, МУ13 патрон, ПР3/7,62мм, раны 2, травма, скорость.'},
@@ -7017,7 +7049,7 @@ function parseWeaponStats(fullName){
 function weaponCombatSkill(w){
   if(!w || !w.name) return null;
   if(w.dl == null) return 'arhaichnoe_oruzhie';
-  if(/лук|арбалет/i.test(w.name)) return 'arhaichnoe_oruzhie';
+  if(/лук|арбалет|чакра/i.test(w.name)) return 'arhaichnoe_oruzhie'; // чакра — метательное: Дл есть (30 м), но навык архаичный, как и до появления Дл
   return (w.sl!=null && w.sl>=4) ? 'tyazheloe_oruzhie' : 'legkoe_oruzhie';
 }
 function blankWeaponSlot(){
@@ -7241,44 +7273,131 @@ function resolveWeaponAttackOutcome(statKey, roll, success, category){
     return 'jammed';
   }
   if(!success) return;
+  const plan = weaponHitPlan(w, fireMode, roll, category);
+  if(plan.speedUsed) w.speedBonusAvailable = false;
+  const hits = [];
+  for(let i=0;i<plan.hits;i++){
+    const rolls12 = Array.from({length:plan.rollsPerHit}, ()=>randInt(12));
+    const best = Math.max(...rolls12);
+    const h = {location: best, wounds: plan.woundsFor(best)};
+    if(plan.pulShot) h.rolls12 = rolls12;
+    hits.push(h);
+  }
+  recordAndShareQuickRoll({weaponHits:true, weaponName:w.name, fireMode, hits});
+  if(plan.speedUsed) renderWeapons(); // сразу отражает снятый чекбокс "Скорость" на карточке, не дожидаясь следующего несвязанного renderAll()
+}
+// Правила попаданий после УСПЕШНОЙ атаки — одни и те же для броска из листа (resolveWeaponAttackOutcome выше)
+// и для атаки с игрового стола (GameTable, там к12 ещё сверяется с МУ − защита цели). w — слот оружия листа
+// или те же поля, разобранные из текста оружия (parseWeaponStats). Возвращает, сколько попаданий, сколько к12
+// бросать на каждое и сколько ран даёт выпавший к12; саму «Скорость» (снятие чекбокса) делает вызывающий код.
+function weaponHitPlan(w, fireMode, roll, category){
   let hitCount;
   if(fireMode==='burst') hitCount = category+3;
   else if(fireMode==='suppress') hitCount = category;
   else hitCount = (w.razryv || w.pul) ? 1 : category; // Разрыв/Пул — "оружие наносит лишь одно попадание"
   // "Скорость" — первая успешная атака В БОЮ наносит на 1 попадание больше. Бой этот лист не
   // отслеживает — "доступность" живёт как ручной чекбокс на карточке (см. speedBonusAvailable),
-  // включённый по умолчанию при экипировке/замене оружия, снимается здесь при использовании и
+  // включённый по умолчанию при экипировке/замене оружия, снимается при использовании и
   // возвращается игроком вручную после боя (см. toggleWeaponSpeedBonus/renderWeapons).
-  const speedBonusUsed = w.skorost && w.speedBonusAvailable;
-  if(speedBonusUsed){ hitCount += 1; w.speedBonusAvailable = false; }
+  const speedUsed = !!(w.skorost && w.speedBonusAvailable);
+  if(speedUsed) hitCount += 1;
   // "Мощь позволяет наносить к12 ран" — раны за попадание берутся из уже брошенного к12 (тот самый,
-  // что и так кидается на каждое попадание — см. цикл ниже) ВМЕСТО плоского wounds; отдельного броска
-  // на раны это не требует, к12 просто служит и локацией, и раной одновременно. Не работает, если у
-  // оружия явно указаны "раны N" — hasExplicitWounds тогда побеждает (см. её назначение выше).
+  // что и так кидается на каждое попадание) ВМЕСТО плоского wounds; отдельного броска на раны это не
+  // требует, к12 просто служит и локацией, и раной одновременно. Не работает, если у оружия явно указаны
+  // "раны N" — hasExplicitWounds тогда побеждает (см. её назначение в parseWeaponStats).
   const moshhActive = w.moshh && !w.hasExplicitWounds;
   const razryvBonus = (fireMode==='attack' && w.razryv && roll>=11) ? 4 : 0; // Разрыв: успех (к20) 11+ → +4 раны, поверх любого источника ран
   // Минимум по умолчанию — 1 рана за 1 попадание. «Раны Х» из текста оружия берутся как есть, но слот,
   // сохранённый до появления ран в листе (или заполненный вручную), поля wounds не имеет — раньше это
   // давало «NaN ран» у бросающего и «0 ран» у остальных в логе.
   const baseWounds = Math.max(1, Math.round(Number(w.wounds)) || 1);
-  const woundsFor = (k12)=> Math.max(1, (moshhActive ? k12 : baseWounds) + razryvBonus);
-  hitCount = Math.max(1, hitCount || 0); // успешная атака — хотя бы одно попадание
-  const hits = [];
-  if(fireMode==='attack' && w.pul){
-    // "Проверяя попадания, вы бросаете [категория успеха × к12] и выбираете лучший" — одно попадание,
-    // но category бросков к12 за него, берётся наибольший (лучший) результат. Пул+Мощь: тот же лучший
-    // бросок идёт и на раны — "учитывает высший вариант к12", отдельного броска на раны нет.
-    const rolls12 = Array.from({length:Math.max(1, category||0)}, ()=>randInt(12));
-    const best = Math.max(...rolls12);
-    hits.push({location: best, rolls12, wounds: woundsFor(best)});
-  } else {
-    for(let i=0;i<hitCount;i++){
-      const loc = randInt(12);
-      hits.push({location: loc, wounds: woundsFor(loc)});
-    }
-  }
-  recordAndShareQuickRoll({weaponHits:true, weaponName:w.name, fireMode, hits});
-  if(speedBonusUsed) renderWeapons(); // сразу отражает снятый чекбокс "Скорость" на карточке, не дожидаясь следующего несвязанного renderAll()
+  // "Пул": "Проверяя попадания, вы бросаете [категория успеха × к12] и выбираете лучший" — одно попадание,
+  // но [КУ] бросков к12 за него. Пул+Мощь: тот же лучший бросок идёт и на раны.
+  const pulShot = !!(fireMode==='attack' && w.pul);
+  return {
+    hits: pulShot ? 1 : Math.max(1, hitCount || 0), // успешная атака — хотя бы одно попадание
+    rollsPerHit: pulShot ? Math.max(1, category || 0) : 1,
+    pulShot, speedUsed,
+    woundsFor: (k12)=> Math.max(1, (moshhActive ? k12 : baseWounds) + razryvBonus)
+  };
+}
+
+/* ======================================================================
+   АТАКА С ИГРОВОГО СТОЛА — части, которые живут рядом с оружием листа (сама механика цели, дистанции и
+   применения ран — в модуле GameTable). Защита цели вычитается из МУ оружия: к12 попадания ≤ (МУ − защита)
+   — попадание пробило. Если у брони указана защита по типу урона («Защита 2 (Пт1)» — против патронов 1),
+   берётся она, иначе общая.
+   ====================================================================== */
+const ARMOR_SUB_BY_MU = { 'патрон':'Пт', 'удар':'Уд', 'энергия':'Эн', 'температура':'Тм' };
+function defenseAgainst(base, subs, muType){
+  const abbr = muType && ARMOR_SUB_BY_MU[muType];
+  if(abbr && subs && Number.isFinite(subs[abbr])) return subs[abbr];
+  return base || 0;
+}
+// "Уд5" → {Уд:5}; неизвестные/кривые куски пропускаются
+function armorSubsObject(list){
+  const out = {};
+  (list||[]).forEach(s=>{ const m = /^([А-Яа-яЁё]+)\s*([+\-−]?\d+)$/.exec(String(s).trim()); if(m) out[m[1]] = parseInt(m[2].replace('−','-'),10); });
+  return out;
+}
+// Защита торса персонажа игрока (c — его лист: у Мастера это копия из session.players): наибольшая защита
+// среди надетой брони, покрывающей торс (по типу урона, если указан), иначе ручное поле «Защита (тело)».
+function characterTorsoDefense(c, muType){
+  if(!c) return 0;
+  let best = null;
+  ['on_body','pockets','backpack','tiny'].forEach(cat=>{
+    ((c.inventory && c.inventory[cat]) || []).forEach(it=>{
+      if(!it.wornZones || it.wornZones.indexOf('tors')<0) return;
+      const st = parseArmorStats(it.name);
+      if(!st) return;
+      const d = defenseAgainst(st.base, armorSubsObject(st.subs), muType);
+      if(best===null || d>best) best = d;
+    });
+  });
+  if(best!==null) return best;
+  return (c.armor && Number(c.armor.body)) || 0;
+}
+// Слот оружия листа → те же поля плюс тип урона МУ и черта «травма» (для атаки с карты): берём из полного
+// текста предмета, с которого слот экипирован; у вручную заполненного слота — из его текста свойств.
+function weaponFullStats(w){
+  if(!w || !w.name) return null;
+  const parsed = w.itemNameSnapshot ? parseWeaponStats(w.itemNameSnapshot) : null;
+  const text = parsed ? parsed.statText : String(w.properties||'').replace(/<[^>]*>/g,'');
+  const muM = WEAPON_MU_RE.exec(text);
+  return Object.assign({}, w, { muType: parsed ? parsed.hitType : (muM && muM[2]) || null, travma: hasWeaponTag(text, 'травма') });
+}
+// Бросок атаки с карты — тот же жест с гексами (openRollPicker), что и у всех бросков листа. Максимум,
+// подписи и дальнейшую отправку задаёт GameTable через _mapAttackCtx перед открытием жеста. Игрок видит
+// только известную ему часть Максимума: модификаторы цели секретны и добавляются у Мастера.
+let _mapAttackCtx = null;
+STAT_LABELS['map_attack'] = 'Атака с карты';
+SAVE_ROLL_DEFS['map_attack'] = {
+  label: 'Атака с карты', anchorMod: 0,
+  base(){ return _mapAttackCtx ? _mapAttackCtx.knownBase : 10; },
+  tags(){ return _mapAttackCtx ? _mapAttackCtx.tags.slice() : []; },
+  formula(){ return 'Навык боя + Ат оружия + дистанция; модификаторы цели учитывает Мастер'; }
+};
+// Вместо обычного executeRoll для 'map_attack': кости бросаются здесь (с той же анимацией), но успех и
+// попадания считает Мастер — у игрока нет модификаторов цели, поэтому вердикт тут не показывается.
+function executeMapAttackRoll(base, mod, popup, mode){
+  mode = mode || 'plain';
+  const knownMax = base + mod;
+  const rolls = mode==='plain' ? [randInt(20)] : [randInt(20), randInt(20)];
+  const shown = pickD20ForMode(rolls[0], rolls[1], knownMax, mode); // только для анимации — окончательный выбор делает Мастер
+  popup.querySelector('.hex-field').remove();
+  popup.querySelector('.roll-max-preview').remove();
+  popup.querySelector('.roll-tags').remove();
+  if(_rollOverlayEl) _rollOverlayEl.querySelectorAll('.roll-side-hint').forEach(h=>h.remove());
+  const startRect = popup.getBoundingClientRect();
+  const modeTxt = mode==='advantage' ? ' · Преимущество' : mode==='disadvantage' ? ' · Помеха' : '';
+  const stage = document.createElement('div');
+  stage.innerHTML = `<div class="roll-outcome"><span class="verdict">к20: ${rolls.join(', ')}</span>Результат атаки — в общем логе${modeTxt}</div>`;
+  popup.appendChild(stage);
+  const ctx = _mapAttackCtx;
+  launchRollAnimation({diceType:'d20', mode, max:knownMax, rolls, roll:shown}, startRect).then(()=>{
+    closeRollOverlay();
+    gtHook(g=>g.submitMapAttack(ctx, {rolls, mode, chosenMod: mod}));
+  });
 }
 let _zonePickerEl = null;
 function closeZonePicker(){ if(_zonePickerEl){ _zonePickerEl.remove(); _zonePickerEl=null; } }
@@ -8458,6 +8577,7 @@ function showRerollPopup(statKey, mod, mode){
 // жеста вне поля гексов, справа/слева) — два к20, выбор лучшего/худшего через pickD20ForMode (тем же
 // правилом, что и у боковой панели бросков кубов, см. compareD20Outcomes выше).
 function executeRoll(statKey, base, mod, popup, mode){
+  if(statKey==='map_attack') return executeMapAttackRoll(base, mod, popup, mode); // атака с игрового стола — см. там
   mode = mode || 'plain';
   const max = base + mod;
   const rolls = mode==='plain' ? [randInt(20)] : [randInt(20), randInt(20)];
@@ -10053,6 +10173,19 @@ function sanitizeRollEntry(e){
   const out = { id:e.id, player:str(e.player, 60) };
   if(e.kind==='quick'){
     out.kind = 'quick';
+    if(e.mapAttack){ // итог атаки с игрового стола (считает Мастер, см. GameTable.resolveAttack)
+      Object.assign(out, { mapAttack:true, attackId:str(e.attackId, 64), attacker:str(e.attacker, 60), target:str(e.target, 60),
+        weaponName:str(e.weaponName, 120), fireMode: ['attack','burst','suppress'].indexOf(e.fireMode)>=0 ? e.fireMode : 'attack',
+        rolls:ints(e.rolls, 2), roll:int(e.roll, 0), mode:rollMode(e.mode), success:bool(e.success), category:int(e.category, null),
+        jammed:!!e.jammed, unprotected:!!e.unprotected, outOfRange:!!e.outOfRange, total:Math.max(0, int(e.total, 0)),
+        hits:(Array.isArray(e.hits) ? e.hits : []).slice(0, 60).map(h=>{
+          const o = { k12:int(h && h.k12, 0), pen:!!(h && h.pen), wounds:Math.max(0, int(h && h.wounds, 0)), trauma:!!(h && h.trauma), red:!!(h && h.red) };
+          if(h && Array.isArray(h.rolls12)) o.rolls12 = ints(h.rolls12, 30);
+          return o;
+        }) });
+      return out;
+    }
+    if(e.mapAttackUndo){ Object.assign(out, { mapAttackUndo:true, attackId:str(e.attackId, 64), text:str(e.text, 200) }); return out; }
     if(e.weaponJam){ out.weaponJam = true; out.weaponName = str(e.weaponName, 120); return out; }
     if(e.weaponHits){
       out.weaponHits = true; out.weaponName = str(e.weaponName, 120); out.fireMode = str(e.fireMode, 20);
@@ -10179,8 +10312,34 @@ const _rollLogSeenIds = new Set(session.log.map(e=>e.id));
 // Формат для бросков боковой панели кубов (DicePanel, см. её раздел ниже) — отдельная ветка формата
 // строки лога, но ТОТ ЖЕ массив session.log/тот же рендер-цикл, не второй лог. Записи основного
 // броска характеристики (без поля kind) продолжают форматироваться старой веткой ниже без изменений.
-function formatQuickRollEntry(e){
+function woundsWord(n){ const a = n%10, b = n%100; return a===1 && b!==11 ? 'рана' : (a>=2 && a<=4 && (b<12 || b>14)) ? 'раны' : 'ран'; }
+function formatQuickRollEntry(e, undoneAttacks){
   const who = escapeHtml(e.player||'?');
+  if(e.mapAttack){
+    // Итог атаки с карты: без модификаторов и защиты цели (они секретны) — только вердикт, попадания и раны
+    const undone = undoneAttacks && undoneAttacks.has(e.attackId);
+    const modeName = e.fireMode==='burst' ? 'очередь' : e.fireMode==='suppress' ? 'подавление' : 'атака';
+    const modeTxt = e.mode==='advantage' ? ', Преимущество' : e.mode==='disadvantage' ? ', Помеха' : '';
+    const rollsTxt = e.rolls && e.rolls.length>1 ? ` [${e.rolls.join(', ')}]` : '';
+    let body = `→ ${escapeHtml(e.target)}: «${escapeHtml(e.weaponName)}» (${modeName}${e.unprotected?', по незащищённым':''}${modeTxt}) — к20=${e.roll}${rollsTxt} — `;
+    if(e.jammed) body += 'оружие заклинило (нат.13)';
+    else if(!e.success) body += 'промах';
+    else {
+      const hitsTxt = e.hits.map(h=>{
+        const k = h.rolls12 ? `к12=[${h.rolls12.join(', ')}]→${h.k12}` : `к12=${h.k12}`;
+        if(!h.pen) return `${k} не пробило`;
+        const bone = h.trauma ? (h.red ? ' <span class="bone-red" title="Травма (черта оружия «травма»)">🦴</span>' : ' <span title="Травма">🦴</span>') : '';
+        return `${k} пробило (${h.wounds} ${woundsWord(h.wounds)})${bone}`;
+      }).join('; ');
+      body += `Успех, КУ${e.category} · ${hitsTxt} · итого ${e.total} ${woundsWord(e.total)}`;
+    }
+    if(undone) body += ' · <b>отменено Мастером</b>';
+    return {cls: (e.success && !e.jammed ? 'success' : 'failure') + (undone ? ' undone' : ''),
+      html:`<span class="who">${escapeHtml(e.attacker||e.player||'?')}</span><span class="rest">${body}</span>`, undoable: !undone};
+  }
+  if(e.mapAttackUndo){
+    return {cls:'', html:`<span class="who">${who}</span><span class="rest">↶ Отменил атаку: ${escapeHtml(e.text)}</span>`};
+  }
   if(e.weaponJam){
     return {cls:'failure', html:`<span class="who">${who}</span><span class="rest">Оружие «${escapeHtml(e.weaponName)}» заклинило (нат.13) — переброс невозможен</span>`};
   }
@@ -10221,12 +10380,17 @@ function renderRollLog(){
   const entries = session.log.slice(-150).slice().reverse();
   // Ошибка в одной записи пропускает только её — раньше она роняла весь рендер лога, а он вызывается
   // при загрузке страницы раньше восстановления персонажа и сессии (см. updateSessionStatusUI).
-  el.innerHTML = entries.map(e=>{ try{ return renderRollLogEntry(e); }catch(err){ console.warn('[Лог бросков] запись пропущена', e && e.id, err); return ''; } }).join('');
+  const undoneAttacks = new Set(session.log.filter(x=>x.mapAttackUndo).map(x=>x.attackId)); // отменённые атаки с карты — зачёркиваются у всех
+  el.innerHTML = entries.map(e=>{ try{ return renderRollLogEntry(e, undoneAttacks); }catch(err){ console.warn('[Лог бросков] запись пропущена', e && e.id, err); return ''; } }).join('');
+  // ↶ у атаки с карты — только Мастеру (см. renderRollLogEntry): отменяет её раны и травмы
+  el.onclick = (ev)=>{ const b = ev.target.closest && ev.target.closest('[data-undo-attack]'); if(b) gtHook(g=>g.undoAttack(b.dataset.undoAttack)); };
 }
-function renderRollLogEntry(e){
+function renderRollLogEntry(e, undoneAttacks){
   if(e.kind==='quick'){
-    const f = formatQuickRollEntry(e);
-    return `<div class="roll-log-entry ${f.cls}">${f.html}</div>`;
+    const f = formatQuickRollEntry(e, undoneAttacks);
+    const canUndo = e.mapAttack && f.undoable && session.role==='gm' && typeof GameTable!=='undefined' && GameTable.canUndoAttack(e.attackId);
+    const undoBtn = canUndo ? `<button type="button" class="small log-undo" data-undo-attack="${escapeHtml(e.attackId)}" title="Отменить эту атаку: вернуть раны и травмы">↶</button>` : '';
+    return `<div class="roll-log-entry ${f.cls}">${f.html}${undoBtn}</div>`;
   }
   const cls = e.success===true?'success':e.success===false?'failure':'';
   const outcome = e.success===true?`Успех, КУ${e.category}`:e.success===false?'Провал':'';
@@ -12262,8 +12426,29 @@ const GameTable = (function(){
     };
     if(kind==='player') out.ownerId = String(t.ownerId||'').slice(0,64);
     else out.hp = (t.hp===null || t.hp===undefined || t.hp==='') ? null : Math.round(clamp(num(t.hp,0), -9999, 9999));
+    // Боевые характеристики (атака с карты). Защита, модификаторы, порог травмы и оружие — секрет Мастера:
+    // игрокам жетоны уходят без них (см. publicToken). Счётчики травм и флажок «можно по незащищённым» видны всем.
+    out.trauma = Math.round(clamp(num(t.trauma,0), 0, 99));        // 🦴 — травмы
+    out.traumaRed = Math.round(clamp(num(t.traumaRed,0), 0, 99));  // красная 🦴 — травмы от оружия с чертой «травма»
+    out.attackModEnabled = kind==='gm' ? true : !!t.attackModEnabled; // у жетона игрока Мастер включает сам
+    out.attackMod = Math.round(clamp(num(t.attackMod,0), -18, 18));   // прибавляется к броску того, кто атакует этот жетон
+    out.traumaThreshold = kind==='player' ? 5 : Math.round(clamp(num(t.traumaThreshold,5), 1, 12)); // «Травма-к12»; у игроков всегда 5
+    out.unprotectedEnabled = kind==='gm' && !!t.unprotectedEnabled;    // «атака по незащищённым частям» разрешена
+    if(kind==='gm'){
+      out.defense = Math.round(clamp(num(t.defense,0), 0, 99));
+      out.defenseSubs = {};
+      Object.keys((t.defenseSubs && typeof t.defenseSubs==='object') ? t.defenseSubs : {}).slice(0,8).forEach(k=>{
+        const v = Math.round(num(t.defenseSubs[k], NaN));
+        if(/^[А-Яа-яЁё]{1,4}$/.test(k) && isFinite(v)) out.defenseSubs[k] = clamp(v, 0, 99);
+      });
+      out.armorName = String(t.armorName||'').slice(0,80);
+      out.weaponText = String(t.weaponText||'').slice(0,400);
+      out.unprotectedMod = Math.round(clamp(num(t.unprotectedMod,-6), -30, 30));
+    }
     return out;
   }
+  const SECRET_TOKEN_FIELDS = ['defense','defenseSubs','armorName','attackMod','attackModEnabled','unprotectedMod','traumaThreshold','weaponText'];
+  function publicToken(t){ const o = Object.assign({}, t); SECRET_TOKEN_FIELDS.forEach(k=>{ delete o[k]; }); return o; }
   function sanitizeDrawing(d){
     if(!d || DRAWING_TYPES.indexOf(d.type)<0) return null;
     const pts = (Array.isArray(d.points) ? d.points : []).slice(0,4000)
@@ -12426,10 +12611,15 @@ const GameTable = (function(){
     return null;
   }
   // Скрытый жетон для игроков не существует вовсе: его upsert уходит им как remove, в снимок не попадает
-  function playerOps(ops){ return ops.map(op=> op.op==='token-upsert' && op.token.hidden ? {op:'token-remove', id:op.token.id} : op); }
+  function playerOps(ops){
+    return ops.map(op=>{
+      if(op.op!=='token-upsert') return op;
+      return op.token.hidden ? {op:'token-remove', id:op.token.id} : {op:'token-upsert', token:publicToken(op.token)}; // без секретных боевых полей
+    });
+  }
   function playerSnapshot(){
     const s = authState, tokens = {};
-    Object.values(s.tokens).forEach(t=>{ if(!t.hidden) tokens[t.id] = t; });
+    Object.values(s.tokens).forEach(t=>{ if(!t.hidden) tokens[t.id] = publicToken(t); });
     return {schema:1, tableId:s.tableId, version:s.version, map:s.map, tokens, drawings:s.drawings, zones:s.zones};
   }
   function sendSnapshot(toId){ if(role()==='gm') sendMsg({type:'gt-snapshot', state:playerSnapshot()}, toId); }
@@ -12470,7 +12660,9 @@ const GameTable = (function(){
         const t = s.tokens[cmd.id];
         if(!t) return deny('Жетон не найден');
         const patch = {};
-        ['name','hp','size','color','hidden','avatar','rotation'].forEach(k=>{ if(cmd.patch && k in cmd.patch) patch[k] = cmd.patch[k]; });
+        ['name','hp','size','color','hidden','avatar','rotation',
+         'defense','defenseSubs','armorName','weaponText','attackMod','attackModEnabled','unprotectedEnabled','unprotectedMod','traumaThreshold','trauma','traumaRed']
+          .forEach(k=>{ if(cmd.patch && k in cmd.patch) patch[k] = cmd.patch[k]; });
         ops.push({op:'token-upsert', token:sanitizeToken(Object.assign({}, t, patch))});
         break;
       }
@@ -12587,6 +12779,14 @@ const GameTable = (function(){
       }
       case 'gt-vitals': if(fromGm(msg)){ remoteVitals = msg.vitals && typeof msg.vitals==='object' ? msg.vitals : {}; renderTokens(); } break;
       case 'gt-ping': case 'gt-pointer': case 'gt-drag': handleTransient(msg); break;
+      case 'gt-attack': { // игрок прислал бросок атаки — считает Мастер (см. resolveAttack)
+        if(role()!=='gm' || !from || !msg.req || typeof msg.req!=='object') return;
+        const res = resolveAttack(msg.req, from);
+        if(!res.ok){ sendMsg({type:'gt-reject', reason:res.reason}, from); return; }
+        sendMsg({type:'gt-attack-result', attackId:String(msg.req.attackId), success:res.success, jammed:res.jammed, speedUsed:res.speedUsed}, from);
+        break;
+      }
+      case 'gt-attack-result': if(fromGm(msg)) afterAttackResult(String(msg.attackId), {success:!!msg.success, jammed:!!msg.jammed, speedUsed:!!msg.speedUsed}); break;
     }
   }
 
@@ -12746,7 +12946,7 @@ const GameTable = (function(){
     el.classList.toggle('hidden-tok', !!t.hidden);
     el.classList.toggle('dragging', !!dragPos[t.id]);
     const v = vitalsFor(t);
-    const key = JSON.stringify([t.name, t.color, t.avatar, t.hp, t.kind, t.hidden, t.size, t.rotation, v && [v.name, v.hp, v.hpMax, v.psi, v.psiMax]]);
+    const key = JSON.stringify([t.name, t.color, t.avatar, t.hp, t.kind, t.hidden, t.size, t.rotation, t.trauma, t.traumaRed, v && [v.name, v.hp, v.hpMax, v.psi, v.psiMax]]);
     if(el._gtKey===key) return;
     el._gtKey = key;
     const name = tokenName(t, v), sz = SIZE_CELLS[t.size]*CELL;
@@ -12763,7 +12963,12 @@ const GameTable = (function(){
     }
     el.innerHTML = `<div class="gt-token-disc" style="--tok:${t.color};--rot:${t.rotation||0}deg">${face}</div>`+
       (t.hidden ? '<i class="gt-hidden-badge" title="Скрыт от игроков">⊘</i>' : '')+
-      `<div class="gt-token-label"><b>${escapeHtml(name)}</b>${stats}</div>`;
+      `<div class="gt-token-label"><b>${escapeHtml(name)}</b>${stats}${traumaBadgesHtml(t)}</div>`;
+  }
+  // Травмы под жетоном: 🦴N — обычные, красная 🦴M — от оружия с чертой «травма» (см. resolveAttack)
+  function traumaBadgesHtml(t){
+    if(!t.trauma && !t.traumaRed) return '';
+    return `<span class="gt-trauma-row">${t.trauma?`<span title="Травмы">🦴${t.trauma}</span>`:''}${t.traumaRed?`<span class="bone-red" title="Травмы от оружия с чертой «травма»">🦴</span><span class="gt-trauma-red-n">${t.traumaRed}</span>`:''}</span>`;
   }
   function refreshTokenPos(id){ const el = tokenEls.get(id), t = tok(id); if(el && t){ positionTokenEl(el, t); el.classList.toggle('dragging', !!dragPos[id]); } }
   function setSelection(ids){ selected.clear(); ids.forEach(id=>selected.add(id)); tokenEls.forEach((el,id)=>el.classList.toggle('selected', selected.has(id))); renderInfoCard(); }
@@ -12776,8 +12981,16 @@ const GameTable = (function(){
     let stats = '';
     if(t.kind==='player') stats = v ? `<span class="hp">HP ${escapeHtml(String(v.hp))} / ${escapeHtml(String(v.hpMax))}</span><span class="psi">Psi ${escapeHtml(String(v.psi))} / ${escapeHtml(String(v.psiMax))}</span>` : '<span class="muted">лист недоступен</span>';
     else if(t.hp!==null && t.hp!==undefined) stats = `<span class="hp">HP ${escapeHtml(String(t.hp))}</span>`;
+    // Мастеру — ещё и боевые характеристики (игрокам они не приходят вовсе, см. publicToken)
+    let combat = '';
+    if(isAuthority() && t.kind==='gm'){
+      const ws = t.weaponText ? parseWeaponStats(t.weaponText) : null;
+      combat = `<div class="gt-ic-sub" style="margin-top:4px">Защита ${t.defense}${Object.keys(t.defenseSubs||{}).length?' ('+Object.keys(t.defenseSubs).map(k=>k+t.defenseSubs[k]).join(', ')+')':''}` +
+        ` · ${ws ? escapeHtml(ws.cleanName)+` (Ат${ws.at>=0?'+':''}${ws.at}, МУ${ws.mu})` : 'без оружия'} · травма-к12 ${t.traumaThreshold}</div>`;
+    }
+    const bones = (t.trauma||t.traumaRed) ? `<div class="gt-ic-sub">${traumaBadgesHtml(t)}</div>` : '';
     infoCard.innerHTML = `<div class="gt-ic-sub">${kindTxt} · ${SIZE_LABELS[t.size]}${t.hidden?' · скрыт':''}</div><div class="gt-ic-name">${escapeHtml(tokenName(t, v))}</div>`+
-      (stats ? `<div class="gt-ic-stats">${stats}</div>` : '');
+      (stats ? `<div class="gt-ic-stats">${stats}</div>` : '') + bones + combat;
     infoCard.style.display = 'block';
   }
 
@@ -12974,6 +13187,18 @@ const GameTable = (function(){
         pill(ctx, b.x, b.y - SIZE_CELLS[t.size]*CELL*cam.z/2, measureLabel(Math.hypot(cur.x-start.x, cur.y-start.y)));
       }
     }
+    if(targeting && targeting.cur){
+      const att = tok(targeting.attackerId);
+      if(att){
+        const hov = targetUnder(att, targeting.cur);
+        const end = hov ? {x:hov.x, y:hov.y} : targeting.cur;
+        const ri = rangeInfo(att, hov || {x:end.x, y:end.y, size:'normal'}, targeting.w);
+        const a = toScreen(att), b = toScreen(end);
+        strokePath(ctx, [a,b], ri.ok ? '#9c2f1c' : '#5c5240', [8,5]);
+        if(hov){ ctx.save(); ctx.beginPath(); ctx.arc(b.x, b.y, SIZE_CELLS[hov.size]*CELL*cam.z/2 + 5, 0, Math.PI*2); ctx.strokeStyle = ri.ok ? '#9c2f1c' : '#5c5240'; ctx.lineWidth = 3; ctx.setLineDash([4,4]); ctx.stroke(); ctx.restore(); }
+        pill(ctx, b.x, b.y, `${fmtNum(ri.meters)} м · ${ri.label}`, ri.ok ? 'rgba(156,47,28,.92)' : 'rgba(92,82,64,.92)');
+      }
+    }
     if(placing && placing.cur){
       const t = tok(placing.ids[0]);
       if(t){ const a = toScreen(t), b = toScreen(placing.cur); strokePath(ctx, [a,b], '#1c1712', [6,6]); pill(ctx, b.x, b.y, measureLabel(Math.hypot(placing.cur.x-t.x, placing.cur.y-t.y))); }
@@ -13168,6 +13393,7 @@ const GameTable = (function(){
     if(e.button===1 || (e.button===0 && (spaceHeld || tool==='pan'))){ startPan(e, p); e.preventDefault(); return; }
     if(e.button!==0) return;
     if(e.altKey){ doPing(w); return; }
+    if(targeting){ handleTargetClick(e, p); return; } // выбор цели атаки — см. startTargeting
     if(placing){ finishPlacing(w, e.shiftKey); return; }
     const t = tokenFromEvent(e);
     try{ viewport.setPointerCapture(e.pointerId); }catch(err){}
@@ -13224,6 +13450,7 @@ const GameTable = (function(){
     lastMouse = w;
     if(pointerBroadcast && role()==='gm' && !interaction) sendTransient({type:'gt-pointer', x:r3(w.x), y:r3(w.y)}, 90);
     if(!interaction){
+      if(targeting){ targeting.cur = w; requestRender({fx:true}); return; }
       if(placing){ movePlacing(w, e.shiftKey); return; }
       if(ruler && ruler.mode==='waypoints'){ ruler.cur = w; requestRender({fx:true}); }
       if(polyDraft) requestRender({fx:true});
@@ -13348,6 +13575,7 @@ const GameTable = (function(){
   }
   function cancelAll(){
     cancelInteraction();
+    targeting = null;
     if(placing){ placing.ids.forEach(id=>{ delete dragPos[id]; refreshTokenPos(id); }); placing = null; }
     ruler = null; polyDraft = null;
     closeMenu(); closePopover(); showHint();
@@ -13405,7 +13633,7 @@ const GameTable = (function(){
     e.preventDefault();
     if(polyDraft){ finishPolygon(); return; }
     if(ruler){ ruler = null; showHint(); requestRender({fx:true}); return; }
-    if(placing){ cancelAll(); return; }
+    if(placing || targeting){ cancelAll(); return; }
     const p = localPt(e), w = toWorld(p), t = tokenFromEvent(e);
     if(t) openTokenMenu(t, p); else openFieldMenu(w, p);
   }
@@ -13525,7 +13753,8 @@ const GameTable = (function(){
   }
   function showHint(){
     let h = '';
-    if(placing) h = 'Клик — поставить · Shift — по сетке · Esc — отмена';
+    if(targeting) h = 'Выберите цель атаки · Esc или правый клик — отмена';
+    else if(placing) h = 'Клик — поставить · Shift — по сетке · Esc — отмена';
     else if(polyDraft) h = 'Клик — вершина · двойной клик, Enter или клик по первой точке — замкнуть · Esc — отмена';
     else if(ruler && ruler.mode==='waypoints') h = 'Клик — ещё точка · двойной клик, правый клик или Esc — убрать';
     else if(tool==='ruler') h = 'Протяните — измерить · клик — измерение по точкам';
@@ -13605,11 +13834,11 @@ const GameTable = (function(){
     if(!selected.has(t.id) && canControl(t)) setSelection([t.id]);
     if(isAuthority()){
       const ids = selected.has(t.id) ? [...selected] : [t.id];
-      const items = [
+      const items = attackMenuItems(t, p).concat([
         {id:'move', label:'Переместить', run:()=>startPlacing(ids)},
         {id:'edit', label:'Изменить…', run:()=>openTokenForm(t, null, p)},
         {id:'hp', label:'Изменить HP…', run:()=>openVitalForm(t, 'hp', p)}
-      ];
+      ]);
       if(t.kind==='player') items.push({id:'psi', label:'Изменить Psi…', run:()=>openVitalForm(t, 'psi', p)});
       items.push({id:'size', run:(size)=>act({c:'token-update', id:t.id, patch:{size}}),
         html:`<div class="gt-menu-sizes">${Object.keys(SIZE_CELLS).map(s=>`<button type="button" data-size="${s}" class="${t.size===s?'active':''}">${SIZE_LABELS[s].split(' ')[0]}</button>`).join('')}</div>`});
@@ -13619,11 +13848,11 @@ const GameTable = (function(){
       return;
     }
     if(canControl(t)){
-      openMenu(p, name, [
+      openMenu(p, name, attackMenuItems(t, p).concat([
         {id:'sel', label:'Выбрать', run:()=>setSelection([t.id])},
         {id:'move', label:'Переместить', run:()=>startPlacing([t.id])},
         {id:'sheet', label:'Открыть персонажа', run:()=>{ toggleMainTab('sheet'); const el = document.getElementById('hpValue'); if(el) el.scrollIntoView({block:'center', behavior:'smooth'}); }}
-      ]);
+      ]));
     }
   }
   function openFieldMenu(w, p){
@@ -13672,6 +13901,70 @@ const GameTable = (function(){
     return `<div class="gt-swatches">${PALETTE.map(c=>`<label class="gt-sw" style="--c:${c}"><input type="radio" name="color" value="${c}" ${c===cur?'checked':''}><span></span></label>`).join('')}</div>`;
   }
   function sizeOptions(cur){ return Object.keys(SIZE_CELLS).map(s=>`<option value="${s}" ${s===cur?'selected':''}>${SIZE_LABELS[s]}</option>`).join(''); }
+  // Каталог книги для боевых полей жетонов Мастера: оружие (есть Ат и МУ — атаковать им можно) и броня
+  // (есть «Защита N»). Строится один раз, группами по поколениям, как и в инвентаре листа.
+  const GEN_LABELS = { hlam:'Хлам', svalka:'Свалка', knyazhestva:'Феодальные княжества', zemli_straha:'Земли страха' };
+  let combatCatalogCache = null;
+  function combatCatalog(){
+    if(combatCatalogCache) return combatCatalogCache;
+    const weapons = [], armor = [];
+    Object.keys(ITEM_CATALOG).forEach(g=>{
+      const cats = ITEM_CATALOG[g].categories || {};
+      ((cats.weapons && cats.weapons.items) || []).forEach(it=>{
+        const text = it.name + ' — ' + (it.desc||'');
+        if(parseWeaponStats(text)) weapons.push({gen:g, label:it.name, text});
+      });
+      ((cats.armor && cats.armor.items) || []).forEach(it=>{
+        const st = parseArmorStats(it.name + ' — ' + (it.desc||''));
+        if(st) armor.push({gen:g, label:it.name, base:st.base, subs:armorSubsObject(st.subs)});
+      });
+    });
+    return combatCatalogCache = {weapons, armor};
+  }
+  function catalogOptions(list, selectedFn){
+    const byGen = {};
+    list.forEach((x,i)=>{ (byGen[x.gen] = byGen[x.gen] || []).push(`<option value="${i}" ${selectedFn(x)?'selected':''}>${escapeHtml(x.label)}</option>`); });
+    return Object.keys(byGen).map(g=>`<optgroup label="${escapeHtml(GEN_LABELS[g]||g)}">${byGen[g].join('')}</optgroup>`).join('');
+  }
+  function combatFieldsHtml(cur, isPlayerTok){
+    const n = (name, val, min, max)=>`<input type="number" name="${name}" step="1" min="${min}" max="${max}" value="${val}">`;
+    const bones = `<div class="gt-f-row"><label class="gt-f">Травмы 🦴${n('trauma', cur.trauma||0, 0, 99)}</label>`+
+                  `<label class="gt-f">Красные <span class="bone-red">🦴</span>${n('traumaRed', cur.traumaRed||0, 0, 99)}</label></div>`;
+    if(isPlayerTok){
+      return `<details class="gt-combat" open><summary>Бой</summary>`+
+        `<label class="gt-check"><input type="checkbox" name="attackModEnabled" ${cur.attackModEnabled?'checked':''}> Модификатор атаки по этому игроку</label>`+
+        `<label class="gt-f">Модификатор (−18…+18)${n('attackMod', cur.attackMod||0, -18, 18)}</label>`+
+        bones + `<div class="gt-pop-note">Травма-к12 у игроков — 5, защита — торс из его листа.</div></details>`;
+    }
+    const cat = combatCatalog();
+    const wOpts = catalogOptions(cat.weapons, x=>x.text===cur.weaponText);
+    const aOpts = catalogOptions(cat.armor, x=>x.label===cur.armorName);
+    return `<details class="gt-combat" open><summary>Бой</summary>`+
+      `<label class="gt-f">Оружие (каталог)<select name="weapon"><option value="">— без оружия —</option>${wOpts}</select></label>`+
+      `<label class="gt-f">Броня (каталог — заполнит защиту)<select name="armor"><option value="">— вручную —</option>${aOpts}</select></label>`+
+      `<div class="gt-f-row"><label class="gt-f">Защита${n('defense', cur.defense||0, 0, 99)}</label>`+
+      `<label class="gt-f">Травма-к12${n('traumaThreshold', cur.traumaThreshold||5, 1, 12)}</label></div>`+
+      `<div class="gt-pop-note" data-subs-note>${Object.keys(cur.defenseSubs||{}).length ? 'По типам урона: '+escapeHtml(Object.keys(cur.defenseSubs).map(k=>k+cur.defenseSubs[k]).join(', ')) : ''}</div>`+
+      `<label class="gt-f">Модификатор атаки по нему (−18…+18)${n('attackMod', cur.attackMod||0, -18, 18)}</label>`+
+      `<div class="gt-f-row" style="align-items:flex-end"><label class="gt-check" style="flex:1"><input type="checkbox" name="unprotectedEnabled" ${cur.unprotectedEnabled?'checked':''}> По незащищённым частям</label>`+
+      `<label class="gt-f" style="flex:0 0 70px">мод.${n('unprotectedMod', cur.unprotectedMod==null?-6:cur.unprotectedMod, -30, 30)}</label></div>`+
+      bones + `<div class="gt-pop-note">Характеристики NPC для атаки — 3.</div></details>`;
+  }
+  function readCombatFields(fd, cur, isPlayerTok, subsState){
+    const int = (k, d)=>{ const v = parseInt(String(fd.get(k)), 10); return isFinite(v) ? v : d; };
+    const out = { trauma:int('trauma', cur.trauma||0), traumaRed:int('traumaRed', cur.traumaRed||0), attackMod:int('attackMod', cur.attackMod||0) };
+    if(isPlayerTok){ out.attackModEnabled = fd.get('attackModEnabled')==='on'; return out; }
+    const cat = combatCatalog();
+    const wi = fd.get('weapon'), ai = fd.get('armor');
+    out.weaponText = (wi==='' || wi===null) ? '' : (cat.weapons[+wi] ? cat.weapons[+wi].text : (cur.weaponText||''));
+    out.armorName = (ai==='' || ai===null) ? '' : (cat.armor[+ai] ? cat.armor[+ai].label : (cur.armorName||''));
+    out.defense = int('defense', cur.defense||0);
+    out.defenseSubs = subsState.subs;
+    out.traumaThreshold = int('traumaThreshold', cur.traumaThreshold||5);
+    out.unprotectedEnabled = fd.get('unprotectedEnabled')==='on';
+    out.unprotectedMod = int('unprotectedMod', -6);
+    return out;
+  }
   function openTokenForm(t, w, p){
     const editing = !!t, isPlayerTok = editing && t.kind==='player';
     let whoHtml = '';
@@ -13679,7 +13972,8 @@ const GameTable = (function(){
       const free = Object.keys(session.players).filter(id=>!Object.values(authState.tokens).some(x=>x.kind==='player' && x.ownerId===id));
       if(free.length) whoHtml = `<label class="gt-f">Кто<select name="who"><option value="">NPC / объект</option>${free.map(id=>`<option value="${escapeHtml(id)}">Игрок: ${escapeHtml(playerDisplayName(session.players[id])||id)}</option>`).join('')}</select></label>`;
     }
-    const cur = t || {name:'', hp:null, size:'normal', color:PALETTE[1], avatar:'', hidden:false};
+    const cur = t || {name:'', hp:null, size:'normal', color:PALETTE[1], avatar:'', hidden:false, defense:0, defenseSubs:{}, traumaThreshold:5, unprotectedMod:-6};
+    const subsState = { subs: Object.assign({}, cur.defenseSubs||{}) }; // защита по типам урона — меняется выбором брони из каталога
     const html = `<div class="gt-pop-title">${editing ? 'Жетон «'+escapeHtml(tokenName(t, vitalsFor(t)))+'»' : 'Новый жетон'}</div>`+
       (isPlayerTok ? '<div class="gt-pop-note">Имя, HP и Psi берутся из листа игрока.</div>' : '')+
       whoHtml+
@@ -13690,6 +13984,7 @@ const GameTable = (function(){
       `<label class="gt-f" style="margin-bottom:2px">Цвет</label>${swatchesHtml(cur.color)}`+
       `<label class="gt-f">Картинка (ссылка, необязательно)<input type="url" name="avatar" maxlength="2000" value="${escapeHtml(cur.avatar||'')}" placeholder="https://…"></label>`+
       (isPlayerTok ? '' : `<label class="gt-check"><input type="checkbox" name="hidden" ${cur.hidden?'checked':''}> Скрыт от игроков</label>`)+
+      combatFieldsHtml(cur, isPlayerTok)+
       `<div class="gt-pop-actions"><button type="button" class="small" data-cancel>Отмена</button><button type="submit" class="small primary">${editing?'Сохранить':'Создать'}</button></div>`;
     const form = openPopover(p, html, (f)=>{
       const fd = new FormData(f);
@@ -13711,6 +14006,7 @@ const GameTable = (function(){
         base.hp = hpRaw==='' ? null : parseInt(hpRaw, 10);
         base.hidden = fd.get('hidden')==='on';
       }
+      Object.assign(base, readCombatFields(fd, cur, isPlayerTok, subsState));
       if(editing){ act({c:'token-update', id:t.id, patch:base}); return; }
       const sn = snapPos(w.x, w.y, base.size);
       act({c:'token-create', token:Object.assign(base, {x:sn.x, y:sn.y})});
@@ -13719,6 +14015,17 @@ const GameTable = (function(){
     if(whoSel) whoSel.onchange = ()=>{
       const npc = !whoSel.value;
       ['name','hp','hidden'].forEach(n=>{ const el = form.querySelector(`[name=${n}]`); if(el){ el.disabled = !npc; const lab = el.closest('label'); if(lab) lab.style.opacity = npc ? '' : '.4'; } });
+      const combat = form.querySelector('.gt-combat'); if(combat) combat.style.display = npc ? '' : 'none';
+    };
+    // Броня из каталога — сразу проставляет защиту и защиту по типам урона (поле «Защита» потом можно поправить)
+    const armorSel = form.querySelector('select[name=armor]');
+    if(armorSel) armorSel.onchange = ()=>{
+      const a = combatCatalog().armor[+armorSel.value];
+      const note = form.querySelector('[data-subs-note]');
+      if(!a){ subsState.subs = {}; if(note) note.textContent = ''; return; }
+      form.querySelector('[name=defense]').value = a.base;
+      subsState.subs = Object.assign({}, a.subs);
+      if(note) note.textContent = Object.keys(a.subs).length ? 'По типам урона: ' + Object.keys(a.subs).map(k=>k+a.subs[k]).join(', ') : '';
     };
   }
   function openVitalForm(t, which, p){
@@ -13768,8 +14075,28 @@ const GameTable = (function(){
   }
 
   /* ---------- крючки из существующего кода (все вызываются через gtHook) ---------- */
+  // Лог бросков слева от стола: тот же #rollLogList (данные и отрисовка — renderRollLog листа), просто физически
+  // переносится в панель, пока открыт стол, и возвращается на своё место в панели сессии при уходе с вкладки.
+  const LOGDOCK_KEY = 'reincarnator_table_logdock_open_v1';
+  let logHome = null;
+  function dockRollLog(toTable){
+    const list = document.getElementById('rollLogList');
+    const body = document.getElementById('gtLogDockBody');
+    if(!list || !body) return;
+    if(!logHome) logHome = {parent:list.parentNode, next:list.nextSibling};
+    if(toTable){ if(list.parentNode!==body) body.appendChild(list); }
+    else if(list.parentNode!==logHome.parent) logHome.parent.insertBefore(list, logHome.next);
+  }
+  function setLogDockOpen(open){
+    const dock = document.getElementById('gtLogDock');
+    if(!dock) return;
+    dock.classList.toggle('open', !!open);
+    try{ localStorage.setItem(LOGDOCK_KEY, open ? '1' : '0'); }catch(e){}
+    if(visible) resize(); // поле стало уже/шире
+  }
   function setVisible(v){
     visible = !!v;
+    dockRollLog(visible);
     if(!visible){ cancelAll(); return; }
     resize();
     applyCamera();
@@ -13821,6 +14148,12 @@ const GameTable = (function(){
     viewport.addEventListener('contextmenu', onContextMenu);
     viewport.addEventListener('dragstart', (e)=>e.preventDefault());
     [toolbar, subbar, zoombar].forEach(el=>el.addEventListener('click', onToolbarClick));
+    const logToggle = document.getElementById('gtLogToggle');
+    if(logToggle){
+      let open = false; try{ open = localStorage.getItem(LOGDOCK_KEY)==='1'; }catch(e){}
+      document.getElementById('gtLogDock').classList.toggle('open', open);
+      logToggle.addEventListener('click', ()=>setLogDockOpen(!document.getElementById('gtLogDock').classList.contains('open')));
+    }
     subbar.addEventListener('input', onStyleInput);
     window.addEventListener('keydown', onKeyDown, true); // capture: раньше Ctrl+Z листа персонажа
     window.addEventListener('keyup', onKeyUp, true);
@@ -13842,7 +14175,310 @@ const GameTable = (function(){
     renderToolbar(); renderZoombar(); renderStatus();
   }
 
+  /* ---------- атака с карты ----------
+     Атакующий (свой жетон игрока или жетон Мастера) → «Атаковать» в меню → клик по цели → окно атаки → жест
+     броска (тот же, что в листе). Считает Мастер: у игрока нет модификаторов и защиты цели (они секретны).
+     Максимум = навык боя (у NPC — 3) + Ат + черты + дистанция + выбранный гекс + мод. цели (+ по незащищённым).
+     Каждое попадание — к12 ≤ (МУ − защита цели) — пробило (защита по типу урона МУ, если у брони указана;
+     «по незащищённым» — защита 0); раны — как в листе (weaponHitPlan); к12 > «Травма-к12» у пробившего —
+     травма 🦴 (красная — если у оружия черта «травма»). Раны сразу вычитаются из HP (у игрока — выдачей с
+     подтверждением), Мастер может отменить атаку кнопкой ↶ в логе. */
+  const ATTACK_RECORDS_KEY = 'reincarnator_attack_records_v1';
+  let attackRecords = (function(){ const v = loadJson(ATTACK_RECORDS_KEY); return Array.isArray(v) ? v : []; })();
+  function saveAttackRecords(){ attackRecords = attackRecords.slice(-100); saveJson(ATTACK_RECORDS_KEY, attackRecords); }
+  let targeting = null;        // {attackerId, weaponIdx, fireMode, w, cur} — выбор цели на карте
+  const pendingAttacks = {};   // attackId -> контекст своей атаки (для «Скорости» и переброса после ответа Мастера)
+
+  function npcWeapon(t){
+    const p = t && t.weaponText ? parseWeaponStats(t.weaponText) : null;
+    if(!p) return null;
+    return Object.assign({}, p, {name:p.cleanName, muType:p.hitType, travma:hasWeaponTag(p.statText, 'травма'), speedBonusAvailable:false});
+  }
+  function sheetWeapon(c, idx){ return c && c.weapons ? weaponFullStats(c.weapons[idx]) : null; }
+  function weaponModes(w){
+    const m = [['attack','атака']];
+    if(w && w.avtomat) m.push(['burst','длинная очередь'], ['suppress','подавляющий огонь']);
+    return m;
+  }
+  function attackerSheet(att){ // лист атакующего/атакуемого жетона игрока: свой или (у Мастера) копия
+    if(!att || att.kind!=='player') return null;
+    if(att.ownerId===myOwnerId()) return (typeof character!=='undefined') ? character : null;
+    const p = session.players[att.ownerId];
+    return p && p.character;
+  }
+  // Дальность: ближний бой (у оружия нет Дл) — только соседняя клетка; иначе Дл в метрах от центра до центра:
+  // дальше Дл −3, дальше 2×Дл −9, дальше 3×Дл — атака невозможна.
+  function rangeInfo(att, tgt, w){
+    const cells = Math.hypot(tgt.x-att.x, tgt.y-att.y);
+    const meters = Math.round(cells*METERS_PER_CELL*10)/10;
+    if(w.dl==null){
+      const reach = (SIZE_CELLS[att.size] + SIZE_CELLS[tgt.size||'normal'])/2 + 0.75;
+      return cells<=reach ? {ok:true, pen:0, meters, label:'ближний бой'} : {ok:false, pen:0, meters, label:'вне досягаемости (ближний бой — только соседняя клетка)'};
+    }
+    const dl = w.dl;
+    if(meters<=dl) return {ok:true, pen:0, meters, label:`в пределах Дл${dl}`};
+    if(meters<=2*dl) return {ok:true, pen:-3, meters, label:`дальше Дл${dl}: −3`};
+    if(meters<=3*dl) return {ok:true, pen:-9, meters, label:`дальше 2×Дл${dl}: −9`};
+    return {ok:false, pen:0, meters, label:`дальше 3×Дл${dl} — атака невозможна`};
+  }
+  function canTarget(att, tgt){
+    if(!att || !tgt || att.id===tgt.id) return false;
+    return isPlayer() ? tgt.kind==='gm' : true;
+  }
+  // Известная атакующему часть Максимума (без модификаторов цели)
+  function attackKnownPart(c, w, fireMode, range, optikaOn, isNpc){
+    const tags = [];
+    let base;
+    if(fireMode==='suppress'){ base = 12; tags.push('Подавляющий огонь: Максимум 12'); }
+    else {
+      const sk = weaponCombatSkill(w);
+      const skillVal = isNpc ? 3 : (sk && c ? (c.stats[sk]||0) : 0);
+      base = 10 + skillVal + (w.at||0);
+      tags.push(isNpc ? `Навык NPC: ${10+skillVal}` : `${STAT_LABELS[sk]||'Навык'}: ${10+skillVal}`, `Ат оружия: ${w.at>=0?'+':''}${w.at}`);
+      if(!isNpc && c){
+        let tech = 0;
+        if(w.highTech && !(c.stats.uchenost>=2 || c.stats.tehnika>=2)) tech -= 2;
+        if(w.xenoteh && !(c.stats.iskazheniya_i_relikvii>=2)) tech -= 2;
+        if(tech){ base += tech; tags.push(`Штраф требования: ${tech}`); }
+      }
+      if(fireMode==='burst' && range.meters>12){ base -= 6; tags.push('Очередь дальше 12 м: −6'); }
+      if(fireMode==='attack' && w.optika && optikaOn && range.meters>=30){ base += 6; tags.push('Оптика (30 м+): +6'); }
+    }
+    if(range.pen){ base += range.pen; tags.push(`Дистанция ${fmtNum(range.meters)} м: ${range.pen}`); }
+    else tags.push(`Дистанция ${fmtNum(range.meters)} м`);
+    return {base, tags};
+  }
+  function secretPart(tgt, unprotected){
+    let v = 0; const tags = [];
+    if(tgt.attackModEnabled && tgt.attackMod){ v += tgt.attackMod; tags.push(`Мод. цели: ${tgt.attackMod>0?'+':''}${tgt.attackMod}`); }
+    if(unprotected && tgt.unprotectedEnabled){ v += tgt.unprotectedMod; tags.push(`По незащищённым: ${tgt.unprotectedMod}`); }
+    return {v, tags};
+  }
+  function targetDefense(tgt, muType){
+    if(tgt.kind==='gm') return defenseAgainst(tgt.defense, tgt.defenseSubs, muType);
+    return characterTorsoDefense(attackerSheet(tgt), muType);
+  }
+
+  function startTargeting(att, weaponIdx, fireMode){
+    const w = att.kind==='player' ? sheetWeapon(attackerSheet(att), weaponIdx) : npcWeapon(att);
+    if(!w){ toast('Нет оружия для атаки'); return; }
+    cancelAll();
+    targeting = {attackerId:att.id, weaponIdx, fireMode, w, cur:null};
+    setSelection([att.id]); showHint(); requestRender({fx:true});
+  }
+  function targetUnder(att, cur){
+    if(!cur) return null;
+    return Object.values(st().tokens).find(t=>tokenVisibleHere(t) && canTarget(att, t) && Math.hypot(t.x-cur.x, t.y-cur.y) <= SIZE_CELLS[t.size]/2) || null;
+  }
+  function handleTargetClick(e, p){
+    const att = tok(targeting.attackerId);
+    if(!att){ targeting = null; showHint(); return; }
+    const tgt = tokenFromEvent(e);
+    if(!tgt || !canTarget(att, tgt)){ toast(tgt ? 'Эту цель атаковать нельзя' : 'Выберите жетон-цель · Esc — отмена'); return; }
+    const range = rangeInfo(att, tgt, targeting.w);
+    if(!range.ok){ toast('Цель ' + range.label); return; }
+    const t = targeting;
+    targeting = null; showHint(); requestRender({fx:true});
+    openAttackPopover(att, tgt, t, range, p);
+  }
+  function openAttackPopover(att, tgt, t, range, p){
+    const c = att.kind==='player' ? attackerSheet(att) : null;
+    const modeName = (weaponModes(t.w).find(m=>m[0]===t.fireMode) || [])[1] || 'атака';
+    const auth = isAuthority();
+    const unprotHtml = tgt.unprotectedEnabled
+      ? `<label class="gt-check"><input type="checkbox" name="unprot"> По незащищённым частям${auth ? ` (${tgt.unprotectedMod})` : ''} — защита цели не учитывается</label>` : '';
+    const optikaNote = (t.fireMode==='attack' && t.w.optika && att.kind==='player' && range.meters>=30)
+      ? '<div class="gt-pop-note">Оптика учтётся, если отмечена на карточке оружия (реакция).</div>' : '';
+    const html = `<div class="gt-pop-title">⚔ ${escapeHtml(t.w.name)} → ${escapeHtml(tokenName(tgt, vitalsFor(tgt)))}</div>`+
+      `<div class="gt-pop-note">${escapeHtml(modeName)} · ${fmtNum(range.meters)} м · ${escapeHtml(range.label)}</div>` + optikaNote + unprotHtml +
+      `<div class="gt-pop-note">${auth ? 'Модификаторы цели уже в Максимуме.' : 'Модификаторы цели учтёт Мастер — итог появится в общем логе.'}</div>`+
+      `<div class="gt-pop-actions"><button type="button" class="small" data-cancel>Отмена</button>`+
+      `<button type="button" class="small primary" data-roll title="Нажмите и протяните — как бросок в листе">🎯 Бросок — нажмите и тяните</button></div>`;
+    const form = openPopover(p, html, ()=>false);
+    form.querySelector('[data-roll]').addEventListener('pointerdown', (ev)=>{
+      ev.preventDefault();
+      const unEl = form.querySelector('[name=unprot]');
+      const unprot = !!(unEl && unEl.checked);
+      const optikaOn = att.kind==='player' && !!t.w.optika && checkboxOn('weaponOptika' + t.weaponIdx);
+      const known = attackKnownPart(c, t.w, t.fireMode, range, optikaOn, att.kind==='gm');
+      let knownBase = known.base, tags = known.tags;
+      if(auth){ const sec = secretPart(tgt, unprot); knownBase += sec.v; tags = tags.concat(sec.tags); } // Мастер видит полный Максимум
+      _mapAttackCtx = { attackerId:att.id, targetId:tgt.id, weaponIdx:t.weaponIdx, fireMode:t.fireMode, unprotected:unprot, optikaOn,
+                        knownBase, tags, rerollOf:null };
+      closePopover();
+      openRollPicker('map_attack', ev.clientX, ev.clientY, 0);
+    });
+  }
+  // После броска (executeMapAttackRoll): Мастер/локальный стол считает сам, игрок отправляет Мастеру
+  function submitMapAttack(ctx, r){
+    if(!ctx) return;
+    const req = { attackId:newId('atk'), attackerId:ctx.attackerId, targetId:ctx.targetId, weaponIdx:ctx.weaponIdx, fireMode:ctx.fireMode,
+                  unprotected:!!ctx.unprotected, optikaOn:!!ctx.optikaOn, rolls:r.rolls, mode:r.mode, chosenMod:r.chosenMod, rerollOf:ctx.rerollOf||null };
+    const att = tok(ctx.attackerId);
+    if(att && att.kind==='player'){
+      const c = attackerSheet(att), slot = c && c.weapons && c.weapons[ctx.weaponIdx];
+      req.speedAvailable = !!(slot && slot.skorost && slot.speedBonusAvailable);
+    }
+    pendingAttacks[req.attackId] = Object.assign({}, ctx, {chosenMod:r.chosenMod, mode:r.mode});
+    if(isAuthority()){
+      const res = resolveAttack(req, null);
+      if(!res.ok){ delete pendingAttacks[req.attackId]; toast(res.reason); return; }
+      afterAttackResult(req.attackId, res);
+      return;
+    }
+    if(!session.gmId){ delete pendingAttacks[req.attackId]; toast('Мастер не в сети — атака не отправлена'); return; }
+    sendMsg({type:'gt-attack', req}, session.gmId);
+  }
+  // Своя атака персонажем листа: снять «Скорость», если сработала, и предложить переброс (он заменит эту атаку)
+  function afterAttackResult(attackId, res){
+    const ctx = pendingAttacks[attackId];
+    if(!ctx) return;
+    delete pendingAttacks[attackId];
+    const att = tok(ctx.attackerId);
+    if(!att || att.kind!=='player' || att.ownerId!==myOwnerId() || typeof character==='undefined' || !character) return; // NPC — без переброса
+    const slot = character.weapons && character.weapons[ctx.weaponIdx];
+    if(res.speedUsed && slot && slot.speedBonusAvailable){ slot.speedBonusAvailable = false; renderAll(); }
+    if(!res.jammed){
+      _mapAttackCtx = Object.assign({}, ctx, {rerollOf:attackId});
+      showRerollPopup('map_attack', ctx.chosenMod||0, ctx.mode);
+    }
+  }
+  function changeCharacterHp(ownerId, delta){
+    if(ownerId===myOwnerId()){
+      if(typeof character!=='undefined' && character){
+        const txt = applyGrant(character, {kind:'vitals', which:'hp', mode:'delta', value:delta});
+        if(txt) logEvent(character, txt.replace('Мастер изменил здоровье на игровом столе', 'Атака с игрового стола — здоровье'));
+        renderAll();
+      }
+      return;
+    }
+    sendGrant(ownerId, {kind:'vitals', which:'hp', mode:'delta', value:delta}); // с подтверждением — дойдёт и после обрыва
+  }
+  // (Мастер/локальный стол) Итог атаки. from — id игрока для его атаки, пусто — своя.
+  function resolveAttack(req, from){
+    const s = authState;
+    const att = s.tokens[req.attackerId], tgt = s.tokens[req.targetId];
+    if(!att || !tgt || att.id===tgt.id) return {ok:false, reason:'Атакующий или цель не найдены'};
+    const attackId = String(req.attackId||'').slice(0,64);
+    if(!attackId || attackRecords.some(r=>r.attackId===attackId)) return {ok:false, reason:'Повтор атаки'};
+    let c = null, w = null, attackerName;
+    if(from){
+      if(!(att.kind==='player' && att.ownerId===from)) return {ok:false, reason:'Атаковать можно только своим жетоном'};
+      if(tgt.kind!=='gm' || tgt.hidden) return {ok:false, reason:'Эту цель атаковать нельзя'};
+      const p = session.players[from]; c = p && p.character;
+      if(!c) return {ok:false, reason:'Мастеру ещё не пришёл ваш лист'};
+      w = sheetWeapon(c, req.weaponIdx);
+      attackerName = playerDisplayName(p) || att.name || 'Игрок';
+    } else if(att.kind==='gm'){
+      w = npcWeapon(att);
+      attackerName = att.hidden ? '???' : (att.name || 'NPC'); // скрытый NPC в логе не раскрывается
+    } else {
+      if(att.ownerId!==myOwnerId()) return {ok:false, reason:'Жетоном игрока атакует сам игрок'};
+      c = attackerSheet(att);
+      if(!c) return {ok:false, reason:'Нет листа персонажа'};
+      w = sheetWeapon(c, req.weaponIdx);
+      attackerName = tokenName(att, vitalsFor(att));
+    }
+    if(!w) return {ok:false, reason:'Нет оружия для атаки'};
+    const fireMode = ['attack','burst','suppress'].indexOf(req.fireMode)>=0 ? req.fireMode : 'attack';
+    if(fireMode!=='attack' && !w.avtomat) return {ok:false, reason:'У оружия нет автоматического огня'};
+    const range = rangeInfo(att, tgt, w);
+    if(!range.ok) return {ok:false, reason:'Цель ' + range.label};
+    const mode = (req.mode==='advantage' || req.mode==='disadvantage') ? req.mode : 'plain';
+    const rolls = (Array.isArray(req.rolls) ? req.rolls : []).slice(0, mode==='plain' ? 1 : 2).map(v=>Math.round(num(v,0)));
+    if(!rolls.length || rolls.some(v=>v<1 || v>20) || (mode!=='plain' && rolls.length<2)) return {ok:false, reason:'Некорректный бросок'};
+    const chosenMod = Math.round(clamp(num(req.chosenMod,0), -30, 30));
+    if(req.rerollOf){ // переброс: прежняя атака этого же атакующего отменяется целиком
+      const prev = attackRecords.find(r=>r.attackId===req.rerollOf);
+      if(prev && prev.attackerOwner===(from||null)) undoAttack(prev.attackId, true);
+    }
+    const fullMax = attackKnownPart(c, w, fireMode, range, !!req.optikaOn, att.kind==='gm').base + chosenMod + secretPart(tgt, !!req.unprotected).v;
+    const roll = pickD20ForMode(rolls[0], rolls[1], fullMax, mode);
+    const ev = evaluateD20Check(roll, fullMax);
+    const jammed = !!(w.klinit && roll===13);
+    const unprotected = !!(req.unprotected && tgt.unprotectedEnabled);
+    const hits = [];
+    let speedUsed = false;
+    if(ev.success && !jammed){
+      const plan = weaponHitPlan(Object.assign({}, w, {speedBonusAvailable:!!req.speedAvailable}), fireMode, roll, ev.category);
+      speedUsed = plan.speedUsed;
+      const max12 = (w.mu||0) - (unprotected ? 0 : targetDefense(tgt, w.muType));
+      const thr = tgt.kind==='player' ? 5 : (tgt.traumaThreshold || 5);
+      for(let i=0;i<plan.hits;i++){
+        const rolls12 = Array.from({length:plan.rollsPerHit}, ()=>randInt(12));
+        const fits = rolls12.filter(k=>k<=max12);
+        const pen = max12>=1 && fits.length>0;
+        const k12 = pen ? Math.max(...fits) : Math.max(...rolls12); // «Пул»: лучший — наибольший, что ещё пробивает
+        const h = {k12, pen, wounds: pen ? plan.woundsFor(k12) : 0, trauma: pen && k12>thr, red:false};
+        h.red = h.trauma && !!w.travma;
+        if(plan.pulShot) h.rolls12 = rolls12;
+        hits.push(h);
+      }
+    }
+    const total = hits.reduce((a,h)=>a+h.wounds, 0);
+    const traumaN = hits.filter(h=>h.trauma && !h.red).length, traumaRedN = hits.filter(h=>h.red).length;
+    const targetName = tokenName(tgt, vitalsFor(tgt));
+    const rec = { attackId, attackerOwner: from||null, targetId:tgt.id, targetKind:tgt.kind, ownerId:tgt.ownerId||null,
+                  total, traumaN, traumaRedN, hpApplied:false, label:`${attackerName} → ${targetName}, «${w.name}»: ${total} ${woundsWord(total)}`, undone:false };
+    const patch = {};
+    if(traumaN) patch.trauma = (tgt.trauma||0) + traumaN;
+    if(traumaRedN) patch.traumaRed = (tgt.traumaRed||0) + traumaRedN;
+    if(total){
+      if(tgt.kind==='gm'){ if(tgt.hp!==null && tgt.hp!==undefined){ patch.hp = tgt.hp - total; rec.hpApplied = true; rec.hpDelta = -total; } }
+      else {
+        // Лист не опускает HP ниже −Максимума — запоминаем фактическое изменение, чтобы отмена вернула ровно его
+        const tc = attackerSheet(tgt);
+        let applied = -total;
+        if(tc && tc.hpCurrent!==null && tc.hpCurrent!==undefined){ const before = Number(tc.hpCurrent)||0; applied = clampLower(before - total, hpMax(tc)) - before; }
+        if(applied) changeCharacterHp(tgt.ownerId, applied);
+        rec.hpApplied = applied!==0; rec.hpDelta = applied;
+      }
+    }
+    if(Object.keys(patch).length) execCommand({c:'token-update', id:tgt.id, patch});
+    attackRecords.push(rec); saveAttackRecords();
+    recordAndShareQuickRoll({ mapAttack:true, attackId, attacker:attackerName, target:targetName, weaponName:w.name, fireMode, rolls, roll, mode,
+                              success:ev.success, category:ev.category, jammed, unprotected, hits, total });
+    return {ok:true, success:ev.success, jammed, speedUsed};
+  }
+  function undoAttack(attackId, asReroll){
+    if(!isAuthority()) return;
+    const rec = attackRecords.find(r=>r.attackId===attackId);
+    if(!rec || rec.undone) return;
+    const tgt = authState.tokens[rec.targetId];
+    if(tgt){
+      const patch = {};
+      if(rec.traumaN) patch.trauma = Math.max(0, (tgt.trauma||0) - rec.traumaN);
+      if(rec.traumaRedN) patch.traumaRed = Math.max(0, (tgt.traumaRed||0) - rec.traumaRedN);
+      if(rec.hpApplied && rec.targetKind==='gm' && tgt.hp!==null && tgt.hp!==undefined) patch.hp = tgt.hp - (rec.hpDelta!=null ? rec.hpDelta : -rec.total);
+      if(Object.keys(patch).length) execCommand({c:'token-update', id:tgt.id, patch});
+    }
+    if(rec.hpApplied && rec.targetKind==='player' && rec.ownerId) changeCharacterHp(rec.ownerId, rec.hpDelta!=null ? -rec.hpDelta : rec.total);
+    rec.undone = true; saveAttackRecords();
+    recordAndShareQuickRoll({mapAttackUndo:true, attackId, text: rec.label + (asReroll ? ' (переброс)' : '')});
+  }
+  function canUndoAttack(id){ return isAuthority() && attackRecords.some(r=>r.attackId===id && !r.undone); }
+  // Пункты «Атаковать» для меню жетона
+  function attackMenuItems(t, p){
+    const items = [];
+    if(t.kind==='gm'){
+      const w = npcWeapon(t);
+      if(!w) items.push({id:'atk_none', label:'⚔ Атаковать… (задайте оружие в «Изменить»)', run:()=>openTokenForm(t, null, p)});
+      else weaponModes(w).forEach(([m, label])=>items.push({id:'atk_'+m, label:`⚔ ${w.name}: ${label}`, run:()=>startTargeting(t, null, m)}));
+      return items;
+    }
+    if(t.ownerId!==myOwnerId()) return items;
+    const c = attackerSheet(t);
+    [0,1].forEach(idx=>{
+      const w = sheetWeapon(c, idx);
+      if(!w) return;
+      weaponModes(w).forEach(([m, label])=>items.push({id:`atk${idx}_${m}`, label:`⚔ ${w.name}: ${label}`, run:()=>startTargeting(t, idx, m)}));
+    });
+    if(!items.length) items.push({id:'atk_none', label:'⚔ Атаковать… (экипируйте оружие в листе)', run:()=>{}});
+    return items;
+  }
+
   return { init, setVisible, refreshRole, handleMessage, onPlayerHello, onGmHello, onPlayerSheet, onPeerLeft, onLocalCharacterChanged,
+           submitMapAttack, undoAttack, canUndoAttack,
            get state(){ return st(); }, get camera(){ return cam; } };
 })();
 try{ GameTable.init(); }catch(e){ console.error('[Игровой стол] не удалось запустить', e); }
