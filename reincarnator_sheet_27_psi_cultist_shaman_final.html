@@ -3,6 +3,33 @@
 <head>
 <meta charset="UTF-8">
 <title>Реинкарнатор — Лист персонажа</title>
+<script>
+/* Аварийная плашка: если при загрузке страницы основной скрипт упал или не разобрался (старый браузер,
+   особенности Safari и т.п.), вместо молча неработающего листа наверху появляется текст ошибки и версия
+   браузера — их достаточно прислать разработчику. Намеренно старый синтаксис (ES5), чтобы этот блок
+   запустился в любом браузере, даже там, где основной скрипт не разбирается. Ловит только ошибки до конца
+   загрузки страницы, а не каждое исключение по ходу игры. */
+(function(){
+  var shown = false, booted = false;
+  function show(msg){
+    if(shown) return; shown = true;
+    function put(){
+      var d = document.createElement('div');
+      d.setAttribute('style', 'position:fixed;left:0;right:0;top:0;z-index:99999;background:#9c2f1c;color:#fff;' +
+        'font:14px/1.45 Arial,sans-serif;padding:10px 14px;box-shadow:0 4px 12px rgba(0,0,0,.5);word-break:break-word;');
+      d.textContent = 'Страница не смогла полностью запуститься в этом браузере. Пришлите этот текст тому, кто ' +
+        'поддерживает лист: ' + msg + ' — ' + navigator.userAgent;
+      document.body.appendChild(d);
+    }
+    if(document.body) put(); else document.addEventListener('DOMContentLoaded', put);
+  }
+  window.addEventListener('error', function(e){
+    if(booted) return;
+    show((e && e.message ? e.message : 'неизвестная ошибка') + (e && e.lineno ? ' (строка ' + e.lineno + ')' : ''));
+  });
+  window.addEventListener('load', function(){ setTimeout(function(){ booted = true; }, 0); });
+})();
+</script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@400;700&family=Cinzel:wght@500;600;700&display=swap');
   /* ============================================================
@@ -671,6 +698,13 @@
      в панели сессии, как и до этой доработки — переезд в бок работает только там, где для него
      реально есть место. */
   @media (min-width:1660px){ .room-sidebar{ display:flex; } }
+  /* Булавка (см. RoomFocusMode.togglePinned): камеры закреплены сбоку и не уходят на весь экран при
+     простое. На широком экране — то же место, что и обычно; на более узком, где для колонки справа от
+     листа места нет, закреплённая колонка встаёт узкой полосой у правого края поверх содержимого. */
+  body.room-pinned .room-sidebar{ display:flex; }
+  @media (max-width:1659px){ body.room-pinned .room-sidebar{ left:auto; right:10px; width:170px; } }
+  .room-sidebar .room-pin-btn{ flex-shrink:0; align-self:flex-end; padding:2px 8px; font-size:12px; }
+  .room-pin-btn.active{ background:var(--stamp); border-color:var(--stamp); color:var(--vellum-bright); }
   /* Точный width/height каждой плитки в сайдбаре считает JS (layoutSidebar в RoomFocusMode) — при
      большом числе участников плитки уменьшаются (миниатюризируются), чтобы уместиться по высоте
      без прокрутки, а не остаются фиксированного размера, упираясь в overflow-y:auto. */
@@ -986,7 +1020,8 @@
   }
   .gt-viewport.tool-ruler, .gt-viewport.tool-ping, .gt-viewport.tool-draw, .gt-viewport.tool-token{ cursor:crosshair; }
   .gt-viewport.tool-text{ cursor:text; }
-  .gt-viewport.space-pan{ cursor:grab; }
+  .gt-viewport.space-pan, .gt-viewport.tool-pan, .gt-viewport.tool-pan .gt-token{ cursor:grab; }
+  .gt-viewport.panning .gt-token{ cursor:grabbing; }
   .gt-viewport.panning{ cursor:grabbing; }
   .gt-canvas{ position:absolute; left:0; top:0; pointer-events:none; }
   .gt-token-layer{ position:absolute; left:0; top:0; width:0; height:0; transform-origin:0 0; pointer-events:none; --gt-inv:1; }
@@ -1221,8 +1256,9 @@
           <button class="small" id="btnRoomJoin">🎙️ Войти в комнату</button>
           <button class="small" id="btnRoomMic" style="display:none;">🎤 Микрофон</button>
           <button class="small" id="btnRoomCam" style="display:none;">📷 Камера</button>
+          <button class="small room-pin-btn" id="btnRoomPin" style="display:none;" title="Закрепить камеры сбоку">📌</button>
           <button class="small" id="btnRoomLeave" style="display:none;">Покинуть комнату</button>
-          <span class="muted" id="roomFocusHotkeyHint" style="display:none;">Q — развернуть всех на весь экран</span>
+          <span class="muted" id="roomFocusHotkeyHint" style="display:none;">📌 — закрепить камеры сбоку · Q — развернуть всех на весь экран</span>
         </div>
         <div class="muted room-hint" id="roomHint"></div>
         <div class="room-tiles" id="roomTiles"></div>
@@ -1551,6 +1587,9 @@ const NEWWORLD = ['iskazheniya_i_relikvii','mistika','opyt_diggera','putnik_na_r
 const OLDWORLD = ['medicina','tehnika','uchenost','cifrovye_sistemy'];
 const ALL_KNOW = [...CULTURE, ...NEWWORLD, ...OLDWORLD];
 const ALL_STATS = [...BODY, ...PERSONALITY, ...ADV_SKILLS, ...COMBAT_SKILLS, ...ALL_KNOW];
+// «Навык на выбор» в карьерах (Слуга, Отшельник, Писарь) — не любая характеристика, а один из навыков
+// авантюриста или навыков боя.
+const CAREER_SKILL_CHOICE = [...ADV_SKILLS, ...COMBAT_SKILLS];
 
 const STAT_LABELS = {
   vynoslivost:'Выносливость', legkaya_atletika:'Лёгкая атлетика', refleksy:'Рефлексы', sila:'Сила',
@@ -3423,7 +3462,7 @@ const CAREERS = {
       M.reduceDistinct(2,BODY,-1), M.fixed('duh',1),
       M.reduceDistinct(2,['artistizm','ponimanie_lyudey','ubezhdenie'],-1),
       M.choice([{stat:'vospriyatie',delta:1},{stat:'skrytnost',delta:1}]),
-      M.choice(ALL_STATS.map(s=>({stat:s,delta:1}))),
+      M.choice(CAREER_SKILL_CHOICE.map(s=>({stat:s,delta:1}))), // навык на выбор
       M.fixed('mistika',2), M.fixed('putnik_na_ravnine',2),
       M.ability('Аскеза','Если персонаж на прошлой игровой встрече был аскетичен, то на этой он восстанавливает 1 пси.'),
       M.ability('Неприхотливый','Проверки отдыха персонажа +2.'),
@@ -3434,7 +3473,7 @@ const CAREERS = {
     mods:[
       M.reduceDistinct(2,BODY,-1), M.fixed('smekalka',1),
       M.choice(PERSONALITY.map(s=>({stat:s,delta:1}))),
-      M.choice(ALL_STATS.map(s=>({stat:s,delta:1}))),
+      M.choice(CAREER_SKILL_CHOICE.map(s=>({stat:s,delta:1}))), // навык на выбор
       M.fixed('zhizn_vysshego_sveta',1), M.fixed('uchenost',2),
       M.ability('Грамота','Умение писать и читать на общем языке.'),
       M.itemTable('Предмет писаря',6,[
@@ -3449,7 +3488,7 @@ const CAREERS = {
   sluga: { name:'Слуга', archetypes:['Авантюрист','Дипломат(осн.)','Культист','Псионик(осн.)'], origins:['zhitel_goroda'],
     mods:[
       M.reduceDistinct(3,BODY,-1), M.fixed('artistizm',1), M.fixed('ponimanie_lyudey',1),
-      M.choice(ALL_STATS.map(s=>({stat:s,delta:1}))),
+      M.choice(CAREER_SKILL_CHOICE.map(s=>({stat:s,delta:1}))), // навык на выбор
       M.fixed('zhizn_vysshego_sveta',2),
       M.choiceMixed([
         [M.ability('Грамота','Умение писать и читать на общем языке.'),M.ability('Терпеливый','Раз в игровую встречу, если персонаж должен потерять пси, то он теряет на 1 пси меньше.')],
@@ -7013,7 +7052,7 @@ function weaponTechPenalty(w){
       const w = character.weapons[idx], sk = weaponCombatSkill(w);
       if(!sk) return 10;
       const penalty = weaponTechPenalty(w);
-      const optikaOn = w.optika && !!document.getElementById('weaponOptika'+idx)?.checked;
+      const optikaOn = w.optika && checkboxOn('weaponOptika'+idx);
       return 10 + character.stats[sk] + (w.at||0) + penalty.at + (optikaOn?6:0);
     },
     tags(){
@@ -7022,7 +7061,7 @@ function weaponTechPenalty(w){
       const t = [`${STAT_LABELS[sk]}: ${10 + character.stats[sk]}`, `Ат оружия: ${w.at>=0?'+':''}${w.at}`];
       const penalty = weaponTechPenalty(w);
       if(penalty.at) t.push(`Штраф требования: ${penalty.at}`);
-      if(w.optika && document.getElementById('weaponOptika'+idx)?.checked) t.push('Оптика (30м+, реакция): +6');
+      if(w.optika && checkboxOn('weaponOptika'+idx)) t.push('Оптика (30м+, реакция): +6');
       return t;
     },
     formula(){ return 'Навык боя (по оружию) + Ат оружия ± черты'; }
@@ -7036,7 +7075,7 @@ function weaponTechPenalty(w){
       const w = character.weapons[idx], sk = weaponCombatSkill(w);
       if(!sk) return 10;
       const penalty = weaponTechPenalty(w);
-      const far = !!document.getElementById('weaponBurstFar'+idx)?.checked;
+      const far = checkboxOn('weaponBurstFar'+idx);
       return 10 + character.stats[sk] + (w.at||0) + penalty.at + (far?-6:0);
     },
     tags(){
@@ -7045,7 +7084,7 @@ function weaponTechPenalty(w){
       const t = [`${STAT_LABELS[sk]}: ${10 + character.stats[sk]}`, `Ат оружия: ${w.at>=0?'+':''}${w.at}`];
       const penalty = weaponTechPenalty(w);
       if(penalty.at) t.push(`Штраф требования: ${penalty.at}`);
-      if(document.getElementById('weaponBurstFar'+idx)?.checked) t.push('Дистанция >12м: −6');
+      if(checkboxOn('weaponBurstFar'+idx)) t.push('Дистанция >12м: −6');
       return t;
     },
     formula(){ return 'Навык боя + Ат оружия (−6, если дистанция >12м); успех даёт [КУ+3] попаданий'; }
@@ -7188,6 +7227,8 @@ window.toggleWeaponSpeedBonus = function(idx){
 // в памятке), результат уходит в общий лог тем же путём, что и любой другой быстрый бросок (recordAndShareQuickRoll).
 // Возвращает 'jammed', если сработал Клинит — вызывающий код (executeRoll) по этому сигналу не
 // показывает попап переброса (клинит прямо запрещает переброс итога).
+// Состояние чекбокса по id — без ?. (optional chaining), чтобы скрипт разбирался и старыми Safari.
+function checkboxOn(id){ const el = document.getElementById(id); return !!(el && el.checked); }
 const WEAPON_ATTACK_KEY_RE = /^(attack|burst|suppress)_weapon(\d)$/;
 function resolveWeaponAttackOutcome(statKey, roll, success, category){
   const m = WEAPON_ATTACK_KEY_RE.exec(statKey);
@@ -7216,18 +7257,24 @@ function resolveWeaponAttackOutcome(statKey, roll, success, category){
   // оружия явно указаны "раны N" — hasExplicitWounds тогда побеждает (см. её назначение выше).
   const moshhActive = w.moshh && !w.hasExplicitWounds;
   const razryvBonus = (fireMode==='attack' && w.razryv && roll>=11) ? 4 : 0; // Разрыв: успех (к20) 11+ → +4 раны, поверх любого источника ран
+  // Минимум по умолчанию — 1 рана за 1 попадание. «Раны Х» из текста оружия берутся как есть, но слот,
+  // сохранённый до появления ран в листе (или заполненный вручную), поля wounds не имеет — раньше это
+  // давало «NaN ран» у бросающего и «0 ран» у остальных в логе.
+  const baseWounds = Math.max(1, Math.round(Number(w.wounds)) || 1);
+  const woundsFor = (k12)=> Math.max(1, (moshhActive ? k12 : baseWounds) + razryvBonus);
+  hitCount = Math.max(1, hitCount || 0); // успешная атака — хотя бы одно попадание
   const hits = [];
   if(fireMode==='attack' && w.pul){
     // "Проверяя попадания, вы бросаете [категория успеха × к12] и выбираете лучший" — одно попадание,
     // но category бросков к12 за него, берётся наибольший (лучший) результат. Пул+Мощь: тот же лучший
     // бросок идёт и на раны — "учитывает высший вариант к12", отдельного броска на раны нет.
-    const rolls12 = Array.from({length:category}, ()=>randInt(12));
+    const rolls12 = Array.from({length:Math.max(1, category||0)}, ()=>randInt(12));
     const best = Math.max(...rolls12);
-    hits.push({location: best, rolls12, wounds: (moshhActive ? best : w.wounds) + razryvBonus});
+    hits.push({location: best, rolls12, wounds: woundsFor(best)});
   } else {
     for(let i=0;i<hitCount;i++){
       const loc = randInt(12);
-      hits.push({location: loc, wounds: (moshhActive ? loc : w.wounds) + razryvBonus});
+      hits.push({location: loc, wounds: woundsFor(loc)});
     }
   }
   recordAndShareQuickRoll({weaponHits:true, weaponName:w.name, fireMode, hits});
@@ -8885,12 +8932,12 @@ function renderAbilities(){
   const el=document.getElementById('abilitiesBox');
   if(!character){el.innerHTML='<span class="muted">—</span>';return;}
   const ordinary=[], groups={};
-  character.abilities.forEach(a=>{ if(a.abilityGroup){const k=a.abilitySource||'Источник';(groups[k] ||= []).push(a);} else ordinary.push(a); });
+  character.abilities.forEach(a=>{ if(a.abilityGroup){const k=a.abilitySource||'Источник';(groups[k] = groups[k] || []).push(a);} else ordinary.push(a); });
   const ownedNames = new Set(character.abilities.map(a=>a.name));
   let html='';
   const keys=Object.keys(groups);
   if(keys.length){ html+=`<div class="item-line"><b>Предписанные способности</b><div class="muted">Способности, полученные из архетипа и его источников.</div></div>`;
-    keys.forEach(k=>{html+=`<div class="item-line" style="border-left:3px solid currentColor;padding-left:8px;"><b>${k}</b>`; const tiers={}; groups[k].forEach(a=>(tiers[a.abilityTier||a.abilityGroup||''] ||= []).push(a));
+    keys.forEach(k=>{html+=`<div class="item-line" style="border-left:3px solid currentColor;padding-left:8px;"><b>${k}</b>`; const tiers={}; groups[k].forEach(a=>(tiers[a.abilityTier||a.abilityGroup||''] = tiers[a.abilityTier||a.abilityGroup||''] || []).push(a));
       Object.keys(tiers).forEach(t=>{html+=`<div class="muted" style="margin-top:5px;"><b>${t}</b></div>`+tiers[t].map(a=>`<div style="margin:3px 0 5px"><b>${a.name}</b>${a.text?': '+linkifyAbilityRollRefs(a.text):''}${a.enhancedText?`<div><b><i>Усилено (${escapeHtml(a.enhancedSource||'')}): ${linkifyAbilityRollRefs(a.enhancedText)}</i></b></div>`:''}${abilityNoteLinksHtml(a.name,ownedNames)}${a.userNote?`<div class="muted">Заметка: ${a.userNote}</div>`:''}<div class="choice-btns"><button class="small" onclick="editAbilityNote('${a.id}')">${a.userNote?'✎ Изменить заметку':'+ Заметка'}</button>${abilityFlagHtml(a)}</div></div>`).join('');}); html+='</div>'; }); }
   if(ordinary.length){html+='<div class="item-line" style="margin-top:8px"><b>Другие способности</b></div>'+ordinary.map(a=>`<div class="item-line"><b>${a.name||'Способность'}</b>${a.text?': '+linkifyAbilityRollRefs(a.text):''} <span class="tag">${a.source}</span>${a.userNote?`<div class="muted">Заметка: ${a.userNote}</div>`:''}<div class="choice-btns"><button class="small" onclick="editAbilityNote('${a.id}')">${a.userNote?'✎ Изменить заметку':'+ Заметка'}</button>${abilityFlagHtml(a)}</div></div>`).join('');}
   el.innerHTML=html||'<span class="muted">—</span>';
@@ -9147,7 +9194,7 @@ window.onInvDrop = function(ev, targetCategory){
   renderAll();
 };
 window.removeInventoryItem = function(category, id){
-  logEvent(character, `Предмет убран из инвентаря (${category}): ${character.inventory[category].find(x=>x.id===id)?.name || '?'}.`);
+  logEvent(character, `Предмет убран из инвентаря (${category}): ${(character.inventory[category].find(x=>x.id===id) || {}).name || '?'}.`);
   character.inventory[category] = character.inventory[category].filter(x=>x.id!==id);
   renderAll();
 };
@@ -10010,7 +10057,7 @@ function sanitizeRollEntry(e){
     if(e.weaponHits){
       out.weaponHits = true; out.weaponName = str(e.weaponName, 120); out.fireMode = str(e.fireMode, 20);
       out.hits = (Array.isArray(e.hits) ? e.hits : []).slice(0, 60).map(h=>{
-        const o = { location:int(h && h.location, 0), wounds:int(h && h.wounds, 0) };
+        const o = { location:int(h && h.location, 0), wounds:Math.max(1, int(h && h.wounds, 1)) }; // попадание — минимум 1 рана
         if(h && Array.isArray(h.rolls12)) o.rolls12 = ints(h.rolls12, 30);
         return o;
       });
@@ -10274,8 +10321,11 @@ const DEVICE_ID_KEY = 'reincarnator_device_id_v1';
 // коллизия между разными вкладками физически невозможна, а id всё ещё переживает обновление СВОЕЙ
 // же вкладки (что и требовалось — чтобы reconnect после F5 не путал уже отправленные броски).
 function getDeviceId(){
-  let id = sessionStorage.getItem(DEVICE_ID_KEY);
-  if(!id){ id = 'd'+Math.random().toString(36).slice(2,10)+Date.now().toString(36); try{ sessionStorage.setItem(DEVICE_ID_KEY, id); }catch(e){} }
+  // Safari с «Блокировать все cookie» выбрасывает ошибку уже при обращении к sessionStorage — а эта функция
+  // вызывается при загрузке (initRollCounterFromLog), и без защиты падал весь основной скрипт страницы.
+  let id = null;
+  try{ id = sessionStorage.getItem(DEVICE_ID_KEY); }catch(e){ id = window.__deviceIdFallback || null; }
+  if(!id){ id = 'd'+Math.random().toString(36).slice(2,10)+Date.now().toString(36); window.__deviceIdFallback = id; try{ sessionStorage.setItem(DEVICE_ID_KEY, id); }catch(e){} }
   return id;
 }
 // rollCounter не может просто начинаться с 0 при каждой перезагрузке страницы: deviceId стабилен
@@ -10739,6 +10789,7 @@ const RoomTransport = (function(){
     document.getElementById('btnRoomMic').style.display = '';
     document.getElementById('btnRoomCam').style.display = '';
     document.getElementById('btnRoomLeave').style.display = '';
+    document.getElementById('btnRoomPin').style.display = '';
     document.getElementById('roomFocusHotkeyHint').style.display = '';
     document.getElementById('roomHint').textContent = '';
     updateLocalTile();
@@ -10757,6 +10808,7 @@ const RoomTransport = (function(){
     document.getElementById('btnRoomMic').style.display = 'none';
     document.getElementById('btnRoomCam').style.display = 'none';
     document.getElementById('btnRoomLeave').style.display = 'none';
+    document.getElementById('btnRoomPin').style.display = 'none';
     document.getElementById('roomFocusHotkeyHint').style.display = 'none';
     document.getElementById('roomHint').textContent = '';
     RoomFocusMode.refresh();
@@ -10788,6 +10840,11 @@ const RoomFocusMode = (function(){
   const IDLE_MS = 8000;
   let idle = false;
   let forced = false; // ручной override по клавише Q — см. toggleForced()
+  // Булавка: камеры закреплены сбоку (#roomSidebar) и не уходят на весь экран при простое — только по Q
+  // вручную. Запоминается между перезагрузками.
+  const PIN_KEY = 'reincarnator_room_pinned_v1';
+  let pinned = (function(){ try{ return localStorage.getItem(PIN_KEY)==='1'; }catch(e){ return false; } })();
+  let sidebarPinBtn = null;
   let lastActivityAt = Date.now();
   const wideQuery = window.matchMedia('(min-width: 1660px)'); // должно совпадать с медиа-запросом .room-sidebar в <style>
 
@@ -10829,6 +10886,12 @@ const RoomFocusMode = (function(){
     return Array.from(document.querySelectorAll('.room-tile'));
   }
   function targetContainer(){
+    // Закреплено булавкой — всегда сбоку (и своя плитка, даже пока в комнате никого больше нет: закрепил —
+    // значит хочет видеть камеры на любой вкладке, а панель сессии на вкладке стола не видна). Весь экран —
+    // только по ручному Q (forced), не по простою.
+    if(pinned && RoomTransport.isJoined()){
+      return (forced && remoteTiles().length>0) ? document.getElementById('roomFocusOverlay') : document.getElementById('roomSidebar');
+    }
     // Одни в комнате (ещё никто не подключился) — переставлять некого ради кого, своя плитка
     // остаётся на обычном месте в панели, как и до входа в комнату.
     if(remoteTiles().length===0) return document.getElementById('roomTiles');
@@ -10888,7 +10951,8 @@ const RoomFocusMode = (function(){
     const n = tiles.length;
     if(n===0) return;
     const gap = 10; // должно совпадать с gap в CSS .room-sidebar
-    const availH = Math.max(1, sidebar.clientHeight-4), fullW = Math.max(1, sidebar.clientWidth-4);
+    const pinH = sidebarPinBtn && sidebarPinBtn.offsetParent ? sidebarPinBtn.offsetHeight + gap : 0; // кнопка-булавка сверху колонки
+    const availH = Math.max(1, sidebar.clientHeight-4-pinH), fullW = Math.max(1, sidebar.clientWidth-4);
     const naturalH = fullW/FOCUS_TILE_AR;
     let tileW = fullW, tileH = naturalH;
     if(n*naturalH + (n-1)*gap > availH){
@@ -10943,9 +11007,35 @@ const RoomFocusMode = (function(){
       t.addEventListener('transitionend', ()=>{ t.style.transition=''; }, {once:true});
     });
   }
+  function syncPinUi(){
+    const joined = RoomTransport.isJoined();
+    document.body.classList.toggle('room-pinned', pinned && joined);
+    const title = pinned ? 'Открепить камеры (снова будут уходить на весь экран при простое)' : 'Закрепить камеры сбоку';
+    [document.getElementById('btnRoomPin'), sidebarPinBtn].forEach(b=>{
+      if(!b) return;
+      b.classList.toggle('active', pinned);
+      b.title = title;
+    });
+    if(sidebarPinBtn) sidebarPinBtn.style.display = joined ? '' : 'none';
+  }
+  function togglePinned(){
+    pinned = !pinned;
+    try{ localStorage.setItem(PIN_KEY, pinned ? '1' : '0'); }catch(e){}
+    if(pinned){ idle = false; forced = false; } // закрепили — сразу сбоку, даже если сейчас был весь экран
+    console.log('[Комната] камеры ' + (pinned ? 'закреплены сбоку' : 'откреплены'));
+    refresh();
+  }
   function tick(){
+    syncPinUi();
+    if(pinned && RoomTransport.isJoined()){
+      // Закреплено: простой не разворачивает на весь экран; раскладку держим и в одиночестве (своя плитка сбоку)
+      idle = forced && remoteTiles().length>0;
+      apply();
+      return;
+    }
     if(!RoomTransport.isJoined() || remoteTiles().length===0){
       if(idle || forced){ idle = false; forced = false; apply(); } // некого показывать — сбрасываем и ручной override тоже
+      else if(document.getElementById('roomSidebar').querySelector('.room-tile')) apply(); // только что открепили в одиночестве — вернуть плитку из колонки в панель
       return;
     }
     const next = forced || computeIdle();
@@ -10989,9 +11079,22 @@ const RoomFocusMode = (function(){
   if(wideQuery.addEventListener) wideQuery.addEventListener('change', refresh);
   else if(wideQuery.addListener) wideQuery.addListener(refresh); // старые браузеры без addEventListener на MediaQueryList
   window.addEventListener('resize', refresh); // пересчитать сетку полноэкранного режима сразу при смене размера окна, не ждать до 500мс
+  // Булавка ещё и сверху самой колонки — чтобы открепить можно было с любой вкладки (на вкладке стола
+  // панели сессии с основной кнопкой не видно). Не .room-tile — в раскладку плиток не попадает.
+  (function initSidebarPin(){
+    const sidebar = document.getElementById('roomSidebar');
+    if(!sidebar) return;
+    sidebarPinBtn = document.createElement('button');
+    sidebarPinBtn.type = 'button';
+    sidebarPinBtn.className = 'small room-pin-btn';
+    sidebarPinBtn.textContent = '📌';
+    sidebarPinBtn.style.display = 'none';
+    sidebarPinBtn.addEventListener('click', togglePinned);
+    sidebar.insertBefore(sidebarPinBtn, sidebar.firstChild);
+  })();
   setInterval(tick, 500);
 
-  return { refresh, debug };
+  return { refresh, debug, togglePinned, get pinned(){ return pinned; } };
 })();
 
 /* ======================================================================
@@ -12077,6 +12180,7 @@ document.getElementById('btnRoomJoin').addEventListener('click', ()=>RoomTranspo
 document.getElementById('btnRoomLeave').addEventListener('click', ()=>RoomTransport.leaveRoom());
 document.getElementById('btnRoomMic').addEventListener('click', ()=>RoomTransport.setMic(!RoomTransport.micWanted));
 document.getElementById('btnRoomCam').addEventListener('click', ()=>RoomTransport.setCam(!RoomTransport.camWanted));
+document.getElementById('btnRoomPin').addEventListener('click', ()=>RoomFocusMode.togglePinned());
 window.addEventListener('beforeunload', ()=>{ if(session.ws){ try{ session.ws.close(); }catch(e){} } });
 updateSessionStatusUI();
 
@@ -13059,7 +13163,9 @@ const GameTable = (function(){
     }
     const p = localPt(e), w = toWorld(p);
     lastMouse = w;
-    if(e.button===1 || (e.button===0 && spaceHeld)){ startPan(e, p); e.preventDefault(); return; }
+    // «Рука» (как Move/Pan в других VTT): левой кнопкой тянется поле в любом месте, даже поверх жетонов —
+    // быстрая навигация без средней кнопки и пробела (на ноутбуке с тачпадом их может просто не быть).
+    if(e.button===1 || (e.button===0 && (spaceHeld || tool==='pan'))){ startPan(e, p); e.preventDefault(); return; }
     if(e.button!==0) return;
     if(e.altKey){ doPing(w); return; }
     if(placing){ finishPlacing(w, e.shiftKey); return; }
@@ -13324,14 +13430,15 @@ const GameTable = (function(){
     if(e.ctrlKey || e.metaKey || e.altKey) return;
     if(e.key==='+' || e.key==='='){ zoomStep(1); return; }
     if(e.key==='-' || e.key==='_'){ zoomStep(-1); return; }
-    const hot = {KeyV:'select', KeyR:'ruler', KeyG:'ping', KeyD:'draw', KeyT:'text'}[e.code];
-    if(hot && (isAuthority() || ['select','ruler','ping'].indexOf(hot)>=0)){ setTool(hot); }
+    const hot = {KeyV:'select', KeyH:'pan', KeyR:'ruler', KeyG:'ping', KeyD:'draw', KeyT:'text'}[e.code];
+    if(hot && (isAuthority() || ['select','pan','ruler','ping'].indexOf(hot)>=0)){ setTool(hot); }
   }
   function onKeyUp(e){ if(e.code==='Space'){ spaceHeld = false; viewport && viewport.classList.remove('space-pan'); } }
 
   /* ---------- панели ---------- */
   const ICONS = {
     select:'<path d="M5 3l13 7.5-5.8 1.6L9.6 18z"/>',
+    pan:'<path d="M18 11V6a2 2 0 0 0-4 0v5"/><path d="M14 10V4a2 2 0 0 0-4 0v6"/><path d="M10 10.5V6a2 2 0 0 0-4 0v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.9-6-2.3l-3.6-3.6a2 2 0 0 1 2.8-2.8L7 15"/>',
     token:'<circle cx="12" cy="12" r="9"/><circle cx="12" cy="10" r="2.8"/><path d="M7.3 17.4c1.2-2.3 2.8-3.4 4.7-3.4s3.5 1.1 4.7 3.4"/>',
     ruler:'<path d="M3 16.5L16.5 3 21 7.5 7.5 21z"/><path d="M7 12.5l2 2M10 9.5l2 2M13 6.5l2 2"/>',
     draw:'<path d="M4 20l1.2-4.8L16 4.4l3.6 3.6L8.8 18.8z"/><path d="M13.8 6.6l3.6 3.6"/>',
@@ -13360,7 +13467,7 @@ const GameTable = (function(){
   function actBtn(ic, label, act, extra){ return `<button type="button" class="gt-tool${extra||''}" data-act="${act}" title="${label}">${icon(ic)}${label ? `<span class="gt-lbl">${label}</span>` : ''}</button>`; }
   function renderToolbar(){
     const auth = isAuthority(), r = role();
-    const h = [toolBtn('select','Выбор','V')];
+    const h = [toolBtn('select','Выбор','V'), toolBtn('pan','Рука','H')];
     if(auth) h.push(toolBtn('token','Жетон'));
     h.push(toolBtn('ruler','Измерение','R'));
     if(auth){ h.push(toolBtn('draw','Рисование','D')); h.push(toolBtn('text','Текст','T')); }
@@ -13405,8 +13512,8 @@ const GameTable = (function(){
     else txt = session.gmId && session.gmName ? `<b>Игрок</b> · стол Мастера «${escapeHtml(session.gmName)}»` : '<b>Игрок</b> · ждём Мастера…';
     statusEl.innerHTML = txt;
     emptyHint.innerHTML = isAuthority()
-      ? '<b>Пустое поле</b>' + (role()==='gm' ? 'Жетон — поставить NPC или жетон игрока.' : 'Жетон — поставить NPC, «Мой жетон» — своего персонажа.') + ' Колесо — масштаб, средняя кнопка или пробел+перетаскивание — сдвиг поля.'
-      : '<b>Стол Мастера</b>«Мой жетон» — поставить своего персонажа. Колесо — масштаб, средняя кнопка или пробел+перетаскивание — сдвиг поля.';
+      ? '<b>Пустое поле</b>' + (role()==='gm' ? 'Жетон — поставить NPC или жетон игрока.' : 'Жетон — поставить NPC, «Мой жетон» — своего персонажа.') + ' Колесо — масштаб, «Рука» (H), средняя кнопка или пробел+перетаскивание — сдвиг поля.'
+      : '<b>Стол Мастера</b>«Мой жетон» — поставить своего персонажа. Колесо — масштаб, «Рука» (H), средняя кнопка или пробел+перетаскивание — сдвиг поля.';
   }
   function setTool(t){
     if(tool===t) return;
@@ -13422,6 +13529,7 @@ const GameTable = (function(){
     else if(polyDraft) h = 'Клик — вершина · двойной клик, Enter или клик по первой точке — замкнуть · Esc — отмена';
     else if(ruler && ruler.mode==='waypoints') h = 'Клик — ещё точка · двойной клик, правый клик или Esc — убрать';
     else if(tool==='ruler') h = 'Протяните — измерить · клик — измерение по точкам';
+    else if(tool==='pan') h = 'Тяните поле мышью · колесо — масштаб · V — вернуться к выбору';
     hintEl.textContent = h;
     hintEl.style.display = h ? 'block' : 'none';
   }
@@ -13642,7 +13750,7 @@ const GameTable = (function(){
       addDrawing(Object.assign({}, drawStyle, {type:'text', text, fontSize:parseInt(f.querySelector('[name=fs]').value,10), points:[[r3(w.x), r3(w.y)]]}));
     });
     const ta = form.querySelector('textarea');
-    ta.addEventListener('keydown', (e)=>{ if(e.key==='Enter' && (e.ctrlKey || e.metaKey)){ e.preventDefault(); form.requestSubmit(); } });
+    ta.addEventListener('keydown', (e)=>{ if(e.key==='Enter' && (e.ctrlKey || e.metaKey)){ e.preventDefault(); if(form.requestSubmit) form.requestSubmit(); else form.dispatchEvent(new Event('submit', {cancelable:true})); } }); // requestSubmit — только Safari 16+
   }
   function openBackgroundForm(p){
     const bg = authState.map.background || {url:'', x:0, y:0, w:20};
