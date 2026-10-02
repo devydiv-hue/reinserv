@@ -1210,16 +1210,28 @@
   .gt-logdock-body{ display:none; flex-direction:column; width:300px; margin-left:6px; padding:10px 10px 8px; background:var(--card);
     border:2px solid var(--ink); border-radius:14px; box-shadow:0 18px 34px -16px rgba(0,0,0,.75); overflow:hidden; }
   .gt-logdock.open .gt-logdock-body{ display:flex; margin-left:0; animation: gtDockIn .24s cubic-bezier(.2,.8,.2,1); }
-  /* Открыт — боковая вкладка уходит, её место занимает кнопка «📜 Лог» в строке вкладок (см. GameTable.syncLogDockUi);
+  /* Открыт — боковая вкладка уходит, её место занимает кнопка «📜 Лог» в строке над столом (см. GameTable.syncLogDockUi);
      свернут — возвращается. Анимации проигрываются заново при каждом появлении (display none → видно). */
   .gt-logdock.open .gt-logdock-toggle{ display:none; }
   .gt-logdock:not(.open) .gt-logdock-toggle{ animation: gtLogToggleIn .24s cubic-bezier(.2,.8,.2,1); }
-  .tab-bar .gt-log-tabbtn{ background:var(--stamp); border-color:var(--stamp); color:var(--vellum-bright); animation: gtLogTabIn .26s cubic-bezier(.2,.8,.2,1); }
-  .tab-bar .gt-log-tabbtn:hover{ background:transparent; color:var(--vellum-bright); border-color:var(--vellum-bright); }
+  .gt-log-tabbtn{ background:var(--stamp); border-color:var(--stamp); color:var(--vellum-bright); animation: gtLogTabIn .26s cubic-bezier(.2,.8,.2,1); }
+  .gt-log-tabbtn:hover{ background:transparent; color:var(--vellum-bright); border-color:var(--vellum-bright); }
   @keyframes gtDockIn{ from{ opacity:0; transform:translateX(-18px); } to{ opacity:1; transform:none; } }
   @keyframes gtLogToggleIn{ from{ opacity:0; transform:translateX(-12px); } to{ opacity:1; transform:none; } }
   @keyframes gtLogTabIn{ from{ opacity:0; transform:translateX(-14px) scale(.92); } to{ opacity:1; transform:none; } }
-  @media (prefers-reduced-motion: reduce){ .gt-logdock-body, .gt-logdock-toggle, .tab-bar .gt-log-tabbtn{ animation:none !important; } }
+  @media (prefers-reduced-motion: reduce){ .gt-logdock-body, .gt-logdock-toggle, .gt-log-tabbtn, .topbar, #mainTabBar, body.table-mode #tableTabView{ animation:none !important; transition:none !important; } }
+  /* Режим стола: шапка и вкладки уходят вверх, стол занимает весь экран (кроме отступа). Камеры, кубики и окна
+     бросков остаются поверх, как обычно. Обратно — кнопкой «← К листу персонажа» (toggleMainTab). */
+  .topbar, #mainTabBar{ transition: transform .38s cubic-bezier(.2,.8,.2,1), opacity .28s ease; }
+  body.table-mode .topbar, body.table-mode #mainTabBar{ transform:translateY(-90px); opacity:0; pointer-events:none; }
+  body.table-mode{ overflow:hidden; }
+  .gt-topline{ display:none; }
+  body.table-mode #tableTabView{ position:fixed; inset:10px; z-index:30; display:flex; flex-direction:column; gap:8px; animation: gtTableIn .38s cubic-bezier(.2,.8,.2,1); }
+  body.table-mode .gt-topline{ display:flex; align-items:center; gap:8px; flex-shrink:0; }
+  body.table-mode .gt-layout{ flex:1; min-height:0; }
+  body.table-mode .gt-viewport, body.table-mode .gt-logdock{ height:auto; min-height:0; }
+  .gt-back-btn{ padding:6px 14px; font-size:11px; }
+  @keyframes gtTableIn{ from{ opacity:0; transform:translateY(28px); } to{ opacity:1; transform:none; } }
   .gt-logdock-title{ font-family:var(--font-display); font-weight:700; font-size:12px; margin-bottom:6px; flex-shrink:0; }
   .gt-logdock .roll-log-list{ max-height:none; flex:1; overflow-y:auto; }
   .gt-logdock .roll-log-entry{ flex-wrap:wrap; }
@@ -1280,7 +1292,6 @@
     <button type="button" class="tab-btn active" id="tabBtnSheet">Лист персонажа</button>
     <button type="button" class="tab-btn" id="tabBtnXp">Начисление опыта</button>
     <button type="button" class="tab-btn" id="tabBtnTable">Игровой стол</button>
-    <button type="button" class="tab-btn gt-log-tabbtn" id="gtLogTabBtn" style="display:none;" title="Свернуть лог бросков">📜 Лог</button>
   </div>
 
   <div id="sheetTabView">
@@ -1587,6 +1598,11 @@
   <!-- Игровой стол — см. модуль GameTable в отдельном блоке script в конце файла. Порядок детей
        .gt-viewport = порядок слоёв: фон/сетка → зоны+рисунки → жетоны → временное → интерфейс. -->
   <div id="tableTabView" style="display:none;">
+    <!-- Пока открыт стол, шапка и вкладки уезжают вверх (body.table-mode), стол — на весь экран. Эта строка — вне панелей стола. -->
+    <div class="gt-topline">
+      <button type="button" class="gt-back-btn" id="gtBackToSheet" title="Вернуть шапку и вкладки">← К листу персонажа</button>
+      <button type="button" class="tab-btn gt-log-tabbtn" id="gtLogTabBtn" style="display:none;" title="Свернуть лог бросков">📜 Лог</button>
+    </div>
     <div class="gt-layout">
     <!-- Лог бросков слева от стола — не копия: сам список #rollLogList переезжает сюда, пока открыт стол (см. GameTable.setVisible) -->
     <aside class="gt-logdock" id="gtLogDock">
@@ -10786,11 +10802,13 @@ function toggleMainTab(tab){
     document.getElementById(view).style.display = k===tab ? '' : 'none';
     document.getElementById(btn).classList.toggle('active', k===tab);
   });
+  document.body.classList.toggle('table-mode', tab==='table'); // шапка и вкладки уходят вверх, стол — на весь экран
   gtHook(g=>g.setVisible(tab==='table')); // стол рисует canvas только пока виден (размер поля известен только тогда)
 }
 document.getElementById('tabBtnSheet').addEventListener('click', ()=>toggleMainTab('sheet'));
 document.getElementById('tabBtnXp').addEventListener('click', ()=>toggleMainTab('xp'));
 document.getElementById('tabBtnTable').addEventListener('click', ()=>toggleMainTab('table'));
+document.getElementById('gtBackToSheet').addEventListener('click', ()=>toggleMainTab('sheet'));
 document.getElementById('btnXpReset').addEventListener('click', resetXpChecklist);
 
 const ROLL_LOG_KEY = 'reincarnator_roll_log_v1';
@@ -15025,7 +15043,7 @@ const GameTable = (function(){
     if(toTable){ if(list.parentNode!==body) body.appendChild(list); }
     else if(list.parentNode!==logHome.parent) logHome.parent.insertBefore(list, logHome.next);
   }
-  // Кнопка «📜 Лог» в строке вкладок — только пока открыт стол И развёрнут лог (боковая вкладка тогда скрыта CSS)
+  // Кнопка «📜 Лог» в строке над столом (рядом с «← К листу персонажа») — только пока открыт стол И развёрнут лог (боковая вкладка тогда скрыта CSS)
   function syncLogDockUi(){
     const dock = document.getElementById('gtLogDock'), tabBtn = document.getElementById('gtLogTabBtn');
     if(!dock || !tabBtn) return;
