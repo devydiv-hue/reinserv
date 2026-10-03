@@ -36,8 +36,8 @@ const USER_SOUND_DIR = path.join(DIR, 'user-sounds');
 const ASSET_SOUND_DIR = path.join(DIR, 'assets', 'sounds');
 const AUDIO_TYPES = { '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg', '.oga': 'audio/ogg', '.opus': 'audio/ogg', '.wav': 'audio/wav',
   '.m4a': 'audio/mp4', '.aac': 'audio/aac', '.webm': 'audio/webm', '.flac': 'audio/flac' };
-const MAX_SOUND_BYTES = 10 * 1024 * 1024;       // один файл
-const MAX_SOUND_DIR_BYTES = 300 * 1024 * 1024;  // вся папка своих звуков
+const MAX_SOUND_BYTES = 25 * 1024 * 1024;       // один файл (музыкальный трек в mp3 обычно 5–15 МБ)
+const MAX_SOUND_DIR_BYTES = 500 * 1024 * 1024;  // вся папка своих звуков и музыки
 const SOUND_NAME_RE = /^[a-zA-Z0-9_-]{1,80}\.[a-z0-9]{2,5}$/;
 
 function serveSound(dir, name, res) {
@@ -62,13 +62,13 @@ function handleSoundUpload(req, res) {
   const ext = '.' + String(req.headers['x-file-ext'] || '').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 5);
   if (!AUDIO_TYPES[ext]) { reply(415, { error: 'Неподдерживаемый формат (mp3, ogg, wav, m4a, aac, webm, flac)' }); req.resume(); return; }
   const declared = Number(req.headers['content-length'] || 0);
-  if (declared > MAX_SOUND_BYTES) { reply(413, { error: 'Файл больше 10 МБ' }); req.resume(); return; }
-  if (soundDirSize() + declared > MAX_SOUND_DIR_BYTES) { reply(507, { error: 'Папка своих звуков заполнена (300 МБ)' }); req.resume(); return; }
+  if (declared > MAX_SOUND_BYTES) { reply(413, { error: 'Файл больше 25 МБ' }); req.resume(); return; }
+  if (soundDirSize() + declared > MAX_SOUND_DIR_BYTES) { reply(507, { error: 'Папка своих звуков заполнена (500 МБ) — удалите ненужные треки' }); req.resume(); return; }
   const chunks = []; let size = 0, aborted = false;
   req.on('data', c => {
     if (aborted) return;
     size += c.length;
-    if (size > MAX_SOUND_BYTES) { aborted = true; reply(413, { error: 'Файл больше 10 МБ' }); req.destroy(); return; }
+    if (size > MAX_SOUND_BYTES) { aborted = true; reply(413, { error: 'Файл больше 25 МБ' }); req.destroy(); return; }
     chunks.push(c);
   });
   req.on('end', () => {
@@ -86,10 +86,26 @@ function handleSoundUpload(req, res) {
   });
 }
 
+// Мастер удалил звук или трек, на файл которого больше ничто не ссылается, — освобождаем место
+function handleSoundDelete(req, res) {
+  req.resume();
+  const reply = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
+  const cid = String(req.headers['x-client-id'] || '');
+  if (!CLIENT_ID_RE.test(cid) || !cid.endsWith('-gm') || !clients.has(cid)) { reply(403, { error: 'Удалять может только подключённый Мастер' }); return; }
+  const name = String(req.headers['x-file-name'] || '');
+  if (!SOUND_NAME_RE.test(name) || !AUDIO_TYPES[path.extname(name).toLowerCase()]) { reply(400, { error: 'Неверное имя файла' }); return; }
+  fs.unlink(path.join(USER_SOUND_DIR, name), (err) => {
+    if (err) { reply(404, { error: 'Файл не найден' }); return; }
+    console.log('[Server] Звук удалён', name, 'по запросу', cid);
+    reply(200, { ok: true });
+  });
+}
+
 // ---- Раздача самого файла листа персонажа по обычному HTTP ----
 const httpServer = http.createServer((req, res) => {
   const urlPath = (req.url || '/').split('?')[0];
   if (req.method === 'POST' && urlPath === '/sound-upload') { handleSoundUpload(req, res); return; }
+  if (req.method === 'POST' && urlPath === '/sound-delete') { handleSoundDelete(req, res); return; }
   if (urlPath.indexOf('/user-sounds/') === 0) { serveSound(USER_SOUND_DIR, urlPath.slice(13), res); return; }
   if (urlPath.indexOf('/assets/sounds/') === 0) { serveSound(ASSET_SOUND_DIR, urlPath.slice(15), res); return; }
   // Лёгкая проверка «жив ли сервер» — для хостинга (health check) и для самого листа: пока идёт сессия, он

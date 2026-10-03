@@ -1267,7 +1267,8 @@
   .sb-mute.on, .sb-mute-all.on{ background:var(--stamp); border-color:var(--stamp); color:var(--vellum-bright); }
   .sb-mixer-row{ display:flex; gap:6px; flex-wrap:wrap; margin-top:6px; }
   .sb-mixer-row button{ padding:4px 10px; font-size:10px; }
-  .sb-video-toggle.on{ background:var(--ink); color:var(--card); }
+  .sb-filepick{ display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:700; }
+  .sb-filepick input{ font-size:11.5px; max-width:240px; }
   .sb-note{ font-size:11px; margin-top:6px; }
   .sb-tools{ margin-bottom:8px; }
   .sb-tools input[type=search]{ width:100%; font-family:var(--font); background:var(--paper); color:var(--ink); border:1.5px solid var(--ink); border-radius:999px; padding:8px 14px; font-size:13px; }
@@ -1317,16 +1318,6 @@
   .sb-pl-head{ display:flex; align-items:center; gap:8px; }
   .sb-pl-head b{ flex:1; font-family:var(--font-display); }
   .sb-pl-items{ margin:6px 0 0; padding-left:22px; }
-  /* Плавающий YouTube-плеер — один на клиент, поверх любых вкладок; перетаскивается за заголовок. «Видео скрыто» —
-     плеер уезжает за край экрана, но продолжает играть звук. */
-  #sbVideoDock{ position:fixed; right:16px; bottom:16px; z-index:60; width:356px; background:#0c0a0e; border:2px solid var(--ink);
-    border-radius:12px; overflow:hidden; box-shadow:0 18px 34px -12px rgba(0,0,0,.85); }
-  #sbVideoDock:not(.shown){ left:-10000px !important; right:auto !important; top:auto !important; bottom:0 !important; }
-  .sb-dock-head{ display:flex; align-items:center; gap:6px; padding:4px 6px 4px 10px; cursor:move; color:var(--vellum-bright); font-size:11px; background:rgba(28,23,18,.95); touch-action:none; }
-  .sb-dock-head span{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .sb-dock-head button{ padding:0 7px; font-size:11px; box-shadow:none; background:transparent; color:var(--vellum-muted); border-color:var(--vellum-muted); text-transform:none; }
-  .sb-dock-video{ width:356px; height:200px; }
-  .sb-dock-video iframe{ pointer-events:none; display:block; }
   #sbMini{ position:fixed; left:50%; bottom:14px; transform:translateX(-50%); z-index:61; max-width:min(60vw, 520px); overflow:hidden; text-overflow:ellipsis;
     white-space:nowrap; padding:5px 14px; font-size:11px; text-transform:none; background:rgba(28,23,18,.93); color:var(--vellum-bright); border-color:var(--ink); }
   #sbUnlock{ position:fixed; left:50%; bottom:52px; transform:translateX(-50%); z-index:62; background:var(--stamp); border-color:var(--stamp); color:var(--vellum-bright);
@@ -1336,7 +1327,7 @@
     background:rgba(28,23,18,.93); color:var(--vellum-bright); border-radius:999px; padding:6px 16px; font-size:13px; font-weight:700; }
   #sbToast.show{ opacity:1; transform:translate(-50%, 0); }
   @media (prefers-reduced-motion: reduce){ .sb-pad.hit::after, #sbUnlock{ animation:none; } #sbToast{ transition:none; } }
-  @media (max-width:560px){ #sbVideoDock{ right:8px; bottom:8px; } .sb-grid{ grid-template-columns:repeat(auto-fill, minmax(96px, 1fr)); } .sb-pad{ height:74px; } }
+  @media (max-width:560px){ .sb-grid{ grid-template-columns:repeat(auto-fill, minmax(96px, 1fr)); } .sb-pad{ height:74px; } }
 </style>
   <!-- Совместная сессия (лог бросков + правки от ГМ + комната голоса/видео/данных) — см. секцию
        #sessionPanel в конце файла. Сигналинг — через WebSocket к server.js (простой релей, без
@@ -1369,11 +1360,7 @@
 <!-- Полноэкранная сцена самого броска — кости "вылетают", отскакивают от границ экрана и
      приземляются по центру, крупно и чётко видно значение. См. launchRollAnimation в DicePanel. -->
 <div id="diceRollStage"></div>
-<!-- Саундпад: один YouTube-плеер на клиент (плавающий, перетаскивается), индикатор музыки, «Включить звук», короткие toast — см. модуль Soundboard -->
-<div id="sbVideoDock" role="region" aria-label="Видео YouTube">
-  <div class="sb-dock-head" id="sbDockHead"><span id="sbDockTitle"></span><button type="button" id="sbDockHide" title="Скрыть видео (звук продолжит играть)" aria-label="Скрыть видео">—</button></div>
-  <div class="sb-dock-video"><div id="sbYtPlayer"></div></div>
-</div>
+<!-- Саундпад: индикатор музыки, «Включить звук», короткие toast — см. модуль Soundboard -->
 <button type="button" id="sbMini" style="display:none;"></button>
 <button type="button" id="sbUnlock" style="display:none;">🔊 Включить звук</button>
 <div id="sbToast" role="status" aria-live="polite"></div>
@@ -15792,16 +15779,17 @@ try{ GameTable.init(); }catch(e){ console.error('[Игровой стол] не 
    САУНДПАД — вкладка «Саундпад» (#soundTabView), отдельная подсистема той же игровой сессии.
    Использует общие session / sendMsg / RoomTransport / роли / реконнект, но своё состояние (не gameTableState):
    - Постоянное состояние (авторитет — Мастер, у него в localStorage; без сессии — свой локальный пульт):
-     свои звуки (метаданные + ссылка на файл), библиотека YouTube, плейлисты, текущая музыка (timeline),
+     свои звуки (метаданные + ссылка на файл), библиотека музыки (файлы), плейлисты, текущая музыка (timeline),
      активная атмосфера. Игрок получает его снимком sb-snapshot и изменения музыки sb-music.
    - События: одноразовый звук sb-sound {eventId, soundId} — WS (надёжно) + DataChannel (быстро), дубль
      гасится по eventId. В состояние не попадает: три «Взрыва» подряд — три отдельных события.
    - Файлы по сети не ходят: встроенные звуки синтезируются в браузере, свои — по HTTP-ссылке с сервера
      проекта (/user-sounds/…, /assets/sounds/…) или по внешней ссылке.
-   Музыка — официальный YouTube IFrame Player API (без скачивания и извлечения потоков). Синхронизация:
+   Музыка — аудиофайлы на сервере игры (загружает Мастер), один плеер на клиент. Синхронизация:
    Мастер держит timeline {position, at}; рассылает его при каждом изменении и раз в 5 с во время игры;
    у каждого клиента ожидаемая позиция = position + время с момента получения, расхождение > 2 с —
-   подмотка. Локальные часы разных устройств не сравниваются.
+   подмотка. Локальные часы разных устройств не сравниваются. Обновил страницу — снимок вернёт ту же
+   позицию. Атмосфера из своих файлов тоже продолжается с того же места (state.ambience — момент включения).
    Задел на будущее (не реализовано): сцены (state.scenes — музыка+атмосфера+громкости одним нажатием),
    «звук игрока» (ограниченный набор звуков, которые может запускать игрок), редактор горячих клавиш
    (prefs.hotkeys — клавиша → soundId; сейчас 1–9 = первые девять избранных).
@@ -15811,7 +15799,7 @@ const Soundboard = (function(){
   const PREFS_KEY = 'reincarnator_soundboard_prefs_v1'; // локальное: громкость, mute, избранное, недавние, UI
   const CATEGORIES = ['Атмосфера','Бой','Оружие','Монстры','Люди','Природа','Техника','Окружение','Хоррор','События','Интерфейс'];
   const PLAYLIST_SUGGESTIONS = ['Погони','Сталкер','Подземелье','Бой','Хоррор','Пустошь','Город','Спокойная атмосфера'];
-  const SYNC_MS = 5000, TICK_MS = 1000, DRIFT_S = 2, LOAD_GRACE_MS = 2500;
+  const SYNC_MS = 5000, TICK_MS = 1000, DRIFT_S = 2, MAX_UPLOAD = 25*1024*1024;
 
   const clamp = (v, a, b)=>Math.max(a, Math.min(b, v));
   const num = (v, d)=>{ const x = Number(v); return isFinite(x) ? x : d; };
@@ -15866,18 +15854,34 @@ const Soundboard = (function(){
     ['b_city','Шум города','🏙','Атмосфера','город улица шум','city', true],
     ['b_cave','Пещера','🕳','Атмосфера','пещера капли подземелье','cave', true],
     ['b_drone','Тревожный гул','🌑','Атмосфера','гул напряжение хоррор','drone', true],
+    ['b_night','Ночной лес','🌲','Атмосфера','лес ночь сверчки природа','crickets', true],
+    ['b_sea','Прибой','🌊','Атмосфера','море прибой волны вода берег','sea', true],
+    ['b_storm','Гроза','⛈','Атмосфера','гроза ливень гром дождь буря','storm', true],
+    ['b_blizzard','Метель','❄️','Атмосфера','метель буран снег ветер холод','blizzard', true],
+    ['b_sewer','Канализация','🚰','Атмосфера','канализация вода трубы подземелье','sewer', true],
+    ['b_factory','Завод','🏭','Атмосфера','завод цех станки машины','factory', true],
+    ['b_generator','Генератор','⚙️','Атмосфера','генератор мотор двигатель техника','generator', true],
+    ['b_swamp','Болото','🐸','Атмосфера','болото лягушки жабы топь','swamp', true],
+    ['b_wasteland','Пустошь','🏜','Атмосфера','пустошь равнина ветер руины','wasteland', true],
+    ['b_pulse','Пульс','🫀','Атмосфера','сердце пульс напряжение хоррор','pulse', true],
+    ['b_geiger','Счётчик Гейгера','☢️','Атмосфера','радиация дозиметр гейгер','geiger', true],
+    ['b_tavern','Таверна','🍺','Атмосфера','таверна бар толпа голоса город','tavern', true],
+    ['b_vent','Вентиляция','🌀','Атмосфера','вентиляция шахта бункер воздух','vent', true],
+    ['b_train','Поезд','🚂','Атмосфера','поезд вагон рельсы дорога','train', true],
+    ['b_choir','Призрачный хор','👻','Атмосфера','хор призраки мистика хоррор','choir', true],
   ].map(([id, title, emoji, cat, tags, synth, loop])=>({id, title, emoji, cat, tags:tags.split(' '), synth, loop:!!loop, builtin:true}));
   const BUILTIN_BY_ID = {}; BUILTIN.forEach(s=>{ BUILTIN_BY_ID[s.id] = s; });
 
   /* ---------- состояние ---------- */
   function blankState(){
     return { schema:1, version:0, sounds:{}, library:{}, playlists:{}, playlistOrder:[], ambience:{},
-             music:{ itemId:null, playlistId:null, listIndex:0, playing:false, position:0, at:0, videoTitle:'' },
+             music:{ itemId:null, playlistId:null, playing:false, position:0, at:0 },
              scenes:{} }; // scenes — задел на будущее, сейчас не используется
   }
   function safeUrl(u){
     u = str(u, 500).trim();
     if(/^\/(user-sounds|assets\/sounds)\/[a-zA-Z0-9_.-]+$/.test(u)) return u;
+    if(/^https?:\/\/(www\.|m\.|music\.)?(youtube\.com|youtu\.be|youtube-nocookie\.com)(\/|$)/i.test(u)) return ''; // YouTube — не аудиофайл (поддержка YouTube убрана)
     if(/^https?:\/\/[^\s"'<>]+$/i.test(u)) return u;
     return '';
   }
@@ -15889,18 +15893,14 @@ const Soundboard = (function(){
              tags:(Array.isArray(s.tags) ? s.tags : []).slice(0, 12).map(t=>str(t, 30)).filter(Boolean), url, loop:!!s.loop, custom:true };
   }
   function sanitizeItem(it){
-    if(!it || typeof it!=='object' || !ID_RE.test(it.id)) return null;
-    const kind = it.kind==='list' ? 'list' : 'video';
-    const out = { id:it.id, kind, title:str(it.title, 120), autoTitle:!!it.autoTitle, url:str(it.url, 300) };
-    if(kind==='list'){ if(!/^[A-Za-z0-9_-]{10,64}$/.test(it.listId||'')) return null; out.listId = it.listId; }
-    else { if(!/^[A-Za-z0-9_-]{11}$/.test(it.youtubeId||'')) return null; out.youtubeId = it.youtubeId; }
-    return out;
+    if(!it || typeof it!=='object' || !ID_RE.test(it.id) || it.youtubeId || it.listId) return null; // записи прежней YouTube-библиотеки отбрасываются
+    const url = safeUrl(it.url); if(!url) return null;
+    return { id:it.id, title:str(it.title, 120) || 'Трек', url, duration: clamp(num(it.duration, 0), 0, 86400) };
   }
   function sanitizeMusic(m){
     m = m && typeof m==='object' ? m : {};
     return { itemId: ID_RE.test(m.itemId||'') ? m.itemId : null, playlistId: ID_RE.test(m.playlistId||'') ? m.playlistId : null,
-             listIndex: Math.round(clamp(num(m.listIndex, 0), 0, 5000)), playing:!!m.playing, position: clamp(num(m.position, 0), 0, 86400),
-             at: num(m.at, 0), videoTitle: str(m.videoTitle, 160) };
+             playing:!!m.playing, position: clamp(num(m.position, 0), 0, 86400), at: num(m.at, 0) };
   }
   function sanitizeState(raw){
     const s = blankState();
@@ -15914,7 +15914,10 @@ const Soundboard = (function(){
     });
     s.playlistOrder = (Array.isArray(raw.playlistOrder) ? raw.playlistOrder : []).filter(id=>s.playlists[id]);
     Object.keys(s.playlists).forEach(id=>{ if(s.playlistOrder.indexOf(id)<0) s.playlistOrder.push(id); });
-    Object.keys(raw.ambience && typeof raw.ambience==='object' ? raw.ambience : {}).forEach(id=>{ if(raw.ambience[id] && (BUILTIN_BY_ID[id] || s.sounds[id])) s.ambience[id] = true; });
+    Object.keys(raw.ambience && typeof raw.ambience==='object' ? raw.ambience : {}).forEach(id=>{
+      const v = raw.ambience[id];
+      if(v!==false && v!=null && (BUILTIN_BY_ID[id] || s.sounds[id])) s.ambience[id] = v===true ? Date.now() : Math.max(0, num(v, 0));
+    });
     s.music = sanitizeMusic(raw.music);
     if(s.music.itemId && !s.library[s.music.itemId]) s.music = sanitizeMusic(null);
     return s;
@@ -15922,12 +15925,19 @@ const Soundboard = (function(){
   let state = sanitizeState(loadJson(STATE_KEY)); // Мастер / локальный пульт
   let remote = blankState();                     // игрок: последний снимок от Мастера
   let remoteAnchor = 0;                          // performance.now() получения remote.music
+  let remoteAmbAnchor = 0;                       // performance.now() получения remote.ambience (секунды звучания)
+  const has = (o, k)=>Object.prototype.hasOwnProperty.call(o || {}, k);
+  function ambElapsed(id){ // сколько секунд атмосфера уже звучит — чтобы своя петля-файл продолжилась с того же места
+    if(isAuthority()) return Math.max(0, (Date.now() - num(state.ambience[id], Date.now()))/1000);
+    return Math.max(0, num(remote.ambience[id], 0) + (performance.now() - remoteAmbAnchor)/1000);
+  }
   function cur(){ return isAuthority() ? state : remote; }
   function soundById(id){ return BUILTIN_BY_ID[id] || cur().sounds[id] || null; }
   function allSounds(){ return BUILTIN.concat(Object.values(cur().sounds)); }
 
-  const prefs = Object.assign({ vol:{music:80, amb:60, sfx:100}, mute:{all:false, music:false, amb:false, sfx:false}, showVideo:true,
-    favorites:{}, recent:[], cat:'all', section:'pad', hotkeys:{}, dock:null }, loadJson(PREFS_KEY) || {});
+  const prefs = Object.assign({ vol:{music:80, amb:60, sfx:100}, mute:{all:false, music:false, amb:false, sfx:false},
+    favorites:{}, recent:[], cat:'all', section:'pad', hotkeys:{} }, loadJson(PREFS_KEY) || {});
+  delete prefs.showVideo; delete prefs.dock; // остатки YouTube-версии
   ['music','amb','sfx'].forEach(k=>{ prefs.vol[k] = clamp(num(prefs.vol && prefs.vol[k], 80), 0, 100); });
   function savePrefs(){ saveJson(PREFS_KEY, prefs); }
 
@@ -15945,7 +15955,7 @@ const Soundboard = (function(){
   /* ---------- сеть ---------- */
   function snapshot(){
     return { version:state.version, sounds:state.sounds, library:state.library, playlists:state.playlists, playlistOrder:state.playlistOrder,
-             ambience:state.ambience, music:musicWire() };
+             ambience:Object.keys(state.ambience).reduce((o, id)=>{ o[id] = ambElapsed(id); return o; }, {}), music:musicWire() };
   }
   let snapTimer = null;
   function commit(opts){ // изменение постоянного состояния Мастером: сохранить, разослать, применить у себя
@@ -15959,7 +15969,7 @@ const Soundboard = (function(){
   }
   function applyRemoteSnapshot(raw){
     const s = sanitizeState(raw);
-    remote = s; remoteAnchor = performance.now();
+    remote = s; remoteAnchor = remoteAmbAnchor = performance.now();
     syncAmbience(); followMusic(); render();
   }
   function handleMessage(msg){
@@ -15982,7 +15992,8 @@ const Soundboard = (function(){
     const r = session.role || null;
     if(r===lastRole){ renderNow(); return; }
     lastRole = r;
-    stopAllLoops(); ytLoadedKey = null;
+    stopAllLoops();
+    if(musicSrc){ musicEl.pause(); musicEl.removeAttribute('src'); musicSrc = null; musicReady = false; }
     if(r==='player') remote = blankState();
     syncAmbience(); followMusic(); render();
   }
@@ -16036,12 +16047,12 @@ const Soundboard = (function(){
   const activeLoops = {}; // soundId -> {stop}
   function toggleAmbience(id){
     if(!isAuthority()) return;
-    if(state.ambience[id]) delete state.ambience[id]; else state.ambience[id] = true;
+    if(has(state.ambience, id)) delete state.ambience[id]; else state.ambience[id] = Date.now();
     commit();
   }
   function syncAmbience(){
     const want = cur().ambience || {};
-    Object.keys(activeLoops).forEach(id=>{ if(!want[id]) stopLoop(id); });
+    Object.keys(activeLoops).forEach(id=>{ if(!has(want, id)) stopLoop(id); });
     Object.keys(want).forEach(id=>{ if(!activeLoops[id]) startLoop(id); });
   }
   function startLoop(id){
@@ -16059,6 +16070,7 @@ const Soundboard = (function(){
       return;
     }
     const el = new Audio(s.url); el.loop = true; el.volume = effVol('amb');
+    el.addEventListener('loadedmetadata', ()=>{ const d = el.duration; if(isFinite(d) && d>0){ try{ el.currentTime = ambElapsed(id) % d; }catch(e){} } }, {once:true});
     el.play().catch((e)=>{ if(e && e.name==='NotAllowedError'){ audioUnlockedEl = false; renderUnlock(); } });
     activeLoops[id] = { el, stop(){ try{ el.pause(); el.removeAttribute('src'); el.load(); }catch(e){} } };
   }
@@ -16074,24 +16086,22 @@ const Soundboard = (function(){
       chanAmb.gain.value = prefs.mute.amb ? 0 : prefs.vol.amb/100;
     }
     Object.values(activeLoops).forEach(l=>{ if(l.el) l.el.volume = effVol('amb'); });
-    if(ytReady){ try{ yt.setVolume(prefs.vol.music); if(prefs.mute.all || prefs.mute.music) yt.mute(); else yt.unMute(); }catch(e){} }
+    musicEl.volume = effVol('music');
   }
 
   /* ---------- разрешение звука (autoplay) ----------
      Не обходим политику браузера: звук считается разрешённым, только если AudioContext реально 'running'
-     и YouTube реально играет, когда должен. Любое нажатие на странице — пользовательский жест: пробуем
-     resume()/playVideo() ещё раз. */
+     и play() музыки не отклонён. Любое нажатие на странице — пользовательский жест: пробуем resume()/play() ещё раз. */
   let audioUnlockedEl = true; // последний play() своего аудиофайла не был отклонён политикой
-  let ytNeedsGesture = false, wantPlaySince = 0;
   function needsUnlock(){
     const sessionAudio = !!session.role; // без сессии — свой пульт, подсказка не нужна до первого звука
     const ctxBlocked = !!actx && actx.state!=='running';
-    return ytNeedsGesture || !audioUnlockedEl || (sessionAudio && session.role==='player' && (!actx || ctxBlocked)) || (ctxBlocked && Object.keys(activeLoops).length>0);
+    return musicNeedsGesture || !audioUnlockedEl || (sessionAudio && session.role==='player' && (!actx || ctxBlocked)) || (ctxBlocked && Object.keys(activeLoops).length>0);
   }
   function unlock(){
     const ac = audio();
     const p = ac ? ac.resume() : Promise.resolve();
-    if(ytReady && cur().music.playing){ try{ yt.playVideo(); }catch(e){} }
+    if(musicSrc && cur().music.playing){ seekToExpected(); tryPlay(); }
     Object.values(activeLoops).forEach(l=>{ if(l.el) l.el.play().catch(()=>{}); });
     audioUnlockedEl = true;
     Promise.resolve(p).catch(()=>{}).then(()=>{ renderUnlock(); setTimeout(renderUnlock, 1500); });
@@ -16102,7 +16112,7 @@ const Soundboard = (function(){
      Встроенные звуки не файлы, а синтез в самом браузере (Web Audio) — ни скачивания чужих записей, ни прав на
      них не нужно. Каждый эффект — новый экземпляр узлов (выстрел поверх выстрела звучит дважды), атмосфера-луп —
      ровно один экземпляр на звук. Каналы: Эффекты и Атмосфера — узлы усиления Web Audio, Музыка — громкость
-     YouTube-плеера. Громкость и mute — только локальные (prefs), на других участников не влияют. */
+     аудиоплеера музыки. Громкость и mute — только локальные (prefs), на других участников не влияют. */
   let actx = null, master = null, chanSfx = null, chanAmb = null, noiseBuf = null;
   function audio(){
     if(actx) return actx;
@@ -16272,110 +16282,123 @@ const Soundboard = (function(){
     cave(out){ const a = O('sine', 55), b = O('sine', 82.4); chain(a, G(0.08), out); chain(b, G(0.04), out); a.start(); b.start();
       const dl = actx.createDelay(1), fb = G(0.4); dl.delayTime.value = 0.35; dl.connect(fb); fb.connect(dl); dl.connect(out);
       const s = every(600, 2200, t=>tone(dl, t, {f:R(1500, 2100), f2:900, dur:0.06, peak:0.15})); return [()=>a.stop(), ()=>b.stop(), s]; },
+    crickets(out){ // ночной лес: сверчки поверх тихого ветра
+      const n = N(); chain(n, F('bandpass', 400, 0.7), G(0.08), out); n.start();
+      const s = every(120, 420, t=>{ const f = R(3800, 5200), k = Math.floor(R(2, 5)); for(let i=0;i<k;i++) tone(out, t + i*0.07, {f, dur:0.035, peak:R(0.03, 0.08), a:0.004}); });
+      return [()=>n.stop(), s]; },
+    sea(out){ const n = N(), lp = F('lowpass', 600), g = G(0.35); chain(n, lp, g, out); n.start();
+      const l1 = lfoOn(lp.frequency, 0.09, 450), l2 = lfoOn(g.gain, 0.09, 0.25); return [()=>n.stop(), ()=>l1.stop(), ()=>l2.stop()]; },
+    storm(out){ const n = N(); chain(n, F('highpass', 700), F('lowpass', 6000), G(0.4), out); n.start();
+      const s = every(7000, 16000, t=>{ const r = N(), lp = F('lowpass', 220), g = G(0.0001); chain(r, lp, g, out);
+        g.gain.exponentialRampToValueAtTime(R(0.4, 0.8), t + 0.4); g.gain.exponentialRampToValueAtTime(0.0001, t + 3.5); r.start(t, R(0, 1.5)); r.stop(t + 3.6); });
+      return [()=>n.stop(), s]; },
+    blizzard(out){ const n = N(), bp = F('bandpass', 1400, 2), g = G(0.35); chain(n, bp, g, out); n.start();
+      const l1 = lfoOn(bp.frequency, 0.21, 700), l2 = lfoOn(g.gain, 0.17, 0.2);
+      const n2 = N(); chain(n2, F('lowpass', 300), G(0.3), out); n2.start();
+      return [()=>n.stop(), ()=>n2.stop(), ()=>l1.stop(), ()=>l2.stop()]; },
+    sewer(out){ const n = N(); chain(n, F('lowpass', 700), G(0.25), out); n.start();
+      const s = every(80, 300, t=>{ if(Math.random()<0.6) tone(out, t, {f:R(300, 900), f2:R(900, 1600), dur:0.05, peak:R(0.02, 0.07)}); });
+      return [()=>n.stop(), s]; },
+    factory(out){ const h = O('square', 60); chain(h, F('lowpass', 300), G(0.05), out); h.start();
+      const n = N(); chain(n, F('bandpass', 900, 1), G(0.05), out); n.start();
+      let k = 0; const s = every(480, 520, t=>{ k++; if(k%2) partials(out, t, 300, [1, 2.4, 3.9], 0.12, 0.4); else noiseHit(out, t, {f:500, dur:0.12, peak:0.25}); });
+      return [()=>h.stop(), ()=>n.stop(), s]; },
+    generator(out){ const a = O('sawtooth', 46), g = G(0.18); chain(a, F('lowpass', 260), g, out); a.start(); const l = lfoOn(g.gain, 11, 0.06);
+      const n = N(); chain(n, F('bandpass', 1800, 2), G(0.03), out); n.start();
+      return [()=>a.stop(), ()=>l.stop(), ()=>n.stop()]; },
+    swamp(out){ const n = N(); chain(n, F('lowpass', 500), G(0.08), out); n.start();
+      const s = every(500, 1800, t=>{
+        if(Math.random()<0.55){ const f = R(140, 260); for(let i=0;i<3;i++) tone(out, t + i*0.11, {type:'sawtooth', f, f2:f*0.8, dur:0.08, peak:0.05}); } // кваканье
+        else tone(out, t, {f:R(200, 400), f2:R(600, 900), dur:0.06, peak:0.06}); }); // пузырь
+      return [()=>n.stop(), s]; },
+    wasteland(out){ const n = N(), bp = F('bandpass', 300, 0.8); chain(n, bp, G(0.3), out); n.start(); const l = lfoOn(bp.frequency, 0.05, 150);
+      const s = every(9000, 20000, t=>{ const o = O('sawtooth', 110), b = F('bandpass', 700, 6), g = G(0); chain(o, b, g, out); // далёкий скрип металла
+        for(let i=0;i<14;i++) o.frequency.setValueAtTime(R(80, 160), t + i*0.08); envelope(g, t, 0.2, 0.08, 1.0); o.start(t); o.stop(t + 1.3); });
+      return [()=>n.stop(), ()=>l.stop(), s]; },
+    pulse(out){ const s = every(1150, 1250, t=>{ tone(out, t, {f:58, f2:38, dur:0.14, peak:0.7}); tone(out, t + 0.28, {f:52, f2:36, dur:0.12, peak:0.45}); }); return [s]; },
+    geiger(out){ const s = every(30, 260, t=>{ if(Math.random()<0.5) noiseHit(out, t, {type:'highpass', f:3000, dur:0.008, peak:R(0.2, 0.5)}); }); return [s]; },
+    tavern(out){ const parts = [300, 700, 1200].map(f=>{ const n = N(), g = G(0.06); chain(n, F('bandpass', f, 1.2), g, out); n.start(); return {n, g}; });
+      const s = every(150, 400, t=>parts.forEach(p=>p.g.gain.setTargetAtTime(R(0.02, 0.1), t, 0.08))); // гул голосов
+      const s2 = every(4000, 9000, t=>partials(out, t, R(800, 1100), [1, 2.7], 0.05, 0.3));      // звон кружек
+      return parts.map(p=>()=>p.n.stop()).concat([s, s2]); },
+    vent(out){ const n = N(); chain(n, F('lowpass', 900), F('highpass', 120), G(0.25), out); n.start();
+      const h = O('sine', 120); chain(h, G(0.025), out); h.start(); return [()=>n.stop(), ()=>h.stop()]; },
+    train(out){ const n = N(); chain(n, F('lowpass', 300), G(0.3), out); n.start();
+      let k = 0; const s = every(290, 310, t=>{ k++; const acc = k%4===0 || k%4===1; noiseHit(out, t, {f:900, dur:0.05, peak:acc ? 0.35 : 0.15}); });
+      return [()=>n.stop(), s]; },
+    choir(out){ const lp = F('lowpass', 1200), g = G(0.08); chain(lp, g, out);
+      const vs = [220, 261.6, 329.6, 392].map(f=>{ const o = O('sine', f); o.connect(lp); o.start(); return [o, lfoOn(o.frequency, R(0.1, 0.3), f*0.006)]; });
+      const fl = lfoOn(lp.frequency, 0.04, 600), gl = lfoOn(g.gain, 0.07, 0.04);
+      return vs.map(([o, l])=>()=>{ o.stop(); l.stop(); }).concat([()=>fl.stop(), ()=>gl.stop()]); },
     drone(out){ const lp = F('lowpass', 380), g = G(0.12); chain(lp, g, out); const os = [55, 55.7, 82.5].map(f=>{ const o = O('sawtooth', f); o.connect(lp); o.start(); return o; });
       const l = lfoOn(lp.frequency, 0.05, 120); return os.map(o=>()=>o.stop()).concat([()=>l.stop()]); },
   };
 
-  /* ---------- YouTube: один плеер на клиент ---------- */
-  let yt = null, ytReady = false, ytLoading = false, ytError = '', ytLoadedKey = null, ytLoadedAt = 0;
-  function loadYt(){
-    if(ytReady || ytLoading) return;
-    ytLoading = true;
-    const prev = window.onYouTubeIframeAPIReady;
-    window.onYouTubeIframeAPIReady = function(){ if(typeof prev==='function'){ try{ prev(); }catch(e){} } createPlayer(); };
-    const s = document.createElement('script');
-    s.src = 'https://www.youtube.com/iframe_api'; s.async = true;
-    s.onerror = ()=>{ ytLoading = false; ytError = 'Не удалось загрузить YouTube — проверьте интернет'; renderNow(); };
-    document.head.appendChild(s);
+  /* ---------- музыка: один аудиоплеер на клиент ----------
+     Треки — аудиофайлы, которые Мастер загрузил на сервер игры (/user-sounds/…), или ссылки на аудиофайлы.
+     Плеер один (HTMLAudioElement): берёт нужный трек и встаёт на позицию timeline Мастера; при расхождении
+     больше DRIFT_S подматывается. После обновления страницы позиция приходит в снимке — трек продолжается
+     с того же места у всех, а не с начала. */
+  const musicEl = new Audio(); musicEl.preload = 'auto';
+  let musicSrc = null, musicReady = false, musicError = '', musicErrorStreak = 0, musicNeedsGesture = false, playPending = false;
+  function musicDuration(){ const d = musicEl.duration; return musicReady && isFinite(d) && d>0 ? d : 0; }
+  function seekToExpected(){
+    const d = musicDuration(); let t = expectedPos();
+    if(d) t = Math.min(t, Math.max(0, d - 0.25));
+    try{ musicEl.currentTime = t; }catch(e){}
   }
-  function createPlayer(){
-    try{
-      yt = new YT.Player('sbYtPlayer', { width:'100%', height:'100%',
-        playerVars:{ playsinline:1, rel:0, modestbranding:1, controls:0, disablekb:1, fs:0, iv_load_policy:3, origin:location.origin },
-        events:{ onReady:()=>{ ytReady = true; ytLoading = false; applyVolumes(); followMusic(); renderNow(); },
-                 onStateChange:onYtState, onError:onYtError } });
-    }catch(e){ ytLoading = false; ytError = 'YouTube-плеер не создан'; }
+  function tryPlay(){
+    if(!musicSrc || playPending || !musicEl.paused) return;
+    playPending = true;
+    musicEl.play().then(()=>{ playPending = false; }).catch((e)=>{
+      playPending = false;
+      if(e && e.name==='NotAllowedError' && !musicNeedsGesture){ musicNeedsGesture = true; renderUnlock(); } // браузер ждёт жеста
+    });
   }
-  // Недоступный ролик — следующий трек; но если подряд не запустился ни один трек плейлиста, музыка
-  // останавливается (иначе плеер бесконечно листал бы список, когда YouTube отказывает во всём).
-  const YT_ERRORS = { 2:'неверная ссылка на видео', 5:'ошибка HTML5-плеера', 100:'видео не найдено или удалено',
-    101:'владелец запретил встраивание', 150:'владелец запретил встраивание (или браузер не разрешает встроенный YouTube)', 153:'браузер не передал адрес страницы (Referer)' };
-  let ytErrorStreak = 0;
-  function onYtError(e){
-    const code = e && e.data;
-    ytError = 'YouTube: ' + (YT_ERRORS[code] || 'ошибка воспроизведения') + ' (код ' + code + ')';
-    ytErrorStreak++;
+  musicEl.addEventListener('loadedmetadata', ()=>{
+    musicReady = true;
+    seekToExpected();
+    if(isAuthority()){ const it = state.library[state.music.itemId], d = musicDuration();
+      if(it && d && Math.abs((it.duration||0) - d) > 0.5){ it.duration = Math.round(d*10)/10; saveJson(STATE_KEY, state); } }
+    followMusic(); renderProgress();
+  });
+  musicEl.addEventListener('playing', ()=>{ musicErrorStreak = 0; if(musicError){ musicError = ''; renderNow(); } if(musicNeedsGesture){ musicNeedsGesture = false; renderUnlock(); } });
+  musicEl.addEventListener('ended', ()=>{ if(isAuthority() && state.music.playing) nextTrack(true); });
+  musicEl.addEventListener('error', ()=>{ if(musicSrc) onMusicError(); });
+  // Недоступный файл — следующий трек; если подряд не запустился ни один трек плейлиста — музыка останавливается
+  function onMusicError(){
+    musicError = 'Не удалось воспроизвести трек — файл недоступен или формат не поддерживается браузером';
+    musicErrorStreak++;
     if(isAuthority() && state.music.playing){
-      if(ytErrorStreak >= Math.max(1, itemsInOrder().length)){ ytError += ' — музыка остановлена: ни один трек не запустился'; setMusic({playing:false}); }
-      else setTimeout(()=>{ if(state.music.playing) nextTrack(true); }, 1500);
+      if(musicErrorStreak >= Math.max(1, itemsInOrder().length)){ musicError += ' — музыка остановлена: ни один трек не запустился'; setMusic({playing:false}); }
+      else setTimeout(()=>{ if(state.music.playing) nextTrack(true); }, 1200);
     }
     renderNow();
   }
-  function ytState(){ try{ return yt.getPlayerState(); }catch(e){ return -1; } }
-  function ytTime(){ try{ return yt.getCurrentTime() || 0; }catch(e){ return 0; } }
-  function ytDuration(){ try{ return yt.getDuration() || 0; }catch(e){ return 0; } }
-  function ytTitle(){ try{ const d = yt.getVideoData(); return (d && d.title) || ''; }catch(e){ return ''; } }
-  function onYtState(e){
-    const st = e.data;
-    if(st===1){ wantPlaySince = 0; ytErrorStreak = 0; ytError = ''; if(ytNeedsGesture){ ytNeedsGesture = false; renderUnlock(); } }
-    if(isAuthority()){
-      const m = state.music, it = state.library[m.itemId];
-      if(st===1 && it){
-        const t = ytTitle(); let changed = false;
-        if(t && m.videoTitle!==t){ m.videoTitle = t; changed = true; }
-        if(it.kind==='video' && t && (!it.title || it.autoTitle) && it.title!==t){ it.title = t; it.autoTitle = true; commit(); return; }
-        if(it.kind==='list'){ let idx = -1; try{ idx = yt.getPlaylistIndex(); }catch(err){}
-          if(idx>=0 && idx!==m.listIndex){ m.listIndex = idx; m.position = ytTime(); m.at = Date.now(); changed = true; } }
-        if(changed){ commit({musicOnly:true}); return; }
-      }
-      if(st===0 && it && m.playing){
-        let last = true;
-        if(it.kind==='list'){ try{ const pl = yt.getPlaylist() || []; last = yt.getPlaylistIndex() >= pl.length-1; }catch(err){} }
-        if(last) nextTrack(true);
-      }
-    }
-    renderNow();
-  }
-  // Привести свой плеер к состоянию музыки: нужный материал, play/pause, позиция (± DRIFT_S)
+  // Привести свой плеер к состоянию музыки: нужный файл, play/pause, позиция
   function followMusic(){
     const c = cur(), m = c.music, it = m.itemId ? c.library[m.itemId] : null;
     if(!it){
-      if(ytReady && ytLoadedKey){ try{ yt.stopVideo(); }catch(e){} }
-      ytLoadedKey = null; wantPlaySince = 0; ytNeedsGesture = false; renderDock(); return;
+      if(musicSrc){ musicEl.pause(); musicEl.removeAttribute('src'); try{ musicEl.load(); }catch(e){} musicSrc = null; musicReady = false; }
+      musicNeedsGesture = false; return;
     }
-    if(!ytReady){ loadYt(); renderDock(); return; }
-    const exp = expectedPos();
-    const key = it.kind==='list' ? 'L:' + it.listId : 'V:' + it.youtubeId;
-    if(key!==ytLoadedKey){
-      ytLoadedKey = key; ytLoadedAt = performance.now();
-      try{
-        if(it.kind==='list'){ const a = {list:it.listId, listType:'playlist', index:m.listIndex||0, startSeconds:exp}; m.playing ? yt.loadPlaylist(a) : yt.cuePlaylist(a); }
-        else { const a = {videoId:it.youtubeId, startSeconds:exp}; m.playing ? yt.loadVideoById(a) : yt.cueVideoById(a); }
-      }catch(e){}
-      if(m.playing && !wantPlaySince) wantPlaySince = performance.now();
-      renderDock(); return;
+    if(musicSrc!==it.url){
+      musicSrc = it.url; musicReady = false;
+      musicEl.src = it.url; // позицию выставит loadedmetadata
+      if(m.playing) tryPlay(); // в том же жесте Мастера, если это его нажатие — браузер разрешает звук
+      return;
     }
-    if(performance.now() - ytLoadedAt < LOAD_GRACE_MS) return; // материал ещё грузится
-    if(it.kind==='list'){
-      let idx = -1, pl = null; try{ idx = yt.getPlaylistIndex(); pl = yt.getPlaylist(); }catch(e){}
-      if(pl && pl.length && idx!==m.listIndex && !(isAuthority() && ytState()===1)){ try{ yt.playVideoAt(m.listIndex); }catch(e){} ytLoadedAt = performance.now(); return; }
-    }
-    const st = ytState();
+    if(!musicReady) return;
+    const exp = expectedPos(), d = musicDuration();
     if(m.playing){
-      if(st!==1 && st!==3){
-        if(st===0 && isAuthority()) return; // конец — переключение делает onYtState
-        try{ yt.playVideo(); }catch(e){}
-        if(!wantPlaySince) wantPlaySince = performance.now();
-        if(performance.now() - wantPlaySince > 3500 && !ytNeedsGesture){ ytNeedsGesture = true; renderUnlock(); } // браузер не дал играть без жеста
-        return;
-      }
-      const t = ytTime();
-      if(Math.abs(t - exp) > DRIFT_S) { try{ yt.seekTo(exp, true); }catch(e){} }
-      else if(isAuthority() && st===1){ state.music.position = t; state.music.at = Date.now(); } // timeline идёт за реальным воспроизведением Мастера
+      if(isAuthority() && d && exp > d + 1){ nextTrack(true); return; } // timeline ушёл за конец трека (Мастер обновлял страницу или звук был заблокирован)
+      if(musicEl.paused){ if(!(d && exp >= d - 0.3)) { seekToExpected(); tryPlay(); } return; }
+      const t = musicEl.currentTime;
+      if(Math.abs(t - exp) > DRIFT_S && !(d && exp >= d - 0.3)) seekToExpected();
+      else if(isAuthority() && !musicEl.seeking){ state.music.position = t; state.music.at = Date.now(); } // timeline идёт за реальным воспроизведением Мастера
     } else {
-      wantPlaySince = 0;
-      if(st===1 || st===3){ try{ yt.pauseVideo(); }catch(e){} }
-      if((st===2) && Math.abs(ytTime() - exp) > DRIFT_S){ try{ yt.seekTo(exp, true); yt.pauseVideo(); }catch(e){} }
+      if(!musicEl.paused) musicEl.pause();
+      if(Math.abs(musicEl.currentTime - exp) > 0.5) seekToExpected();
     }
   }
   let lastBroadcast = 0;
@@ -16388,37 +16411,39 @@ const Soundboard = (function(){
     }
     renderProgress();
   }, TICK_MS);
+  // Мастер закрывает/обновляет страницу — сохранить точную позицию, чтобы после перезагрузки продолжить с неё
+  window.addEventListener('pagehide', ()=>{ if(isAuthority()) saveJson(STATE_KEY, state); });
 
   /* ---------- команды музыки (только Мастер / локальный пульт) ---------- */
   function setMusic(patch){ if(!isAuthority()) return; Object.assign(state.music, patch, {at:Date.now()}); lastBroadcast = Date.now(); commit({musicOnly:true}); }
-  function playItem(itemId, playlistId){ if(!state.library[itemId]) return; ytErrorStreak = 0; ytError = ''; setMusic({itemId, playlistId:playlistId||null, listIndex:0, playing:true, position:0, videoTitle:''}); }
+  function playItem(itemId, playlistId){
+    const it = state.library[itemId]; if(!it) return;
+    musicErrorStreak = 0; musicError = '';
+    setMusic({itemId, playlistId:playlistId||null, playing:true, position:0});
+    if(musicSrc===it.url){ seekToExpected(); tryPlay(); }
+  }
   function playPlaylist(pid, idx){ const p = state.playlists[pid]; if(!p || !p.items.length) return; playItem(p.items[clamp(idx||0, 0, p.items.length-1)], pid); }
   function togglePlay(){
     const m = state.music;
     if(!m.itemId){ const first = state.playlistOrder.map(id=>state.playlists[id]).find(p=>p && p.items.length); if(first) playPlaylist(first.id, 0); return; }
-    if(m.playing) setMusic({playing:false, position:timelinePos(m)});
-    else { ytErrorStreak = 0; ytError = ''; setMusic({playing:true}); }
-    if(ytReady){ try{ m.playing ? yt.playVideo() : yt.pauseVideo(); }catch(e){} } // тот же жест — разрешение браузера на звук
+    if(m.playing){ setMusic({playing:false, position:timelinePos(m)}); musicEl.pause(); }
+    else { musicErrorStreak = 0; musicError = ''; setMusic({playing:true}); tryPlay(); } // тот же жест — разрешение браузера на звук
   }
-  function seekTo(sec){ setMusic({position:clamp(sec, 0, 86400)}); if(ytReady){ try{ yt.seekTo(state.music.position, true); }catch(e){} } }
-  function itemsInOrder(){ const m = state.music; const p = m.playlistId && state.playlists[m.playlistId]; return p ? p.items : (m.itemId ? [m.itemId] : []); }
-  function nextTrack(auto){
-    const m = state.music, it = state.library[m.itemId];
-    if(!it) return;
-    if(!auto && it.kind==='list'){ let n = 0; try{ n = (yt.getPlaylist()||[]).length; }catch(e){}
-      if(m.listIndex < n-1){ setMusic({listIndex:m.listIndex+1, position:0, playing:true}); return; } }
+  function seekTo(sec){ setMusic({position:clamp(sec, 0, 86400)}); if(musicReady) seekToExpected(); }
+  function itemsInOrder(){ const m = state.music; const p = m.playlistId && state.playlists[m.playlistId]; return p && p.items.length ? p.items : (m.itemId ? [m.itemId] : []); }
+  function nextTrack(){
+    const m = state.music; if(!state.library[m.itemId]) return;
     const items = itemsInOrder(), i = items.indexOf(m.itemId);
     const nextId = items[(i+1) % items.length]; // по кругу — фоновая музыка не обрывается
-    setMusic({itemId:nextId, listIndex:0, position:0, playing:true, videoTitle:''});
-    if(nextId===m.itemId){ ytLoadedKey = null; followMusic(); } // один трек — с начала
+    setMusic({itemId:nextId, position:0, playing:true});
+    if(state.library[nextId] && musicSrc===state.library[nextId].url){ seekToExpected(); tryPlay(); } // тот же трек — с начала
   }
   function prevTrack(){
-    const m = state.music, it = state.library[m.itemId];
-    if(!it) return;
+    const m = state.music; if(!state.library[m.itemId]) return;
     if(timelinePos(m) > 5){ seekTo(0); return; }
-    if(it.kind==='list' && m.listIndex>0){ setMusic({listIndex:m.listIndex-1, position:0, playing:true}); return; }
     const items = itemsInOrder(), i = items.indexOf(m.itemId);
-    setMusic({itemId:items[(i-1+items.length) % items.length], listIndex:0, position:0, playing:true, videoTitle:''});
+    setMusic({itemId:items[(i-1+items.length) % items.length], position:0, playing:true});
+    if(musicReady && musicSrc===state.library[state.music.itemId].url){ seekToExpected(); tryPlay(); }
   }
   function stopAll(){ // музыка и атмосфера; уже прозвучавшие эффекты не трогаем
     if(!isAuthority()) return;
@@ -16427,41 +16452,49 @@ const Soundboard = (function(){
     commit();
   }
 
-  /* ---------- библиотека YouTube ---------- */
-  function parseYouTube(input){
-    const s = String(input||'').trim();
-    if(/^[A-Za-z0-9_-]{11}$/.test(s)) return {kind:'video', youtubeId:s};
-    let u; try{ u = new URL(s); }catch(e){ return null; }
-    if(!/(^|\.)youtube\.com$|(^|\.)youtu\.be$|(^|\.)youtube-nocookie\.com$/i.test(u.hostname)) return null;
-    const list = u.searchParams.get('list');
-    if(list && /^[A-Za-z0-9_-]{10,64}$/.test(list)) return {kind:'list', listId:list}; // ссылка на плейлист (в т.ч. watch?v=…&list=…)
-    let id = u.searchParams.get('v');
-    if(!id){ const m = u.pathname.match(/^\/(?:embed|shorts|live|v)\/([A-Za-z0-9_-]{11})/) || (/youtu\.be$/i.test(u.hostname) && u.pathname.match(/^\/([A-Za-z0-9_-]{11})/)); if(m) id = m[1]; }
-    return id && /^[A-Za-z0-9_-]{11}$/.test(id) ? {kind:'video', youtubeId:id} : null;
+  /* ---------- библиотека музыки (файлы) ---------- */
+  function fileTitle(name){
+    let s = String(name||'').split('/').pop(); try{ s = decodeURIComponent(s); }catch(e){}
+    return s.replace(/\.[a-z0-9]{2,5}$/i, '').replace(/[_]+/g, ' ').trim().slice(0, 120) || 'Трек';
   }
-  function addYouTube(url, title, playlistId){
-    const p = parseYouTube(url);
-    if(!p) return 'Не похоже на ссылку YouTube (видео или плейлист)';
-    const dup = Object.values(state.library).find(x=>x.kind===p.kind && (p.kind==='list' ? x.listId===p.listId : x.youtubeId===p.youtubeId));
-    const item = dup || Object.assign({id:newId('y'), title:str(title, 120).trim(), autoTitle:!str(title, 1), url:str(url, 300)}, p);
-    if(!item.title) item.title = p.kind==='list' ? 'Плейлист YouTube' : 'Видео YouTube';
+  function addLibraryItem(url, title, playlistId){
+    const item = { id:newId('m'), title:str(title, 120).trim() || fileTitle(url), url };
     state.library[item.id] = item;
-    if(playlistId && state.playlists[playlistId] && state.playlists[playlistId].items.indexOf(item.id)<0) state.playlists[playlistId].items.push(item.id);
-    commit();
-    if(item.autoTitle) fetchTitle(item); // официальный oEmbed YouTube, без ключа; не вышло — название придёт при воспроизведении
+    if(playlistId && state.playlists[playlistId]) state.playlists[playlistId].items.push(item.id);
+    return item;
+  }
+  function addMusicUrl(url, title, playlistId){
+    const u = safeUrl(url);
+    if(!u) return 'Нужна ссылка на аудиофайл: https://… или /assets/sounds/…';
+    addLibraryItem(u, title, playlistId); commit();
     return '';
   }
-  function fetchTitle(item){
-    const url = item.kind==='list' ? 'https://www.youtube.com/playlist?list=' + item.listId : 'https://www.youtube.com/watch?v=' + item.youtubeId;
-    fetch('https://www.youtube.com/oembed?format=json&url=' + encodeURIComponent(url)).then(r=>r.ok ? r.json() : null).then(j=>{
-      const it = state.library[item.id];
-      if(j && j.title && it && it.autoTitle){ it.title = str(j.title, 120); commit(); }
-    }).catch(()=>{});
+  function addMusicFiles(files, playlistId, statusEl){
+    const list = Array.prototype.slice.call(files || []);
+    if(!list.length){ statusEl.textContent = 'Выберите один или несколько файлов'; return; }
+    let i = 0, ok = 0;
+    const step = ()=>{
+      if(i>=list.length){ statusEl.textContent = `Добавлено треков: ${ok} из ${list.length}`; return; }
+      const f = list[i++];
+      statusEl.textContent = `Загрузка ${i} из ${list.length}: ${f.name}…`;
+      if(f.size > MAX_UPLOAD){ statusEl.textContent = `«${f.name}» больше 25 МБ — пропущен`; setTimeout(step, 600); return; }
+      uploadFile(f).then(url=>{ addLibraryItem(url, fileTitle(f.name), playlistId); ok++; commit(); step(); })
+        .catch(e=>{ statusEl.textContent = `«${f.name}»: ${e.message}`; setTimeout(step, 1200); });
+    };
+    step();
+  }
+  // Файл с сервера игры удаляется, когда на него больше ничто не ссылается (ни звук, ни трек)
+  function releaseFile(url){
+    if(!/^\/user-sounds\//.test(url || '') || session.role!=='gm' || !session.ws || session.ws.readyState!==WebSocket.OPEN) return;
+    const used = Object.values(state.sounds).some(s=>s.url===url) || Object.values(state.library).some(it=>it.url===url);
+    if(used) return;
+    fetch('/sound-delete', {method:'POST', headers:{'X-Client-Id':session.myId, 'X-File-Name':url.slice('/user-sounds/'.length)}}).catch(()=>{});
   }
 
   /* ---------- свои звуки ---------- */
   function uploadFile(file){
     return new Promise((resolve, reject)=>{
+      if(file.size > MAX_UPLOAD) return reject(new Error('Файл больше 25 МБ'));
       if(session.role!=='gm' || !session.ws || session.ws.readyState!==WebSocket.OPEN) return reject(new Error('Загружать файлы может Мастер в активной сессии. Без сессии укажите ссылку на файл.'));
       const ext = (file.name.match(/\.([a-z0-9]{2,5})$/i) || [,''])[1].toLowerCase();
       fetch('/sound-upload', {method:'POST', headers:{'X-Client-Id':session.myId, 'X-File-Ext':ext, 'Content-Type':'application/octet-stream'}, body:file})
@@ -16477,16 +16510,16 @@ const Soundboard = (function(){
       loop: fd.get('loop')==='on', custom:true };
     const status = form.querySelector('.sb-form-status');
     const finish = (url)=>{ const s = sanitizeSound(Object.assign(base, {url})); if(!s){ status.textContent = 'Нужна ссылка на файл или сам файл'; return; }
-      state.sounds[s.id] = s; commit(); editingSound = null; render(); };
+      const old = state.sounds[s.id]; state.sounds[s.id] = s; commit(); if(old && old.url!==s.url) releaseFile(old.url); editingSound = null; render(); };
     if(file){
-      if(file.size > 10*1024*1024){ status.textContent = 'Файл больше 10 МБ'; return; }
+      if(file.size > MAX_UPLOAD){ status.textContent = 'Файл больше 25 МБ'; return; }
       status.textContent = 'Загрузка…';
       uploadFile(file).then(finish).catch(e=>{ status.textContent = e.message; });
     } else finish(str(fd.get('url'), 500).trim() || (state.sounds[base.id] && state.sounds[base.id].url) || '');
   }
   function deleteCustomSound(id){
     const s = state.sounds[id]; if(!s || !confirm(`Удалить звук «${s.title}» из саундпада?`)) return;
-    delete state.sounds[id]; delete state.ambience[id]; delete prefs.favorites[id]; prefs.recent = prefs.recent.filter(x=>x!==id); savePrefs(); commit();
+    delete state.sounds[id]; delete state.ambience[id]; delete prefs.favorites[id]; prefs.recent = prefs.recent.filter(x=>x!==id); savePrefs(); commit(); releaseFile(s.url);
   }
 
   /* ---------- плейлисты ---------- */
@@ -16497,7 +16530,7 @@ const Soundboard = (function(){
   function removeFromPlaylist(pid, i){ const p = state.playlists[pid]; if(!p) return; p.items.splice(i, 1); commit(); }
   function deleteItem(id){ const it = state.library[id]; if(!it || !confirm(`Убрать «${it.title}» из библиотеки?`)) return;
     delete state.library[id]; Object.values(state.playlists).forEach(p=>{ p.items = p.items.filter(x=>x!==id); });
-    if(state.music.itemId===id) state.music = Object.assign(sanitizeMusic(null), {at:Date.now()}); commit(); }
+    if(state.music.itemId===id) state.music = Object.assign(sanitizeMusic(null), {at:Date.now()}); commit(); releaseFile(it.url); }
 
   /* ---------- интерфейс ---------- */
   let visible = false, editingSound = null, search = '';
@@ -16507,8 +16540,7 @@ const Soundboard = (function(){
     const c = cur(), m = c.music, it = m.itemId && c.library[m.itemId];
     if(!it) return '';
     const pl = m.playlistId && c.playlists[m.playlistId];
-    const t = (it.kind==='list' ? (m.videoTitle || (ytReady && ytTitle()) || it.title) : (it.title || m.videoTitle)) || 'YouTube';
-    return (pl ? pl.title + ' — ' : '') + t;
+    return (pl ? pl.title + ' — ' : '') + it.title;
   }
   function visibleSounds(){
     const q = norm(search).trim();
@@ -16526,7 +16558,7 @@ const Soundboard = (function(){
     return i>=0 ? String(i+1) : '';
   }
   function padButton(s){
-    const amb = !!cur().ambience[s.id], hk = isAuthority() ? hotkeyFor(s.id) : '';
+    const amb = has(cur().ambience, s.id), hk = isAuthority() ? hotkeyFor(s.id) : '';
     const label = `${s.title}${s.loop ? ' — атмосфера (вкл/выкл)' : ''}${hk ? ' · клавиша ' + hk : ''}`;
     return `<div class="sb-pad-cell"><button type="button" class="sb-pad${s.loop?' loop':''}${amb?' on':''}" data-play="${esc(s.id)}" title="${esc(label)}" aria-label="${esc(label)}" ${isAuthority()?'':'disabled'}>
       <span class="sb-emoji" aria-hidden="true">${esc(s.emoji)}</span><span class="sb-name">${esc(s.title)}</span>${s.loop?'<span class="sb-loop" aria-hidden="true">∞</span>':''}${hk?`<span class="sb-hk">${esc(hk)}</span>`:''}</button>
@@ -16552,19 +16584,18 @@ const Soundboard = (function(){
           <button type="button" class="sb-stopall" data-cmd="stopall" title="Остановить музыку и атмосферу у всех">⏹ Остановить всё</button>
         </div>` : ''}
         ${ambNames.length ? `<div class="sb-amb-now">Атмосфера: ${esc(ambNames.join(', '))}</div>` : ''}
-        ${ytError ? `<div class="sb-warn">${esc(ytError)}</div>` : ''}
+        ${musicError ? `<div class="sb-warn">${esc(musicError)}</div>` : ''}
       </div>
       <div class="sb-mixer">
         ${volRow('music', 'Музыка')}${volRow('amb', 'Атмосфера')}${volRow('sfx', 'Эффекты')}
         <div class="sb-mixer-row">
           <button type="button" class="sb-mute-all${prefs.mute.all?' on':''}" data-mute="all" title="Заглушить всё у себя (на других не влияет)">${prefs.mute.all ? '🔇 Звук выключен' : '🔇 Заглушить всё'}</button>
-          <button type="button" class="sb-video-toggle${prefs.showVideo?' on':''}" data-cmd="video" title="Показать или скрыть видео (только у себя)">📺 Видео: ${prefs.showVideo ? 'показано' : 'скрыто'}</button>
         </div>
         <div class="muted sb-note">Громкость и заглушение — только у вас.</div>
       </div>
     </div>`;
   }
-  const SECTIONS = [['pad','Саундпад'],['music','Музыка и YouTube'],['playlists','Плейлисты'],['mine','Мои звуки']];
+  const SECTIONS = [['pad','Саундпад'],['music','Музыка'],['playlists','Плейлисты'],['mine','Мои звуки']];
   function padHtml(){
     const cats = [['all','Все'],['fav','⭐ Избранное'],['recent','🕘 Недавние']].concat(CATEGORIES.map(c=>[c, c]));
     const list = visibleSounds();
@@ -16577,21 +16608,24 @@ const Soundboard = (function(){
   function libRow(it, extra){
     const playing = state.music.itemId===it.id;
     return `<div class="sb-row${playing?' on':''}"><button type="button" class="sb-rowplay" data-playitem="${esc(it.id)}" title="Играть у всех" aria-label="Играть: ${esc(it.title)}">${playing && state.music.playing ? '🔊' : '▶'}</button>
-      <span class="sb-row-title">${it.kind==='list' ? '📜 ' : '🎞 '}${esc(it.title)}</span>${extra||''}</div>`;
+      <span class="sb-row-title">🎵 ${esc(it.title)}${it.duration ? ` <span class="muted">· ${fmtTime(it.duration)}</span>` : ''}</span>${extra||''}</div>`;
   }
   function musicHtml(){
     const pls = state.playlistOrder.map(id=>state.playlists[id]).filter(Boolean);
     const items = Object.values(state.library);
-    return `<form class="sb-addyt" id="sbAddYt">
-        <input type="url" name="url" placeholder="Ссылка YouTube: видео или плейлист" required aria-label="Ссылка YouTube">
-        <input type="text" name="title" placeholder="Название (необязательно)" maxlength="120" aria-label="Название">
+    return `<form class="sb-addyt" id="sbAddMusic">
+        <label class="sb-filepick">🎵 Файлы <input type="file" name="files" multiple accept="audio/*,.mp3,.ogg,.wav,.m4a,.aac,.webm,.flac" aria-label="Аудиофайлы для музыки"></label>
         <select name="pl" aria-label="Добавить в плейлист"><option value="">— без плейлиста —</option>${pls.map(p=>`<option value="${esc(p.id)}">${esc(p.title)}</option>`).join('')}</select>
-        <button type="submit" class="primary">＋ Добавить</button><span class="sb-form-status muted"></span></form>
-      <div class="muted sb-note">Видео или плейлист определяются по ссылке. Плейлист YouTube играется целиком, ⏭ листает его ролики. Скачивания нет — играет сам YouTube.</div>
+        <button type="submit" class="primary">＋ Загрузить</button><span class="sb-form-status muted"></span></form>
+      <form class="sb-addyt" id="sbAddMusicUrl">
+        <input type="text" name="url" placeholder="или ссылка на аудиофайл: https://… или /assets/sounds/…" required aria-label="Ссылка на аудиофайл">
+        <input type="text" name="title" placeholder="Название (необязательно)" maxlength="120" aria-label="Название">
+        <button type="submit">＋ По ссылке</button><span class="sb-form-status muted"></span></form>
+      <div class="muted sb-note">Файлы до 25 МБ (mp3, ogg, wav, m4a, aac, webm, flac) загружаются на сервер игры — игроки получают только ссылку. Можно выбрать несколько сразу. Трек играет у всех с одного места.</div>
       <div class="sb-list">${items.length ? items.map(it=>libRow(it,
         `<select class="sb-mini" data-addto="${esc(it.id)}" aria-label="В плейлист"><option value="">＋ в плейлист</option>${pls.map(p=>`<option value="${esc(p.id)}">${esc(p.title)}</option>`).join('')}</select>
          <button type="button" class="sb-mini" data-rename="${esc(it.id)}" title="Переименовать">✎</button><button type="button" class="sb-mini" data-delitem="${esc(it.id)}" title="Убрать из библиотеки">✕</button>`)).join('')
-        : '<div class="muted">Библиотека пуста — добавьте ссылку YouTube.</div>'}</div>`;
+        : '<div class="muted">Музыки пока нет — загрузите файлы.</div>'}</div>`;
   }
   function playlistsHtml(){
     const pls = state.playlistOrder.map(id=>state.playlists[id]).filter(Boolean);
@@ -16604,10 +16638,10 @@ const Soundboard = (function(){
         <ol class="sb-pl-items">${p.items.map((id, i)=>{ const it = state.library[id]; if(!it) return '';
           const on = state.music.playlistId===p.id && state.music.itemId===id;
           return `<li class="${on?'on':''}"><button type="button" class="sb-mini" data-playat="${esc(p.id)}|${i}" title="Играть с этого трека">${on && state.music.playing ? '🔊' : '▶'}</button>
-            <span class="sb-row-title">${it.kind==='list' ? '📜 ' : ''}${esc(it.title)}</span>
+            <span class="sb-row-title">${esc(it.title)}</span>
             <button type="button" class="sb-mini" data-move="${esc(p.id)}|${i}|-1" title="Выше">↑</button><button type="button" class="sb-mini" data-move="${esc(p.id)}|${i}|1" title="Ниже">↓</button>
             <button type="button" class="sb-mini" data-rmpl="${esc(p.id)}|${i}" title="Убрать из плейлиста">✕</button></li>`; }).join('')}</ol>
-        ${p.items.length ? '' : '<div class="muted">Пусто — добавьте треки в «Музыка и YouTube».</div>'}</div>`).join('') : '<div class="muted">Плейлистов пока нет. Например: ' + esc(PLAYLIST_SUGGESTIONS.join(', ')) + '.</div>'}`;
+        ${p.items.length ? '' : '<div class="muted">Пусто — добавьте треки в «Музыка».</div>'}</div>`).join('') : '<div class="muted">Плейлистов пока нет. Например: ' + esc(PLAYLIST_SUGGESTIONS.join(', ')) + '.</div>'}`;
   }
   function mineHtml(){
     const e = editingSound ? state.sounds[editingSound] : null;
@@ -16623,16 +16657,16 @@ const Soundboard = (function(){
         <label class="sb-check"><input type="checkbox" name="loop" ${e && e.loop ? 'checked' : ''}> ∞ Атмосфера (зацикленный фон)</label>
         <div class="sb-form-actions"><button type="submit" class="primary">Сохранить</button>${e ? '<button type="button" data-cmd="canceledit">Отмена</button>' : ''}<span class="sb-form-status muted"></span></div>
       </form>
-      <div class="muted sb-note">Файл загружается на сервер игры (до 10 МБ), игрокам уходит только ссылка. Без сессии — только ссылка на файл.</div>
+      <div class="muted sb-note">Файл загружается на сервер игры (до 25 МБ), игрокам уходит только ссылка. Без сессии — только ссылка на файл.</div>
       <div class="sb-list">${mine.length ? mine.map(s=>`<div class="sb-row"><span class="sb-row-title">${esc(s.emoji)} ${esc(s.title)} <span class="muted">· ${esc(s.cat)}${s.loop?' · ∞':''}${s.tags.length?' · '+esc(s.tags.join(', ')):''}</span></span>
         <button type="button" class="sb-mini" data-editsound="${esc(s.id)}" title="Изменить">✎</button><button type="button" class="sb-mini" data-delsound="${esc(s.id)}" title="Удалить">✕</button></div>`).join('') : '<div class="muted">Своих звуков пока нет.</div>'}</div>`;
   }
   function render(){
-    renderDock(); renderMini(); renderUnlock();
+    renderMini(); renderUnlock();
     const root = $('soundTabView'); if(!root || !visible) return;
     const auth = isAuthority();
     if(!auth && prefs.section!=='pad') prefs.section = 'pad';
-    const body = !auth ? `<div class="muted sb-note">Звуки и музыку запускает Мастер — у вас они играют сами. Здесь — ваша громкость, заглушение и показ видео.</div>`
+    const body = !auth ? `<div class="muted sb-note">Звуки и музыку запускает Мастер — у вас они играют сами. Здесь — ваша громкость и заглушение.</div>`
       : prefs.section==='music' ? musicHtml() : prefs.section==='playlists' ? playlistsHtml() : prefs.section==='mine' ? mineHtml() : padHtml();
     const focusSearch = document.activeElement && document.activeElement.id==='sbSearch';
     root.innerHTML = `<div class="panel sb-panel">
@@ -16641,11 +16675,12 @@ const Soundboard = (function(){
     if(focusSearch){ const s = $('sbSearch'); if(s){ s.focus(); s.setSelectionRange(s.value.length, s.value.length); } }
     renderProgress();
   }
-  function renderNow(){ if(visible) render(); else { renderDock(); renderMini(); renderUnlock(); } }
+  function renderNow(){ if(visible) render(); else { renderMini(); renderUnlock(); } }
   function renderRecentOnly(){ if(visible && prefs.section==='pad' && !search && prefs.cat==='all'){ const g = $('sbRecentGrid'); if(!g){ render(); return; } g.innerHTML = prefs.recent.slice(0, 8).map(soundById).filter(Boolean).map(padButton).join(''); } }
   let seeking = false;
   function renderProgress(){
-    const pos = (ytReady && ytLoadedKey) ? ytTime() : expectedPos(), dur = ytReady && ytLoadedKey ? ytDuration() : 0;
+    const it = cur().library[cur().music.itemId];
+    const pos = musicReady ? musicEl.currentTime : expectedPos(), dur = musicDuration() || (it && it.duration) || 0;
     const a = $('sbTimeCur'), b = $('sbTimeDur'), r = $('sbSeek');
     if(a) a.textContent = fmtTime(pos);
     if(b) b.textContent = dur ? fmtTime(dur) : '—:—';
@@ -16669,17 +16704,8 @@ const Soundboard = (function(){
     const el = $('sbUnlock'); if(!el) return;
     const need = needsUnlock();
     el.style.display = need ? '' : 'none';
-    el.textContent = ytNeedsGesture ? (isAuthority() ? '▶ Нажмите, чтобы продолжить музыку' : '🔊 Нажмите, чтобы включить звук') : '🔊 Включить звук';
+    el.textContent = musicNeedsGesture ? (isAuthority() ? '▶ Нажмите, чтобы продолжить музыку' : '🔊 Нажмите, чтобы включить звук') : '🔊 Включить звук';
   }
-  function renderDock(){
-    const dock = $('sbVideoDock'); if(!dock) return;
-    const c = cur(), has = !!(c.music.itemId && c.library[c.music.itemId]);
-    dock.classList.toggle('active', has);
-    dock.classList.toggle('shown', has && prefs.showVideo);
-    const t = $('sbDockTitle'); if(t) t.textContent = has ? nowTitle() : '';
-    if(prefs.dock && has && prefs.showVideo){ dock.style.left = prefs.dock.x + 'px'; dock.style.top = prefs.dock.y + 'px'; dock.style.right = 'auto'; dock.style.bottom = 'auto'; }
-  }
-
   /* ---------- события интерфейса (делегирование) ---------- */
   function onClick(e){
     const b = e.target.closest('button,[data-cat]'); if(!b || !b.closest('#soundTabView')) return;
@@ -16690,7 +16716,7 @@ const Soundboard = (function(){
     if(d.sec){ prefs.section = d.sec; savePrefs(); render(); return; }
     if(d.mute){ prefs.mute[d.mute] = !prefs.mute[d.mute]; savePrefs(); applyVolumes(); render(); return; }
     if(d.cmd==='toggle') togglePlay(); else if(d.cmd==='next') nextTrack(); else if(d.cmd==='prev') prevTrack();
-    else if(d.cmd==='stopall') stopAll(); else if(d.cmd==='video'){ prefs.showVideo = !prefs.showVideo; savePrefs(); renderDock(); render(); }
+    else if(d.cmd==='stopall') stopAll();
     else if(d.cmd==='canceledit'){ editingSound = null; render(); }
     else if(d.playitem) playItem(d.playitem, null);
     else if(d.playpl) playPlaylist(d.playpl, 0);
@@ -16718,7 +16744,8 @@ const Soundboard = (function(){
   function onSubmit(e){
     const f = e.target; if(!f.closest('#soundTabView')) return;
     e.preventDefault();
-    if(f.id==='sbAddYt'){ const fd = new FormData(f); const err = addYouTube(fd.get('url'), fd.get('title'), fd.get('pl')); if(err){ f.querySelector('.sb-form-status').textContent = err; } }
+    if(f.id==='sbAddMusic'){ addMusicFiles(f.querySelector('[name=files]').files, new FormData(f).get('pl'), f.querySelector('.sb-form-status')); }
+    else if(f.id==='sbAddMusicUrl'){ const fd = new FormData(f); const err = addMusicUrl(fd.get('url'), fd.get('title'), ''); f.querySelector('.sb-form-status').textContent = err; if(!err) f.reset(); }
     else if(f.id==='sbAddPl'){ createPlaylist(new FormData(f).get('title')); }
     else if(f.id==='sbSoundForm') saveCustomSound(f);
   }
@@ -16730,15 +16757,6 @@ const Soundboard = (function(){
     const s = mapped ? soundById(mapped) : (/^[1-9]$/.test(e.key) ? fav[+e.key-1] : null);
     if(s){ e.preventDefault(); playSound(s.id); }
   }
-  function initDockDrag(){
-    const dock = $('sbVideoDock'), head = $('sbDockHead'); if(!dock || !head) return;
-    let drag = null;
-    head.addEventListener('pointerdown', (e)=>{ if(e.target.closest('button')) return; const r = dock.getBoundingClientRect(); drag = {dx:e.clientX - r.left, dy:e.clientY - r.top}; head.setPointerCapture(e.pointerId); });
-    head.addEventListener('pointermove', (e)=>{ if(!drag) return; const x = clamp(e.clientX - drag.dx, 0, innerWidth - 120), y = clamp(e.clientY - drag.dy, 0, innerHeight - 40);
-      Object.assign(dock.style, {left:x + 'px', top:y + 'px', right:'auto', bottom:'auto'}); prefs.dock = {x, y}; });
-    head.addEventListener('pointerup', ()=>{ if(drag){ drag = null; savePrefs(); } });
-    $('sbDockHide').addEventListener('click', ()=>{ prefs.showVideo = false; savePrefs(); renderDock(); render(); });
-  }
   function setVisible(v){ visible = !!v; render(); }
   function init(){
     const root = $('soundTabView'); if(!root) return;
@@ -16746,13 +16764,13 @@ const Soundboard = (function(){
     window.addEventListener('keydown', onKey);
     const mini = $('sbMini'); if(mini) mini.addEventListener('click', ()=>toggleMainTab('sound'));
     const un = $('sbUnlock'); if(un) un.addEventListener('click', unlock);
-    initDockDrag();
     RoomTransport.onGameEvent((ev)=>{ if(ev && ev.type==='sb-sound' && session.role==='player' && ev.from===session.gmId) receiveSound(ev); });
     lastRole = session.role || null;
     syncAmbience(); followMusic(); render();
   }
   return { init, setVisible, refreshRole, handleMessage, onPlayerHello, onGmHello, playSound, stopAll,
-           get state(){ return cur(); }, get stats(){ return Object.assign({audio: actx ? actx.state : 'none', ytReady, ytState: ytReady ? ytState() : null, ytTime: ytReady ? ytTime() : 0, loops:Object.keys(activeLoops)}, stats); } };
+           get state(){ return cur(); }, get stats(){ return Object.assign({audio: actx ? actx.state : 'none', music: musicSrc, musicTime: musicEl.currentTime, musicPaused: musicEl.paused, loops:Object.keys(activeLoops),
+             loopTimes:Object.keys(activeLoops).reduce((o, id)=>{ if(activeLoops[id].el) o[id] = activeLoops[id].el.currentTime; return o; }, {})}, stats); } };
 })();
 try{ Soundboard.init(); }catch(e){ console.error('[Саундпад] не удалось запустить', e); }
 </script>
