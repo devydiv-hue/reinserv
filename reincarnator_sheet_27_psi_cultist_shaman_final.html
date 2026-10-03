@@ -771,7 +771,7 @@
   /* Слева, не справа — справа уже живёт комната голоса/видео (сайдбар/полноэкранный режим),
      два боковых элемента на одной стороне мешали бы друг другу. */
   #diceFab{
-    position:fixed; left:0; right:auto; top:62%; transform:translateY(-50%);
+    position:fixed; left:0; right:auto; top:var(--dice-y, 62%); transform:translateY(-50%);
     width:58px; height:66px; z-index:130; border:none; padding:0; background:none; cursor:pointer;
     display:flex; align-items:center; justify-content:flex-start;
     -webkit-tap-highlight-color:transparent;
@@ -813,7 +813,7 @@
   @media (prefers-reduced-motion: reduce){ #diceFab .blob, #diceFab .blob-sheen::after{ animation:none; } }
 
   #dicePanel{
-    position:fixed; left:0; right:auto; top:62%; transform:translate(-115%,-50%); opacity:0;
+    position:fixed; left:0; right:auto; top:var(--dice-panel-y, var(--dice-y, 62%)); transform:translate(-115%,-50%); opacity:0;
     width:min(320px, 88vw); max-height:min(560px, 78vh);
     z-index:131; padding:16px 14px 14px; border-radius:6px 26px 26px 6px;
     background:
@@ -825,7 +825,33 @@
     display:flex; flex-direction:column; align-items:center; gap:10px;
     pointer-events:none;
   }
-  #dicePanel.open{ transform:translate(0,-50%); opacity:1; pointer-events:auto; }
+  #dicePanel.open{ transform:translate(0,-50%) scale(var(--dsx,1), var(--dsy,1)); opacity:1; pointer-events:auto; }
+  /* Перемещение по краю экрана (см. DiceDock в DicePanel): включается иконкой ⇕ в самой панели. Пока тянут —
+     без CSS-перехода (позицию и деформацию каждый кадр задаёт пружина в JS), панель и капля вытягиваются
+     вдоль движения и сжимаются поперёк — «жидкое» следование; после отпускания пружина сама покачивает
+     их до покоя. */
+  #dicePanel{ transform-origin:0 50%; }
+  #dicePanel.movable{ cursor:grab; }
+  #dicePanel.movable .dp-hex, #dicePanel.movable button{ cursor:pointer; }
+  #dicePanel.dock-dragging, #dicePanel.dock-dragging *{ cursor:grabbing !important; }
+  #dicePanel.dock-live{ transition:opacity .35s ease; }
+  body.dice-dock-dragging, body.dice-dock-dragging *{ user-select:none !important; -webkit-user-select:none !important; }
+  #diceFab.dock-live .blob{ transition:none; }
+  #diceFab .blob{ transform-origin:0 50%; }
+  #diceFab.dock-live .blob{ transform:scale(var(--fsx,1), var(--fsy,1)); }
+  #dicePanel.dock-wiggle{ animation:dpDockWiggle .7s cubic-bezier(.3,1.6,.5,1); }
+  @keyframes dpDockWiggle{
+    0%{ transform:translate(0,-50%) scale(1,1); } 25%{ transform:translate(0,-50%) scale(.97,1.05); }
+    50%{ transform:translate(0,-50%) scale(1.02,.97); } 75%{ transform:translate(0,-50%) scale(.99,1.015); } 100%{ transform:translate(0,-50%) scale(1,1); }
+  }
+  #dicePanel .dp-move-toggle{
+    position:absolute; top:10px; left:38px; width:20px; height:20px; border:none; background:none;
+    padding:0; color:var(--vellum-muted); cursor:pointer; opacity:.6;
+  }
+  #dicePanel .dp-move-toggle svg{ width:100%; height:100%; display:block; }
+  #dicePanel .dp-move-toggle:hover{ opacity:1; color:var(--vellum-bright); }
+  #dicePanel .dp-move-toggle.active{ opacity:1; color:var(--stamp); }
+  @media (prefers-reduced-motion: reduce){ #dicePanel.dock-wiggle{ animation:none; } }
   #dicePanel .dp-title{
     font-family:var(--font-display); font-size:11px; letter-spacing:.06em; text-transform:uppercase;
     color:var(--vellum-muted); text-align:center; min-height:14px;
@@ -1352,6 +1378,9 @@
   <button class="dp-close" type="button" aria-label="Закрыть панель бросков">✕</button>
   <button class="dp-pin-stage" type="button" aria-label="Не закрывать панель после броска — остаться на этом шаге" title="Не закрывать панель после броска — остаться на этом шаге">
     <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M12 7 V12 L15.5 14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </button>
+  <button class="dp-move-toggle" type="button" aria-pressed="false" aria-label="Перемещать панель по краю экрана" title="Перемещать панель по краю экрана: выключено">
+    <svg viewBox="0 0 24 24"><path d="M12 3.5 V20.5 M8 7.5 L12 3.5 L16 7.5 M8 16.5 L12 20.5 L16 16.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
   </button>
   <div class="dp-title" id="dpTitle"></div>
   <div class="dp-level" id="dpLevel"></div>
@@ -12798,6 +12827,7 @@ const DicePanel = (function(){
     setTitle(screen.title);
     el('dpFeedback').innerHTML=''; el('dpFeedback').className='dp-feedback';
     renderHexGroup(screen.items);
+    placePanel(); // высота панели меняется от шага к шагу — держим её в пределах окна у капли
   }
   function renderHexGroup(items){
     const level = el('dpLevel'); level.innerHTML = '';
@@ -12884,7 +12914,7 @@ const DicePanel = (function(){
     // stayAtStage выключает именно НАВЕДЕНИЕ (мышь) — см. комментарий у объявления stayAtStage выше;
     // тач (touchstart ниже) не трогаем: там нет эффекта "курсор случайно остался на гексе после
     // предыдущего клика", ради которого это отключение и делалось.
-    hex.addEventListener('mouseenter', ()=>{ if(!stayAtStage) startGesture(hex, id); });
+    hex.addEventListener('mouseenter', ()=>{ if(!stayAtStage && !dockDragging) startGesture(hex, id); });
     hex.addEventListener('mouseleave', ()=>{ if(gestureEl===hex) cancelGesture(); });
     hex.addEventListener('touchstart', (e)=>{ e.preventDefault(); startGesture(hex, id); }, {passive:false});
     hex.addEventListener('touchend', (e)=>{
@@ -12904,6 +12934,7 @@ const DicePanel = (function(){
     el('diceFab').classList.add('open');
     el('dicePanel').classList.add('open');
     renderCurrentScreen();
+    placePanel();
   }
   function closePanel(){
     if(state==='CLOSED' || state==='CLOSING') return;
@@ -12941,6 +12972,7 @@ const DicePanel = (function(){
   function handleProximityMove(e){
     const x = e.clientX, y = e.clientY;
     if(state==='CLOSED'){
+      if(dockDragging) return; // каплю тянут пальцем/мышью — не раскрывать панель под ней
       const r = el('diceFab').getBoundingClientRect();
       const cx = r.left+r.width/2, cy = r.top+r.height/2;
       if(Math.hypot(x-cx, y-cy) <= PROXIMITY_OPEN_RADIUS) openPanel();
@@ -12952,7 +12984,7 @@ const DicePanel = (function(){
       // stayAtStage — см. комментарий у её объявления — отключает и это автосворачивание целиком, не
       // только продлевает задержку: иначе серия бросков подряд с движением мыши в сторону между ними
       // всё равно рано или поздно закрыла бы панель сама.
-      if(near || stayAtStage){
+      if(near || stayAtStage || dockDragging){
         if(proximityCloseTimer){ clearTimeout(proximityCloseTimer); proximityCloseTimer=null; }
       } else if(!proximityCloseTimer){
         proximityCloseTimer = setTimeout(()=>{
@@ -12963,8 +12995,103 @@ const DicePanel = (function(){
     }
   }
 
+  /* ---------- DiceDock: перемещение капли и панели по левому краю ----------
+     Выключено по умолчанию; включается иконкой ⇕ в панели (запоминается вместе с позицией). Позиция —
+     доля высоты окна (центр капли), чтобы переживать смену размера. Капля и панель следуют за курсором
+     пружиной (не мгновенно): скорость пружины вытягивает их вдоль движения и сжимает поперёк, после
+     отпускания пружина с недодемпфированием сама покачивает их до покоя. */
+  const DOCK_KEY = 'reincarnator_dice_dock_v1';
+  const DOCK_MARGIN = 44; // капля не уезжает за верх/низ окна
+  const dock = (function(){ try{ const v = JSON.parse(localStorage.getItem(DOCK_KEY)||'null'); if(v && typeof v==='object') return { y: Math.min(0.95, Math.max(0.05, Number(v.y)||0.62)), movable: v.movable===true }; }catch(e){} return { y:0.62, movable:false }; })();
+  function saveDock(){ try{ localStorage.setItem(DOCK_KEY, JSON.stringify(dock)); }catch(e){} }
+  const reduceMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  let dockDragging = false, dockSuppressClick = false;
+  let dockY = 0, dockTarget = 0, dockVel = 0, dockRaf = 0, dockGrabOffset = 0;
+  function clampDockY(y){ return Math.min(window.innerHeight - DOCK_MARGIN, Math.max(DOCK_MARGIN, y)); }
+  const viewportKnown = ()=>window.innerHeight > DOCK_MARGIN*3; // окно ещё не разложено (скрытая вкладка/панель) — высота 0
+  function setDockVars(y, stretch){
+    const root = document.documentElement.style;
+    if(!viewportKnown()){ root.setProperty('--dice-y', (dock.y*100).toFixed(2) + '%'); root.removeProperty('--dice-panel-y'); return; }
+    root.setProperty('--dice-y', y.toFixed(1) + 'px');
+    placePanel(y);
+    const p = el('dicePanel'), f = el('diceFab');
+    p.style.setProperty('--dsx', (1 - stretch*0.10).toFixed(4)); p.style.setProperty('--dsy', (1 + stretch*0.16).toFixed(4));
+    f.style.setProperty('--fsx', (1 - stretch*0.35).toFixed(4)); f.style.setProperty('--fsy', (1 + stretch*0.55).toFixed(4));
+  }
+  // Панель — по центру на уровне капли, но целиком в пределах окна (она выше капли)
+  function placePanel(y){
+    if(!viewportKnown()) return;
+    if(y==null) y = dockY || dock.y*window.innerHeight;
+    const p = el('dicePanel'), h = p.offsetHeight || 0, vh = window.innerHeight;
+    const py = h ? Math.min(vh - h/2 - 8, Math.max(h/2 + 8, y)) : y;
+    document.documentElement.style.setProperty('--dice-panel-y', py.toFixed(1) + 'px');
+  }
+  function dockStep(){
+    // недодемпфированная пружина: следует за целью с инерцией и лёгким перелётом
+    dockVel = dockVel*0.70 + (dockTarget - dockY)*0.15;
+    dockY += dockVel;
+    const stretch = reduceMotion ? 0 : Math.min(0.32, Math.abs(dockVel)/38);
+    setDockVars(dockY, stretch);
+    if(dockDragging || Math.abs(dockVel) > 0.04 || Math.abs(dockTarget - dockY) > 0.25){ dockRaf = requestAnimationFrame(dockStep); return; }
+    dockRaf = 0; dockY = dockTarget; setDockVars(dockY, 0);
+    el('dicePanel').classList.remove('dock-live'); el('diceFab').classList.remove('dock-live');
+  }
+  function kickDock(){
+    el('dicePanel').classList.add('dock-live'); el('diceFab').classList.add('dock-live');
+    if(reduceMotion){ dockY = dockTarget; dockVel = 0; setDockVars(dockY, 0); return; }
+    if(!dockRaf) dockRaf = requestAnimationFrame(dockStep);
+  }
+  function startDockDrag(e, handle){
+    if(!dock.movable || e.button>0) return;
+    if(!dockRaf){ dockY = dockTarget = clampDockY(dock.y * window.innerHeight); dockVel = 0; } // на случай, если окно разложилось уже после загрузки
+    e.preventDefault(); // не начинать выделение текста страницы при протягивании
+    const startY = e.clientY; let moved = false;
+    dockGrabOffset = dockY - e.clientY;
+    const onMove = (ev)=>{
+      if(!moved){
+        if(Math.abs(ev.clientY - startY) < 5) return; // маленький сдвиг — это ещё клик
+        moved = true; dockDragging = true; cancelGesture();
+        el('dicePanel').classList.add('dock-dragging'); document.body.classList.add('dice-dock-dragging');
+      }
+      ev.preventDefault();
+      dockTarget = clampDockY(ev.clientY + dockGrabOffset);
+      kickDock();
+    };
+    const onUp = ()=>{
+      window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); window.removeEventListener('pointercancel', onUp);
+      el('dicePanel').classList.remove('dock-dragging'); document.body.classList.remove('dice-dock-dragging');
+      if(!moved) return;
+      dockDragging = false;
+      if(handle===el('diceFab')) dockSuppressClick = true; // отпускание капли после перетаскивания — не открывать панель
+      dock.y = dockTarget / window.innerHeight; saveDock();
+      kickDock(); // пружина доводит до места и покачивает
+    };
+    window.addEventListener('pointermove', onMove, {passive:false});
+    window.addEventListener('pointerup', onUp); window.addEventListener('pointercancel', onUp);
+  }
+  function setMovable(on){
+    dock.movable = !!on; saveDock();
+    const btn = el('dicePanel').querySelector('.dp-move-toggle');
+    btn.classList.toggle('active', dock.movable);
+    btn.setAttribute('aria-pressed', dock.movable ? 'true' : 'false');
+    btn.title = 'Перемещать панель по краю экрана: ' + (dock.movable ? 'включено — тяните панель за свободное место' : 'выключено');
+    el('dicePanel').classList.toggle('movable', dock.movable);
+    el('diceFab').style.touchAction = dock.movable ? 'none' : '';
+    if(dock.movable && !reduceMotion){ const p = el('dicePanel'); p.classList.remove('dock-wiggle'); void p.offsetWidth; p.classList.add('dock-wiggle'); setTimeout(()=>p.classList.remove('dock-wiggle'), 750); }
+  }
+  function initDock(){
+    dockY = dockTarget = clampDockY(dock.y * window.innerHeight);
+    setDockVars(dockY, 0);
+    setMovable(dock.movable);
+    el('dicePanel').querySelector('.dp-move-toggle').addEventListener('click', ()=>setMovable(!dock.movable));
+    // тянуть можно за свободное место панели (не гекс и не кнопку) и за саму каплю (удобно на сенсорных экранах)
+    el('dicePanel').addEventListener('pointerdown', (e)=>{ if(e.target.closest('.dp-hex, button')) return; startDockDrag(e, el('dicePanel')); });
+    el('diceFab').addEventListener('pointerdown', (e)=>startDockDrag(e, el('diceFab')));
+    window.addEventListener('resize', ()=>{ if(dockDragging) return; dockY = dockTarget = clampDockY(dock.y * window.innerHeight); setDockVars(dockY, 0); });
+  }
+
   function init(){
-    el('diceFab').addEventListener('click', openPanel);
+    el('diceFab').addEventListener('click', ()=>{ if(dockSuppressClick){ dockSuppressClick = false; return; } openPanel(); });
     el('dicePanel').querySelector('.dp-close').addEventListener('click', closePanel);
     const pinBtn = el('dicePanel').querySelector('.dp-pin-stage');
     pinBtn.addEventListener('click', ()=>{
@@ -12977,6 +13104,7 @@ const DicePanel = (function(){
     });
     el('diceFab').querySelector('.blob-icon').appendChild(fabIconEl());
     window.addEventListener('mousemove', handleProximityMove, {passive:true});
+    initDock();
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', init); else init();
 
