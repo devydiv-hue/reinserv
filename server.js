@@ -26,8 +26,72 @@ function findSheetFile() {
   return files[0] || null;
 }
 
+// ---- Саундпад: аудиофайлы по HTTP (не через WebSocket) ----
+// Свои звуки Мастера загружаются сюда (POST /sound-upload) и раздаются по ссылке /user-sounds/<имя>;
+// игрокам по сети уходит только ссылка/идентификатор звука. Звуки, которые положены рядом с приложением
+// вручную, — /assets/sounds/<имя>. Никакой базы: просто папка; на хостинге без постоянного диска файлы
+// могут пропасть при пересборке. Загружать может только подключённый Мастер (его WS-id оканчивается на
+// -gm), с ограничениями по типу, размеру и общему объёму папки.
+const USER_SOUND_DIR = path.join(DIR, 'user-sounds');
+const ASSET_SOUND_DIR = path.join(DIR, 'assets', 'sounds');
+const AUDIO_TYPES = { '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg', '.oga': 'audio/ogg', '.opus': 'audio/ogg', '.wav': 'audio/wav',
+  '.m4a': 'audio/mp4', '.aac': 'audio/aac', '.webm': 'audio/webm', '.flac': 'audio/flac' };
+const MAX_SOUND_BYTES = 10 * 1024 * 1024;       // один файл
+const MAX_SOUND_DIR_BYTES = 300 * 1024 * 1024;  // вся папка своих звуков
+const SOUND_NAME_RE = /^[a-zA-Z0-9_-]{1,80}\.[a-z0-9]{2,5}$/;
+
+function serveSound(dir, name, res) {
+  const ext = path.extname(name).toLowerCase();
+  if (!SOUND_NAME_RE.test(name) || !AUDIO_TYPES[ext]) { res.writeHead(404); res.end(); return; }
+  const file = path.join(dir, name);
+  fs.stat(file, (err, st) => {
+    if (err || !st.isFile()) { res.writeHead(404); res.end(); return; }
+    res.writeHead(200, { 'Content-Type': AUDIO_TYPES[ext], 'Content-Length': st.size, 'Cache-Control': 'public, max-age=86400',
+      'X-Content-Type-Options': 'nosniff' });
+    fs.createReadStream(file).pipe(res);
+  });
+}
+function soundDirSize() {
+  try { return fs.readdirSync(USER_SOUND_DIR).reduce((a, f) => { try { return a + fs.statSync(path.join(USER_SOUND_DIR, f)).size; } catch (e) { return a; } }, 0); }
+  catch (e) { return 0; }
+}
+function handleSoundUpload(req, res) {
+  const reply = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
+  const cid = String(req.headers['x-client-id'] || '');
+  if (!CLIENT_ID_RE.test(cid) || !cid.endsWith('-gm') || !clients.has(cid)) { reply(403, { error: 'Загружать звуки может только подключённый Мастер' }); req.resume(); return; }
+  const ext = '.' + String(req.headers['x-file-ext'] || '').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 5);
+  if (!AUDIO_TYPES[ext]) { reply(415, { error: 'Неподдерживаемый формат (mp3, ogg, wav, m4a, aac, webm, flac)' }); req.resume(); return; }
+  const declared = Number(req.headers['content-length'] || 0);
+  if (declared > MAX_SOUND_BYTES) { reply(413, { error: 'Файл больше 10 МБ' }); req.resume(); return; }
+  if (soundDirSize() + declared > MAX_SOUND_DIR_BYTES) { reply(507, { error: 'Папка своих звуков заполнена (300 МБ)' }); req.resume(); return; }
+  const chunks = []; let size = 0, aborted = false;
+  req.on('data', c => {
+    if (aborted) return;
+    size += c.length;
+    if (size > MAX_SOUND_BYTES) { aborted = true; reply(413, { error: 'Файл больше 10 МБ' }); req.destroy(); return; }
+    chunks.push(c);
+  });
+  req.on('end', () => {
+    if (aborted) return;
+    if (!size) { reply(400, { error: 'Пустой файл' }); return; }
+    const name = crypto.randomBytes(9).toString('hex') + ext;
+    fs.mkdir(USER_SOUND_DIR, { recursive: true }, (e1) => {
+      if (e1) { reply(500, { error: 'Не удалось создать папку' }); return; }
+      fs.writeFile(path.join(USER_SOUND_DIR, name), Buffer.concat(chunks), (e2) => {
+        if (e2) { reply(500, { error: 'Не удалось сохранить файл' }); return; }
+        console.log('[Server] Звук загружен', name, size, 'байт от', cid);
+        reply(200, { url: '/user-sounds/' + name });
+      });
+    });
+  });
+}
+
 // ---- Раздача самого файла листа персонажа по обычному HTTP ----
 const httpServer = http.createServer((req, res) => {
+  const urlPath = (req.url || '/').split('?')[0];
+  if (req.method === 'POST' && urlPath === '/sound-upload') { handleSoundUpload(req, res); return; }
+  if (urlPath.indexOf('/user-sounds/') === 0) { serveSound(USER_SOUND_DIR, urlPath.slice(13), res); return; }
+  if (urlPath.indexOf('/assets/sounds/') === 0) { serveSound(ASSET_SOUND_DIR, urlPath.slice(15), res); return; }
   // Лёгкая проверка «жив ли сервер» — для хостинга (health check) и для самого листа: пока идёт сессия, он
   // раз в несколько минут обращается сюда обычным HTTP-запросом, чтобы бесплатный хостинг (Bonto и
   // подобные) не усыплял приложение «за неактивностью» посреди игры — WebSocket-трафик такие платформы

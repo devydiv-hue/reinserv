@@ -11,3 +11,6 @@ backups/
 
 # Claude Code tool-internal state, not project source.
 .claude/
+
+# Свои звуки Мастера, загруженные через саундпад (данные игры, не исходники).
+user-sounds/
