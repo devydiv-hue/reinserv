@@ -5607,7 +5607,25 @@ function reconcileMysticUnlocks(c, source){
   }
 }
 
+// Мистика — знание нового мира только для мистических архетипов: у всех остальных её убирают из вариантов
+// ВЫБОРА в бонусах карьеры, происхождения, архетипа и подтипа (по архетипу самого персонажа — карьера и
+// происхождение не привязаны к одному архетипу). Фиксированный «+мистика» и специализации не трогаются; если мистика —
+// единственный вариант, выбор остаётся как есть.
+const MYSTIC_ARCHETYPES = ['kultist','shaman','psionik'];
+function withoutMistikaChoice(c, mod, source){
+  if(!c || MYSTIC_ARCHETYPES.indexOf(c.archetypeKey)>=0 || !/^(Карьера|Происхождение|Архетип|Подтип): /.test(source||'')) return mod;
+  if(mod.t==='choice'){
+    const options = mod.options.filter(o=>o.stat!=='mistika');
+    return options.length && options.length<mod.options.length ? Object.assign({}, mod, {options}) : mod;
+  }
+  if((mod.t==='distribute' || mod.t==='reduceDistinct' || mod.t==='roleplay') && Array.isArray(mod.among)){
+    const among = mod.among.filter(s=>s!=='mistika');
+    return among.length && among.length<mod.among.length ? Object.assign({}, mod, {among}) : mod;
+  }
+  return mod;
+}
 function applyModifier(c, mod, source, auto){
+  mod = withoutMistikaChoice(c, mod, source);
   switch(mod.t){
     case 'fixed': {
       addLog(c, mod.stat, mod.delta, source);
