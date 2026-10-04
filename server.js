@@ -101,11 +101,52 @@ function handleSoundDelete(req, res) {
   });
 }
 
+// ---- Редактор карт: карты для игрового стола (JSON, не картинка) ----
+// Мастер загружает данные карты (POST /map-upload), игроки получают их по ссылке /user-maps/<id>.json и рисуют
+// у себя тем же кодом, что и редактор. Одна карта — один файл (повторная отправка той же карты перезаписывает).
+// В папке сразу кладётся .gitignore со «*», чтобы данные игры не попадали в git (корневой .gitignore не трогаем).
+const USER_MAP_DIR = path.join(DIR, 'user-maps');
+const MAX_MAP_BYTES = 4 * 1024 * 1024;
+const MAP_FILE_RE = /^[a-zA-Z0-9_-]{4,64}\.json$/;
+function handleMapUpload(req, res) {
+  const reply = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
+  const cid = String(req.headers['x-client-id'] || '');
+  if (!CLIENT_ID_RE.test(cid) || !cid.endsWith('-gm') || !clients.has(cid)) { reply(403, { error: 'Загружать карты может только подключённый Мастер' }); req.resume(); return; }
+  if (Number(req.headers['content-length'] || 0) > MAX_MAP_BYTES) { reply(413, { error: 'Карта больше 4 МБ' }); req.resume(); return; }
+  const chunks = []; let size = 0, aborted = false;
+  req.on('data', c => { if (aborted) return; size += c.length; if (size > MAX_MAP_BYTES) { aborted = true; reply(413, { error: 'Карта больше 4 МБ' }); req.destroy(); return; } chunks.push(c); });
+  req.on('end', () => {
+    if (aborted) return;
+    let map; try { map = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch (e) { reply(400, { error: 'Не JSON' }); return; }
+    if (!map || map.format !== 'reincarnator-map' || !MAP_FILE_RE.test(String(map.id) + '.json')) { reply(400, { error: 'Это не карта редактора' }); return; }
+    const name = map.id + '.json';
+    fs.mkdir(USER_MAP_DIR, { recursive: true }, (e1) => {
+      if (e1) { reply(500, { error: 'Не удалось создать папку' }); return; }
+      fs.writeFile(path.join(USER_MAP_DIR, '.gitignore'), '*\n', () => {});
+      fs.writeFile(path.join(USER_MAP_DIR, name), JSON.stringify(map), (e2) => {
+        if (e2) { reply(500, { error: 'Не удалось сохранить карту' }); return; }
+        console.log('[Server] Карта загружена', name, size, 'байт от', cid);
+        reply(200, { url: '/user-maps/' + name });
+      });
+    });
+  });
+}
+function serveMap(name, res) {
+  if (!MAP_FILE_RE.test(name)) { res.writeHead(404); res.end(); return; }
+  fs.readFile(path.join(USER_MAP_DIR, name), (err, data) => {
+    if (err) { res.writeHead(404); res.end(); return; }
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
+    res.end(data);
+  });
+}
+
 // ---- Раздача самого файла листа персонажа по обычному HTTP ----
 const httpServer = http.createServer((req, res) => {
   const urlPath = (req.url || '/').split('?')[0];
   if (req.method === 'POST' && urlPath === '/sound-upload') { handleSoundUpload(req, res); return; }
   if (req.method === 'POST' && urlPath === '/sound-delete') { handleSoundDelete(req, res); return; }
+  if (req.method === 'POST' && urlPath === '/map-upload') { handleMapUpload(req, res); return; }
+  if (urlPath.indexOf('/user-maps/') === 0) { serveMap(urlPath.slice(11), res); return; }
   if (urlPath.indexOf('/user-sounds/') === 0) { serveSound(USER_SOUND_DIR, urlPath.slice(13), res); return; }
   if (urlPath.indexOf('/assets/sounds/') === 0) { serveSound(ASSET_SOUND_DIR, urlPath.slice(15), res); return; }
   // Лёгкая проверка «жив ли сервер» — для хостинга (health check) и для самого листа: пока идёт сессия, он
