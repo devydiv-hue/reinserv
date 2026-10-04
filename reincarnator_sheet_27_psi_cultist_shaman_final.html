@@ -14362,7 +14362,7 @@ const MapStore = (function(){
     fetch(scene.url + (scene.url.indexOf('?')<0 ? '?' : '&') + 'rev=' + scene.rev, {cache:'no-store'})
       .then(r=>r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)))
       .then(j=>{ sceneCache[key].doc = MapFormat.fromJSON(j); if(onReady) onReady(); })
-      .catch(e=>{ console.warn('[Игровой стол] карта не загрузилась', scene.url, e); sceneCache[key].error = true; });
+      .catch(e=>{ console.warn('[Игровой стол] карта не загрузилась', scene.url, e); setTimeout(()=>{ if(sceneCache[key] && !sceneCache[key].doc){ delete sceneCache[key]; if(onReady) onReady(); } }, 5000); }); // повтор: следующая отрисовка запросит снова
     return null;
   }
   function invalidateLocal(id){ Object.keys(sceneCache).forEach(k=>{ if(k.indexOf('local:' + id + '#')===0) delete sceneCache[k]; }); }
@@ -15616,6 +15616,7 @@ const GameTable = (function(){
       if(op.op.indexOf('drawing')===0) draw = true;
       if(op.op==='map-set') bg = true;
     });
+    if(bg) checkSceneChange();
     renderTokens();
     requestRender({draw, bg, fx:true});
   }
@@ -15652,6 +15653,7 @@ const GameTable = (function(){
         viewState = s;
         Object.keys(pendingPos).forEach(k=>delete pendingPos[k]);
         scheduleCacheSave();
+        checkSceneChange();
         renderTokens(); requestRender({bg:true, draw:true, fx:true});
         break;
       }
@@ -15849,7 +15851,7 @@ const GameTable = (function(){
       updateTokenEl(el, t);
     });
     tokenEls.forEach((el, id)=>{ if(!seen.has(id)){ el.remove(); tokenEls.delete(id); selected.delete(id); } });
-    emptyHint.style.display = seen.size || st().drawings.length ? 'none' : '';
+    emptyHint.style.display = seen.size || st().drawings.length || (st().map && (st().map.scene || st().map.background)) ? 'none' : '';
     renderInfoCard();
   }
   function positionTokenEl(el, t){
@@ -15933,6 +15935,7 @@ const GameTable = (function(){
     dpr = window.devicePixelRatio || 1; vw = w; vh = h;
     [bgC, drC, fxC].forEach(c=>{ c.width = Math.round(w*dpr); c.height = Math.round(h*dpr); c.style.width = w+'px'; c.style.height = h+'px'; });
     if(camNeedsCenter && visible){ camNeedsCenter = false; centerOn(0, 0); }
+    if(visible && (focusPending || Date.now() < focusUntil)) applySceneFocus();
     requestRender({bg:true, draw:true, fx:true});
   }
   function setWorldTransform(ctx){ const k = CELL*cam.z*dpr; ctx.setTransform(k,0,0,k, cam.x*dpr, cam.y*dpr); }
@@ -16807,7 +16810,7 @@ const GameTable = (function(){
     ];
     if(bg) items.push({id:'bgoff', label:'Убрать фон карты', run:()=>act({c:'map-set', map:Object.assign({}, authState.map, {background:null})})});
     const sc = authState.map.scene;
-    if(sc) items.push({id:'scenepos', label:`Карта «${sc.name}»: положение…`, run:()=>openSceneForm(p)}, {id:'sceneoff', label:'Убрать карту из редактора', run:()=>act({c:'map-set', map:Object.assign({}, authState.map, {scene:null})})});
+    if(sc) items.push({id:'scenefocus', label:'К карте из редактора', run:()=>focusScene()}, {id:'scenepos', label:`Карта «${sc.name}»: положение…`, run:()=>openSceneForm(p)}, {id:'sceneoff', label:'Убрать карту из редактора', run:()=>act({c:'map-set', map:Object.assign({}, authState.map, {scene:null})})});
     items.push({id:'clear', label:'Стереть все рисунки', run:clearDrawings});
     items.push('-', {id:'reset', label:'Очистить стол целиком…', danger:true, run:resetTable});
     openMenu(p, '', items);
@@ -17019,8 +17022,21 @@ const GameTable = (function(){
     const cur = authState.map.scene, keep = cur && cur.mapId===scene.mapId;
     return act({c:'map-set', map:Object.assign({}, authState.map, {scene:Object.assign({}, scene, {x: keep ? cur.x : 0, y: keep ? cur.y : 0})})});
   }
-  function focusScene(){
-    const sc = st().map && st().map.scene; if(!sc || !vw) return;
+  // Перейти к карте из редактора. Стол может быть ещё не разложен (первый показ, анимация на весь экран) —
+  // тогда переход откладывается до resize(), и ещё секунду повторяется при каждом изменении размера поля.
+  let focusPending = false, focusUntil = 0;
+  function focusScene(){ focusPending = true; focusUntil = Date.now() + 1500; applySceneFocus(); }
+  // Новая карта на столе (другой mapId) — перейти к ней у всех; правки той же карты камеру не трогают.
+  let lastSceneId;
+  function checkSceneChange(){
+    const sc = st().map && st().map.scene, id = sc ? sc.mapId : null;
+    if(lastSceneId!==undefined && id && id!==lastSceneId) focusScene();
+    lastSceneId = id;
+  }
+  function applySceneFocus(){
+    const sc = st().map && st().map.scene; if(!sc){ focusPending = false; return; }
+    if(!vw || !visible || camNeedsCenter) return;
+    focusPending = false;
     cam.z = clamp(Math.min((vw - 80)/(sc.cols*CELL), (vh - 80)/(sc.rows*CELL), cam.z > 0 ? 1.5 : 1), ZOOM_MIN, ZOOM_MAX);
     centerOn(sc.x + sc.cols/2, sc.y + sc.rows/2);
     requestRender({bg:true, draw:true, fx:true});
@@ -17136,6 +17152,7 @@ const GameTable = (function(){
     window.addEventListener('blur', ()=>{ spaceHeld = false; viewport.classList.remove('space-pan'); });
     if(typeof ResizeObserver!=='undefined') new ResizeObserver(()=>{ if(visible) resize(); }).observe(viewport);
     else window.addEventListener('resize', ()=>{ if(visible) resize(); });
+    { const sc0 = st().map && st().map.scene; lastSceneId = sc0 ? sc0.mapId : null; } // карта, что уже была на столе при загрузке, камеру не двигает
     RoomTransport.onGameEvent((ev)=>{ if(ev && typeof ev.type==='string' && ev.type.indexOf('gt-')===0) handleTransient(ev); });
     // Стол Мастера сохранён в общем для вкладок localStorage. Вкладка, которая сейчас не Мастер (например,
     // вытесненная второй вкладкой — см. handleReplacedByOtherTab), подхватывает чужие сохранения, а не
