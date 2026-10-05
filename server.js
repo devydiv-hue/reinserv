@@ -140,6 +140,49 @@ function serveMap(name, res) {
   });
 }
 
+// ---- Редактор карт: свои объекты (картинки PNG/WebP/JPG) ----
+// Мастер загружает картинку, когда отправляет на стол карту с такими объектами (POST /asset-upload, заголовок
+// X-Asset-Id — id объекта без «u:»); игроки берут её по ссылке /user-assets/<id>.<ext>. Тот же id — перезапись.
+const USER_ASSET_DIR = path.join(DIR, 'user-assets');
+const MAX_ASSET_BYTES = 8 * 1024 * 1024;
+const ASSET_TYPES = { 'image/png': 'png', 'image/webp': 'webp', 'image/jpeg': 'jpg' };
+const ASSET_FILE_RE = /^[a-z0-9]{6,40}\.(png|webp|jpg)$/;
+function handleAssetUpload(req, res) {
+  const reply = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
+  const cid = String(req.headers['x-client-id'] || '');
+  if (!CLIENT_ID_RE.test(cid) || !cid.endsWith('-gm') || !clients.has(cid)) { reply(403, { error: 'Загружать картинки может только подключённый Мастер' }); req.resume(); return; }
+  const id = String(req.headers['x-asset-id'] || ''), ext = ASSET_TYPES[String(req.headers['content-type'] || '').split(';')[0].trim()];
+  if (!/^[a-z0-9]{6,40}$/.test(id) || !ext) { reply(400, { error: 'Нужна картинка PNG, WebP или JPG' }); req.resume(); return; }
+  if (Number(req.headers['content-length'] || 0) > MAX_ASSET_BYTES) { reply(413, { error: 'Картинка больше 8 МБ' }); req.resume(); return; }
+  const chunks = []; let size = 0, aborted = false;
+  req.on('data', c => { if (aborted) return; size += c.length; if (size > MAX_ASSET_BYTES) { aborted = true; reply(413, { error: 'Картинка больше 8 МБ' }); req.destroy(); return; } chunks.push(c); });
+  req.on('end', () => {
+    if (aborted) return;
+    const buf = Buffer.concat(chunks);
+    const magic = ext === 'png' ? buf.slice(0, 4).toString('hex') === '89504e47' : ext === 'jpg' ? buf.slice(0, 2).toString('hex') === 'ffd8' : buf.slice(0, 4).toString() === 'RIFF' && buf.slice(8, 12).toString() === 'WEBP';
+    if (!magic) { reply(400, { error: 'Содержимое не похоже на картинку' }); return; }
+    const name = id + '.' + ext;
+    fs.mkdir(USER_ASSET_DIR, { recursive: true }, (e1) => {
+      if (e1) { reply(500, { error: 'Не удалось создать папку' }); return; }
+      fs.writeFile(path.join(USER_ASSET_DIR, '.gitignore'), '*\n', () => {});
+      fs.writeFile(path.join(USER_ASSET_DIR, name), buf, (e2) => {
+        if (e2) { reply(500, { error: 'Не удалось сохранить картинку' }); return; }
+        console.log('[Server] Картинка объекта загружена', name, size, 'байт от', cid);
+        reply(200, { url: '/user-assets/' + name });
+      });
+    });
+  });
+}
+function serveAsset(name, res) {
+  if (!ASSET_FILE_RE.test(name)) { res.writeHead(404); res.end(); return; }
+  fs.readFile(path.join(USER_ASSET_DIR, name), (err, data) => {
+    if (err) { res.writeHead(404); res.end(); return; }
+    const type = name.endsWith('.png') ? 'image/png' : name.endsWith('.webp') ? 'image/webp' : 'image/jpeg';
+    res.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'no-cache', 'X-Content-Type-Options': 'nosniff' });
+    res.end(data);
+  });
+}
+
 // ---- Раздача самого файла листа персонажа по обычному HTTP ----
 const httpServer = http.createServer((req, res) => {
   const urlPath = (req.url || '/').split('?')[0];
@@ -147,6 +190,8 @@ const httpServer = http.createServer((req, res) => {
   if (req.method === 'POST' && urlPath === '/sound-delete') { handleSoundDelete(req, res); return; }
   if (req.method === 'POST' && urlPath === '/map-upload') { handleMapUpload(req, res); return; }
   if (urlPath.indexOf('/user-maps/') === 0) { serveMap(urlPath.slice(11), res); return; }
+  if (req.method === 'POST' && urlPath === '/asset-upload') { handleAssetUpload(req, res); return; }
+  if (urlPath.indexOf('/user-assets/') === 0) { serveAsset(urlPath.slice(13), res); return; }
   if (urlPath.indexOf('/user-sounds/') === 0) { serveSound(USER_SOUND_DIR, urlPath.slice(13), res); return; }
   if (urlPath.indexOf('/assets/sounds/') === 0) { serveSound(ASSET_SOUND_DIR, urlPath.slice(15), res); return; }
   // Лёгкая проверка «жив ли сервер» — для хостинга (health check) и для самого листа: пока идёт сессия, он
