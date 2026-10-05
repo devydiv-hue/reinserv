@@ -14181,46 +14181,551 @@ const MapAssets = (function(){
   function rocks(g, x, y, w, h, n, c){ for(let i=0;i<n;i++){ const rx = x + g.rnd()*w, ry = y + g.rnd()*h, r = 0.15 + g.rnd()*0.35; g.blob(rx, ry, r, c || P.conD); } }
 
   /* ===================== ГОРОД ===================== */
-  A('house_small', 'Жилой дом, малый', 'city', 3, 3, {t:'дом здание жилой коттедж', v:3}, (g, v)=>{
-    roof(g, 0, 0, 3, 3, v===2 ? P.brk : P.con, {vents:1, damage:v===1 ? 1 : 0}); g.r(1.1, 2.75, 0.8, 0.25, P.woodD); });
-  A('house_mid', 'Жилой дом, средний', 'city', 4, 5, {t:'дом здание жилой', v:3}, (g, v)=>{
-    roof(g, 0, 0, 4, 5, v===2 ? P.brk : P.conL, {damage:v}); g.r(1.5, 4.75, 1, 0.25, P.woodD); });
-  A('apartment_block', 'Многоквартирный дом', 'city', 6, 8, {t:'дом многоэтажка панелька жилой', v:3}, (g, v)=>{
-    roof(g, 0, 0, 6, 8, P.con, {damage:v*2, vents:4}); g.r(2.2, 1, 1.6, 1.4, P.conL); g.l([2.2, 1.7, 3.8, 1.7], P.ink, 0.04); g.r(2.4, 5.6, 1.2, 1.2, P.metL); });
-  A('ruin_house', 'Руины дома', 'city', 4, 4, {t:'руины разрушенный дом развалины', v:3}, (g)=>{
-    g.r(0.2, 0.2, 3.6, 3.6, P.conD, {alpha:0.55, s:false});
-    g.l([0, 0, 4, 0, 4, 2.2], P.con, 0.28); g.l([0, 0, 0, 4, 1.6, 4], P.con, 0.28); g.l([2.6, 4, 4, 4, 4, 3.3], P.con, 0.28);
-    g.rub(0.4, 0.4, 3.2, 3.2, 26, [P.con, P.conD, P.conL, P.brkD, P.woodD]); });
-  A('ruin_corner', 'Обрушенный угол здания', 'city', 3, 3, {t:'руины стена угол', v:3}, (g)=>{
-    g.l([0, 3, 0, 0, 3, 0], P.conD, 0.3); g.rub(0.3, 0.3, 2.5, 2.5, 18, [P.con, P.conD, P.brkD]); });
-  A('yard', 'Двор с детской площадкой', 'city', 4, 4, {t:'двор площадка качели песочница', g:true}, (g)=>{
-    g.r(0, 0, 4, 4, P.dust || '#b7a079', {s:false, alpha:0.7}); g.r(0.4, 0.4, 1.4, 1.4, P.sand); g.r(0.4, 0.4, 1.4, 1.4, false, {lw:1.2});
-    g.l([2.3, 0.6, 3.6, 0.6], P.metD, 0.08); g.l([2.5, 0.6, 2.5, 1.6], P.rust, 0.05); g.l([3.4, 0.6, 3.4, 1.6], P.rust, 0.05); g.r(2.7, 1.4, 0.5, 0.2, P.woodL);
-    g.r(0.6, 2.6, 1.6, 0.35, P.woodL); g.c(3.1, 3.0, 0.5, P.pl); });
-  A('crossroad', 'Разметка перекрёстка', 'city', 4, 4, {t:'перекрёсток разметка зебра дорога', g:true}, (g)=>{
-    for(let i=0;i<5;i++){ g.r(0.35 + i*0.7, 0.05, 0.4, 0.55, P.wh, {s:false, alpha:0.75}); g.r(0.35 + i*0.7, 3.4, 0.4, 0.55, P.wh, {s:false, alpha:0.75}); }
-    g.l([0, 2, 0.6, 2], P.yel, 0.08); g.l([3.4, 2, 4, 2], P.yel, 0.08); });
-  A('zebra', 'Пешеходный переход', 'city', 3, 1, {t:'зебра переход разметка', g:true}, (g)=>{ for(let i=0;i<5;i++) g.r(0.1 + i*0.6, 0.1, 0.35, 0.8, P.wh, {s:false, alpha:0.75}); });
-  A('parking', 'Парковка', 'city', 4, 3, {t:'парковка стоянка разметка', g:true}, (g)=>{ for(let i=0;i<=4;i++) g.l([i, 0, i, 2], P.wh, 0.06, {alpha:0.75}); g.l([0, 2, 4, 2], P.wh, 0.06, {alpha:0.75}); });
+  /* ---- Набор для детальных (HD) рисунков объектов ----
+     hk(g) — помощники поверх контекста ассета (1 единица = 1 клетка): органичные пятна, ржавчина, швы, вмятины,
+     обломки с гранями, кирпичи, доски, арматура, мусор, листва, мох, лужи, граффити, брезент, фактуры MapTex.
+     Всё детерминировано: случайность — только из g.rnd (одна и та же модель всегда рисуется одинаково). */
+  function hk(g){
+    const c = g.ctx, rnd = g.rnd, R = (a, b)=>a + rnd()*(b - a), pick = (arr)=>arr[Math.floor(rnd()*arr.length)];
+    const k = {c, rnd, R, pick, INK:'#15120f'};
+    k.rr = (x, y, w, h, r)=>{ r = Math.min(r, w/2, h/2); c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); };
+    k.poly = (p)=>{ c.beginPath(); c.moveTo(p[0], p[1]); for(let i=2;i<p.length;i+=2) c.lineTo(p[i], p[i + 1]); c.closePath(); };
+    k.line = (p, col, w, a, dash)=>{ c.save(); if(a!=null) c.globalAlpha = a; if(dash) c.setLineDash(dash); c.beginPath(); c.moveTo(p[0], p[1]); for(let i=2;i<p.length;i+=2) c.lineTo(p[i], p[i + 1]); c.strokeStyle = col; c.lineWidth = w; c.lineCap = 'round'; c.lineJoin = 'round'; c.stroke(); c.restore(); };
+    k.fill = (col, a)=>{ c.save(); if(a!=null) c.globalAlpha = a; c.fillStyle = col; c.fill(); c.restore(); };
+    k.stroke = (col, w, a)=>{ c.save(); if(a!=null) c.globalAlpha = a; c.strokeStyle = col; c.lineWidth = w; c.lineJoin = 'round'; c.stroke(); c.restore(); };
+    k.fillP = (p, col, a)=>{ k.poly(p); k.fill(col, a); };
+    k.organic = (cx, cy, r, irr, ry)=>{ const p1 = rnd()*6.3, p2 = rnd()*6.3, p3 = rnd()*6.3, n = 30, sy = ry ? ry/r : 1; c.beginPath();
+      for(let i=0;i<=n;i++){ const an = i/n*Math.PI*2, d = r*(1 + irr*(0.5*Math.sin(3*an + p1) + 0.3*Math.sin(5*an + p2) + 0.2*Math.sin(9*an + p3))); const x = cx + Math.cos(an)*d, y = cy + Math.sin(an)*d*sy; i ? c.lineTo(x, y) : c.moveTo(x, y); } c.closePath(); };
+    k.jag = (cx, cy, r, n, irr, rot)=>{ const pts = []; for(let i=0;i<n;i++){ const an = (rot || 0) + i/n*Math.PI*2 + (rnd() - 0.5)*0.5, d = r*(1 - irr + rnd()*irr*2); pts.push(cx + Math.cos(an)*d, cy + Math.sin(an)*d); } return pts; };
+    k.blot = (cx, cy, r, col, a, irr)=>{ k.organic(cx, cy, r, irr==null ? 0.45 : irr); k.fill(col, a); };
+    k.radial = (cx, cy, r, col, a)=>{ const gr = c.createRadialGradient(cx, cy, 0, cx, cy, r); gr.addColorStop(0, hexA(col, a)); gr.addColorStop(1, hexA(col, 0)); c.fillStyle = gr; c.fillRect(cx - r, cy - r, r*2, r*2); };
+    k.lin = (x0, y0, x1, y1, stops)=>{ const gr = c.createLinearGradient(x0, y0, x1, y1); stops.forEach(s=>gr.addColorStop(s[0], s[1])); return gr; };
+    k.seam = (p, w, a)=>{ k.line(p.map(q=>q + 0.006), 'rgba(255,248,236,.25)', (w || 0.012)*0.8, a); k.line(p, 'rgba(10,8,6,.8)', w || 0.012, a); };
+    k.dent = (cx, cy, r)=>{ k.radial(cx + r*0.25, cy + r*0.3, r, '#000000', 0.3); k.radial(cx - r*0.3, cy - r*0.3, r*0.8, '#fffaf0', 0.2); };
+    k.rust = (cx, cy, r, hole, lift)=>{
+      if(lift){ c.save(); k.organic(cx, cy, r*1.25, 0.5); c.strokeStyle = hexA(lift, 0.45); c.lineWidth = Math.max(0.004, r*0.08); c.stroke(); c.restore(); }
+      k.organic(cx, cy, r, 0.5); const gr = c.createRadialGradient(cx, cy, 0, cx, cy, r*1.3); gr.addColorStop(0, '#4a2616'); gr.addColorStop(0.45, '#7a4126'); gr.addColorStop(0.8, '#9a5a30'); gr.addColorStop(1, 'rgba(154,90,48,.3)'); c.fillStyle = gr; c.fill();
+      k.blot(cx + r*0.15, cy - r*0.1, r*0.45, '#b0703c', 0.3);
+      for(let i=0;i<Math.min(40, Math.round(5 + r*50));i++){ const an = rnd()*6.28, d = rnd()*r*0.9; c.fillStyle = rnd() < 0.7 ? 'rgba(36,20,12,.8)' : 'rgba(200,140,80,.55)'; c.beginPath(); c.arc(cx + Math.cos(an)*d, cy + Math.sin(an)*d, r*0.04 + rnd()*r*0.06, 0, 6.28); c.fill(); }
+      if(hole){ k.poly(k.jag(cx, cy, r*0.38, 10, 0.45)); c.fillStyle = '#0c0a08'; c.fill(); c.strokeStyle = '#a2602f'; c.lineWidth = Math.max(0.004, r*0.06); c.stroke(); }
+    };
+    k.peel = (cx, cy, r, col)=>{ k.organic(cx, cy, r, 0.6); k.fill(hexA(col || '#c8c0b0', 0.3)); k.organic(cx + r*0.1, cy + r*0.1, r*0.55, 0.6); k.fill(hexA(shade(col || '#c8c0b0', 0.2), 0.22)); };
+    k.streak = (x, y, len, w, col, a)=>{ const gr = c.createLinearGradient(x, y, x, y + len); gr.addColorStop(0, hexA(col, a)); gr.addColorStop(1, hexA(col, 0)); c.fillStyle = gr; c.fillRect(x - w/2, y, w, len); };
+    k.tex = (id)=>typeof MapTex!=='undefined' ? MapTex.pattern(id) : null;
+    // залить текущий контур фактурой (с оттенком: тон берётся от цвета, яркость — от фактуры)
+    k.texFill = (id, fallback, tint, ta)=>{ c.save(); c.fillStyle = k.tex(id) || fallback; c.fill(); if(tint){ c.globalCompositeOperation = 'color'; c.globalAlpha = ta==null ? 0.6 : ta; c.fillStyle = tint; c.fill(); } c.restore(); };
+    // обломок с гранями: тень, боковая грань, верх со светлой кромкой
+    k.chunk = (cx, cy, r, col, h)=>{ const pts = k.jag(cx, cy, r, 5 + Math.floor(rnd()*3), 0.35, rnd()*6.28), hh = h==null ? r*0.35 : h;
+      k.fillP(pts.map((v, i)=>v + (i%2 ? hh*1.1 : hh*0.9)), 'rgba(12,10,8,.38)');
+      k.fillP(pts.map((v, i)=>v + (i%2 ? hh*0.5 : hh*0.35)), shade(col, -0.38)); k.poly(pts.map((v, i)=>v + (i%2 ? hh*0.5 : hh*0.35))); k.stroke('rgba(10,8,6,.5)', Math.max(0.005, r*0.05));
+      k.fillP(pts, col); k.poly(pts); k.stroke('rgba(10,8,6,.55)', Math.max(0.005, r*0.05));
+      k.line([pts[0], pts[1], pts[2], pts[3], pts[4], pts[5]], 'rgba(255,250,240,.35)', Math.max(0.004, r*0.04));
+      for(let i=0;i<4;i++){ c.fillStyle = rnd() < 0.5 ? 'rgba(30,26,22,.45)' : 'rgba(230,226,216,.35)'; c.beginPath(); c.arc(cx + (rnd() - 0.5)*r, cy + (rnd() - 0.5)*r, r*0.06, 0, 6.28); c.fill(); }
+      return pts; };
+    k.brick = (x, y, ang, col, s)=>{ s = s || 1; c.save(); c.translate(x, y); c.rotate(ang); const w = 0.25*s, h = 0.12*s;
+      c.fillStyle = 'rgba(12,10,8,.35)'; c.fillRect(-w/2 + 0.015, -h/2 + 0.02, w, h); k.rr(-w/2, -h/2, w, h, 0.012*s); k.fill(col); k.stroke('rgba(20,12,10,.6)', 0.006*s);
+      c.fillStyle = 'rgba(255,240,220,.18)'; c.fillRect(-w/2 + 0.01*s, -h/2 + 0.008*s, w - 0.02*s, 0.02*s); c.fillStyle = 'rgba(190,180,160,.45)'; c.fillRect(w*0.1, -h*0.3, w*0.2, h*0.25); c.restore(); };
+    k.plank = (x, y, len, w, ang, col, broken)=>{ c.save(); c.translate(x, y); c.rotate(ang);
+      c.fillStyle = 'rgba(12,10,8,.3)'; c.fillRect(-len/2 + 0.02, -w/2 + 0.025, len, w);
+      if(broken){ c.beginPath(); c.moveTo(-len/2, -w/2); c.lineTo(len/2 - 0.04, -w/2); c.lineTo(len/2, -w/6); c.lineTo(len/2 - 0.05, w/8); c.lineTo(len/2 - 0.02, w/2); c.lineTo(-len/2, w/2); c.closePath(); } else { c.beginPath(); c.rect(-len/2, -w/2, len, w); }
+      k.fill(col); k.stroke('rgba(20,14,10,.6)', 0.008);
+      for(let i=0;i<3;i++){ const yy = -w/2 + w*(0.25 + i*0.25) + (rnd() - 0.5)*w*0.1; k.line([-len/2 + 0.02, yy, len/2 - 0.03, yy + (rnd() - 0.5)*w*0.2], 'rgba(40,28,18,.35)', 0.005); }
+      c.fillStyle = '#2a2420'; c.fillRect(-len/2 + 0.04, -0.008, 0.016, 0.016); if(!broken) c.fillRect(len/2 - 0.06, -0.008, 0.016, 0.016); c.restore(); };
+    k.rebar = (p, a)=>{ k.line(p, '#3e2a1e', 0.026, a); k.line(p, '#7a4a30', 0.016, a); k.line(p.map((q, i)=>q - 0.004), 'rgba(220,160,110,.35)', 0.005, a); };
+    k.trash = (x, y, w, h, n)=>{ for(let i=0;i<n;i++){ const px = x + rnd()*w, py = y + rnd()*h, t = rnd();
+      if(t < 0.35){ c.save(); c.translate(px, py); c.rotate(rnd()*6.28); c.fillStyle = pick(['#d8d2c2', '#c9c1a8', '#b9b2a0', '#a9b4b8']); c.fillRect(-0.04, -0.03, 0.08, 0.06); c.strokeStyle = 'rgba(40,36,30,.35)'; c.lineWidth = 0.004; c.strokeRect(-0.04, -0.03, 0.08, 0.06); c.restore(); }
+      else if(t < 0.55){ c.save(); c.translate(px, py); c.rotate(rnd()*6.28); k.rr(-0.035, -0.018, 0.07, 0.036, 0.016); k.fill(pick(['#8a8f92', '#9a3a2e', '#3e5a6a', '#b8a24a'])); c.fillStyle = 'rgba(255,255,255,.35)'; c.fillRect(-0.03, -0.012, 0.06, 0.006); c.restore(); }
+      else if(t < 0.72){ c.save(); c.translate(px, py); c.rotate(rnd()*6.28); c.beginPath(); c.ellipse(0, 0, 0.05, 0.018, 0, 0, 6.28); c.fillStyle = pick(['rgba(60,90,50,.8)', 'rgba(110,70,30,.8)', 'rgba(170,190,180,.6)']); c.fill(); c.fillStyle = 'rgba(255,255,255,.3)'; c.fillRect(-0.03, -0.01, 0.04, 0.005); c.restore(); }
+      else if(t < 0.86){ k.blot(px, py, 0.04 + rnd()*0.04, pick(['#d9d6cc', '#3a3a38', '#5a6a5a']), 0.75, 0.5); }
+      else { k.blot(px, py, 0.015 + rnd()*0.02, '#2a2622', 0.6); } } };
+    k.leaves = (x, y, w, h, n)=>{ for(let i=0;i<n;i++){ const px = x + rnd()*w, py = y + rnd()*h; c.save(); c.translate(px, py); c.rotate(rnd()*6.28); c.beginPath(); c.ellipse(0, 0, 0.022, 0.011, 0, 0, 6.28); c.fillStyle = pick(['#6f5a36', '#857048', '#5a4a2c', '#7a6040', '#5e5a3a']); c.fill(); c.restore(); } };
+    k.tufts = (x, y, w, h, n, cols)=>{ cols = cols || ['#7c785a', '#8f8a64', '#6a664c', '#5f6a48']; c.lineCap = 'round'; for(let i=0;i<n;i++){ const px = x + rnd()*w, py = y + rnd()*h, m = 4 + Math.floor(rnd()*5); for(let j=0;j<m;j++){ const an = -Math.PI/2 + (rnd() - 0.5)*2.2, L = 0.04 + rnd()*0.07; c.beginPath(); c.moveTo(px, py); c.quadraticCurveTo(px + Math.cos(an)*L*0.5 + (rnd() - 0.5)*0.02, py + Math.sin(an)*L*0.5, px + Math.cos(an)*L, py + Math.sin(an)*L); c.strokeStyle = pick(cols); c.lineWidth = 0.008; c.stroke(); } } };
+    k.moss = (cx, cy, r)=>{ k.blot(cx, cy, r, '#5d6648', 0.55, 0.6); k.blot(cx + r*0.2, cy - r*0.1, r*0.6, '#737d55', 0.5, 0.6); for(let i=0;i<8;i++){ c.fillStyle = 'rgba(140,150,100,.55)'; c.beginPath(); c.arc(cx + (rnd() - 0.5)*r*1.4, cy + (rnd() - 0.5)*r*1.4, r*0.06, 0, 6.28); c.fill(); } };
+    k.puddle = (cx, cy, r, ry)=>{ k.organic(cx, cy, r, 0.4, ry); k.fill('#2f3a3c', 0.6); k.organic(cx - r*0.1, cy - r*0.1, r*0.8, 0.4, ry ? ry*0.8 : null); k.fill('#4a5a5e', 0.35); k.organic(cx, cy, r, 0.4, ry); k.stroke('rgba(200,210,210,.25)', Math.max(0.004, r*0.04)); };
+    k.graffiti = (x, y, w, h, col)=>{ c.save(); c.globalAlpha = 0.75; c.lineCap = 'round'; c.strokeStyle = col; c.lineWidth = Math.min(w, h)*0.08; c.beginPath(); let px = x, py = y + h*(0.3 + rnd()*0.4); c.moveTo(px, py);
+      for(let i=0;i<6;i++){ const nx = x + w*(i + 1)/6, ny = y + h*(0.2 + rnd()*0.6); c.bezierCurveTo(px + w*0.08, y + rnd()*h, nx - w*0.08, y + rnd()*h, nx, ny); px = nx; py = ny; } c.stroke();
+      c.lineWidth = Math.min(w, h)*0.03; c.strokeStyle = 'rgba(20,18,16,.6)'; c.stroke(); c.restore(); };
+    k.tarp = (x, y, w, h, col, ang)=>{ c.save(); c.translate(x + w/2, y + h/2); if(ang) c.rotate(ang);
+      k.organic(0, 0, w/2, 0.08, h/2); k.fill(col); c.save(); k.organic(0, 0, w/2, 0.08, h/2); c.clip();
+        for(let i=0;i<5;i++){ const fx = (rnd() - 0.5)*w, fy = (rnd() - 0.5)*h; k.line([fx - w*0.3, fy - h*0.2, fx + w*0.3, fy + h*0.25], 'rgba(0,0,0,.22)', Math.min(w, h)*0.05); k.line([fx - w*0.3, fy - h*0.2 - 0.02, fx + w*0.3, fy + h*0.25 - 0.02], 'rgba(255,255,255,.15)', Math.min(w, h)*0.03); }
+        k.radial(0, 0, Math.max(w, h)*0.6, '#cfc4ae', 0.18); c.restore();
+      k.organic(0, 0, w/2, 0.08, h/2); k.stroke('rgba(10,8,6,.55)', 0.01);
+      [[-w/2 + 0.04, -h/2 + 0.04], [w/2 - 0.04, -h/2 + 0.04], [-w/2 + 0.04, h/2 - 0.04], [w/2 - 0.04, h/2 - 0.04]].forEach(([px, py])=>{ c.beginPath(); c.arc(px, py, 0.012, 0, 6.28); c.fillStyle = '#9a968c'; c.fill(); });
+      c.restore(); };
+    k.tire = (cx, cy, r)=>{ c.beginPath(); c.arc(cx + r*0.15, cy + r*0.2, r, 0, 6.28); k.fill('rgba(10,8,6,.4)'); c.beginPath(); c.arc(cx, cy, r, 0, 6.28); c.arc(cx, cy, r*0.5, 0, 6.28, true); k.fill('#1c1b1a');
+      for(let i=0;i<14;i++){ const an = i/14*6.28; k.line([cx + Math.cos(an)*r*0.62, cy + Math.sin(an)*r*0.62, cx + Math.cos(an)*r*0.95, cy + Math.sin(an)*r*0.95], '#3a3836', r*0.08); }
+      c.beginPath(); c.arc(cx, cy, r*0.5, 0, 6.28); k.stroke('rgba(120,116,110,.4)', r*0.05); };
+    // стекло: тёмное с отражением; разбитое — проём с осколками по раме
+    k.glass = (pathFn, x0, y0, x1, y1, broken)=>{ pathFn(); if(broken){ k.fill('#16130f'); c.save(); pathFn(); c.clip(); for(let i=0;i<6;i++){ const px = x0 + rnd()*(x1 - x0), py = rnd() < 0.5 ? y0 : y1; k.fillP([px, py, px + 0.03, py + (rnd() - 0.5)*0.05, px + 0.01, py + (py===y0 ? 0.04 : -0.04)], 'rgba(198,212,212,.7)'); } c.restore(); }
+      else { c.fillStyle = k.lin(x0, y0, x1, y1, [[0, '#2a3536'], [1, '#46575b']]); c.fill(); c.save(); pathFn(); c.clip(); c.globalAlpha = 0.25; k.fillP([x0 + (x1 - x0)*0.2, y0, x0 + (x1 - x0)*0.35, y0, x0 + (x1 - x0)*0.15, y1, x0, y1], '#dfe6e6'); c.restore(); }
+      pathFn(); k.stroke('#151311', 0.012); };
+    // кромка поверхности сверху-слева светлее, снизу-справа темнее (объём плоской детали)
+    k.bevel = (pathFn, w)=>{ c.save(); pathFn(); c.clip(); c.translate(w, w); pathFn(); k.stroke('rgba(255,250,240,.28)', w*2); c.restore(); c.save(); pathFn(); c.clip(); c.translate(-w, -w); pathFn(); k.stroke('rgba(0,0,0,.3)', w*2); c.restore(); };
+    return k;
+  }
+  /* ---- Город (HD): дома, многоэтажка, руины ---- */
+  const LIGHT = [-0.6, -0.8]; // свет сверху-слева (в координатах карты)
+  // скат крыши: заливка фактурой (ряды параллельны свесу), свет по нормали ската, темнее к свесу
+  function roofFace(k, pts, mat, tint, ang, nrm, ridgeEave){
+    const c = k.c; c.save(); k.poly(pts); c.clip();
+    let cx = 0, cy = 0; for(let i=0;i<pts.length;i+=2){ cx += pts[i]; cy += pts[i + 1]; } cx /= pts.length/2; cy /= pts.length/2;
+    c.save(); c.translate(cx, cy); c.rotate(ang); c.beginPath(); c.rect(-8, -8, 16, 16); k.texFill(mat, '#7a746c', tint, 0.62); c.restore();
+    const b = nrm[0]*LIGHT[0] + nrm[1]*LIGHT[1]; c.fillStyle = b > 0 ? `rgba(255,250,240,${b*0.16})` : `rgba(0,0,0,${-b*0.34})`; c.fillRect(-1, -1, 20, 20);
+    if(ridgeEave){ const [rx, ry, ex, ey] = ridgeEave; c.fillStyle = k.lin(rx, ry, ex, ey, [[0, 'rgba(0,0,0,0)'], [1, 'rgba(0,0,0,.22)']]); c.fillRect(-1, -1, 20, 20); }
+    c.restore();
+  }
+  function chimney(k, x, y, s){ const c = k.c; s = s || 1; k.rr(x + 0.05*s, y + 0.07*s, 0.3*s, 0.3*s, 0.02); k.fill('rgba(10,8,6,.4)'); k.rr(x, y, 0.3*s, 0.3*s, 0.02); c.save(); k.rr(x, y, 0.3*s, 0.3*s, 0.02); k.texFill('brickwall', '#7a4c3e'); c.restore(); k.rr(x, y, 0.3*s, 0.3*s, 0.02); k.stroke(k.INK, 0.012);
+    k.rr(x + 0.06*s, y + 0.06*s, 0.18*s, 0.18*s, 0.01); k.fill('#141210'); k.radial(x + 0.15*s, y + 0.15*s, 0.45*s, '#1a1714', 0.35); k.line([x, y + 0.02, x + 0.3*s, y + 0.02], 'rgba(255,250,240,.25)', 0.01); }
+  function ventPipe(k, x, y, r){ const c = k.c; c.beginPath(); c.arc(x + r*0.3, y + r*0.4, r, 0, 6.28); k.fill('rgba(10,8,6,.35)'); c.beginPath(); c.arc(x, y, r, 0, 6.28); k.fill('#6e7174'); k.stroke(k.INK, 0.01); c.beginPath(); c.arc(x, y, r*0.6, 0, 6.28); k.fill('#2a2826'); k.line([x - r*0.6, y - r*0.5, x + r*0.2, y - r*0.8], 'rgba(255,255,255,.3)', r*0.15); }
+  function dish(k, x, y, r){ const c = k.c; c.beginPath(); c.ellipse(x + r*0.2, y + r*0.3, r, r*0.8, 0.4, 0, 6.28); k.fill('rgba(10,8,6,.35)'); c.beginPath(); c.ellipse(x, y, r, r*0.8, 0.4, 0, 6.28); c.fillStyle = k.lin(x - r, y - r, x + r, y + r, [[0, '#c9c6bd'], [1, '#7e7b74']]); c.fill(); k.stroke(k.INK, 0.01); k.line([x, y, x + r*0.9, y + r*0.6], '#3a3836', 0.015); c.beginPath(); c.arc(x + r*0.9, y + r*0.6, r*0.12, 0, 6.28); k.fill('#2a2826'); k.rust(x - r*0.3, y + r*0.2, r*0.25, false); }
+  function solar(k, x, y, w, h, broken){ const c = k.c; k.rr(x + 0.04, y + 0.05, w, h, 0.01); k.fill('rgba(10,8,6,.4)'); k.rr(x, y, w, h, 0.01); c.fillStyle = k.lin(x, y, x + w, y + h, [[0, '#2d3b4e'], [1, '#1b2431']]); c.fill(); k.stroke('#8a8d90', 0.014);
+    for(let i=1;i<4;i++) k.line([x + w*i/4, y, x + w*i/4, y + h], 'rgba(160,170,180,.45)', 0.006); for(let j=1;j<3;j++) k.line([x, y + h*j/3, x + w, y + h*j/3], 'rgba(160,170,180,.45)', 0.006);
+    k.line([x + w*0.1, y + h*0.1, x + w*0.4, y + h*0.6], 'rgba(255,255,255,.18)', 0.02); if(broken){ const ix = x + w*0.6, iy = y + h*0.4; for(let i=0;i<8;i++){ const a = i/8*6.28; k.line([ix, iy, ix + Math.cos(a)*w*0.3, iy + Math.sin(a)*h*0.4], 'rgba(220,228,230,.6)', 0.005); } } }
+  function antenna(k, x, y, L, ang){ const c = k.c, dx = Math.cos(ang), dy = Math.sin(ang); k.line([x, y, x + dx*L, y + dy*L], '#2a2826', 0.016); for(let i=1;i<6;i++){ const px = x + dx*L*i/6, py = y + dy*L*i/6, w = L*0.22*(1 - i/8); k.line([px - dy*w, py + dx*w, px + dy*w, py - dx*w], '#3a3836', 0.01); } c.beginPath(); c.arc(x, y, 0.03, 0, 6.28); k.fill('#1e1c1a'); }
+  function hole(k, cx, cy, r, raft){ const c = k.c; // провал кровли: тьма, стропила, обломки внутри, рваный край
+    k.organic(cx, cy, r, 0.4, r*0.75); c.fillStyle = k.lin(cx - r, cy - r, cx + r, cy + r, [[0, '#0e0c0a'], [1, '#2a241e']]); c.fill();
+    c.save(); k.organic(cx, cy, r, 0.4, r*0.75); c.clip(); for(let i=0;i<5;i++) k.chunk(cx + k.R(-0.6, 0.6)*r, cy + k.R(-0.4, 0.5)*r, r*k.R(0.08, 0.16), k.pick(['#8a8580', '#6b5a48', '#7a4c3e']), r*0.04);
+      for(let i=-3;i<=3;i++){ const x = cx + i*r*0.3; if(raft==='h') k.line([cx - r*1.2, cy + i*r*0.25, cx + r*1.2, cy + i*r*0.25 + k.R(-0.04, 0.04)], '#5c4632', 0.05); else k.line([x, cy - r, x + k.R(-0.05, 0.05), cy + r], '#5c4632', 0.05); }
+      if(raft==='h') for(let i=-3;i<=3;i++) k.line([cx - r*1.2, cy + i*r*0.25 - 0.015, cx + r*1.2, cy + i*r*0.25 - 0.015], 'rgba(255,240,220,.15)', 0.012); else for(let i=-3;i<=3;i++) k.line([cx + i*r*0.3 - 0.015, cy - r, cx + i*r*0.3 - 0.015, cy + r], 'rgba(255,240,220,.15)', 0.012);
+    c.restore(); k.organic(cx, cy, r, 0.4, r*0.75); k.stroke('#2a2420', 0.03); for(let i=0;i<10;i++){ const a = k.rnd()*6.28; k.chunk(cx + Math.cos(a)*r*1.05, cy + Math.sin(a)*r*0.8, 0.035, '#8a7a6a', 0.012); } }
+  function burntInside(k, x0, y0, x1, y1, raftH){ const c = k.c; // выгоревший дом сверху: стены по периметру, обгорелые стропила, пепел
+    c.fillStyle = k.lin(x0, y0, x1, y1, [[0, '#1a1714'], [1, '#262019']]); c.fillRect(x0, y0, x1 - x0, y1 - y0);
+    for(let i=0;i<10;i++) k.blot(k.R(x0, x1), k.R(y0, y1), k.R(0.12, 0.35), k.pick(['#5a524a', '#8a847a', '#3a2a20']), k.R(0.3, 0.6));
+    for(let i=0;i<14;i++) k.chunk(k.R(x0 + 0.2, x1 - 0.2), k.R(y0 + 0.2, y1 - 0.2), k.R(0.05, 0.12), k.pick(['#4a4440', '#5e3a2a', '#2a2624']), 0.02);
+    const n = Math.round(((raftH ? y1 - y0 : x1 - x0))/0.45); for(let i=1;i<n;i++){ if(k.rnd() < 0.35) continue; const t = i/n; const a = raftH ? [x0, y0 + (y1 - y0)*t, x1, y0 + (y1 - y0)*t] : [x0 + (x1 - x0)*t, y0, x0 + (x1 - x0)*t, y1];
+      const cut = k.R(0.25, 0.75); const p = raftH ? [a[0], a[1], a[0] + (a[2] - a[0])*cut, a[1] + k.R(-0.05, 0.05)] : [a[0], a[1], a[0] + k.R(-0.05, 0.05), a[1] + (a[3] - a[1])*cut]; k.line(p.map(v=>v + 0.04), 'rgba(0,0,0,.5)', 0.1); k.line(p, '#0c0a08', 0.09); k.line(p, '#4e3a2a', 0.05); k.line(p.map(v=>v - 0.012), 'rgba(255,190,140,.18)', 0.014); for(let j=0;j<4;j++){ const t = k.rnd(); k.line([p[0] + (p[2] - p[0])*t - 0.03, p[1] + (p[3] - p[1])*t, p[0] + (p[2] - p[0])*t + 0.03, p[1] + (p[3] - p[1])*t + 0.02], '#141110', 0.012); } }
+    const mx = (x0 + x1)/2, my = (y0 + y1)/2; [[mx, y0, mx, my + (y1 - y0)*0.15], [x0, my, mx - 0.3, my]].forEach(p=>{ c.beginPath(); c.moveTo(p[0], p[1]); c.lineTo(p[2], p[3]); c.lineWidth = 0.12; c.strokeStyle = k.tex('brickwall') || '#6b4a3e'; c.stroke(); k.line(p, 'rgba(10,8,6,.45)', 0.12); });
+    for(let i=0;i<6;i++){ const ax = k.R(x0 + 0.3, x1 - 0.3), ay = k.R(y0 + 0.3, y1 - 0.3); k.organic(ax, ay, k.R(0.15, 0.3), 0.5, k.R(0.1, 0.2)); k.fill('#9a948a', 0.45); }
+    c.beginPath(); c.rect(x0, y0, x1 - x0, y1 - y0); c.lineWidth = 0.18; c.strokeStyle = k.tex('brickwall') || '#6b4a3e'; c.stroke(); c.save(); c.beginPath(); c.rect(x0, y0, x1 - x0, y1 - y0); c.lineWidth = 0.18; c.strokeStyle = 'rgba(10,8,6,.3)'; c.stroke(); c.restore();
+    for(let i=0;i<8;i++){ const t = k.rnd(), side = Math.floor(k.rnd()*4); const px = side < 2 ? x0 + (x1 - x0)*t : (side===2 ? x0 : x1), py = side < 2 ? (side ? y1 : y0) : y0 + (y1 - y0)*t; k.radial(px, py, 0.3, '#0c0a08', 0.5); } c.beginPath(); c.rect(x0, y0, x1 - x0, y1 - y0); k.stroke('rgba(30,26,22,.8)', 0.012);
+    for(let i=0;i<4;i++) k.radial(k.R(x0, x1), k.R(y0, y1), k.R(0.5, 1), '#0c0a08', 0.35); }
+  // Дом: рамка крыши в клетках, кровля, повреждения, «жизнь» на крыше
+  function houseDraw(g, W, H, d){
+    const k = hk(g), c = k.c, e = 0.1, x0 = e, y0 = e, x1 = (d.main ? d.main[2] : W) - e, y1 = (d.main ? d.main[3] : H) - e;
+    const vertical = (y1 - y0) > (x1 - x0), tint = d.tint, mat = d.mat || 'rooftile';
+    if(d.dmg===3){ burntInside(k, x0 + 0.05, y0 + 0.05, x1 - 0.05, y1 - 0.05, !vertical); k.radial((x0 + x1)/2, (y0 + y1)/2, Math.max(W, H)*0.7, '#0c0a08', 0.25); for(let i=0;i<3;i++) k.chunk(k.R(0.2, W - 0.2), y1 + 0.02, 0.06, '#3a3430', 0.02); return; }
+    const mx = (x0 + x1)/2, my = (y0 + y1)/2;
+    if(d.roof==='flat'){
+      k.rr(x0, y0, x1 - x0, y1 - y0, 0.04); k.texFill('concrete', '#8a8780');
+      k.rr(x0 + 0.14, y0 + 0.14, x1 - x0 - 0.28, y1 - y0 - 0.28, 0.02); k.texFill('roofing', '#46433f');
+      c.save(); k.rr(x0 + 0.14, y0 + 0.14, x1 - x0 - 0.28, y1 - y0 - 0.28, 0.02); c.clip(); c.fillStyle = k.lin(0, y0 + 0.14, 0, y0 + 0.4, [[0, 'rgba(0,0,0,.35)'], [1, 'rgba(0,0,0,0)']]); c.fillRect(x0, y0, x1 - x0, 0.4); c.fillStyle = k.lin(x0 + 0.14, 0, x0 + 0.4, 0, [[0, 'rgba(0,0,0,.28)'], [1, 'rgba(0,0,0,0)']]); c.fillRect(x0, y0, 0.4, y1 - y0);
+        for(let i=0;i<3;i++) k.puddle(k.R(x0 + 0.5, x1 - 0.5), k.R(y0 + 0.5, y1 - 0.5), k.R(0.15, 0.35), k.R(0.1, 0.25)); k.leaves(x0, y0, x1 - x0, y1 - y0, 30); c.restore();
+      k.rr(x0, y0, x1 - x0, y1 - y0, 0.04); k.stroke(k.INK, 0.014); k.line([x0 + 0.02, y0 + 0.02, x1 - 0.02, y0 + 0.02], 'rgba(255,250,240,.3)', 0.014);
+      ventPipe(k, x1 - 0.5, y0 + 0.5, 0.07); ventPipe(k, x0 + 0.6, y1 - 0.6, 0.06);
+      k.rr(mx - 0.25, my - 0.25, 0.5, 0.5, 0.02); k.texFill('metal', '#6d7376'); k.rr(mx - 0.25, my - 0.25, 0.5, 0.5, 0.02); k.stroke(k.INK, 0.012); k.line([mx - 0.25, my - 0.2, mx + 0.25, my - 0.2], '#2a2826', 0.02); // люк
+    } else {
+      const ridgeLen = vertical ? (y1 - y0) : (x1 - x0), span = vertical ? (x1 - x0) : (y1 - y0), hw = d.roof==='hip' ? span/2 : 0;
+      // строим в «горизонтальной» системе: конёк по оси X; для вертикальных — поворачиваем точки
+      const T = (x, y)=>vertical ? [mx - (y - my)*1, my + (x - mx)] : [x, y];
+      const N = (nx, ny)=>vertical ? [-ny, nx] : [nx, ny];
+      const lx0 = mx - ridgeLen/2, lx1 = mx + ridgeLen/2, ly0 = my - span/2, ly1 = my + span/2;
+      const P = (arr)=>{ const o = []; for(let i=0;i<arr.length;i+=2){ const p = T(arr[i], arr[i + 1]); o.push(p[0], p[1]); } return o; };
+      const angOff = vertical ? Math.PI/2 : 0;
+      const faces = [
+        {p:P([lx0, ly0, lx1, ly0, lx1 - hw, my, lx0 + hw, my]), a:Math.PI + angOff, n:N(0, -1), re:P([mx, my, mx, ly0])},
+        {p:P([lx0 + hw, my, lx1 - hw, my, lx1, ly1, lx0, ly1]), a:angOff, n:N(0, 1), re:P([mx, my, mx, ly1])},
+      ];
+      if(hw) faces.push({p:P([lx0, ly0, lx0 + hw, my, lx0, ly1]), a:Math.PI/2 + angOff, n:N(-1, 0), re:P([lx0 + hw, my, lx0, my])}, {p:P([lx1, ly0, lx1, ly1, lx1 - hw, my]), a:-Math.PI/2 + angOff, n:N(1, 0), re:P([lx1 - hw, my, lx1, my])});
+      faces.forEach(f=>roofFace(k, f.p, mat, tint, f.a, f.n, f.re));
+      // кромки граней, конёк, рёбра вальм
+      faces.forEach(f=>{ k.poly(f.p); k.stroke('rgba(10,8,6,.55)', 0.012); });
+      const r0 = T(lx0 + hw, my), r1 = T(lx1 - hw, my);
+      k.line([r0[0] + 0.012, r0[1] + 0.012, r1[0] + 0.012, r1[1] + 0.012], 'rgba(0,0,0,.4)', 0.07); k.line([r0[0], r0[1], r1[0], r1[1]], tint ? shade(tint, -0.25) : '#5a5650', 0.06); k.line([r0[0] - 0.01, r0[1] - 0.01, r1[0] - 0.01, r1[1] - 0.01], 'rgba(255,250,240,.28)', 0.015);
+      for(let i=0;i<=Math.round(ridgeLen/0.3);i++){ const t = i/Math.round(ridgeLen/0.3), p = T(lx0 + hw + (ridgeLen - 2*hw)*t, my); k.line([p[0] - (vertical ? 0.03 : 0), p[1] - (vertical ? 0 : 0.03), p[0] + (vertical ? 0.03 : 0), p[1] + (vertical ? 0 : 0.03)], 'rgba(10,8,6,.35)', 0.008); }
+      // водостоки по свесам
+      [[lx0, ly0 - 0.035, lx1, ly0 - 0.035], [lx0, ly1 + 0.035, lx1, ly1 + 0.035]].forEach(q=>{ const a = T(q[0], q[1]), b = T(q[2], q[3]); k.line([a[0], a[1], b[0], b[1]], '#5f6466', 0.045); k.line([a[0], a[1] - 0.01, b[0], b[1] - 0.01], 'rgba(255,255,255,.2)', 0.01); for(let i=0;i<3;i++){ const t = k.rnd(); k.rust(a[0] + (b[0] - a[0])*t, a[1] + (b[1] - a[1])*t, 0.03, false); } });
+      [[lx0 + 0.05, ly0 - 0.035], [lx1 - 0.05, ly1 + 0.035]].forEach(q=>{ const p = T(q[0], q[1]); k.rr(p[0] - 0.04, p[1] - 0.04, 0.08, 0.08, 0.01); k.fill('#555a5c'); k.stroke(k.INK, 0.008); });
+      // поверхность: мох, листва, недостающая черепица
+      c.save(); k.poly(P([lx0, ly0, lx1, ly0, lx1, ly1, lx0, ly1])); c.clip();
+        if(d.moss) for(let i=0;i<d.moss;i++){ const p = T(k.R(lx0 + 0.3, lx1 - 0.3), k.R(ly0 + 0.1, my - 0.1)); k.moss(p[0], p[1], k.R(0.12, 0.28)); }
+        if(d.missing) for(let i=0;i<d.missing;i++){ const p = T(k.R(lx0 + 0.3, lx1 - 0.3), k.R(ly0 + 0.2, ly1 - 0.2)); k.rr(p[0] - 0.12, p[1] - 0.08, k.R(0.15, 0.3), k.R(0.1, 0.2), 0.01); k.fill('#1e1a16'); for(let j=0;j<3;j++) k.line(vertical ? [p[0] - 0.12 + j*0.08, p[1] - 0.1, p[0] - 0.12 + j*0.08, p[1] + 0.12] : [p[0] - 0.14, p[1] - 0.06 + j*0.06, p[0] + 0.18, p[1] - 0.06 + j*0.06], '#6b5238', 0.02); }
+        k.leaves(x0, y0, x1 - x0, y1 - y0, 25);
+        for(let i=0;i<4;i++){ const p = T(k.R(lx0, lx1), ly1 - 0.05); k.streak(p[0], p[1] - 0.4, 0.4, 0.04, '#3a3026', 0.3); }
+      c.restore();
+      if(d.dmg===2){ const p = T(lx0 + ridgeLen*k.R(0.3, 0.65), ly0 + span*k.R(0.25, 0.4)); hole(k, p[0], p[1], Math.min(span, ridgeLen)*0.28, vertical ? 'v' : 'h'); }
+    }
+    if(d.chimney){ const p = d.chimney; chimney(k, p[0], p[1]); }
+    (d.vents || []).forEach(p=>ventPipe(k, p[0], p[1], 0.06));
+    if(d.dish) dish(k, d.dish[0], d.dish[1], 0.18);
+    if(d.solar) solar(k, d.solar[0], d.solar[1], d.solar[2], d.solar[3], d.solarBroken);
+    if(d.antenna) antenna(k, d.antenna[0], d.antenna[1], 0.7, d.antenna[2]);
+    if(d.tarp){ const t = d.tarp; k.tarp(t[0], t[1], t[2], t[3], t[4], t[5] || 0); k.tire(t[0] + 0.12, t[1] + 0.12, 0.1); k.tire(t[0] + t[2] - 0.15, t[1] + t[3] - 0.15, 0.1); k.brick(t[0] + t[2]*0.5, t[1] + 0.08, 0.3, '#7a4c3e'); }
+    if(d.annex){ const a = d.annex; c.save(); k.rr(a[0], a[1], a[2], a[3], 0.02); k.texFill('corrugated', '#7f8588', '#7a6a5a', 0.35); c.fillStyle = k.lin(a[0], a[1], a[0], a[1] + a[3], [[0, 'rgba(255,250,240,.1)'], [1, 'rgba(0,0,0,.3)']]); c.fill(); c.restore(); k.rr(a[0], a[1], a[2], a[3], 0.02); k.stroke(k.INK, 0.012); for(let i=0;i<3;i++) k.rust(k.R(a[0], a[0] + a[2]), k.R(a[1], a[1] + a[3]), 0.06, i===0); }
+    if(d.garden) d.garden.forEach(b=>{ k.rr(b[0] + 0.03, b[1] + 0.04, b[2], b[3], 0.02); k.fill('rgba(0,0,0,.35)'); k.rr(b[0], b[1], b[2], b[3], 0.02); k.texFill('wood', '#6b5236'); k.rr(b[0] + 0.06, b[1] + 0.06, b[2] - 0.12, b[3] - 0.12, 0.01); k.texFill('dirt', '#5e5143');
+      const rows = Math.max(1, Math.round((b[3] - 0.12)/0.18)); for(let r=0;r<rows;r++) for(let x=b[0] + 0.12;x<b[0] + b[2] - 0.1;x+=0.13){ const y = b[1] + 0.1 + r*0.18 + 0.05; k.blot(x, y, 0.05, k.pick(['#5f7a3e', '#6e8a46', '#4e6a34']), 0.95, 0.6); k.line([x - 0.02, y - 0.02, x + 0.015, y + 0.01], 'rgba(200,220,150,.4)', 0.006); } });
+    if(d.barrels) d.barrels.forEach(p=>{ c.beginPath(); c.arc(p[0] + 0.04, p[1] + 0.05, 0.16, 0, 6.28); k.fill('rgba(0,0,0,.35)'); c.beginPath(); c.arc(p[0], p[1], 0.16, 0, 6.28); c.fillStyle = k.lin(p[0] - 0.16, p[1] - 0.16, p[0] + 0.16, p[1] + 0.16, [[0, '#4a6a8a'], [1, '#2a3e52']]); c.fill(); k.stroke(k.INK, 0.012); c.beginPath(); c.arc(p[0], p[1], 0.11, 0, 6.28); k.stroke('rgba(0,0,0,.4)', 0.01); c.beginPath(); c.arc(p[0] + 0.05, p[1] - 0.04, 0.025, 0, 6.28); k.fill('#1e2a36'); });
+    if(d.porch){ const p = d.porch; k.rr(p[0] + 0.04, p[1] + 0.05, p[2], p[3], 0.01); k.fill('rgba(0,0,0,.35)'); k.rr(p[0], p[1], p[2], p[3], 0.01); k.texFill('corrugated', '#7f8588', '#6a6a6a', 0.3); k.rr(p[0], p[1], p[2], p[3], 0.01); k.stroke(k.INK, 0.012); }
+    for(let i=0;i<6;i++){ c.fillStyle = 'rgba(232,228,216,.65)'; c.beginPath(); c.arc(k.R(x0, x1), k.R(y0, y1), 0.012, 0, 6.28); c.fill(); }
+  }
+  const HOUSE_SMALL = [
+    {n:'Черепица, жилой вид', roof:'gable', mat:'rooftile', tint:'#8a4632', chimney:[1.9, 0.55], dish:[0.6, 2.2], vents:[[2.4, 2.3]], moss:2},
+    {n:'Черепица, провал крыши', roof:'gable', mat:'rooftile', tint:'#7a4a38', dmg:2, chimney:[0.5, 0.5], missing:4, moss:3},
+    {n:'Ржавый профнастил, латаный брезентом', roof:'gable', mat:'corrugated', tarp:[1.4, 1.6, 1.0, 0.8, '#3e5a72', 0.1], vents:[[0.6, 0.6]], antenna:[2.4, 0.5, 2.3]},
+    {n:'Шифер, мох, солнечная панель', roof:'gable', mat:'rooftile', tint:'#6a6e70', moss:5, solar:[0.5, 1.75, 0.9, 0.6], solarBroken:true, chimney:[2.2, 0.6]},
+    {n:'Плоская крыша, рубероид', roof:'flat', dish:[2.3, 2.3]},
+    {n:'Выгоревший', dmg:3},
+  ];
+  const HOUSE_MID = [
+    {n:'Вальмовая черепица', roof:'hip', mat:'rooftile', tint:'#8a4632', chimney:[2.3, 1.4], dish:[0.7, 3.8], vents:[[1.5, 3.2]], moss:2},
+    {n:'Вальмовая, обрушена часть', roof:'hip', mat:'rooftile', tint:'#7e5040', dmg:2, missing:5, moss:3, chimney:[1.3, 1.2]},
+    {n:'Профнастил, с пристройкой', roof:'gable', mat:'corrugated', main:[0, 0, 4, 3.6], annex:[0.3, 3.65, 3.4, 1.25], vents:[[1, 1]], antenna:[3, 0.6, 2.2]},
+    {n:'Плоская крыша, огород', roof:'flat', garden:[[0.5, 0.5, 1.3, 1.6], [2.2, 0.5, 1.3, 1.6], [0.5, 2.5, 1.3, 1.1]], barrels:[[2.6, 2.9], [3.1, 3.4]], tarp:[2.1, 3.7, 1.5, 0.9, '#5a6a3a', 0.05]},
+    {n:'Черепица, латаная', roof:'gable', mat:'rooftile', tint:'#7a5240', missing:6, moss:3, tarp:[0.7, 1.3, 1.3, 1.1, '#2e5a7a', -0.15], chimney:[2.6, 2.2], porch:[1.3, 4.55, 1.4, 0.4]},
+    {n:'Выгоревший', dmg:3},
+  ];
+  // Многоэтажка: плоская кровля с парапетом и надстройками; варианты — как используют крышу
+  function blockDraw(g, W, H, d){
+    const k = hk(g), c = k.c, pw = 0.22;
+    k.rr(0, 0, W, H, 0.03); k.texFill('concrete', '#8a8780'); k.rr(0, 0, W, H, 0.03); k.stroke(k.INK, 0.016); k.line([0.03, 0.03, W - 0.03, 0.03], 'rgba(255,250,240,.3)', 0.02); k.line([0.03, 0.03, 0.03, H - 0.03], 'rgba(255,250,240,.2)', 0.02);
+    const ix0 = pw, iy0 = pw, ix1 = W - pw, iy1 = H - pw;
+    k.rr(ix0, iy0, ix1 - ix0, iy1 - iy0, 0.02); k.texFill('roofing', '#46433f');
+    c.save(); k.rr(ix0, iy0, ix1 - ix0, iy1 - iy0, 0.02); c.clip();
+      c.fillStyle = k.lin(0, iy0, 0, iy0 + 0.45, [[0, 'rgba(0,0,0,.38)'], [1, 'rgba(0,0,0,0)']]); c.fillRect(0, iy0, W, 0.45); c.fillStyle = k.lin(ix0, 0, ix0 + 0.45, 0, [[0, 'rgba(0,0,0,.3)'], [1, 'rgba(0,0,0,0)']]); c.fillRect(ix0, 0, 0.45, H);
+      for(let i=0;i<(d.overgrown ? 9 : 4);i++) k.puddle(k.R(1, W - 1), k.R(1, H - 1), k.R(0.2, d.overgrown ? 0.7 : 0.4), k.R(0.15, 0.4));
+      k.leaves(ix0, iy0, ix1 - ix0, iy1 - iy0, d.overgrown ? 120 : 40); k.trash(ix0, iy0, ix1 - ix0, iy1 - iy0, d.overgrown ? 30 : 12);
+      if(d.overgrown){ for(let i=0;i<10;i++) k.moss(k.R(0.6, W - 0.6), k.R(0.6, H - 0.6), k.R(0.2, 0.5)); k.tufts(ix0, iy0, ix1 - ix0, iy1 - iy0, 70); }
+      for(let i=0;i<5;i++){ const y = k.R(1, H - 1); k.line([ix0, y, ix0 + k.R(1, 3), y + k.R(-0.3, 0.3), ix0 + k.R(2, 4), y + k.R(-0.2, 0.5)], '#151311', 0.02, 0.8); } // кабели
+    c.restore();
+    // водостоки-воронки
+    [[ix0 + 0.35, iy1 - 0.35], [ix1 - 0.35, iy0 + 0.35]].forEach(([x, y])=>{ c.beginPath(); c.arc(x, y, 0.1, 0, 6.28); k.fill('#2a2826'); for(let i=0;i<6;i++){ const a = i/6*6.28; k.line([x, y, x + Math.cos(a)*0.1, y + Math.sin(a)*0.1], '#55524e', 0.012); } });
+    // машинные отделения лифтов и выходы на крышу
+    const box = (x, y, w, h, door)=>{ k.rr(x + 0.1, y + 0.14, w, h, 0.02); k.fill('rgba(0,0,0,.42)'); k.rr(x, y, w, h, 0.02); k.texFill('concrete', '#8a8780'); k.rr(x + 0.08, y + 0.08, w - 0.16, h - 0.16, 0.01); k.texFill('roofing', '#3e3c39'); k.rr(x, y, w, h, 0.02); k.stroke(k.INK, 0.014); k.line([x + 0.02, y + 0.02, x + w - 0.02, y + 0.02], 'rgba(255,250,240,.3)', 0.016);
+      ventPipe(k, x + w*0.7, y + h*0.4, 0.07); if(door){ k.rr(x + w*0.3, y + h - 0.02, 0.35, 0.08, 0.01); k.fill('#4a4e50'); k.stroke(k.INK, 0.008); } for(let i=0;i<3;i++) k.streak(x + k.R(0.1, w - 0.1), y + h, 0.3, 0.03, '#2a2622', 0.3); };
+    box(W*0.33, H*0.12, W*0.34, H*0.17, true); box(W*0.33, H*0.68, W*0.34, H*0.15, true);
+    // вентшахты рядами
+    for(let i=0;i<4;i++){ const x = 0.8 + i*(W - 1.6)/3, y = H*0.45; k.rr(x - 0.18 + 0.05, y - 0.18 + 0.07, 0.36, 0.36, 0.02); k.fill('rgba(0,0,0,.4)'); k.rr(x - 0.18, y - 0.18, 0.36, 0.36, 0.02); k.texFill('concrete', '#8a8780'); k.stroke(k.INK, 0.012); k.rr(x - 0.1, y - 0.1, 0.2, 0.2, 0.01); k.fill('#141210'); k.line([x - 0.1, y - 0.03, x + 0.1, y - 0.03], '#5a5650', 0.012); k.line([x - 0.1, y + 0.04, x + 0.1, y + 0.04], '#5a5650', 0.012); }
+    if(!d.collapse) [[0.8, 1.2, -2.2], [W - 0.9, H - 1.4, 2.4], [W - 1.2, 1.0, -1.9], [1.0, H - 2.4, -2.6]].forEach(a=>{ k.line([a[0] + 0.04, a[1] + 0.05, a[0] + 0.04 + Math.cos(a[2])*1.1, a[1] + 0.05 + Math.sin(a[2])*1.1], 'rgba(0,0,0,.3)', 0.03); antenna(k, a[0], a[1], 1.1, a[2]); });
+    [[0.55, 0.55], [W - 0.85, 0.6], [W - 0.9, H - 0.95], [0.6, H*0.5 + 1.4]].forEach((p, i)=>{ if(d.collapse && i===2) return; k.rr(p[0] + 0.05, p[1] + 0.07, 0.34, 0.26, 0.02); k.fill('rgba(0,0,0,.4)'); k.rr(p[0], p[1], 0.34, 0.26, 0.02); c.fillStyle = k.lin(p[0], p[1], p[0], p[1] + 0.26, [[0, '#b9b6ac'], [1, '#7e7b74']]); c.fill(); k.stroke(k.INK, 0.01);
+      c.beginPath(); c.arc(p[0] + 0.13, p[1] + 0.13, 0.09, 0, 6.28); k.fill('#2a2826'); for(let j=0;j<4;j++){ const a = j/4*6.28 + i; k.line([p[0] + 0.13, p[1] + 0.13, p[0] + 0.13 + Math.cos(a)*0.08, p[1] + 0.13 + Math.sin(a)*0.08], '#6a6e70', 0.018); }
+      for(let j=0;j<4;j++) k.line([p[0] + 0.25, p[1] + 0.05 + j*0.05, p[0] + 0.31, p[1] + 0.05 + j*0.05], '#4a4844', 0.01); k.rust(p[0] + 0.28, p[1] + 0.2, 0.04, false); k.streak(p[0] + 0.17, p[1] + 0.26, 0.25, 0.04, '#3a3026', 0.3); }); // кондиционеры
+    if(!d.collapse && !d.nest){ dish(k, W - 1.6, H*0.6, 0.22); dish(k, 1.5, H*0.32, 0.2); }
+    if(!d.garden && !d.nest && !d.collapse){ const ly = H*0.6 + 0.35; [[1.0, ly], [W - 1.0, ly + 0.08]].forEach(p=>{ k.c.beginPath(); k.c.arc(p[0], p[1], 0.04, 0, 6.28); k.fill('#3a3836'); }); k.line([1.0, ly, W - 1.0, ly + 0.08], '#d8d0bc', 0.008);
+      for(let i=0;i<9;i++){ const x = 1.3 + i*(W - 2.6)/8, y = ly + 0.08*(x - 1)/(W - 2); c.save(); c.translate(x, y + 0.01); c.rotate(k.R(-0.1, 0.1)); k.rr(-0.08, 0, 0.16, k.R(0.14, 0.24), 0.01); k.fill(k.pick(['#8a7a6a', '#5a6a7a', '#9a8a5a', '#7a4a3a', '#c9c1a8', '#4a5a4a']), 0.9); k.stroke('rgba(0,0,0,.35)', 0.006); c.restore(); } } // бельё
+    if(d.garden){ [[0.7, 2.2, 1.8, 1.0], [0.7, 3.5, 1.8, 1.0], [W - 2.5, 2.2, 1.8, 1.0], [W - 2.5, 3.5, 1.8, 1.0]].forEach(b=>houseBits.bed(k, b));
+      [[W*0.5 - 0.6, H - 1.4], [W*0.5 + 0.6, H - 1.4]].forEach(p=>houseBits.tank(k, p[0], p[1], 0.38)); solar(k, 0.6, H - 1.6, 1.4, 0.8, false); k.tarp(W - 2.4, H - 1.8, 1.6, 1.1, '#4a5a34', 0.08); k.trash(0.5, 5, W - 1, 1, 8); }
+    if(d.nest){ const cx = W*0.5, cy = H*0.52; for(let i=0;i<22;i++){ const a = i/22*6.28, x = cx + Math.cos(a)*1.25, y = cy + Math.sin(a)*0.95; if(a > 1.2 && a < 1.9) continue; houseBits.sandbag(k, x, y, a + Math.PI/2); }
+      k.tarp(cx - 0.9, cy - 0.7, 1.0, 0.8, '#5a5a3e', 0.2); houseBits.crate(k, cx + 0.3, cy - 0.2, 0.4, 0.3, 0.2); houseBits.crate(k, cx + 0.45, cy + 0.25, 0.35, 0.25, -0.4);
+      for(let i=0;i<30;i++){ c.save(); c.translate(cx + k.R(-0.8, 0.8), cy + k.R(-0.6, 0.6)); c.rotate(k.rnd()*6.28); c.fillStyle = k.pick(['#b8953a', '#a8853a', '#c9a24a']); c.fillRect(-0.02, -0.006, 0.04, 0.012); c.restore(); } // гильзы
+      k.line([cx - 1.3, cy - 1.2, cx - 1.3, cy - 1.9], '#3a3836', 0.025); k.organic(cx - 1.15, cy - 1.8, 0.15, 0.4, 0.08); k.fill('#7a2a22'); }
+    if(d.collapse){ const cx = W - 1.4, cy = H - 1.6, pts = [W - 2.9, H, W - 2.4, H - 1.6, W - 1.5, H - 2.9, W, H - 3.4, W, H];
+      for(let f=0;f<4;f++){ const off = f*0.22; k.poly(pts.map((v, i)=>v + (i%2 ? off*0.6 : off*0.5))); k.fill(f%2 ? '#3a3632' : '#4a4540'); }
+      k.poly(pts); c.fillStyle = k.lin(W - 2.5, H - 2.5, W, H, [[0, 'rgba(10,8,6,.2)'], [1, 'rgba(10,8,6,.85)']]); c.fill();
+      for(let i=0;i<12;i++){ const t = k.rnd(), x = W - 2.9 + t*2.9, y = H - t*3.4; k.rebar([x, y, x + k.R(0.1, 0.35), y + k.R(0.05, 0.3)]); }
+      for(let i=0;i<28;i++){ const t = k.rnd(); k.chunk(W - 3.2 + t*3.0 + k.R(-0.5, 0.2), H - t*3.6 + k.R(-0.6, 0.1), k.R(0.06, 0.2), k.pick(['#9a968e', '#86827a', '#7a766e']), 0.04); }
+      for(let i=0;i<6;i++) k.line([W - 2.4 - k.R(0, 2), H - 1.6 - k.R(0, 2), W - 2.4, H - 1.6], 'rgba(15,12,10,.5)', 0.012); }
+  }
+  // мелочи, которые повторяются в разных объектах
+  const houseBits = {
+    bed(k, b){ k.rr(b[0] + 0.04, b[1] + 0.05, b[2], b[3], 0.02); k.fill('rgba(0,0,0,.35)'); k.rr(b[0], b[1], b[2], b[3], 0.02); k.texFill('wood', '#6b5236'); k.rr(b[0], b[1], b[2], b[3], 0.02); k.stroke(k.INK, 0.012); k.rr(b[0] + 0.07, b[1] + 0.07, b[2] - 0.14, b[3] - 0.14, 0.01); k.texFill('dirt', '#5e5143');
+      for(let y=b[1] + 0.16;y<b[1] + b[3] - 0.1;y+=0.2) for(let x=b[0] + 0.15;x<b[0] + b[2] - 0.1;x+=0.14){ k.blot(x, y, 0.055, k.pick(['#5f7a3e', '#6e8a46', '#4e6a34', '#7a7a3e']), 0.95, 0.6); k.line([x - 0.02, y - 0.02, x + 0.02, y + 0.01], 'rgba(200,220,150,.4)', 0.006); } },
+    tank(k, x, y, r){ const c = k.c; c.beginPath(); c.arc(x + r*0.2, y + r*0.25, r, 0, 6.28); k.fill('rgba(0,0,0,.38)'); c.beginPath(); c.arc(x, y, r, 0, 6.28); c.fillStyle = k.lin(x - r, y - r, x + r, y + r, [[0, '#8a9294'], [1, '#4e5658']]); c.fill(); k.stroke(k.INK, 0.014);
+      for(let i=1;i<4;i++){ c.beginPath(); c.arc(x, y, r*i/4, 0, 6.28); k.stroke('rgba(0,0,0,.25)', 0.008); } c.beginPath(); c.arc(x, y, r*0.18, 0, 6.28); k.fill('#2a2e30'); k.rust(x + r*0.4, y + r*0.3, r*0.3, false); k.line([x - r*0.7, y - r*0.5, x - r*0.2, y - r*0.85], 'rgba(255,255,255,.3)', r*0.08); },
+    sandbag(k, x, y, a){ const c = k.c; c.save(); c.translate(x, y); c.rotate(a); c.beginPath(); c.ellipse(0.02, 0.03, 0.17, 0.09, 0, 0, 6.28); k.fill('rgba(0,0,0,.35)'); c.beginPath(); c.ellipse(0, 0, 0.17, 0.09, 0, 0, 6.28); c.fillStyle = k.lin(-0.17, -0.09, 0.17, 0.09, [[0, '#c2ac7a'], [1, '#8c7850']]); c.fill(); k.stroke('rgba(30,24,16,.7)', 0.01); k.line([-0.12, 0, 0.12, 0], 'rgba(60,48,30,.4)', 0.006); k.line([-0.15, -0.03, -0.15, 0.03], 'rgba(60,48,30,.6)', 0.01); c.restore(); },
+    crate(k, x, y, w, h, a){ const c = k.c; c.save(); c.translate(x, y); c.rotate(a || 0); k.rr(-w/2 + 0.03, -h/2 + 0.04, w, h, 0.01); k.fill('rgba(0,0,0,.38)'); k.rr(-w/2, -h/2, w, h, 0.01); k.texFill('wood', '#6b5236'); k.rr(-w/2, -h/2, w, h, 0.01); k.stroke(k.INK, 0.012); k.line([-w/2, -h/2, w/2, h/2], 'rgba(40,28,18,.6)', 0.02); k.line([w/2, -h/2, -w/2, h/2], 'rgba(40,28,18,.6)', 0.02); k.rr(-w/2 + 0.03, -h/2 + 0.03, w - 0.06, h - 0.06, 0.005); k.stroke('rgba(40,28,18,.45)', 0.012); c.restore(); },
+  };
+  const APT_BLOCK = [
+    {n:'Жилой вид'},
+    {n:'Огород на крыше', garden:true},
+    {n:'Огневая точка', nest:true},
+    {n:'Частичное обрушение', collapse:true},
+    {n:'Заброшена, заросла', overgrown:true},
+  ];
+  // Руины: пол, остатки стен с рваными краями, завалы, балки, остатки мебели
+  function wallRun(k, p, th, mat, shadow){ const c = k.c; // стена-полилиния: тень, кладка сверху, кромки
+    if(shadow){ k.line(p.map((v, i)=>v + (i%2 ? 0.12 : 0.09)), 'rgba(0,0,0,.4)', th*1.05); }
+    c.save(); c.beginPath(); c.moveTo(p[0], p[1]); for(let i=2;i<p.length;i+=2) c.lineTo(p[i], p[i + 1]); c.lineWidth = th; c.lineCap = 'butt'; c.lineJoin = 'miter'; c.strokeStyle = k.tex(mat) || '#8a8780'; c.stroke(); c.restore();
+    c.save(); c.beginPath(); c.moveTo(p[0], p[1]); for(let i=2;i<p.length;i+=2) c.lineTo(p[i], p[i + 1]); c.lineWidth = th; c.lineCap = 'butt'; c.lineJoin = 'miter'; c.strokeStyle = 'rgba(10,8,6,.6)'; c.globalCompositeOperation = 'source-over'; c.setLineDash([]); c.lineWidth = th + 0.02; c.globalAlpha = 0.5; c.stroke(); c.restore();
+    c.save(); c.beginPath(); c.moveTo(p[0], p[1]); for(let i=2;i<p.length;i+=2) c.lineTo(p[i], p[i + 1]); c.lineWidth = th - 0.02; c.lineCap = 'butt'; c.lineJoin = 'miter'; c.strokeStyle = k.tex(mat) || '#8a8780'; c.stroke(); c.restore();
+    [[p[0], p[1], p[2], p[3]], [p[p.length - 2], p[p.length - 1], p[p.length - 4], p[p.length - 3]]].forEach(([x, y, x2, y2])=>{ const a = Math.atan2(y2 - y, x2 - x); for(let i=0;i<3;i++) k.chunk(x + Math.cos(a)*0.08 + k.R(-0.1, 0.1), y + Math.sin(a)*0.08 + k.R(-0.1, 0.1), k.R(0.05, 0.1), mat==='brickwall' ? '#7a4c3e' : '#8a8680', 0.03); }); }
+  function ruinDraw(g, W, H, d){
+    const k = hk(g), c = k.c, m = 0.15;
+    k.rr(m, m, W - 2*m, H - 2*m, 0.02); k.texFill(d.floor || 'wood', '#6b5236', d.burnt ? '#2a2420' : null, 0.5);
+    c.save(); k.rr(m, m, W - 2*m, H - 2*m, 0.02); c.clip();
+      if(d.burnt){ c.fillStyle = 'rgba(16,13,11,.55)'; c.fillRect(0, 0, W, H); for(let i=0;i<10;i++) k.blot(k.R(0.4, W - 0.4), k.R(0.4, H - 0.4), k.R(0.15, 0.4), k.pick(['#5a524a', '#8a847a']), 0.35); }
+      for(let i=0;i<6;i++) k.blot(k.R(0.4, W - 0.4), k.R(0.4, H - 0.4), k.R(0.2, 0.5), '#8a7e6a', 0.25);
+      k.leaves(m, m, W - 2*m, H - 2*m, d.overgrown ? 90 : 30); k.trash(m, m, W - 2*m, H - 2*m, 14);
+      if(d.overgrown){ k.tufts(m, m, W - 2*m, H - 2*m, 60); for(let i=0;i<6;i++) k.moss(k.R(0.5, W - 0.5), k.R(0.5, H - 0.5), k.R(0.2, 0.4)); }
+    c.restore();
+    d.walls.forEach(w=>wallRun(k, w, w.th || 0.24, d.mat, true));
+    (d.inner || []).forEach(w=>wallRun(k, w, 0.13, d.mat==='brickwall' ? 'concrete' : d.mat, true));
+    // мебель
+    if(d.furniture){ const f = d.furniture;
+      if(f.bed){ const [x, y, a] = f.bed; c.save(); c.translate(x, y); c.rotate(a); k.rr(-0.45 + 0.03, -0.3 + 0.04, 0.9, 0.6, 0.02); k.fill('rgba(0,0,0,.35)'); k.rr(-0.45, -0.3, 0.9, 0.6, 0.02); k.fill(d.burnt ? '#2a2420' : '#3e3a36'); k.stroke(k.INK, 0.012); for(let i=-3;i<=3;i++) k.line([-0.4, i*0.07, 0.4, i*0.07], d.burnt ? '#5a4a3e' : '#6e6a64', 0.008); for(let i=-4;i<=4;i++) k.line([i*0.09, -0.26, i*0.09, 0.26], d.burnt ? '#5a4a3e' : '#6e6a64', 0.008); if(!d.burnt){ k.rr(-0.4, -0.25, 0.55, 0.5, 0.05); k.fill('#6a5a50', 0.85); k.blot(-0.1, 0.05, 0.12, '#4a3a30', 0.6); } c.restore(); }
+      if(f.table){ const [x, y, a] = f.table; c.save(); c.translate(x, y); c.rotate(a); k.rr(-0.3 + 0.03, -0.2 + 0.04, 0.6, 0.4, 0.02); k.fill('rgba(0,0,0,.35)'); k.rr(-0.3, -0.2, 0.6, 0.4, 0.02); k.texFill('wood', '#6b5236'); k.rr(-0.3, -0.2, 0.6, 0.4, 0.02); k.stroke(k.INK, 0.012); [[-0.25, -0.15], [0.25, -0.15], [-0.25, 0.15]].forEach(([lx, ly])=>{ c.fillStyle = '#3a2a1e'; c.fillRect(lx - 0.025, ly - 0.025, 0.05, 0.05); }); c.restore(); }
+      if(f.stove){ const [x, y] = f.stove; k.rr(x + 0.03, y + 0.04, 0.4, 0.4, 0.02); k.fill('rgba(0,0,0,.35)'); k.rr(x, y, 0.4, 0.4, 0.02); k.fill('#bdb8ac'); k.stroke(k.INK, 0.012); [[0.11, 0.11], [0.29, 0.11], [0.11, 0.29], [0.29, 0.29]].forEach(([a, b])=>{ k.c.beginPath(); k.c.arc(x + a, y + b, 0.06, 0, 6.28); k.fill('#2a2826'); }); k.rust(x + 0.3, y + 0.32, 0.06, false); }
+      if(f.tub){ const [x, y, a] = f.tub; c.save(); c.translate(x, y); c.rotate(a); k.rr(-0.4 + 0.03, -0.2 + 0.04, 0.8, 0.4, 0.12); k.fill('rgba(0,0,0,.35)'); k.rr(-0.4, -0.2, 0.8, 0.4, 0.12); k.fill('#d6d2c6'); k.stroke(k.INK, 0.012); k.rr(-0.33, -0.13, 0.66, 0.26, 0.09); c.fillStyle = k.lin(0, -0.13, 0, 0.13, [[0, '#a8a498'], [1, '#e2ded2']]); c.fill(); k.blot(0.1, 0.02, 0.08, '#7a5a3a', 0.5); c.restore(); } }
+    // балки и завалы
+    (d.beams || []).forEach(b=>k.plank(b[0], b[1], b[2], 0.13, b[3], d.burnt ? '#2a2018' : '#6b5236', true));
+    (d.piles || []).forEach(p=>{ k.blot(p[0], p[1], p[2]*1.1, '#7a7468', 0.5); for(let i=0;i<Math.round(p[2]*40);i++){ const a = k.rnd()*6.28, r = k.rnd()*p[2]; const x = p[0] + Math.cos(a)*r, y = p[1] + Math.sin(a)*r*0.8; if(d.mat==='brickwall' && k.rnd() < 0.55) k.brick(x, y, k.rnd()*6.28, k.pick(['#7a4c3e', '#8a5a48', '#6b4034'])); else k.chunk(x, y, k.R(0.04, 0.13), k.pick(['#9a968e', '#86827a', '#7a766e', '#a8a29a']), 0.03); }
+      for(let i=0;i<2;i++) k.rebar([p[0] + k.R(-0.3, 0.3), p[1] + k.R(-0.3, 0.3), p[0] + k.R(-0.5, 0.5), p[1] + k.R(-0.5, 0.5)]); });
+    for(let i=0;i<14;i++) k.chunk(k.R(0.2, W - 0.2), k.R(0.2, H - 0.2), k.R(0.03, 0.07), k.pick(['#9a968e', '#7a4c3e', '#86827a']), 0.02);
+    if(d.overgrown){ for(let i=0;i<2;i++){ const x = k.R(1, W - 1), y = k.R(1, H - 1); houseBits.bush(k, x, y, k.R(0.35, 0.55)); } }
+  }
+  houseBits.bush = (k, x, y, r)=>{ const c = k.c; c.beginPath(); c.arc(x + r*0.25, y + r*0.3, r, 0, 6.28); k.fill('rgba(0,0,0,.35)'); for(let i=0;i<9;i++){ const a = i/9*6.28, d = r*0.5; k.blot(x + Math.cos(a)*d, y + Math.sin(a)*d, r*0.55, k.pick(['#4e5a3a', '#5a6640', '#46523a']), 1, 0.4); } k.blot(x, y, r*0.6, '#5f6e44', 1, 0.4); for(let i=0;i<14;i++){ const a = k.rnd()*6.28, d = k.rnd()*r; c.fillStyle = k.rnd() < 0.5 ? 'rgba(150,170,110,.5)' : 'rgba(20,26,14,.45)'; c.beginPath(); c.arc(x + Math.cos(a)*d - r*0.15, y + Math.sin(a)*d - r*0.15, r*0.08, 0, 6.28); c.fill(); } };
+  const RUIN_HOUSE = [
+    {n:'Кирпичный, без крыши', mat:'brickwall', floor:'wood', walls:[[0.15, 2.4, 0.15, 0.15, 3.85, 0.15, 3.85, 1.6], [2.9, 3.85, 3.85, 3.85, 3.85, 3.1], [0.15, 3.3, 0.15, 3.85, 1.2, 3.85]], inner:[[2.0, 0.15, 2.0, 1.4]], piles:[[3.0, 2.4, 0.6], [1.0, 2.8, 0.5]], beams:[[1.9, 2.0, 1.6, 0.5]], furniture:{bed:[0.8, 0.9, 0.1], table:[2.9, 0.9, 0.6]}},
+    {n:'Бетонный, обрушен наполовину', mat:'concrete', floor:'tiles', walls:[[0.15, 3.85, 0.15, 0.15, 2.3, 0.15], [0.15, 3.85, 1.4, 3.85]], inner:[[0.15, 1.8, 1.4, 1.8]], piles:[[2.8, 2.6, 1.0], [3.2, 1.0, 0.6], [1.9, 3.3, 0.5]], beams:[[2.4, 1.8, 1.8, 2.2]], furniture:{tub:[0.7, 1.2, 0], stove:[0.4, 2.2]}},
+    {n:'Выгоревший', mat:'brickwall', floor:'wood', burnt:true, walls:[[0.15, 3.85, 0.15, 0.15, 3.85, 0.15, 3.85, 2.8], [1.6, 3.85, 3.0, 3.85]], inner:[[2.0, 0.15, 2.0, 2.2]], piles:[[3.0, 3.2, 0.55]], beams:[[1.0, 1.5, 1.8, 0.8], [2.8, 2.0, 1.5, -0.4], [1.2, 2.9, 1.3, 0.2]], furniture:{bed:[0.9, 0.8, 0], stove:[2.5, 0.5]}},
+    {n:'Заросший', mat:'brickwall', floor:'tiles', overgrown:true, walls:[[0.15, 2.0, 0.15, 0.15, 2.6, 0.15], [3.85, 1.0, 3.85, 3.85, 2.2, 3.85]], piles:[[2.0, 2.0, 0.6], [0.9, 3.2, 0.5]], beams:[[3.0, 1.0, 1.4, 1.2]], furniture:{table:[1.2, 1.0, -0.4]}},
+  ];
+  const RUIN_CORNER = [
+    {n:'Кирпичный угол', mat:'brickwall', walls:[[0.15, 2.6, 0.15, 0.15, 2.5, 0.15]], piles:[[0.9, 0.9, 0.6], [1.9, 0.6, 0.35]], beams:[[1.2, 1.6, 1.2, 0.7]]},
+    {n:'Бетонная панель', mat:'concrete', walls:[[0.18, 2.85, 0.18, 0.18, 2.85, 0.18]], piles:[[1.0, 1.1, 0.75]], beams:[]},
+    {n:'Угол с упавшей плитой', mat:'concrete', walls:[[0.15, 1.9, 0.15, 0.15, 2.0, 0.15]], piles:[[0.8, 0.7, 0.45]], slab:[1.7, 1.7, 0.6], beams:[]},
+  ];
+  function cornerDraw(g, d){ const k = hk(g), c = k.c;
+    k.organic(1.1, 1.1, 1.3, 0.35); k.fill('#8a7e6a', 0.3);
+    if(d.slab){ const [x, y, a] = d.slab; c.save(); c.translate(x, y); c.rotate(a); k.rr(-0.8 + 0.08, -0.5 + 0.1, 1.6, 1.0, 0.02); k.fill('rgba(0,0,0,.4)'); k.rr(-0.8, -0.5, 1.6, 1.0, 0.02); k.texFill('concrete', '#8a8780'); k.rr(-0.8, -0.5, 1.6, 1.0, 0.02); k.stroke(k.INK, 0.014); k.line([-0.78, -0.48, 0.78, -0.48], 'rgba(255,250,240,.3)', 0.016); for(let i=0;i<6;i++) k.rebar([0.8, -0.4 + i*0.16, 0.8 + k.R(0.1, 0.3), -0.4 + i*0.16 + k.R(-0.08, 0.08)]); k.line([-0.3, -0.5, 0.1, 0.1, -0.1, 0.5], 'rgba(15,12,10,.6)', 0.012); c.restore(); }
+    d.walls.forEach(w=>wallRun(k, w, d.mat==='concrete' ? 0.3 : 0.24, d.mat, true));
+    if(d.mat==='concrete') d.walls.forEach(w=>{ [[w[0], w[1]], [w[w.length - 2], w[w.length - 1]]].forEach(([x, y])=>{ for(let i=0;i<4;i++) k.rebar([x + k.R(-0.1, 0.1), y + k.R(-0.1, 0.1), x + k.R(-0.3, 0.3), y + k.R(-0.3, 0.3)]); }); });
+    d.piles.forEach(p=>{ k.blot(p[0], p[1], p[2]*1.1, '#7a7468', 0.5); for(let i=0;i<Math.round(p[2]*45);i++){ const a = k.rnd()*6.28, r = k.rnd()*p[2]; const x = p[0] + Math.cos(a)*r, y = p[1] + Math.sin(a)*r*0.8; if(d.mat==='brickwall' && k.rnd() < 0.6) k.brick(x, y, k.rnd()*6.28, k.pick(['#7a4c3e', '#8a5a48', '#6b4034'])); else k.chunk(x, y, k.R(0.04, 0.14), k.pick(['#9a968e', '#86827a', '#7a766e']), 0.03); } });
+    (d.beams || []).forEach(b=>k.plank(b[0], b[1], b[2], 0.13, b[3], '#6b5236', true));
+    k.leaves(0, 0, 3, 3, 25); k.trash(0.3, 0.3, 2.4, 2.4, 6); }
+  /* ---- Город (HD): двор, разметка, транспорт, завалы, уличные мелочи ---- */
+  // стереть краску пятнами (для разметки): выедает уже нарисованное на спрайте
+  function erode(k, x, y, w, h, amt){ const c = k.c; if(!(c.canvas && c.canvas.__sprite)) return; /* только в спрайте: иначе стёрло бы карту под объектом */ c.save(); c.globalCompositeOperation = 'destination-out'; for(let i=0;i<Math.round(w*h*120*amt);i++){ const r = k.R(0.01, 0.06)*(0.5 + amt); k.organic(x + k.rnd()*w, y + k.rnd()*h, r, 0.6); c.fillStyle = `rgba(0,0,0,${k.R(0.4, 1)})`; c.fill(); } c.restore(); }
+  function paintBar(k, x, y, w, h, col, a){ const c = k.c; c.save(); c.globalAlpha = a; c.fillStyle = col; c.fillRect(x, y, w, h); c.restore(); }
+  function yardDraw(g, d){ const k = hk(g), c = k.c;
+    k.organic(2, 2, 1.9, 0.12); k.texFill(d.burnt ? 'ash' : 'dust', '#a09380'); k.organic(2, 2, 1.9, 0.12); k.stroke('rgba(60,50,40,.35)', 0.02);
+    c.save(); k.organic(2, 2, 1.9, 0.12); c.clip(); for(let i=0;i<5;i++) k.blot(k.R(0.5, 3.5), k.R(0.5, 3.5), k.R(0.2, 0.5), '#6a5e4c', 0.25); if(d.overgrown){ k.tufts(0.1, 0.1, 3.8, 3.8, 110); for(let i=0;i<6;i++) k.moss(k.R(0.4, 3.6), k.R(0.4, 3.6), k.R(0.15, 0.35)); } else k.tufts(0.1, 0.1, 3.8, 3.8, 25); k.leaves(0, 0, 4, 4, 50); k.trash(0.2, 0.2, 3.6, 3.6, d.burnt ? 20 : 10); c.restore();
+    // песочница
+    k.rr(0.42, 0.42, 1.3, 1.3, 0.02); k.fill('rgba(0,0,0,.3)'); k.rr(0.4, 0.4, 1.3, 1.3, 0.02); k.texFill('sand', '#b8a989'); c.save(); k.rr(0.4, 0.4, 1.3, 1.3, 0.02); c.lineWidth = 0.2; c.strokeStyle = k.tex('wood') || '#6b5236'; c.stroke(); c.restore(); k.rr(0.3, 0.3, 1.5, 1.5, 0.03); k.stroke(k.INK, 0.012); k.rr(0.5, 0.5, 1.1, 1.1, 0.01); k.stroke('rgba(0,0,0,.4)', 0.01);
+    c.save(); k.rr(0.5, 0.5, 1.1, 1.1, 0.01); c.clip(); for(let i=0;i<8;i++) k.blot(k.R(0.6, 1.5), k.R(0.6, 1.5), 0.04, '#8a7a5e', 0.5); if(!d.burnt){ c.beginPath(); c.arc(1.2, 0.9, 0.07, 0, 6.28); k.fill('#8a3a2e'); k.stroke(k.INK, 0.008); } k.leaves(0.5, 0.5, 1.1, 1.1, 12); c.restore();
+    // качели: стойки А-образные, перекладина, сиденья на цепях
+    const sx0 = 2.3, sx1 = 3.7, sy = 0.75;
+    if(d.wrecked){ k.line([2.2, 0.5, 3.6, 1.3], '#3a3836', 0.07); k.line([2.2, 0.5, 3.6, 1.3], k.tex('rust') || '#6b4a3a', 0.05); k.rust(2.9, 0.9, 0.08, false); }
+    else { [sx0, sx1].forEach(x=>{ k.line([x - 0.02, sy - 0.32 + 0.03, x + 0.03, sy + 0.32 + 0.04], 'rgba(0,0,0,.35)', 0.05); k.line([x, sy - 0.35, x, sy + 0.35], '#4a4e50', 0.045); [[x, sy - 0.35], [x, sy + 0.35]].forEach(([px, py])=>{ c.beginPath(); c.arc(px, py, 0.035, 0, 6.28); k.fill('#2a2826'); }); });
+      k.line([sx0 + 0.03, sy + 0.05, sx1 + 0.03, sy + 0.05], 'rgba(0,0,0,.4)', 0.07); k.line([sx0, sy, sx1, sy], '#5a6064', 0.06); k.line([sx0, sy - 0.015, sx1, sy - 0.015], 'rgba(255,255,255,.25)', 0.012); for(let i=0;i<4;i++) k.rust(k.R(sx0, sx1), sy, 0.035, false);
+      [[2.75, 0], [3.3, d.overgrown ? 0.6 : 0.25]].forEach(([x, a])=>{ c.save(); c.translate(x, sy + 0.25); c.rotate(a); k.line([-0.12, -0.25, -0.12, 0], '#6a6e70', 0.008, 0.8, [0.02, 0.012]); k.line([0.12, -0.25, 0.12, 0], '#6a6e70', 0.008, 0.8, [0.02, 0.012]); k.rr(-0.15 + 0.02, -0.04 + 0.03, 0.3, 0.09, 0.01); k.fill('rgba(0,0,0,.3)'); k.rr(-0.15, -0.04, 0.3, 0.09, 0.01); k.texFill('wood', '#6b5236'); k.rr(-0.15, -0.04, 0.3, 0.09, 0.01); k.stroke(k.INK, 0.008); c.restore(); }); }
+    // горка: лестница и скат
+    if(!d.wrecked){ c.save(); c.translate(2.9, 2.5); c.rotate(-0.5); k.line([-0.4, -0.1, -0.05, -0.1], '#4a4e50', 0.025); k.line([-0.4, 0.1, -0.05, 0.1], '#4a4e50', 0.025); for(let i=0;i<5;i++) k.line([-0.38 + i*0.08, -0.1, -0.38 + i*0.08, 0.1], '#5a5e60', 0.015);
+      k.rr(-0.05, -0.17, 0.3, 0.34, 0.02); k.texFill('metal', '#6d7376'); k.stroke(k.INK, 0.01); k.rr(0.25 + 0.03, -0.11 + 0.05, 0.8, 0.22, 0.05); k.fill('rgba(0,0,0,.35)'); k.rr(0.25, -0.11, 0.8, 0.22, 0.05); c.fillStyle = k.lin(0.25, -0.11, 0.25, 0.11, [[0, '#a8aeb2'], [0.5, '#d6dade'], [1, '#7e8488']]); c.fill(); k.stroke(k.INK, 0.01); k.rust(0.7, 0.03, 0.06, false); k.rust(0.95, -0.04, 0.04, false); c.restore(); }
+    else for(let i=0;i<3;i++) k.tire(k.R(2.4, 3.6), k.R(2.2, 3.2), 0.14);
+    // карусель
+    const cx = 1.1, cy = 3.0; c.beginPath(); c.arc(cx + 0.05, cy + 0.06, 0.48, 0, 6.28); k.fill('rgba(0,0,0,.3)'); c.beginPath(); c.arc(cx, cy, 0.48, 0, 6.28); k.texFill('metal', '#6d7376', d.burnt ? '#2a2826' : '#8a5a3a', 0.35); k.stroke(k.INK, 0.012);
+    for(let i=0;i<6;i++){ const a = i/6*6.28 + 0.3; k.line([cx, cy, cx + Math.cos(a)*0.48, cy + Math.sin(a)*0.48], 'rgba(20,18,16,.6)', 0.012); k.line([cx + Math.cos(a)*0.2, cy + Math.sin(a)*0.2, cx + Math.cos(a + 0.4)*0.38, cy + Math.sin(a + 0.4)*0.38], '#4a4e50', 0.02); }
+    c.beginPath(); c.arc(cx, cy, 0.08, 0, 6.28); k.fill('#3a3836'); for(let i=0;i<3;i++) k.rust(cx + k.R(-0.3, 0.3), cy + k.R(-0.3, 0.3), 0.06, false);
+    // скамья
+    c.save(); c.translate(2.2, 3.55); k.rr(-0.55 + 0.03, -0.12 + 0.04, 1.1, 0.24, 0.02); k.fill('rgba(0,0,0,.3)'); for(let i=0;i<3;i++){ if(d.wrecked && i===1) continue; k.rr(-0.55, -0.12 + i*0.08, 1.1, 0.07, 0.01); k.texFill('wood', '#6b5236'); k.stroke(k.INK, 0.008); } k.line([-0.45, -0.13, -0.45, 0.13], '#3a3836', 0.03); k.line([0.45, -0.13, 0.45, 0.13], '#3a3836', 0.03); c.restore();
+    if(d.overgrown) [[3.5, 2.0, 0.4], [0.5, 2.2, 0.3]].forEach(b=>houseBits.bush(k, b[0], b[1], b[2]));
+    if(d.burnt){ for(let i=0;i<4;i++) k.radial(k.R(1, 3), k.R(1, 3), k.R(0.4, 0.8), '#0c0a08', 0.4); k.blot(2.6, 2.6, 0.35, '#2a2622', 0.7); for(let i=0;i<6;i++) k.chunk(2.6 + k.R(-0.3, 0.3), 2.6 + k.R(-0.3, 0.3), 0.05, '#1e1a16', 0.02); } }
+  const YARD = [{n:'Заброшенная площадка'}, {n:'Заросшая', overgrown:true}, {n:'Разорённая, следы костра', wrecked:true, burnt:true}];
+  // Разметка (наземные): краска + выщербины, трещины, пятна масла, выбоины
+  function crossDraw(g, d){ const k = hk(g), c = k.c, a = d.paint;
+    const side = (fn)=>{ for(let r=0;r<4;r++){ c.save(); c.translate(2, 2); c.rotate(r*Math.PI/2); c.translate(-2, -2); fn(r); c.restore(); } };
+    side(()=>{ for(let i=0;i<6;i++) paintBar(k, 0.6 + i*0.48, 0.05, 0.3, 0.55, '#e4ddca', a); paintBar(k, 0.6, 0.72, 2.8, 0.08, '#e4ddca', a); });
+    c.save(); c.globalAlpha = a*0.8; k.poly([1.3, 1.25, 1.45, 1.25, 1.45, 1.6, 1.6, 1.6, 1.37, 1.85, 1.14, 1.6, 1.3, 1.6]); k.fill('#e4ddca'); c.restore();
+    erode(k, 0, 0, 4, 4, d.wear);
+    for(let i=0;i<d.cracks;i++) k.line([k.R(0, 4), k.R(0, 4), k.R(0, 4), k.R(0, 4), k.R(0, 4), k.R(0, 4)], 'rgba(15,13,11,.6)', 0.018);
+    for(let i=0;i<3;i++) k.blot(k.R(0.8, 3.2), k.R(0.8, 3.2), k.R(0.15, 0.35), '#141210', 0.35);
+    // люк
+    const mx = 2.3, my = 2.3; c.beginPath(); c.arc(mx, my, 0.3, 0, 6.28); k.fill('#3a3836'); k.stroke(k.INK, 0.014); c.beginPath(); c.arc(mx, my, 0.27, 0, 6.28); k.texFill('metal', '#5c6265', '#4a4644', 0.4); c.save(); c.beginPath(); c.arc(mx, my, 0.26, 0, 6.28); c.clip(); for(let i=-6;i<=6;i++){ k.line([mx - 0.3, my + i*0.05, mx + 0.3, my + i*0.05 + 0.1], 'rgba(20,18,16,.5)', 0.012); } c.restore(); k.rust(mx + 0.1, my + 0.08, 0.08, false); c.beginPath(); c.arc(mx, my, 0.3, 0, 6.28); k.stroke('rgba(255,255,255,.18)', 0.01);
+    for(let i=0;i<d.holes;i++){ const x = k.R(0.7, 3.3), y = k.R(0.7, 3.3), r = k.R(0.18, 0.35); k.organic(x, y, r, 0.4, r*0.8); k.texFill('gravel', '#77736c'); k.organic(x, y, r, 0.4, r*0.8); k.stroke('rgba(10,8,6,.7)', 0.02); k.puddle(x + 0.03, y + 0.03, r*0.55, r*0.4); for(let j=0;j<5;j++) k.chunk(x + k.R(-r, r), y + k.R(-r, r), 0.04, '#4a4844', 0.015); } }
+  const CROSS = [{n:'Стёртая разметка', paint:0.75, wear:0.8, cracks:5, holes:0}, {n:'Заметная разметка', paint:0.85, wear:0.35, cracks:3, holes:0}, {n:'С выбоинами', paint:0.6, wear:1.0, cracks:8, holes:4}];
+  function zebraDraw(g, d){ const k = hk(g); for(let i=0;i<5;i++) paintBar(k, 0.12 + i*0.6, 0.08, 0.36, 0.84, '#e4ddca', d.paint); erode(k, 0, 0, 3, 1, d.wear); for(let i=0;i<d.cracks;i++) k.line([k.R(0, 3), 0, k.R(0, 3), 0.5, k.R(0, 3), 1], 'rgba(15,13,11,.55)', 0.015); if(d.grass) k.tufts(0, 0, 3, 1, 14); k.blot(k.R(0.5, 2.5), 0.5, 0.2, '#141210', 0.25); }
+  const ZEBRA = [{n:'Чёткая', paint:0.85, wear:0.3, cracks:1}, {n:'Стёртая', paint:0.75, wear:0.8, cracks:3}, {n:'Почти исчезла', paint:0.55, wear:1.3, cracks:5, grass:true}];
+  function parkingDraw(g, d){ const k = hk(g), c = k.c;
+    for(let i=0;i<=4;i++) paintBar(k, i - 0.04, 0, 0.08, 2.1, '#e4ddca', d.paint); paintBar(k, 0, 2.06, 4, 0.08, '#e4ddca', d.paint);
+    c.save(); c.globalAlpha = d.paint*0.6; c.fillStyle = '#e4ddca'; c.font = '700 0.42px Arial, sans-serif'; c.textAlign = 'center'; for(let i=0;i<4;i++) c.fillText(String(i + 1 + d.n0), i + 0.5, 1.7); c.restore();
+    erode(k, 0, 0, 4, 2.2, d.wear);
+    for(let i=0;i<4;i++){ if(k.rnd() < 0.8){ k.blot(i + 0.5 + k.R(-0.15, 0.15), k.R(0.8, 1.3), k.R(0.15, 0.3), '#141210', 0.4); k.blot(i + 0.5, k.R(0.9, 1.2), 0.08, '#4a3e5e', 0.12); }
+      const sx = i + 0.18, sy = 0.12; k.rr(sx + 0.03, sy + 0.05, 0.64, 0.16, 0.03); k.fill('rgba(0,0,0,.35)'); k.rr(sx, sy, 0.64, 0.16, 0.03); k.texFill('concrete', '#8a8780'); k.rr(sx, sy, 0.64, 0.16, 0.03); k.stroke(k.INK, 0.01); k.line([sx + 0.03, sy + 0.03, sx + 0.6, sy + 0.03], 'rgba(255,250,240,.35)', 0.012); if(k.rnd() < 0.4) k.chunk(sx + 0.55, sy + 0.1, 0.06, '#8a8780', 0.02); }
+    if(d.trash) k.trash(0.1, 0.4, 3.8, 2.5, 26); if(d.grass){ for(let i=0;i<=4;i++) k.tufts(i - 0.1, 0, 0.2, 2.2, 6); k.tufts(0, 2.1, 4, 0.2, 12); } k.leaves(0, 0, 4, 3, 30);
+    for(let i=0;i<3;i++) k.line([k.R(0, 4), k.R(0, 3), k.R(0, 4), k.R(0, 3)], 'rgba(15,13,11,.5)', 0.014); }
+  const PARKING = [{n:'Пустая', paint:0.8, wear:0.5, n0:0}, {n:'Пятна масла и мусор', paint:0.7, wear:0.8, n0:4, trash:true}, {n:'Стёртая, проросла трава', paint:0.55, wear:1.2, n0:8, grass:true}];
+  // Автобус / троллейбус
+  function busDraw(g, d){ const k = hk(g), c = k.c, paint = d.burnt ? '#2e2a27' : d.paint, pD = shade(paint, -0.42), pL = shade(paint, 0.18);
+    const X0 = 0.06, X1 = 0.94, Y0 = 0.06, Y1 = 3.94;
+    if(!d.burnt){ c.save(); c.globalAlpha = 0.35; c.beginPath(); c.ellipse(0.55, 2.2, 0.5, 1.6, 0.05, 0, 6.28); k.fill('#16130f'); c.restore(); }
+    [[0.7, 0], [0.7, 1], [3.2, 0], [3.2, 1]].forEach(([y, s], i)=>{ const x = s ? X1 - 0.02 : X0 + 0.02, gone = d.wheelsGone && d.wheelsGone.indexOf(i)>=0; if(gone){ k.rr(x - 0.05, y - 0.16, 0.1, 0.32, 0.03); k.fill('rgba(10,8,6,.7)'); return; } k.rr(x - 0.06, y - 0.18, 0.12, 0.36, 0.04); k.fill(d.burnt ? '#2a2624' : '#1c1b1a'); for(let j=0;j<7;j++) k.line([x - 0.04, y - 0.14 + j*0.047, x + 0.04, y - 0.14 + j*0.047], d.burnt ? '#5a4a3e' : '#46433f', 0.012); });
+    const body = ()=>k.rr(X0, Y0, X1 - X0, Y1 - Y0, 0.12);
+    body(); c.fillStyle = k.lin(X0, 0, X1, 0, [[0, pD], [0.15, shade(paint, -0.15)], [0.45, pL], [0.85, shade(paint, -0.15)], [1, pD]]); c.fill();
+    c.save(); body(); c.clip();
+      if(d.stripe && !d.burnt){ c.fillStyle = d.stripe; c.fillRect(X0, Y0, 0.08, Y1 - Y0); c.fillRect(X1 - 0.08, Y0, 0.08, Y1 - Y0); }
+      for(let i=1;i<7;i++) k.seam([X0 + 0.04, Y0 + i*0.55, X1 - 0.04, Y0 + i*0.55], 0.01, 0.7);
+      if(d.burnt){ for(let i=0;i<14;i++) k.blot(k.R(0.15, 0.85), k.R(0.3, 3.7), k.R(0.06, 0.18), k.pick(['#7a4126', '#9a5a30', '#b8b2a6', '#0c0b0a']), k.R(0.4, 0.75)); for(let i=0;i<2;i++){ const y = k.R(1.2, 2.8); k.organic(0.5, y, 0.28, 0.4, 0.22); k.fill('#0e0c0a'); c.save(); k.organic(0.5, y, 0.28, 0.4, 0.22); c.clip(); for(let j=0;j<6;j++) k.line([0.2, y - 0.25 + j*0.1, 0.8, y - 0.25 + j*0.1], '#3a2a20', 0.03); c.restore(); } }
+      else { for(let i=0;i<6;i++) k.peel(k.R(0.2, 0.8), k.R(0.3, 3.7), k.R(0.03, 0.06), pL); k.radial(0.5, 1.5, 0.8, '#bfb5a0', 0.12); }
+      for(let i=0;i<8;i++) k.rust(k.rnd() < 0.5 ? X0 + 0.02 : X1 - 0.02, k.R(0.3, 3.7), k.R(0.03, 0.08), d.burnt && k.rnd() < 0.3);
+      k.rust(k.R(0.3, 0.7), Y0 + 0.05, 0.05, false); k.rust(k.R(0.3, 0.7), Y1 - 0.05, 0.06, false);
+      for(let i=0;i<3;i++) k.dent(k.R(0.25, 0.75), k.R(0.4, 3.6), k.R(0.06, 0.12));
+      let dg = k.lin(X0, 0, X0 + 0.1, 0, [[0, 'rgba(70,58,44,.55)'], [1, 'rgba(70,58,44,0)']]); c.fillStyle = dg; c.fillRect(0, 0, 0.2, 4); dg = k.lin(X1, 0, X1 - 0.1, 0, [[0, 'rgba(70,58,44,.55)'], [1, 'rgba(70,58,44,0)']]); c.fillStyle = dg; c.fillRect(0.8, 0, 0.2, 4);
+    c.restore(); body(); k.stroke(k.INK, 0.016);
+    // окна по бортам (видны полосками), лобовое и заднее стекло
+    for(let i=0;i<7;i++){ const y = 0.42 + i*0.48; [[X0 + 0.005, X0 + 0.07], [X1 - 0.07, X1 - 0.005]].forEach(([a, b], s)=>{ const broken = d.burnt || k.rnd() < d.broken; k.fillP([a, y, b, y + 0.02, b, y + 0.4, a, y + 0.42], broken ? '#171411' : '#2f3a3c'); if(!broken) k.line([a + 0.01, y + 0.05, b - 0.01, y + 0.3], 'rgba(220,228,228,.22)', 0.008); }); }
+    const ws = [0.1, Y0 + 0.04, 0.9, Y0 + 0.04, 0.88, Y0 + 0.26, 0.12, Y0 + 0.26]; k.glass(()=>k.poly(ws), 0.1, Y0, 0.9, Y0 + 0.26, d.burnt || d.wsBroken);
+    if(!d.burnt && !d.wsBroken){ const ix = 0.6, iy = Y0 + 0.14; for(let i=0;i<8;i++){ const a = i/8*6.28; k.line([ix, iy, ix + Math.cos(a)*0.15, iy + Math.sin(a)*0.08], 'rgba(228,234,234,.55)', 0.005); } }
+    k.rr(0.3, Y0 + 0.28, 0.4, 0.07, 0.01); k.fill(d.burnt ? '#1e1b18' : '#1a1a18'); if(!d.burnt){ c.save(); c.fillStyle = 'rgba(200,170,80,.6)'; for(let i=0;i<5;i++) c.fillRect(0.33 + i*0.07, Y0 + 0.295, 0.04, 0.04); c.restore(); } // табло маршрута
+    k.glass(()=>k.rr(0.18, Y1 - 0.2, 0.64, 0.12, 0.02), 0.18, Y1 - 0.2, 0.82, Y1 - 0.08, d.burnt);
+    // крыша: люки, кондиционер, решётка двигателя
+    [[0.3, 1.0], [0.3, 2.6]].forEach(([x, y], i)=>{ k.rr(x + 0.03, y + 0.04, 0.4, 0.34, 0.02); k.fill('rgba(0,0,0,.35)'); k.rr(x, y, 0.4, 0.34, 0.02); if(d.burnt && i){ k.fill('#0e0c0a'); } else { k.texFill('metal', '#6d7376'); k.stroke(k.INK, 0.01); k.line([x, y + 0.05, x + 0.4, y + 0.05], '#2a2826', 0.02); } });
+    if(!d.trolley){ k.rr(0.2 + 0.05, 1.6 + 0.06, 0.6, 0.75, 0.04); k.fill('rgba(0,0,0,.4)'); k.rr(0.2, 1.6, 0.6, 0.75, 0.04); k.texFill('metal', '#8a9094', d.burnt ? '#2a2624' : null); k.stroke(k.INK, 0.012); [[0.5, 1.8], [0.5, 2.15]].forEach(([x, y])=>{ c.beginPath(); c.arc(x, y, 0.13, 0, 6.28); k.fill('#2a2826'); for(let i=0;i<5;i++){ const a = i/5*6.28; k.line([x, y, x + Math.cos(a)*0.12, y + Math.sin(a)*0.12], '#5a5e60', 0.02); } c.beginPath(); c.arc(x, y, 0.03, 0, 6.28); k.fill('#6a6e70'); }); }
+    else { k.rr(0.3, 2.9, 0.4, 0.3, 0.02); k.texFill('metal', '#6d7376'); k.stroke(k.INK, 0.01); [[0.38, 3.0], [0.62, 3.0]].forEach(([x, y], i)=>{ const ex = x + (i ? 0.08 : -0.08), ey = 0.3; k.line([x + 0.03, y + 0.04, ex + 0.03, ey + 0.05], 'rgba(0,0,0,.35)', 0.03); k.line([x, y, ex, ey], '#2a2826', 0.026); k.line([x - 0.006, y, ex - 0.006, ey], 'rgba(255,255,255,.2)', 0.006); c.beginPath(); c.arc(ex, ey, 0.03, 0, 6.28); k.fill('#3a3836'); }); }
+    for(let i=0;i<8;i++) k.line([0.25, Y1 - 0.42 + i*0.03, 0.75, Y1 - 0.42 + i*0.03], d.burnt ? '#3a2a20' : '#2a2826', 0.012);
+    k.leaves(0.1, 0.4, 0.8, 3.4, 20); if(!d.burnt) for(let i=0;i<6;i++){ c.fillStyle = 'rgba(232,228,216,.7)'; c.beginPath(); c.arc(k.R(0.2, 0.8), k.R(0.5, 3.5), 0.012, 0, 6.28); c.fill(); } }
+  const BUS = [{n:'Городской автобус', paint:'#8f9a9c', stripe:'#2f4a6a', broken:0.3}, {n:'Школьный автобус', paint:'#a88a32', stripe:'#1e1c1a', broken:0.45, wheelsGone:[2]}, {n:'Троллейбус', paint:'#8e3e32', stripe:'#c9bfa4', broken:0.5, trolley:true, wsBroken:true}, {n:'Сгоревший', burnt:true, wheelsGone:[1, 3], broken:1}];
+  // Завалы: пыль, крупные обломки снизу, мелкие сверху, кирпич, доски, арматура, трубы
+  function rubbleDraw(g, W, H, d){ const k = hk(g), c = k.c, cx = W/2, cy = H/2, rx = W*0.47, ry = H*0.45;
+    k.organic(cx, cy, rx, 0.25, ry); k.fill('#8a8070', 0.45); k.organic(cx, cy, rx*0.8, 0.3, ry*0.8); k.fill('#6a6258', 0.4);
+    const cols = d.mat==='brick' ? ['#7a4c3e', '#8a5a48', '#6b4034', '#9a968e'] : d.mat==='wood' ? ['#6b5236', '#5a4430', '#7a6040', '#8a8578'] : ['#9a968e', '#86827a', '#7a766e', '#a8a29a', '#7a4c3e'];
+    if(d.slab){ const [x, y, a, w, h] = d.slab; c.save(); c.translate(x, y); c.rotate(a); k.rr(-w/2 + 0.1, -h/2 + 0.12, w, h, 0.02); k.fill('rgba(0,0,0,.4)'); k.rr(-w/2, -h/2, w, h, 0.02); k.texFill('concrete', '#8a8780'); k.rr(-w/2, -h/2, w, h, 0.02); k.stroke(k.INK, 0.016); k.line([-w/2 + 0.02, -h/2 + 0.02, w/2 - 0.02, -h/2 + 0.02], 'rgba(255,250,240,.3)', 0.016); k.line([-w*0.2, -h/2, w*0.05, 0, -w*0.1, h/2], 'rgba(15,12,10,.6)', 0.014); for(let i=0;i<7;i++) k.rebar([w/2, -h/2 + (i + 0.5)*h/7, w/2 + k.R(0.1, 0.35), -h/2 + (i + 0.5)*h/7 + k.R(-0.1, 0.1)]); c.restore(); }
+    const layers = [[0.16, 0.26, 0.35], [0.09, 0.17, 0.6], [0.04, 0.09, 1]];
+    layers.forEach(([r0, r1, spread], li)=>{ const n = Math.round(W*H*(li===0 ? 4 : li===1 ? 8 : 14)); for(let i=0;i<n;i++){ const a = k.rnd()*6.28, rr0 = Math.sqrt(k.rnd())*spread; const x = cx + Math.cos(a)*rx*rr0, y = cy + Math.sin(a)*ry*rr0;
+      if(d.mat==='brick' && k.rnd() < 0.55) k.brick(x, y, k.rnd()*6.28, k.pick(cols)); else if(d.mat==='wood' && k.rnd() < 0.5) k.plank(x, y, k.R(0.3, 0.7), k.R(0.08, 0.13), k.rnd()*6.28, k.pick(cols), k.rnd() < 0.6); else k.chunk(x, y, k.R(r0, r1), k.pick(cols), 0.03 + (2 - li)*0.02); } });
+    if(d.mat==='mixed' || d.mat==='wood') for(let i=0;i<Math.round(W*H*0.8);i++) k.plank(cx + k.R(-rx, rx)*0.7, cy + k.R(-ry, ry)*0.7, k.R(0.35, 0.8), 0.1, k.rnd()*6.28, k.pick(['#6b5236', '#5a4430']), true);
+    for(let i=0;i<Math.round(W*H*1.2);i++) k.rebar([cx + k.R(-rx, rx)*0.7, cy + k.R(-ry, ry)*0.7, cx + k.R(-rx, rx)*0.8, cy + k.R(-ry, ry)*0.8]);
+    if(d.pipe){ const [x, y, a, L] = d.pipe; c.save(); c.translate(x, y); c.rotate(a); k.rr(-L/2 + 0.05, -0.12 + 0.07, L, 0.24, 0.1); k.fill('rgba(0,0,0,.4)'); k.rr(-L/2, -0.12, L, 0.24, 0.1); c.fillStyle = k.lin(0, -0.12, 0, 0.12, [[0, '#9aa0a2'], [0.4, '#c6cbcc'], [1, '#5a6062']]); c.fill(); k.stroke(k.INK, 0.012); c.beginPath(); c.ellipse(L/2, 0, 0.05, 0.12, 0, 0, 6.28); k.fill('#1e1c1a'); k.rust(0, 0.05, 0.1, false); c.restore(); }
+    if(d.door){ const [x, y, a] = d.door; c.save(); c.translate(x, y); c.rotate(a); carDraw({ctx:c, rnd:k.rnd}, Object.assign({}, CAR_VARIANTS[7], {body:'sedan'})); c.restore(); }
+    if(d.sandbags) for(let i=0;i<9;i++) houseBits.sandbag(k, 0.5 + i*0.36, H - 0.35, k.R(-0.2, 0.2));
+    if(d.tires) for(let i=0;i<3;i++) k.tire(k.R(0.5, W - 0.5), k.R(0.4, H*0.5), 0.17);
+    k.radial(cx - rx*0.2, cy - ry*0.2, Math.max(rx, ry)*0.8, '#d8d2c4', 0.16); k.leaves(0, 0, W, H, Math.round(W*H*4)); k.trash(cx - rx*0.8, cy - ry*0.8, rx*1.6, ry*1.6, Math.round(W*H*1.5)); }
+  const RUBBLE = [{n:'Бетонный', mat:'concrete'}, {n:'Кирпичный', mat:'brick'}, {n:'Смешанный', mat:'mixed'}, {n:'Деревянный', mat:'wood'}];
+  const RUBBLE_BIG = [{n:'Обрушенная плита', mat:'concrete', slab:[1.6, 1.4, 0.25, 2.2, 1.2]}, {n:'Смешанный, с трубой', mat:'mixed', pipe:[2.4, 1.0, -0.4, 1.8]}, {n:'Баррикада', mat:'brick', sandbags:true, tires:true, pipe:[1.4, 0.8, 0.15, 1.5]}];
+  // Ограждения: бетонные «джерси», крашеные, пластиковые водоналивные
+  function jerseyDraw(g, d){ const k = hk(g), c = k.c;
+    [0.05, 1.05].forEach((x0, i)=>{ const w = 0.9, y0 = 0.18, h = 0.64;
+      if(d.plastic){ const col = i ? '#c9c2b4' : '#b8622e'; k.rr(x0 + 0.05, y0 + 0.07, w, h, 0.1); k.fill('rgba(0,0,0,.35)'); k.rr(x0, y0, w, h, 0.1); c.fillStyle = k.lin(0, y0, 0, y0 + h, [[0, shade(col, 0.2)], [0.45, col], [1, shade(col, -0.35)]]); c.fill(); k.stroke(k.INK, 0.012);
+        k.rr(x0 + 0.08, y0 + 0.22, w - 0.16, 0.2, 0.06); k.fill(shade(col, 0.12)); k.stroke('rgba(0,0,0,.3)', 0.008); c.beginPath(); c.arc(x0 + w/2, y0 + 0.32, 0.06, 0, 6.28); k.fill('#2a2826'); for(let j=0;j<4;j++) k.blot(x0 + k.R(0.1, w - 0.1), y0 + k.R(0.1, h - 0.1), 0.04, '#5a5048', 0.4); if(i===0){ k.line([x0 + 0.2, y0 + 0.1, x0 + 0.5, y0 + 0.5], 'rgba(20,16,14,.7)', 0.01); } return; }
+      k.rr(x0 + 0.06, y0 + 0.08, w, h, 0.05); k.fill('rgba(0,0,0,.38)'); k.rr(x0, y0, w, h, 0.05); k.texFill('concrete', '#8a8780');
+      c.save(); k.rr(x0, y0, w, h, 0.05); c.clip(); c.fillStyle = k.lin(0, y0, 0, y0 + h, [[0, 'rgba(255,250,240,.12)'], [0.4, 'rgba(0,0,0,0)'], [0.6, 'rgba(0,0,0,0)'], [1, 'rgba(0,0,0,.35)']]); c.fillRect(x0, y0, w, h);
+        if(d.striped) for(let j=0;j<4;j++){ c.save(); c.globalAlpha = 0.75; c.fillStyle = j%2 ? '#d8d0bc' : '#8e3a2e'; c.fillRect(x0 + j*w/4, y0, w/4, h); c.restore(); }
+        if(d.graffiti && i===0) k.graffiti(x0 + 0.08, y0 + 0.05, 0.75, 0.2, '#3a6a8a'); erode(k, x0, y0, w, h, 0.15);
+      c.restore();
+      k.rr(x0 + 0.06, y0 + h*0.42, w - 0.12, h*0.16, 0.02); k.texFill('concrete', '#9a968e'); k.line([x0 + 0.06, y0 + h*0.42, x0 + w - 0.06, y0 + h*0.42], 'rgba(255,250,240,.35)', 0.012); k.line([x0 + 0.06, y0 + h*0.58, x0 + w - 0.06, y0 + h*0.58], 'rgba(0,0,0,.3)', 0.012);
+      k.rr(x0, y0, w, h, 0.05); k.stroke(k.INK, 0.012);
+      [[x0 + 0.2, y0 + h/2], [x0 + w - 0.2, y0 + h/2]].forEach(([x, y])=>{ k.line([x - 0.05, y, x + 0.05, y], '#4a3424', 0.025); k.line([x - 0.05, y - 0.006, x + 0.05, y - 0.006], 'rgba(220,160,110,.35)', 0.006); });
+      for(let j=0;j<3;j++){ const ex = x0 + k.R(0.05, w - 0.05), ey = k.rnd() < 0.5 ? y0 + 0.02 : y0 + h - 0.02; k.organic(ex, ey, k.R(0.04, 0.08), 0.5); k.fill('#5a5650'); }
+      if(i===1 && d.broken){ k.organic(x0 + w - 0.05, y0 + h*0.5, 0.18, 0.5, 0.3); k.fill('#4a4640'); for(let j=0;j<4;j++) k.rebar([x0 + w - 0.1, y0 + 0.2 + j*0.08, x0 + w + 0.06, y0 + 0.2 + j*0.08 + k.R(-0.04, 0.04)]); for(let j=0;j<4;j++) k.chunk(x0 + w + 0.02 + k.R(-0.05, 0.05), y0 + k.R(0.1, h - 0.1), 0.05, '#8a8780', 0.02); } }); }
+  const JERSEY = [{n:'Бетонные', graffiti:true, broken:true}, {n:'Красно-белые', striped:true}, {n:'Пластиковые водоналивные', plastic:true}];
+  // Мост: настил, отбойники, перила, фонари, деформационные швы; варианты разрушения
+  function bridgeDraw(g, d){ const k = hk(g), c = k.c, W = 3, H = 8;
+    const deck = (y0, y1)=>{ k.rr(0, y0, W, y1 - y0, 0.01); k.texFill('concrete', '#8a8780'); c.beginPath(); c.rect(0.28, y0, W - 0.56, y1 - y0); k.texFill(d.potholes ? 'cracked' : 'asphalt', '#46433f');
+      c.save(); c.beginPath(); c.rect(0.28, y0, W - 0.56, y1 - y0); c.clip(); for(let y=y0 + 0.2;y<y1;y+=0.9) paintBar(k, 1.47, y, 0.06, 0.45, '#e4ddca', 0.55); erode(k, 1.4, y0, 0.2, y1 - y0, 0.8); for(let i=0;i<4;i++) k.blot(k.R(0.5, 2.5), k.R(y0 + 0.3, y1 - 0.3), k.R(0.15, 0.3), '#141210', 0.3); k.leaves(0.3, y0, W - 0.6, y1 - y0, 30); k.trash(0.3, y0, W - 0.6, y1 - y0, 10);
+        if(d.potholes) for(let i=0;i<5;i++){ const x = k.R(0.6, 2.4), y = k.R(y0 + 0.4, y1 - 0.4), r = k.R(0.15, 0.3); k.organic(x, y, r, 0.4, r*0.8); k.texFill('gravel', '#77736c'); k.organic(x, y, r, 0.4, r*0.8); k.stroke('rgba(10,8,6,.7)', 0.02); k.puddle(x, y, r*0.5, r*0.35); } c.restore();
+      [0.28, W - 0.28].forEach(x=>{ k.line([x, y0, x, y1], 'rgba(0,0,0,.35)', 0.03); });
+      [0.08, W - 0.08].forEach((x, s)=>{ k.line([x + 0.02, y0, x + 0.02, y1], 'rgba(0,0,0,.35)', 0.05); k.line([x, y0, x, y1], '#5a5e60', 0.04); k.line([x - 0.008, y0, x - 0.008, y1], 'rgba(255,255,255,.25)', 0.01); for(let y=y0 + 0.1;y<y1;y+=0.5){ if(k.rnd() < d.railLoss) continue; k.rr(x - 0.04, y - 0.04, 0.08, 0.08, 0.01); k.fill('#3e4244'); } for(let i=0;i<3;i++) k.rust(x, k.R(y0, y1), 0.05, false); }); };
+    if(d.gap){ const [g0, g1] = d.gap; c.fillStyle = k.lin(0, g0, 0, g1, [[0, '#14110f'], [0.5, '#0a0908'], [1, '#14110f']]); c.fillRect(0, g0 - 0.1, W, g1 - g0 + 0.2);
+      c.save(); c.beginPath(); c.rect(0, g0, W, g1 - g0); c.clip(); k.texFill('water', '#2e3c40'); c.fillStyle = 'rgba(8,7,6,.6)'; c.fillRect(0, g0, W, g1 - g0); for(let i=0;i<8;i++) k.chunk(k.R(0.3, 2.7), k.R(g0 + 0.3, g1 - 0.3), k.R(0.1, 0.25), '#5a5650', 0.05); c.restore();
+      deck(0, g0); deck(g1, H);
+      [[g0, -1], [g1, 1]].forEach(([y, s])=>{ c.save(); c.beginPath(); let px = 0; c.moveTo(0, y - s*0.3); c.lineTo(0, y); for(let x=0.15;x<=W;x+=0.15) c.lineTo(x, y + s*k.R(-0.12, 0.12)); c.lineTo(W, y - s*0.3); c.closePath(); c.fillStyle = s < 0 ? '#3a3632' : '#3a3632'; c.globalCompositeOperation = 'source-over'; c.fill(); c.restore();
+        for(let i=0;i<14;i++) k.rebar([k.R(0.1, 2.9), y - s*0.05, k.R(0.1, 2.9), y + s*k.R(0.15, 0.45)]); for(let i=0;i<6;i++) k.chunk(k.R(0.2, 2.8), y - s*k.R(0.1, 0.35), k.R(0.06, 0.14), '#8a8680', 0.03); });
+      c.save(); c.translate(1.2, (g0 + g1)/2 + 0.1); c.rotate(0.35); k.rr(-0.6 + 0.1, -0.4 + 0.12, 1.2, 0.8, 0.02); k.fill('rgba(0,0,0,.45)'); k.rr(-0.6, -0.4, 1.2, 0.8, 0.02); k.texFill('asphalt', '#46433f'); k.stroke(k.INK, 0.014); c.restore(); }
+    else deck(0, H);
+    [[1.0, 0], [3.6, 1], [6.2, 0]].forEach(([y, s])=>{ if(d.gap && y > d.gap[0] - 0.3 && y < d.gap[1] + 0.3) return; const x = s ? W - 0.08 : 0.08, ax = s ? W - 0.6 : 0.6; k.line([x + 0.04, y + 0.05, ax + 0.04, y + 0.05], 'rgba(0,0,0,.35)', 0.04); k.line([x, y, ax, y], '#4a4e50', 0.035); c.beginPath(); c.arc(x, y, 0.06, 0, 6.28); k.fill('#3a3e40'); k.rr(ax - 0.1, y - 0.05, 0.2, 0.1, 0.03); k.fill('#5a5e60'); k.stroke(k.INK, 0.008); k.rr(ax - 0.08, y - 0.03, 0.16, 0.06, 0.02); k.fill(d.potholes && s ? '#1a1816' : '#b9b6a8'); });
+    [2.7, 5.3].forEach(y=>{ if(d.gap && y > d.gap[0] - 0.2 && y < d.gap[1] + 0.2) return; c.fillStyle = '#3a3836'; c.fillRect(0.28, y - 0.04, W - 0.56, 0.08); for(let x=0.3;x<W - 0.3;x+=0.08) k.line([x, y - 0.04, x + 0.04, y + 0.04], '#6a6e70', 0.012); });
+    if(d.car){ c.save(); c.translate(1.9, 1.9); c.rotate(0.25); carDraw({ctx:c, rnd:k.rnd}, CAR_VARIANTS[4]); c.restore(); } }
+  const BRIDGE = [{n:'Целый пролёт', railLoss:0.1}, {n:'Разбитый, с брошенной машиной', potholes:true, railLoss:0.35, car:true}, {n:'Обрушенный пролёт', gap:[3.4, 5.1], railLoss:0.3}];
+  function pillarDraw(g, d){ const k = hk(g), c = k.c;
+    k.organic(1, 1, 0.95, 0.25); k.fill('#7a7468', 0.35);
+    const top = ()=>k.rr(0.35, 0.35, 1.3, 1.3, 0.06);
+    if(d.broken){ const p = [0.35, 0.6, 0.9, 0.35, 1.65, 0.35, 1.65, 1.2, 1.1, 1.65, 0.35, 1.65]; k.fillP(p.map((v, i)=>v + (i%2 ? 0.16 : 0.12)), 'rgba(0,0,0,.42)'); k.poly(p); k.texFill('concrete', '#8a8780'); k.poly(p); k.stroke(k.INK, 0.016);
+      k.fillP([0.9, 0.35, 1.65, 0.35, 1.65, 1.2], '#5a5650', 0.8); for(let i=0;i<16;i++) k.rebar([k.R(0.9, 1.6), k.R(0.4, 1.1), k.R(0.9, 1.9), k.R(0.1, 1.2)]); for(let i=0;i<20;i++) k.chunk(k.R(0.1, 1.9), k.R(0.1, 1.9), k.R(0.05, 0.14), k.pick(['#9a968e', '#86827a']), 0.03); }
+    else { k.rr(0.35 + 0.14, 0.35 + 0.18, 1.3, 1.3, 0.06); k.fill('rgba(0,0,0,.45)'); top(); k.texFill('concrete', '#8a8780'); c.save(); top(); c.clip(); c.fillStyle = k.lin(0.35, 0.35, 1.65, 1.65, [[0, 'rgba(255,250,240,.12)'], [1, 'rgba(0,0,0,.25)']]); c.fillRect(0, 0, 2, 2); for(let i=0;i<3;i++) k.line([k.R(0.4, 1.6), 0.35, k.R(0.6, 1.4), k.R(0.8, 1.2), k.R(0.4, 1.6), 1.65], 'rgba(15,12,10,.55)', 0.012); k.graffiti(0.5, 1.2, 0.9, 0.3, '#8a3a5a'); c.restore(); top(); k.stroke(k.INK, 0.016); k.bevel(top, 0.03);
+      [[0.6, 0.85], [1.15, 0.85]].forEach(([x, y])=>{ k.rr(x, y, 0.25, 0.3, 0.02); k.fill('#232120'); k.stroke('rgba(255,255,255,.12)', 0.008); }); for(let i=0;i<10;i++){ const x = k.R(0.45, 1.55), y = k.rnd() < 0.5 ? 0.45 : 1.55; k.rebar([x, y, x + k.R(-0.08, 0.08), y + k.R(-0.08, 0.08)]); } for(let i=0;i<4;i++) k.streak(k.R(0.4, 1.6), 1.0, 0.6, 0.05, '#6a4028', 0.35); } }
+  const PILLAR = [{n:'Опора'}, {n:'Разрушенная опора', broken:true}];
+  // Фонарный столб (вид сверху): основание, ствол, консоль, светильник
+  function lampDraw(g, d){ const k = hk(g), c = k.c, bx = 0.5, by = 0.5;
+    const head = (x, y, a, broken)=>{ c.save(); c.translate(x, y); c.rotate(a); k.rr(-0.13 + 0.03, -0.06 + 0.04, 0.26, 0.12, 0.05); k.fill('rgba(0,0,0,.35)'); k.rr(-0.13, -0.06, 0.26, 0.12, 0.05); c.fillStyle = k.lin(0, -0.06, 0, 0.06, [[0, '#7a7e80'], [1, '#3e4244']]); c.fill(); k.stroke(k.INK, 0.008); k.rr(-0.08, -0.035, 0.16, 0.07, 0.03); k.fill(broken ? '#1a1816' : '#c8c2a8'); if(broken) for(let i=0;i<4;i++) k.line([0, 0, k.R(-0.08, 0.08), k.R(-0.04, 0.04)], 'rgba(220,228,228,.6)', 0.004); c.restore(); };
+    if(d.fallen){ k.rr(bx - 0.13, by - 0.13 + 0.25, 0.26, 0.26, 0.02); k.texFill('concrete', '#8a8780'); k.stroke(k.INK, 0.01); c.beginPath(); c.arc(bx, by + 0.38, 0.06, 0, 6.28); k.fill('#2a2826'); for(let i=0;i<4;i++) k.line([bx, by + 0.38, bx + k.R(-0.08, 0.08), by + 0.38 + k.R(-0.08, 0.08)], '#6a6e70', 0.01);
+      k.line([bx + 0.05, by + 0.38 + 0.05, 0.98, -0.02 + 0.05], 'rgba(0,0,0,.35)', 0.07); k.line([bx, by + 0.38, 0.95, -0.02], '#4a4e50', 0.06); k.line([bx - 0.01, by + 0.37, 0.94, -0.03], 'rgba(255,255,255,.22)', 0.012); for(let i=0;i<3;i++) k.rust(bx + (0.45)*(i + 1)/4, by + 0.38 - 0.4*(i + 1)/4, 0.035, false);
+      head(0.2, 0.15, -0.6, true); for(let i=0;i<8;i++) k.fillP((()=>{ const x = k.R(0.05, 0.4), y = k.R(0.05, 0.35); return [x, y, x + 0.03, y + 0.01, x + 0.01, y + 0.025]; })(), 'rgba(198,212,212,.7)'); return; }
+    k.rr(bx - 0.13 + 0.03, by - 0.13 + 0.04, 0.26, 0.26, 0.02); k.fill('rgba(0,0,0,.35)'); k.rr(bx - 0.13, by - 0.13, 0.26, 0.26, 0.02); k.texFill('concrete', '#8a8780'); k.stroke(k.INK, 0.01); [[-0.08, -0.08], [0.08, -0.08], [-0.08, 0.08], [0.08, 0.08]].forEach(([a, b])=>{ c.beginPath(); c.arc(bx + a, by + b, 0.015, 0, 6.28); k.fill('#5a5e60'); });
+    const arms = d.double ? [[-1, 0], [1, 0]] : [[0, -1]];
+    arms.forEach(([ax, ay], i)=>{ let ex = bx + ax*0.4, ey = by + ay*0.42; if(d.bent){ ex = bx + 0.32; ey = by - 0.18; } c.beginPath(); c.moveTo(bx + 0.04, by + 0.05); c.quadraticCurveTo(bx + ax*0.15 + 0.04, by + ay*0.25 + 0.05, ex + 0.04, ey + 0.05); k.stroke('rgba(0,0,0,.35)', 0.04); c.beginPath(); c.moveTo(bx, by); c.quadraticCurveTo(bx + ax*0.15, by + ay*0.25, ex, ey); k.stroke('#4a4e50', 0.034); k.rust(bx + (ex - bx)*0.5, by + (ey - by)*0.5, 0.025, false); head(ex, ey, d.bent ? 0.9 : Math.atan2(ay, ax || 0.0001), d.bent); });
+    c.beginPath(); c.arc(bx + 0.02, by + 0.03, 0.07, 0, 6.28); k.fill('rgba(0,0,0,.35)'); c.beginPath(); c.arc(bx, by, 0.065, 0, 6.28); c.fillStyle = k.lin(bx - 0.06, by - 0.06, bx + 0.06, by + 0.06, [[0, '#8a8e90'], [1, '#3a3e40']]); c.fill(); k.stroke(k.INK, 0.008); c.beginPath(); c.arc(bx, by, 0.03, 0, 6.28); k.fill('#5a5e60');
+    if(d.poster) k.rr(bx - 0.08, by + 0.07, 0.16, 0.1, 0.005), k.fill('#c9c1a8', 0.85); }
+  const LAMP = [{n:'Одинарный'}, {n:'Двойной', double:true}, {n:'Погнутый', bent:true, poster:true}, {n:'Упавший', fallen:true}];
+  // Дорожные знаки: лицом к зрителю (так читаются на карте), с износом
+  function signDraw(g, d){ const k = hk(g), c = k.c, cx = 0.5, cy = 0.42;
+    c.beginPath(); c.arc(0.5 + 0.03, 0.82 + 0.03, 0.05, 0, 6.28); k.fill('rgba(0,0,0,.35)'); c.beginPath(); c.arc(0.5, 0.82, 0.045, 0, 6.28); k.fill('#5a5e60'); k.stroke(k.INK, 0.008); k.line([0.5, 0.82, 0.5, cy + 0.2], '#6a6e70', 0.03);
+    c.save(); c.translate(cx, cy); if(d.bent) c.rotate(0.35), c.transform(1, 0.15, 0, 0.9, 0, 0);
+      const shape = ()=>{ if(d.kind==='stop'){ c.beginPath(); for(let i=0;i<8;i++){ const a = Math.PI/8 + i*Math.PI/4; c.lineTo(Math.cos(a)*0.3, Math.sin(a)*0.3); } c.closePath(); } else if(d.kind==='yield'){ k.poly([0, 0.27, -0.31, -0.25, 0.31, -0.25]); } else if(d.kind==='warn'){ k.poly([0, -0.3, 0.32, 0.25, -0.32, 0.25]); } else if(d.kind==='dir'){ k.rr(-0.38, -0.2, 0.76, 0.4, 0.03); } else { c.beginPath(); c.arc(0, 0, 0.29, 0, 6.28); } };
+      c.save(); c.translate(0.03, 0.04); shape(); k.fill('rgba(0,0,0,.35)'); c.restore();
+      shape(); k.fill(d.kind==='dir' ? '#3a5a7a' : '#d9d2c0'); shape(); k.stroke('#1e1c1a', 0.012);
+      if(d.kind==='stop'){ c.save(); c.scale(0.86, 0.86); shape(); k.fill('#8e2e26'); c.restore(); c.fillStyle = '#e4ddca'; c.font = '700 0.13px Arial, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('STOP', 0, 0.01); }
+      if(d.kind==='yield'){ c.save(); c.scale(0.8, 0.8); c.translate(0, -0.02); k.poly([0, 0.27, -0.31, -0.25, 0.31, -0.25]); c.restore(); k.c.lineWidth = 0.06; k.c.strokeStyle = '#8e2e26'; k.poly([0, 0.22, -0.25, -0.2, 0.25, -0.2]); k.c.stroke(); }
+      if(d.kind==='warn'){ k.poly([0, -0.2, 0.22, 0.18, -0.22, 0.18]); c.lineWidth = 0.05; c.strokeStyle = '#8e2e26'; c.stroke(); c.fillStyle = '#1e1c1a'; c.fillRect(-0.02, -0.08, 0.04, 0.14); c.fillRect(-0.02, 0.09, 0.04, 0.04); }
+      if(d.kind==='speed'){ c.beginPath(); c.arc(0, 0, 0.25, 0, 6.28); c.lineWidth = 0.06; c.strokeStyle = '#8e2e26'; c.stroke(); c.fillStyle = '#1e1c1a'; c.font = '700 0.2px Arial, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('40', 0, 0.01); }
+      if(d.kind==='dir'){ c.fillStyle = '#d9d2c0'; k.poly([-0.3, -0.03, 0.15, -0.03, 0.15, -0.1, 0.3, 0, 0.15, 0.1, 0.15, 0.03, -0.3, 0.03]); c.fill(); c.font = '700 0.07px Arial, sans-serif'; c.textAlign = 'left'; c.fillText('ЦЕНТР 12', -0.32, -0.12); }
+      c.save(); shape(); c.clip(); for(let i=0;i<3;i++) k.rust(k.R(-0.25, 0.25), k.R(-0.25, 0.25), k.R(0.015, 0.035), false); k.radial(0.1, 0.1, 0.3, '#5a5040', 0.3); erode(k, -0.35, -0.35, 0.7, 0.7, 0.12);
+        for(let i=0;i<(d.shots || 0);i++){ const x = k.R(-0.22, 0.22), y = k.R(-0.2, 0.2); c.beginPath(); c.arc(x, y, 0.016, 0, 6.28); k.fill('#0c0a08'); c.beginPath(); c.arc(x, y, 0.025, 0, 6.28); k.stroke('rgba(200,196,188,.7)', 0.006); } c.restore();
+    c.restore(); }
+  const SIGN = [{n:'Стоп', kind:'stop', shots:2}, {n:'Уступи дорогу', kind:'yield'}, {n:'Ограничение 40', kind:'speed', shots:4}, {n:'Указатель, простреленный', kind:'dir', shots:7}, {n:'Осторожно, погнутый', kind:'warn', bent:true}];
+  // Остановка: навес из поликарбоната на раме, скамья, рекламный щит
+  function stopDraw(g, d){ const k = hk(g), c = k.c;
+    c.save(); c.translate(0.5, 1.5); k.rr(-0.06, -1.0, 0.36, 2.0, 0.02); k.fill('rgba(0,0,0,.3)'); for(let i=0;i<3;i++){ k.rr(-0.05 + i*0.1, -0.95, 0.08, 1.9, 0.01); k.texFill('wood', '#6b5236'); k.stroke(k.INK, 0.008); } c.restore();
+    k.rr(0.62, 2.55, 0.26, 0.26, 0.03); k.fill('#3e4244'); k.stroke(k.INK, 0.01); c.beginPath(); c.arc(0.75, 2.68, 0.08, 0, 6.28); k.fill('#1a1816'); k.trash(0.4, 2.3, 0.6, 0.6, 6);
+    if(d.collapsed){ c.save(); c.translate(0.55, 1.6); c.rotate(0.22); c.transform(1, 0, 0.12, 1, 0, 0); k.rr(-0.48 + 0.1, -1.35 + 0.12, 0.96, 2.7, 0.02); k.fill('rgba(0,0,0,.4)'); k.rr(-0.48, -1.35, 0.96, 2.7, 0.02); k.fill('rgba(120,140,130,.35)'); k.stroke('#4a4e50', 0.05); for(let i=1;i<4;i++) k.line([-0.48, -1.35 + i*0.675, 0.48, -1.35 + i*0.675], '#4a4e50', 0.035); k.line([-0.4, -1.2, 0.3, 0.3], 'rgba(220,228,228,.5)', 0.006); c.restore(); for(let i=0;i<20;i++){ const x = k.R(0.1, 0.9), y = k.R(0.2, 2.8); k.fillP([x, y, x + 0.04, y + 0.01, x + 0.015, y + 0.035], 'rgba(190,206,200,.65)'); } return; }
+    k.line([0.06, 0.15, 0.06, 2.85], '#2f3a3c', 0.06); k.line([0.06, 0.15, 0.06, 2.85], 'rgba(220,228,228,.25)', 0.015);
+    c.save(); k.rr(0.08 + 0.08, 0.1 + 0.1, 0.84, 2.8, 0.02); k.fill('rgba(0,0,0,.28)'); c.restore();
+    for(let i=0;i<4;i++){ const y = 0.1 + i*0.7, gone = d.broken && (i===1 || i===3); if(gone){ k.line([0.1, y + 0.05, 0.9, y + 0.05], 'rgba(198,212,212,.6)', 0.008, null, [0.03, 0.05]); continue; } k.rr(0.08, y, 0.84, 0.7, 0.01); c.fillStyle = 'rgba(140,160,150,.42)'; c.fill(); c.save(); k.rr(0.08, y, 0.84, 0.7, 0.01); c.clip(); k.radial(0.5, y + 0.35, 0.5, '#8a8270', 0.3); k.leaves(0.08, y, 0.84, 0.7, 8); c.globalAlpha = 0.3; k.fillP([0.2, y, 0.32, y, 0.15, y + 0.7, 0.08, y + 0.7], '#e0e8e6'); c.restore(); if(d.broken && i===2){ for(let j=0;j<8;j++){ const a = j/8*6.28; k.line([0.5, y + 0.35, 0.5 + Math.cos(a)*0.3, y + 0.35 + Math.sin(a)*0.3], 'rgba(230,236,234,.6)', 0.005); } } }
+    c.beginPath(); c.rect(0.08, 0.1, 0.84, 2.8); k.stroke('#4a4e50', 0.045); for(let i=1;i<4;i++) k.line([0.08, 0.1 + i*0.7, 0.92, 0.1 + i*0.7], '#4a4e50', 0.035); k.line([0.08, 0.09, 0.92, 0.09], 'rgba(255,255,255,.25)', 0.01); for(let i=0;i<4;i++) k.rust(k.R(0.1, 0.9), k.rnd() < 0.5 ? 0.1 : 2.9, 0.03, false);
+    k.rr(0.84, 0.25, 0.12, 0.6, 0.01); k.fill('#2a2826'); k.rr(0.86, 0.28, 0.08, 0.54, 0.005); k.fill(d.broken ? '#4a4038' : '#a89a7a'); k.graffiti(0.86, 0.35, 0.08, 0.4, '#3a6a8a'); }
+  const BUS_STOP = [{n:'Грязная, целая'}, {n:'Разбитая', broken:true}, {n:'Обрушенная', collapsed:true}];
+  // Киоск: кровля, вывеска, маркиза, ставни
+  function kioskDraw(g, d){ const k = hk(g), c = k.c, col = d.burnt ? '#2e2a27' : d.col;
+    k.rr(0.15 + 0.1, 0.15 + 0.12, 1.7, 1.55, 0.03); k.fill('rgba(0,0,0,.4)'); k.rr(0.15, 0.15, 1.7, 1.55, 0.03); k.texFill(d.burnt ? 'ash' : 'corrugated', '#7f8588', d.burnt ? null : col, 0.45);
+    c.save(); k.rr(0.15, 0.15, 1.7, 1.55, 0.03); c.clip(); c.fillStyle = k.lin(0.15, 0, 1.85, 0, [[0, 'rgba(255,250,240,.12)'], [1, 'rgba(0,0,0,.25)']]); c.fillRect(0, 0, 2, 2); for(let i=0;i<d.rust;i++) k.rust(k.R(0.3, 1.7), k.R(0.3, 1.5), k.R(0.06, 0.16), i < d.rust/3); k.leaves(0.15, 0.15, 1.7, 1.55, 15); if(d.burnt){ for(let i=0;i<6;i++) k.blot(k.R(0.3, 1.7), k.R(0.3, 1.5), k.R(0.1, 0.25), k.pick(['#7a4126', '#b8b2a6', '#0c0b0a']), 0.6); k.organic(1.1, 0.8, 0.35, 0.4, 0.28); k.fill('#0e0c0a'); } c.restore();
+    k.rr(0.15, 0.15, 1.7, 1.55, 0.03); k.stroke(k.INK, 0.014); ventPipe(k, 1.55, 0.45, 0.06);
+    // вывеска и маркиза вдоль фасада (низ)
+    k.rr(0.15, 1.6, 1.7, 0.16, 0.01); k.fill(d.burnt ? '#1e1b18' : shade(col, -0.25)); k.stroke(k.INK, 0.01); if(!d.burnt){ c.save(); c.globalAlpha = 0.75; c.fillStyle = '#d8d0bc'; c.font = '700 0.11px Arial, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(d.sign, 1.0, 1.685); c.restore(); erode(k, 0.15, 1.6, 1.7, 0.16, 0.5); }
+    if(d.awning){ for(let i=0;i<8;i++){ k.poly([0.15 + i*0.2125, 1.76, 0.15 + (i + 1)*0.2125, 1.76, 0.15 + (i + 1)*0.2125 - 0.01, 1.95, 0.15 + i*0.2125 + 0.01, 1.95]); k.fill(i%2 ? '#d0c6ae' : (d.torn && i===5 ? 'rgba(0,0,0,0)' : '#7a3a2e')); } k.line([0.15, 1.95, 1.85, 1.95], 'rgba(10,8,6,.6)', 0.012); if(d.torn) k.line([1.2, 1.8, 1.25, 1.95, 1.21, 1.99], '#7a3a2e', 0.02); }
+    else { k.rr(0.2, 1.77, 1.6, 0.18, 0.01); k.texFill('corrugated', '#6c7275', '#4a4e50', 0.3); k.stroke(k.INK, 0.01); for(let i=0;i<10;i++) k.line([0.22, 1.79 + i*0.017, 1.78, 1.79 + i*0.017], 'rgba(0,0,0,.25)', 0.004); }
+    if(d.loot){ k.trash(0.0, 1.75, 2, 0.25, 14); houseBits.crate(k, 1.75, 1.85, 0.22, 0.18, 0.4); } if(d.papers) for(let i=0;i<3;i++){ c.save(); c.translate(0.4 + i*0.5, 1.88); c.rotate(k.R(-0.3, 0.3)); k.rr(-0.1, -0.06, 0.2, 0.12, 0.01); k.fill('#c9c1a8'); k.line([-0.1, 0, 0.1, 0], '#8a7a5a', 0.01); c.restore(); } }
+  const KIOSK = [{n:'Газетный, закрыт', col:'#3e5a6a', sign:'ПЕЧАТЬ', papers:true, rust:4}, {n:'Продуктовый, разграблен', col:'#7a3a2e', sign:'ПРОДУКТЫ', awning:true, torn:true, loot:true, rust:5}, {n:'Ржавый ларёк', col:'#6a6a50', sign:'ЛАРЁК 24', rust:12}, {n:'Сгоревший', burnt:true, sign:'', rust:6}];
+  // Мусорный контейнер: корпус, две крышки; открытый — мешки внутри; переполненный — мешки вокруг
+  function dumpsterDraw(g, d){ const k = hk(g), c = k.c, col = d.burnt ? '#2e2a27' : d.col;
+    const bag = (x, y, r, a)=>{ c.save(); c.translate(x, y); c.rotate(a); k.organic(0.02, 0.03, r, 0.25, r*0.8); k.fill('rgba(0,0,0,.35)'); k.organic(0, 0, r, 0.25, r*0.8); c.fillStyle = k.lin(-r, -r, r, r, [[0, '#3a3e36'], [1, '#141512']]); c.fill(); k.line([-r*0.4, -r*0.5, r*0.2, -r*0.2], 'rgba(255,255,255,.18)', r*0.08); c.beginPath(); c.arc(r*0.6, -r*0.5, r*0.15, 0, 6.28); k.fill('#20221e'); c.restore(); };
+    if(d.over) for(let i=0;i<7;i++) bag(k.R(0.1, 1.9), k.rnd() < 0.5 ? k.R(0.0, 0.15) : k.R(0.85, 1.0), k.R(0.1, 0.16), k.rnd()*6.28);
+    if(d.over) k.trash(0, 0, 2, 1, 20);
+    k.rr(0.06 + 0.06, 0.12 + 0.08, 1.88, 0.76, 0.05); k.fill('rgba(0,0,0,.4)'); k.rr(0.06, 0.12, 1.88, 0.76, 0.05); k.texFill('metal', '#6d7376', col, 0.6); k.rr(0.06, 0.12, 1.88, 0.76, 0.05); k.stroke(k.INK, 0.014);
+    c.save(); k.rr(0.06, 0.12, 1.88, 0.76, 0.05); c.clip(); for(let i=0;i<d.rust;i++) k.rust(k.R(0.1, 1.9), k.rnd() < 0.5 ? 0.15 : 0.85, k.R(0.04, 0.1), false); c.restore();
+    [0.1, 1.02].forEach((x, i)=>{ const open = d.open && i===1;
+      if(open){ k.rr(x, 0.18, 0.86, 0.64, 0.03); k.fill('#141210'); c.save(); k.rr(x, 0.18, 0.86, 0.64, 0.03); c.clip(); for(let j=0;j<5;j++) bag(x + k.R(0.15, 0.7), k.R(0.3, 0.7), k.R(0.12, 0.18), k.rnd()*6.28); k.trash(x, 0.18, 0.86, 0.64, 8); c.restore(); k.rr(x - 0.02, 0.02, 0.9, 0.14, 0.02); k.fill(d.burnt ? '#1a1816' : '#2a2c2a'); k.stroke(k.INK, 0.01); return; }
+      k.rr(x, 0.16, 0.86, 0.68, 0.03); c.fillStyle = d.burnt ? '#141210' : k.lin(x, 0.16, x, 0.84, [[0, '#3e423e'], [1, '#22251f']]); c.fill(); k.stroke(k.INK, 0.01); for(let j=1;j<5;j++) k.line([x + j*0.17, 0.2, x + j*0.17, 0.8], 'rgba(255,255,255,.08)', 0.02); k.rr(x + 0.3, 0.75, 0.26, 0.05, 0.02); k.fill('#141210'); if(d.burnt){ k.organic(x + 0.4, 0.5, 0.25, 0.5, 0.2); k.fill('#0a0908'); } });
+    k.line([0.06, 0.12, 1.94, 0.12], '#2a2826', 0.02); [[0.04, 0.3], [0.04, 0.7], [1.96, 0.3], [1.96, 0.7]].forEach(([x, y])=>{ k.rr(x - 0.03, y - 0.05, 0.06, 0.1, 0.01); k.fill('#3a3836'); });
+    if(d.burnt){ k.radial(1, 0.5, 1.1, '#0c0a08', 0.35); for(let i=0;i<5;i++) k.blot(k.R(0.2, 1.8), k.R(0.2, 0.8), 0.1, '#b8b2a6', 0.3); } }
+  const DUMPSTER = [{n:'Зелёный, закрыт', col:'#3e5a3a', rust:4}, {n:'Синий, открыт, полон', col:'#2f4a6a', open:true, rust:5}, {n:'Переполнен, мусор вокруг', col:'#5a5a48', open:true, over:true, rust:8}, {n:'Сгоревший', burnt:true, rust:6}];
+  function hydrantDraw(g, d){ const k = hk(g), c = k.c, col = d.col, x = 0.5, y = 0.5;
+    if(d.leak){ k.puddle(0.55, 0.6, 0.42, 0.34); for(let i=0;i<8;i++) k.line([x, y, x + Math.cos(-0.6 + i*0.12)*0.45, y + Math.sin(-0.6 + i*0.12)*0.3], 'rgba(200,215,220,.35)', 0.012, null, [0.03, 0.03]); }
+    [[0, 1], [Math.PI, 1], [Math.PI/2, 0.8]].forEach(([a, s])=>{ const ex = x + Math.cos(a)*0.2*s, ey = y + Math.sin(a)*0.2*s; k.line([x + 0.02, y + 0.03, ex + 0.02, ey + 0.03], 'rgba(0,0,0,.35)', 0.09); k.line([x, y, ex, ey], shade(col, -0.15), 0.08); c.beginPath(); c.arc(ex, ey, 0.05, 0, 6.28); k.fill(shade(col, -0.3)); k.stroke(k.INK, 0.008); });
+    c.beginPath(); c.arc(x + 0.03, y + 0.04, 0.16, 0, 6.28); k.fill('rgba(0,0,0,.35)'); c.beginPath(); c.arc(x, y, 0.16, 0, 6.28); c.fillStyle = k.lin(x - 0.16, y - 0.16, x + 0.16, y + 0.16, [[0, shade(col, 0.25)], [1, shade(col, -0.35)]]); c.fill(); k.stroke(k.INK, 0.01);
+    for(let i=0;i<8;i++){ const a = i/8*6.28; c.beginPath(); c.arc(x + Math.cos(a)*0.13, y + Math.sin(a)*0.13, 0.012, 0, 6.28); k.fill('#5a5650'); }
+    if(d.leak){ c.beginPath(); c.arc(x, y, 0.07, 0, 6.28); k.fill('#141210'); k.radial(x, y, 0.1, '#c8d6da', 0.4); } else { c.beginPath(); for(let i=0;i<5;i++){ const a = i/5*6.28 - Math.PI/2; c.lineTo(x + Math.cos(a)*0.06, y + Math.sin(a)*0.06); } c.closePath(); k.fill(shade(col, -0.2)); k.stroke(k.INK, 0.008); }
+    for(let i=0;i<4;i++) k.rust(x + k.R(-0.12, 0.12), y + k.R(-0.12, 0.12), k.R(0.02, 0.05), false); k.line([x + 0.2, y, x + 0.25, y + 0.15, x + 0.12, y + 0.18], '#5a5e60', 0.008, 0.8, [0.012, 0.008]); }
+  const HYDRANT = [{n:'Красный', col:'#8e3a2e'}, {n:'Жёлтый, ржавый', col:'#9a8030'}, {n:'Сломан, течёт', col:'#8e3a2e', leak:true}];
+  function boothDraw(g, d){ const k = hk(g), c = k.c, col = d.col;
+    if(d.open){ k.rr(0.25, 0.2, 0.5, 0.15, 0.02); k.fill('#3e4244'); k.stroke(k.INK, 0.01); c.beginPath(); c.arc(0.5 + 0.03, 0.35 + 0.04, 0.3, 0, Math.PI); k.fill('rgba(0,0,0,.35)'); c.beginPath(); c.arc(0.5, 0.35, 0.3, 0, Math.PI); c.closePath(); k.texFill('metal', '#6d7376', col, 0.5); k.stroke(k.INK, 0.012); k.rr(0.42, 0.28, 0.16, 0.12, 0.01); k.fill('#1e1c1a'); k.line([0.45, 0.4, 0.5, 0.6, 0.62, 0.7], '#1e1c1a', 0.012); k.rr(0.58, 0.66, 0.1, 0.05, 0.02); k.fill('#2a2826'); for(let i=0;i<3;i++) k.rust(k.R(0.3, 0.7), k.R(0.4, 0.6), 0.03, false); return; }
+    if(d.smashed) for(let i=0;i<20;i++){ const x = k.R(0.02, 0.98), y = k.R(0.02, 0.98); if(x > 0.15 && x < 0.85 && y > 0.15 && y < 0.85) continue; k.fillP([x, y, x + 0.03, y + 0.008, x + 0.012, y + 0.028], 'rgba(198,212,212,.7)'); }
+    k.rr(0.15 + 0.06, 0.15 + 0.08, 0.7, 0.7, 0.03); k.fill('rgba(0,0,0,.4)'); k.rr(0.15, 0.15, 0.7, 0.7, 0.03); c.fillStyle = k.lin(0.15, 0.15, 0.85, 0.85, [[0, shade(col, 0.15)], [1, shade(col, -0.35)]]); c.fill(); k.stroke(k.INK, 0.012);
+    k.rr(0.22, 0.22, 0.56, 0.56, 0.02); k.fill(shade(col, -0.1)); k.stroke('rgba(0,0,0,.4)', 0.008); c.beginPath(); c.arc(0.5, 0.5, 0.06, 0, 6.28); k.fill('#d8d0bc', 0.75);
+    c.save(); c.globalAlpha = 0.8; c.fillStyle = '#e4ddca'; c.font = '700 0.06px Arial, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('ТЕЛЕФОН', 0.5, 0.185); c.restore();
+    for(let i=0;i<3;i++) k.rust(k.R(0.2, 0.8), k.R(0.2, 0.8), k.R(0.015, 0.03), false); if(d.smashed){ k.dent(0.45, 0.55, 0.15); k.line([0.15, 0.85, 0.05, 0.95], '#1e1c1a', 0.012); } k.leaves(0.2, 0.2, 0.6, 0.6, 5); }
+  const BOOTH = [{n:'Красная будка', col:'#8e2e26'}, {n:'Уличный таксофон', col:'#5a6a6e', open:true}, {n:'Разбитая будка', col:'#7a3a30', smashed:true}];
+  const VN = (arr)=>arr.map(x=>x.n), PV = (arr, v)=>arr[v] || arr[0];
+  A('house_small', 'Жилой дом, малый', 'city', 3, 3, {t:'дом здание жилой коттедж крыша черепица', v:HOUSE_SMALL.length, vn:VN(HOUSE_SMALL), hd:true}, (g, v)=>houseDraw(g, 3, 3, PV(HOUSE_SMALL, v)));
+  A('house_mid', 'Жилой дом, средний', 'city', 4, 5, {t:'дом здание жилой крыша огород', v:HOUSE_MID.length, vn:VN(HOUSE_MID), hd:true}, (g, v)=>houseDraw(g, 4, 5, PV(HOUSE_MID, v)));
+  A('apartment_block', 'Многоквартирный дом', 'city', 6, 8, {t:'дом многоэтажка панелька жилой крыша', v:APT_BLOCK.length, vn:VN(APT_BLOCK), hd:true}, (g, v)=>blockDraw(g, 6, 8, PV(APT_BLOCK, v)));
+  A('ruin_house', 'Руины дома', 'city', 4, 4, {t:'руины разрушенный дом развалины', v:RUIN_HOUSE.length, vn:VN(RUIN_HOUSE), hd:true}, (g, v)=>ruinDraw(g, 4, 4, PV(RUIN_HOUSE, v)));
+  A('ruin_corner', 'Обрушенный угол здания', 'city', 3, 3, {t:'руины стена угол', v:RUIN_CORNER.length, vn:VN(RUIN_CORNER), hd:true}, (g, v)=>cornerDraw(g, PV(RUIN_CORNER, v)));
+  A('yard', 'Двор с детской площадкой', 'city', 4, 4, {t:'двор площадка качели песочница горка', g:true, v:YARD.length, vn:VN(YARD), hd:true}, (g, v)=>yardDraw(g, PV(YARD, v)));
+  A('crossroad', 'Разметка перекрёстка', 'city', 4, 4, {t:'перекрёсток разметка зебра дорога люк', g:true, v:CROSS.length, vn:VN(CROSS), hd:true}, (g, v)=>crossDraw(g, PV(CROSS, v)));
+  A('zebra', 'Пешеходный переход', 'city', 3, 1, {t:'зебра переход разметка', g:true, v:ZEBRA.length, vn:VN(ZEBRA), hd:true}, (g, v)=>zebraDraw(g, PV(ZEBRA, v)));
+  A('parking', 'Парковка', 'city', 4, 3, {t:'парковка стоянка разметка', g:true, v:PARKING.length, vn:VN(PARKING), hd:true}, (g, v)=>parkingDraw(g, PV(PARKING, v)));
   A('car_wreck', 'Брошенный автомобиль', 'city', 1, 2, {t:'машина авто автомобиль остов легковушка седан хэтчбек универсал пикап внедорожник джип фургон', v:CAR_VARIANTS.length, vn:CAR_VARIANTS.map(x=>x.n), hd:true}, (g, v)=>carDraw(g, CAR_VARIANTS[v] || CAR_VARIANTS[0]));
   A('car_burnt', 'Сгоревший автомобиль', 'city', 1, 2, {t:'машина сгоревшая остов гарь пикап фургон', v:CAR_BURNT.length, vn:CAR_BURNT.map(x=>x.n), hd:true}, (g, v)=>carDraw(g, CAR_BURNT[v] || CAR_BURNT[0]));
-  A('bus_wreck', 'Остов автобуса', 'city', 1, 4, {t:'автобус транспорт остов', v:2}, (g, v)=>{
-    g.r(0.03, 0.05, 0.94, 3.9, v ? P.yelD : P.wat, {rad:0.15}); g.r(0.12, 0.25, 0.76, 3.4, g.shade(v ? P.yelD : P.wat, 0.12));
-    for(let i=0;i<5;i++) g.r(0.2, 0.45 + i*0.62, 0.6, 0.42, P.gr, {s:false}); g.rub(0.1, 0.4, 0.8, 3.2, 6, [P.rustD]); });
-  A('rubble_pile', 'Завал', 'city', 2, 2, {t:'завал обломки мусор бетон', v:4}, (g)=>{ g.blob(1, 1, 0.9, P.conD, {alpha:0.6}); g.rub(0, 0, 2, 2, 22, [P.con, P.conD, P.conL, P.rustD, P.woodD]); });
-  A('rubble_big', 'Большой завал', 'city', 4, 3, {t:'завал обломки баррикада', v:3}, (g)=>{ g.blob(2, 1.5, 1.6, P.conD, {alpha:0.6}); g.rub(0, 0, 4, 3, 46, [P.con, P.conD, P.conL, P.rustD, P.woodD, P.met]); });
-  A('jersey', 'Бетонные блоки', 'city', 2, 1, {t:'блок бетон ограждение укрытие', v:2}, (g)=>{ g.r(0.05, 0.2, 0.9, 0.6, P.conL, {rad:0.08}); g.r(1.05, 0.2, 0.9, 0.6, P.conL, {rad:0.08}); g.l([0.2, 0.5, 0.8, 0.5], P.conD, 0.04); g.l([1.2, 0.5, 1.8, 0.5], P.conD, 0.04); });
-  A('bridge', 'Пролёт моста', 'city', 3, 8, {t:'мост пролёт переправа', v:2}, (g, v)=>{
-    g.r(0, 0, 3, 8, P.con); g.r(0.2, 0, 2.6, 8, P.asp, {s:false}); g.l([1.5, 0.3, 1.5, 7.7], P.yel, 0.06, {dash:[0.4, 0.4]});
-    g.r(0, 0, 0.2, 8, P.conL); g.r(2.8, 0, 0.2, 8, P.conL); if(v){ g.p([0, 5.2, 3, 4.6, 3, 8, 0, 8], P.gr); g.rub(0, 4.4, 3, 1.2, 10, [P.con, P.conD]); } });
-  A('overpass_pillar', 'Опора эстакады', 'city', 2, 2, {t:'эстакада опора колонна мост'}, (g)=>{ g.r(0.3, 0.3, 1.4, 1.4, P.conL, {rad:0.1}); g.r(0.55, 0.55, 0.9, 0.9, P.con); g.l([0.3, 0.3, 1.7, 1.7], P.conD, 0.03); });
-  A('lamp_post', 'Фонарный столб', 'city', 1, 1, {t:'фонарь столб освещение', v:2}, (g, v)=>{ g.c(0.5, 0.5, 0.12, P.metD); g.l([0.5, 0.5, v ? 0.9 : 0.5, v ? 0.75 : 0.05], P.met, 0.07); g.c(v ? 0.9 : 0.5, v ? 0.75 : 0.05, 0.1, P.yel); });
-  A('road_sign', 'Дорожный знак', 'city', 1, 1, {t:'знак дорога указатель', v:3}, (g, v)=>{ g.c(0.5, 0.5, 0.06, P.metD); g.c(0.5, 0.35, 0.28, [P.red, P.wat, P.yel][v]); g.c(0.5, 0.35, 0.18, P.wh, {s:false}); });
-  A('bus_stop', 'Остановка', 'city', 1, 3, {t:'остановка навес скамья'}, (g)=>{ g.r(0.05, 0.1, 0.9, 2.8, P.gl, {alpha:0.55}); g.r(0.05, 0.1, 0.25, 2.8, P.metD); g.r(0.45, 0.6, 0.35, 1.8, P.woodL); });
-  A('kiosk', 'Киоск', 'city', 2, 2, {t:'киоск ларёк будка', v:2}, (g, v)=>{ g.r(0.1, 0.1, 1.8, 1.8, v ? P.wat : P.red); g.r(0.1, 1.5, 1.8, 0.4, P.gl); g.r(0.3, 0.3, 1.4, 1.0, g.shade(v ? P.wat : P.red, 0.15)); });
-  A('dumpster', 'Мусорный контейнер', 'city', 2, 1, {t:'мусор бак контейнер', v:2}, (g, v)=>{ g.r(0.05, 0.1, 1.9, 0.8, v ? P.pl : P.metD, {rad:0.05}); g.l([0.6, 0.1, 0.6, 0.9], P.ink, 0.03); g.l([1.4, 0.1, 1.4, 0.9], P.ink, 0.03); g.rub(0.2, 0.2, 1.6, 0.6, 5, [P.cl, P.wh, P.rustD]); });
-  A('hydrant', 'Пожарный гидрант', 'city', 1, 1, {t:'гидрант вода'}, (g)=>{ g.c(0.5, 0.5, 0.2, P.red); g.c(0.5, 0.5, 0.08, P.redD); g.r(0.2, 0.44, 0.6, 0.12, P.red); });
-  A('phone_booth', 'Телефонная будка', 'city', 1, 1, {t:'телефон будка'}, (g)=>{ g.r(0.15, 0.15, 0.7, 0.7, P.red); g.r(0.25, 0.25, 0.5, 0.5, P.gl, {alpha:0.7}); });
+  A('bus_wreck', 'Остов автобуса', 'city', 1, 4, {t:'автобус транспорт остов троллейбус школьный', v:BUS.length, vn:VN(BUS), hd:true}, (g, v)=>busDraw(g, PV(BUS, v)));
+  A('rubble_pile', 'Завал', 'city', 2, 2, {t:'завал обломки мусор бетон кирпич', v:RUBBLE.length, vn:VN(RUBBLE), hd:true}, (g, v)=>rubbleDraw(g, 2, 2, PV(RUBBLE, v)));
+  A('rubble_big', 'Большой завал', 'city', 4, 3, {t:'завал обломки баррикада плита', v:RUBBLE_BIG.length, vn:VN(RUBBLE_BIG), hd:true}, (g, v)=>rubbleDraw(g, 4, 3, PV(RUBBLE_BIG, v)));
+  A('jersey', 'Бетонные блоки', 'city', 2, 1, {t:'блок бетон ограждение укрытие джерси', v:JERSEY.length, vn:VN(JERSEY), hd:true}, (g, v)=>jerseyDraw(g, PV(JERSEY, v)));
+  A('bridge', 'Пролёт моста', 'city', 3, 8, {t:'мост пролёт переправа', v:BRIDGE.length, vn:VN(BRIDGE), hd:true}, (g, v)=>bridgeDraw(g, PV(BRIDGE, v)));
+  A('overpass_pillar', 'Опора эстакады', 'city', 2, 2, {t:'эстакада опора колонна мост', v:PILLAR.length, vn:VN(PILLAR), hd:true}, (g, v)=>pillarDraw(g, PV(PILLAR, v)));
+  A('lamp_post', 'Фонарный столб', 'city', 1, 1, {t:'фонарь столб освещение', v:LAMP.length, vn:VN(LAMP), hd:true}, (g, v)=>lampDraw(g, PV(LAMP, v)));
+  A('road_sign', 'Дорожный знак', 'city', 1, 1, {t:'знак дорога указатель стоп', v:SIGN.length, vn:VN(SIGN), hd:true}, (g, v)=>signDraw(g, PV(SIGN, v)));
+  A('bus_stop', 'Остановка', 'city', 1, 3, {t:'остановка навес скамья', v:BUS_STOP.length, vn:VN(BUS_STOP), hd:true}, (g, v)=>stopDraw(g, PV(BUS_STOP, v)));
+  A('kiosk', 'Киоск', 'city', 2, 2, {t:'киоск ларёк будка', v:KIOSK.length, vn:VN(KIOSK), hd:true}, (g, v)=>kioskDraw(g, PV(KIOSK, v)));
+  A('dumpster', 'Мусорный контейнер', 'city', 2, 1, {t:'мусор бак контейнер', v:DUMPSTER.length, vn:VN(DUMPSTER), hd:true}, (g, v)=>dumpsterDraw(g, PV(DUMPSTER, v)));
+  A('hydrant', 'Пожарный гидрант', 'city', 1, 1, {t:'гидрант вода', v:HYDRANT.length, vn:VN(HYDRANT), hd:true}, (g, v)=>hydrantDraw(g, PV(HYDRANT, v)));
+  A('phone_booth', 'Телефонная будка', 'city', 1, 1, {t:'телефон будка таксофон', v:BOOTH.length, vn:VN(BOOTH), hd:true}, (g, v)=>boothDraw(g, PV(BOOTH, v)));
 
   /* ===================== МЕГАПОЛИС ===================== */
   A('megatower', 'Супернебоскрёб', 'mega', 10, 10, {t:'небоскрёб башня мегаблок дредд', v:3}, (g, v)=>{
@@ -14727,6 +15232,23 @@ const MapTex = (function(){
     rad(c, rnd, s){ basePixels(c, s, {c0:'#706f58', c1:'#5e5d49', base:4, grain:16, cells:{n:8, w:1.5, c:'#2f2e24', a:0.55, warp:16}, patches:[{c:'#7f8450', th:0.64, amt:0.45}]});
       for(let i=0;i<42;i++){ const x = rnd()*S, y = rnd()*S, r = 6 + rnd()*12; W(x, y, r, (X, Y)=>{ const g = c.createRadialGradient(X, Y, 0, X, Y, r); g.addColorStop(0, 'rgba(214,236,120,.55)'); g.addColorStop(0.25, 'rgba(190,214,96,.25)'); g.addColorStop(1, 'rgba(190,214,96,0)'); c.fillStyle = g; c.beginPath(); c.arc(X, Y, r, 0, Math.PI*2); c.fill(); c.fillStyle = 'rgba(236,250,180,.85)'; c.fillRect(X - 1, Y - 1, 2, 2); }); }
       pebbles(c, rnd, 30, 2, 5, ['#8a8e78', '#9aa08a', '#6a6c5c']); },
+    // крыши (для объектов; серые — тон задаёт сам объект)
+    rooftile(c, rnd, s){ basePixels(c, s, {c0:'#8a8580', c1:'#76716b', base:6, grain:10, patches:[{c:'#5d6648', th:0.66, amt:0.45}]});
+      const th = 32, tw = 32; for(let y=0;y<S;y+=th){ const off = (y/th)%2 ? tw/2 : 0; for(let x=-tw;x<S + tw;x+=tw){ const X = x + off, v = rnd();
+        if(v < 0.03){ c.fillStyle = '#2a2622'; c.fillRect(X, y, tw, th); c.fillStyle = 'rgba(120,90,60,.6)'; c.fillRect(X, y + th*0.3, tw, 3); continue; } // выпавшая черепица: видна обрешётка
+        const g = c.createLinearGradient(X, y, X + tw, y); g.addColorStop(0, 'rgba(0,0,0,.28)'); g.addColorStop(0.35, 'rgba(255,255,255,.12)'); g.addColorStop(0.7, 'rgba(0,0,0,.05)'); g.addColorStop(1, 'rgba(0,0,0,.3)'); c.fillStyle = g; c.fillRect(X, y, tw, th);
+        c.fillStyle = `rgba(${v < 0.5 ? '255,250,240' : '30,26,22'},${0.03 + rnd()*0.08})`; c.fillRect(X, y, tw, th);
+        c.beginPath(); c.moveTo(X, y + th); c.quadraticCurveTo(X + tw/2, y + th + 5, X + tw, y + th); c.strokeStyle = 'rgba(15,12,10,.6)'; c.lineWidth = 2.5; c.stroke();
+        if(v > 0.93){ c.strokeStyle = 'rgba(20,16,14,.7)'; c.lineWidth = 1; c.beginPath(); c.moveTo(X + rnd()*tw, y); c.lineTo(X + rnd()*tw, y + th); c.stroke(); } } } },
+    corrugated(c, rnd, s){ basePixels(c, s, {c0:'#7f8588', c1:'#6c7275', base:5, grain:8, patches:[{c:'#7a4f33', th:0.6, amt:0.75}, {c:'#5a3a26', th:0.7, amt:0.6, base:8}]});
+      const p = 16; for(let x=0;x<S;x+=p){ const g = c.createLinearGradient(x, 0, x + p, 0); g.addColorStop(0, 'rgba(0,0,0,.3)'); g.addColorStop(0.3, 'rgba(255,255,255,.18)'); g.addColorStop(0.55, 'rgba(255,255,255,.04)'); g.addColorStop(1, 'rgba(0,0,0,.32)'); c.fillStyle = g; c.fillRect(x, 0, p, S); }
+      for(let y=0;y<S;y+=128){ c.fillStyle = 'rgba(10,10,10,.55)'; c.fillRect(0, y, S, 2); for(let x=8;x<S;x+=32) rivet(c, x, y + 8, 2.2); }
+      for(let i=0;i<40;i++){ const x = Math.floor(rnd()*S/p)*p + p*0.4, y = rnd()*S; const g = c.createLinearGradient(x, y, x, y + 60); g.addColorStop(0, 'rgba(110,60,30,.5)'); g.addColorStop(1, 'rgba(110,60,30,0)'); c.fillStyle = g; c.fillRect(x - 2, y, 4, 60); } },
+    roofing(c, rnd, s){ basePixels(c, s, {c0:'#4c4a47', c1:'#3f3d3a', base:5, grain:22, stain:0.32, patches:[{c:'#5a5752', th:0.6, amt:0.45}, {c:'#2f2d2a', th:0.68, amt:0.5, base:3}]});
+      for(let y=0;y<S;y+=128){ c.fillStyle = 'rgba(15,14,13,.6)'; c.fillRect(0, y, S, 3); c.fillStyle = 'rgba(200,196,188,.12)'; c.fillRect(0, y + 3, S, 2); }
+      specks(c, rnd, 1600, 1, 2.5, ['rgba(150,146,140,.55)', 'rgba(110,106,100,.5)', 'rgba(20,19,18,.5)']);
+      for(let i=0;i<14;i++){ const x = rnd()*S, y = rnd()*S, r = 6 + rnd()*14; W(x, y, r + 2, (X, Y)=>{ c.fillStyle = 'rgba(255,255,255,.08)'; c.beginPath(); c.arc(X - 1, Y - 1, r, 0, Math.PI*2); c.fill(); c.fillStyle = 'rgba(0,0,0,.18)'; c.beginPath(); c.arc(X + 1.5, Y + 1.5, r, 0, Math.PI*2); c.fill(); }); } // вздутия
+      for(let i=0;i<5;i++){ const x = rnd()*S, y = rnd()*S, w = 40 + rnd()*80, h = 30 + rnd()*50; W(x + w/2, y + h/2, Math.max(w, h), (X, Y)=>{ c.fillStyle = 'rgba(30,29,27,.55)'; c.fillRect(X - w/2, Y - h/2, w, h); c.strokeStyle = 'rgba(10,10,10,.5)'; c.lineWidth = 1.5; c.strokeRect(X - w/2, Y - h/2, w, h); }); } }, // заплаты
     // материалы только для стен
     brickwall(c, rnd, s){ basePixels(c, s, {c0:'#7a4c3e', c1:'#653e33', base:8, grain:18, patches:[{c:'#5a5650', th:0.62, amt:0.5}, {c:SOOT, th:0.7, amt:0.4, base:3}]});
       specks(c, rnd, 1200, 1.5, 3.5, ['rgba(160,150,138,.55)', 'rgba(40,24,18,.5)', 'rgba(150,90,70,.5)']); },
@@ -14830,7 +15352,7 @@ const MapTex = (function(){
     if(Math.max(W0, H0)*res > 2048) res = Math.max(8, Math.floor(2048/Math.max(W0, H0)));
     const key = a.id + ':' + v + ':' + res; let sp = sprites.get(key);
     if(sp){ sprites.delete(key); sprites.set(key, sp); return sp; }
-    const cw = Math.ceil(W0*res), ch = Math.ceil(H0*res), cv = canvas(cw, ch), c = cv.getContext('2d');
+    const cw = Math.ceil(W0*res), ch = Math.ceil(H0*res), cv = canvas(cw, ch), c = cv.getContext('2d'); cv.__sprite = true; // рисунки знают, что они в спрайте (можно стирать своё)
     c.setTransform(res, 0, 0, res, pad*res, pad*res);
     try{ a.draw(MapAssets.makeG(c, hashStr(a.id) ^ (v*7919), Math.max(0.018, 1.25/res), false), v); }catch(e){ console.warn('[Карта] ассет', a.id, e); }
     try{ weather(cv, a, v, res); }catch(e){ console.warn('[Карта] износ', a.id, e); }
