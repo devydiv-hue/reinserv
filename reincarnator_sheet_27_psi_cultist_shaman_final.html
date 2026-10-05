@@ -716,6 +716,12 @@
      в панели сессии, как и до этой доработки — переезд в бок работает только там, где для него
      реально есть место. */
   @media (min-width:1660px){ .room-sidebar{ display:flex; } }
+  /* Колонка прозрачная и стоит поверх полноэкранных режимов (z-index 40 > 30): пустое место не должно
+     ловить клики и колесо — иначе на широких экранах она «съедала» левую часть библиотеки редактора карт.
+     Клики получают только сами плитки и кнопки. */
+  .room-sidebar{ pointer-events:none; }
+  .room-sidebar > *{ pointer-events:auto; }
+  body.editor-mode .room-sidebar{ left:auto; right:334px; width:170px; }
   /* Булавка (см. RoomFocusMode.togglePinned): камеры закреплены сбоку и не уходят на весь экран при
      простое. На широком экране — то же место, что и обычно; на более узком, где для колонки справа от
      листа места нет, закреплённая колонка встаёт узкой полосой у правого края поверх содержимого. */
@@ -1423,6 +1429,12 @@
   .me-f input, .me-f select, .me-f textarea{ font-size:12px; padding:4px 6px; }
   .me-f textarea{ font-family:var(--font); background:var(--paper); color:var(--ink); border:1.5px solid var(--ink); border-radius:6px; resize:vertical; }
   .me-f-row{ display:flex; gap:8px; }
+  .me-side-body > .me-f{ flex:0 0 auto; } /* flex:1 у поля — для рядов; в колонке панели поле не растягиваем */
+  .me-scale-row{ display:flex; align-items:center; gap:6px; }
+  .me-scale-row input[type=range]{ flex:1; min-width:0; accent-color:var(--stamp); }
+  .me-scale .me-btnrow{ gap:3px; }
+  .me-scale .small{ font-size:9.5px; padding:2px 6px; text-transform:none; }
+  .me-scale .small.on{ background:var(--ink); color:var(--card); }
   .me-check{ display:flex; align-items:center; gap:6px; font-size:12px; }
   .me-check input{ accent-color:var(--stamp); }
   .me-note{ font-size:11px; line-height:1.4; }
@@ -13823,7 +13835,7 @@ const MapFormat = (function(){
     (Array.isArray(raw.objects) ? raw.objects : []).slice(0, 8000).forEach(o=>{
       if(!o || typeof o.a!=='string') return;
       doc.objects.push({ id: str(o.id, 64) || newId('o'), a: str(o.a, 64), x: pt([o.x, o.y])[0], y: pt([o.x, o.y])[1],
-        r: r3(((num(o.r, 0) % 360) + 360) % 360), s: r3(clamp(num(o.s, 1), 0.2, 6)), v: Math.round(clamp(num(o.v, 0), 0, 99)), f: !!o.f });
+        r: r3(((num(o.r, 0) % 360) + 360) % 360), s: r3(clamp(num(o.s, 1), 0.1, 8)), v: Math.round(clamp(num(o.v, 0), 0, 99)), f: !!o.f });
     });
     (Array.isArray(raw.labels) ? raw.labels : []).slice(0, 1000).forEach(l=>{
       const text = str(l && l.text, 200).trim(); if(!text) return;
@@ -17389,7 +17401,7 @@ const MapEditor = (function(){
     ['label', 'Надпись', 'T', 'M5 5 H19 M12 5 V20 M9 20 H15'],
   ];
   const prefs = Object.assign({ mapId:null, grid:true, snap:true, hidden:{}, locked:{}, tool:'select', terrain:'concrete', brush:1,
-    wallKind:'concrete', pathKind:'road', pathWidth:3, asset:'crate_wood', cat:'all', search:'', side:'lib', recent:[], wallsOnRoom:true }, (function(){ try{ return JSON.parse(localStorage.getItem(PREFS_KEY)||'null') || {}; }catch(e){ return {}; } })());
+    wallKind:'concrete', pathKind:'road', pathWidth:3, asset:'crate_wood', cat:'all', search:'', side:'lib', recent:[], wallsOnRoom:true, assetScale:{} }, (function(){ try{ return JSON.parse(localStorage.getItem(PREFS_KEY)||'null') || {}; }catch(e){ return {}; } })());
   function savePrefs(){ try{ localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); }catch(e){} }
   let doc = null, visible = false, inited = false;
   let canvas, ctx, stage, dpr = 1, vw = 0, vh = 0;
@@ -17407,6 +17419,9 @@ const MapEditor = (function(){
 
   /* ---------- документ, отмена/повтор, сохранение ---------- */
   function snapshot(){ return JSON.stringify(MapFormat.toJSON(doc)); }
+  const S_MIN = 0.1, S_MAX = 8; // масштаб объекта на карте (1 = размер из библиотеки)
+  const defScale = (id)=>prefs.assetScale[id] || 1; // масштаб по умолчанию для типа объекта (помнится в браузере)
+  const pct = (s)=>Math.round(s*100) + '%';
   function pushUndo(){ undoStack.push(snapshot()); if(undoStack.length > 80) undoStack.shift(); redoStack = []; }
   function changed(){ doc.updated = Date.now(); scheduleSave(); requestRender(); renderSide(); renderTop(); }
   function mutate(fn){ pushUndo(); fn(); changed(); }
@@ -17500,7 +17515,7 @@ const MapEditor = (function(){
     MapRender.drawMap(ctx, doc, {k, view:v, hidden:prefs.hidden});
     // призрак объекта, черновик стены/пути, прямоугольник помещения
     if(prefs.tool==='object' && ghost.at && MapAssets.BY_ID[prefs.asset]){
-      ctx.globalAlpha = 0.6; MapAssets.drawObject(ctx, {a:prefs.asset, x:ghost.at[0], y:ghost.at[1], r:ghost.r, s:1, v:ghost.v, f:ghost.f}, k); ctx.globalAlpha = 1;
+      ctx.globalAlpha = 0.6; MapAssets.drawObject(ctx, {a:prefs.asset, x:ghost.at[0], y:ghost.at[1], r:ghost.r, s:defScale(prefs.asset), v:ghost.v, f:ghost.f}, k); ctx.globalAlpha = 1;
     }
     if(draft){ const pts = draft.points.concat(hover ? [draft.next || [hover.x, hover.y]] : []);
       if(pts.length>1){ if(draft.type==='wall') MapRender.drawWall(ctx, {kind:prefs.wallKind, points:pts}, k); else MapRender.drawPath(ctx, {kind:prefs.pathKind, width:prefs.pathWidth, points:pts}); } }
@@ -17540,7 +17555,8 @@ const MapEditor = (function(){
     if(sel.size===1){ const key = [...sel][0]; if(key[0]==='o'){ const o = findItem(key); if(o){ const h = objectHandles(o), r = S(h.rotate.x, h.rotate.y), s = S(h.scale.x, h.scale.y), top = S((h.corners[0].x + h.corners[1].x)/2, (h.corners[0].y + h.corners[1].y)/2);
       ctx.strokeStyle = '#9c2f1c'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(top.x, top.y); ctx.lineTo(r.x, r.y); ctx.stroke();
       ctx.fillStyle = '#9c2f1c'; ctx.beginPath(); ctx.arc(r.x, r.y, 7, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = '#efe6cc'; ctx.beginPath(); ctx.arc(r.x, r.y, 3, 0, Math.PI*2); ctx.fill();
-      ctx.fillStyle = '#9c2f1c'; ctx.fillRect(s.x - 6, s.y - 6, 12, 12); } } }
+      ctx.fillStyle = '#9c2f1c'; ctx.fillRect(s.x - 6, s.y - 6, 12, 12);
+      if(action && action.type==='scale'){ const t = pct(o.s || 1); ctx.font = '600 12px "Roboto Condensed", Arial, sans-serif'; const tw = ctx.measureText(t).width; ctx.fillStyle = 'rgba(28,23,18,.88)'; ctx.fillRect(s.x + 10, s.y - 9, tw + 10, 18); ctx.fillStyle = '#efe6cc'; ctx.fillText(t, s.x + 15, s.y + 4); } } } }
     if(action && action.type==='box'){ const a = action.startScreen, b = action.curScreen; ctx.fillStyle = 'rgba(156,47,28,.08)'; ctx.strokeStyle = '#9c2f1c'; ctx.lineWidth = 1.5; ctx.setLineDash([5, 4]);
       ctx.fillRect(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.abs(b.x - a.x), Math.abs(b.y - a.y)); ctx.strokeRect(Math.min(a.x, b.x) + 0.5, Math.min(a.y, b.y) + 0.5, Math.abs(b.x - a.x), Math.abs(b.y - a.y)); ctx.setLineDash([]); }
     if(hover && (prefs.tool==='brush' || prefs.tool==='fill')){ const n = prefs.tool==='brush' ? prefs.brush : 1, h = Math.floor(n/2); const a = S(Math.floor(hover.x) - h, Math.floor(hover.y) - h);
@@ -17584,10 +17600,19 @@ const MapEditor = (function(){
   }
   function placeObject(){
     if(!ghost.at || !MapAssets.BY_ID[prefs.asset]) return;
-    mutate(()=>{ const o = {id:MapFormat.newId('o'), a:prefs.asset, x:ghost.at[0], y:ghost.at[1], r:ghost.r, s:1, v:ghost.v, f:ghost.f}; doc.objects.push(o); sel = new Set(['o:' + o.id]); });
+    mutate(()=>{ const o = {id:MapFormat.newId('o'), a:prefs.asset, x:ghost.at[0], y:ghost.at[1], r:ghost.r, s:defScale(prefs.asset), v:ghost.v, f:ghost.f}; doc.objects.push(o); sel = new Set(['o:' + o.id]); });
     prefs.recent = [prefs.asset].concat(prefs.recent.filter(x=>x!==prefs.asset)).slice(0, 16); savePrefs();
   }
-  function updateGhost(w, e){ if(!w || !MapAssets.BY_ID[prefs.asset]) { ghost.at = null; return; } ghost.at = snapCenter({a:prefs.asset, r:ghost.r, s:1}, w.x, w.y, e); }
+  function updateGhost(w, e){ if(!w || !MapAssets.BY_ID[prefs.asset]) { ghost.at = null; return; } ghost.at = snapCenter({a:prefs.asset, r:ghost.r, s:defScale(prefs.asset)}, w.x, w.y, e); }
+  // Масштаб: у выбранных объектов (множитель или точное значение), без выбора в инструменте «Объект» —
+  // масштаб по умолчанию для текущего объекта библиотеки (им будут ставиться новые копии)
+  function setAssetScale(id, v){ v = r3(clamp(v, S_MIN, S_MAX)); if(Math.abs(v - 1) < 0.001) delete prefs.assetScale[id]; else prefs.assetScale[id] = v; savePrefs(); }
+  function scaleSel(mul, abs){
+    const objs = [...sel].filter(k=>k[0]==='o' && !prefs.locked[layerOf(k)]).map(findItem).filter(Boolean);
+    if(!objs.length){ if(prefs.tool==='object' && MapAssets.BY_ID[prefs.asset]){ setAssetScale(prefs.asset, abs != null ? abs : defScale(prefs.asset)*mul); if(hover) updateGhost(hover); setStatus('Масштаб новых: ' + pct(defScale(prefs.asset))); renderOptions(); requestRender(); } return; }
+    mutate(()=>objs.forEach(o=>{ o.s = r3(clamp(abs != null ? abs : (o.s || 1)*mul, S_MIN, S_MAX)); if(!(o.r%90)){ const c = snapCenter(o, o.x, o.y); o.x = c[0]; o.y = c[1]; } }));
+    setStatus('Масштаб: ' + (objs.length===1 ? pct(objs[0].s) : objs.length + ' объект.'));
+  }
   function deleteSelection(){ if(!sel.size) return; mutate(()=>{ sel.forEach(key=>{ const id = key.slice(2), t = key[0]; const k2 = t==='o' ? 'objects' : t==='w' ? 'walls' : t==='p' ? 'paths' : 'labels'; doc[k2] = doc[k2].filter(x=>x.id!==id); }); sel.clear(); }); }
   function cloneItems(keys, dx, dy){
     const out = [];
@@ -17688,7 +17713,7 @@ const MapEditor = (function(){
         if(snapOn(e)){ dx = Math.round(dx); dy = Math.round(dy); } else { dx = r3(dx); dy = r3(dy); }
         if(dx || dy) action.moved = true; moveItems(action.origs, dx, dy); break; }
       case 'rotate': { const o = findItem(action.key); if(!o) break; let ang = Math.atan2(w.y - o.y, w.x - o.x)*180/Math.PI + 90; if(!e.altKey) ang = Math.round(ang/15)*15; o.r = r3(((ang%360) + 360)%360); break; }
-      case 'scale': { const o = findItem(action.key); if(!o) break; let s = action.s0*Math.hypot(w.x - o.x, w.y - o.y)/action.d0; s = e.altKey ? r3(s) : Math.round(s*4)/4; o.s = clamp(s, 0.25, 6); break; }
+      case 'scale': { const o = findItem(action.key); if(!o) break; let s = action.s0*Math.hypot(w.x - o.x, w.y - o.y)/action.d0; s = e.altKey ? r3(s) : Math.round(s*20)/20; o.s = clamp(s, S_MIN, S_MAX); break; }
       case 'vertex': { const it = findItem(action.key); if(!it) break; it.points[action.vi] = snapPt(w, action.key[0]==='p' ? 0.5 : 1, e); break; }
     }
     requestRender();
@@ -17711,7 +17736,7 @@ const MapEditor = (function(){
     if(a.type==='rotate' || a.type==='scale'){ const o = findItem(a.key); if(o && a.type==='scale' && !(o.r%90)){ const c = snapCenter(o, o.x, o.y, e); o.x = c[0]; o.y = c[1]; } changed(); return; }
     if(a.type==='vertex'){ changed(); return; }
   }
-  function onWheel(e){ e.preventDefault(); const p = evPos(e); zoomAt(p.x, p.y, cam.z*Math.pow(1.0015, -e.deltaY)); }
+  function onWheel(e){ e.preventDefault(); if(e.altKey && (sel.size || prefs.tool==='object')){ scaleSel(e.deltaY < 0 ? 1.05 : 1/1.05); return; } const p = evPos(e); zoomAt(p.x, p.y, cam.z*Math.pow(1.0015, -e.deltaY)); }
   function onKey(e){
     if(!visible) return;
     const tg = e.target; if(tg && (tg.tagName==='INPUT' || tg.tagName==='TEXTAREA' || tg.tagName==='SELECT' || tg.isContentEditable)) return;
@@ -17732,6 +17757,9 @@ const MapEditor = (function(){
     if(k==='q' || k==='й'){ rotateSel(e.shiftKey ? -15 : -90); return; }
     if(k==='e' || k==='у'){ rotateSel(e.shiftKey ? 15 : 90); return; }
     if(k==='x' || k==='ч'){ flipSel(); return; }
+    if(k===',' || k==='<' || k==='б' || k==='Б'){ scaleSel(e.shiftKey ? 1/1.02 : 1/1.1); return; }
+    if(k==='.' || k==='>' || k==='ю' || k==='Ю'){ scaleSel(e.shiftKey ? 1.02 : 1.1); return; }
+    if(k==='/' || k==='?'){ scaleSel(1, 1); return; }
     if(k==='[' || k==='х'){ prefs.brush = Math.max(1, prefs.brush - 2); savePrefs(); renderOptions(); requestRender(); return; }
     if(k===']' || k==='ъ'){ prefs.brush = Math.min(15, prefs.brush + 2); savePrefs(); renderOptions(); requestRender(); return; }
     if(k==='+' || k==='='){ zoomAt(vw/2, vh/2, cam.z*1.25); return; }
@@ -17894,9 +17922,10 @@ const MapEditor = (function(){
     } else if(t==='object'){
       const a = MapAssets.BY_ID[prefs.asset];
       h += a ? `<span class="me-opt-label">${esc(a.name)} · ${a.w}×${a.h}</span>${a.v>1 ? `<label class="me-opt">Вариант <select data-ghostv>${Array.from({length:a.v}, (_, i)=>`<option value="${i}" ${ghost.v===i?'selected':''}>${a.vn ? (i + 1) + '. ' + esc(a.vn[i]) : i + 1}</option>`).join('')}</select></label>` : ''}
-        <button type="button" class="small" data-act="rotl" title="Повернуть (Q)">⟲ 90°</button><button type="button" class="small" data-act="rotr" title="Повернуть (E)">⟳ 90°</button><button type="button" class="small" data-act="flip" title="Отразить (X)">⇋</button><span class="me-hint">клик — поставить · Esc — закончить</span>` : '<span class="me-hint">Выберите объект в библиотеке справа.</span>';
+        <button type="button" class="small" data-act="rotl" title="Повернуть (Q)">⟲ 90°</button><button type="button" class="small" data-act="rotr" title="Повернуть (E)">⟳ 90°</button><button type="button" class="small" data-act="flip" title="Отразить (X)">⇋</button>
+        <span class="me-opt" title="Масштаб, с которым ставятся новые копии этого объекта (запоминается). Клавиши &lt; и &gt;, Alt+колесо"><span class="me-opt-label">Масштаб</span><button type="button" class="small" data-act="sdown">−</button><input type="number" min="10" max="800" step="5" value="${Math.round(defScale(a.id)*100)}" data-ghosts style="width:58px">%<button type="button" class="small" data-act="sup">+</button>${defScale(a.id)!==1 ? '<button type="button" class="small" data-act="sreset" title="Вернуть 100%">↺</button>' : ''}<span class="me-hint">${r3(a.w*defScale(a.id))}×${r3(a.h*defScale(a.id))} кл.</span></span><span class="me-hint">клик — поставить · Esc — закончить</span>` : '<span class="me-hint">Выберите объект в библиотеке справа.</span>';
     } else if(t==='select'){
-      h += `<span class="me-hint">клик — выбрать · Shift — добавить · рамка — несколько · Ctrl+D — дубль · Del — удалить · Q/E — поворот · X — отразить · стрелки — сдвиг · Alt — без привязки</span>`;
+      h += `<span class="me-hint">клик — выбрать · Shift — добавить · рамка — несколько · Ctrl+D — дубль · Del — удалить · Q/E — поворот · X — отразить · &lt; &gt; или Alt+колесо — масштаб, / — 100% · стрелки — сдвиг · Alt — без привязки</span>`;
     } else if(t==='hand'){ h += '<span class="me-hint">тяните поле · колесо — масштаб · пробел или средняя кнопка — перемещение из любого инструмента</span>'; }
     else if(t==='label'){ h += '<span class="me-hint">клик по карте — надпись</span>'; }
     h += `<span class="me-opt-spacer"></span><label class="me-opt" title="Показывать сетку (координаты карты от этого не меняются)"><input type="checkbox" data-grid ${prefs.grid?'checked':''}> Сетка</label>
@@ -17951,13 +17980,14 @@ const MapEditor = (function(){
   function cloneCanvas(c){ const n = document.createElement('canvas'); n.width = c.width; n.height = c.height; n.style.width = c.style.width; n.style.height = c.style.height; n.getContext('2d').drawImage(c, 0, 0); return n; }
   function renderProps(body){
     if(!sel.size){ body.innerHTML = '<div class="muted me-note">Ничего не выбрано. Инструмент «Выбор» (V): клик по объекту, стене, пути или надписи.</div>'; return; }
-    if(sel.size > 1){ body.innerHTML = `<div class="me-note">Выбрано: ${sel.size}</div><div class="me-btnrow"><button type="button" class="small" data-act="dup">Дублировать</button><button type="button" class="small" data-act="rotr">Повернуть 90°</button><button type="button" class="small" data-act="del">Удалить</button></div>`; return; }
+    if(sel.size > 1){ const no = [...sel].filter(k=>k[0]==='o').length; body.innerHTML = `<div class="me-note">Выбрано: ${sel.size}</div>${no ? `<div class="me-f me-scale">Масштаб объектов (${no})<div class="me-btnrow"><button type="button" class="small" data-act="sdown" title="−10% (&lt;)">−10%</button><button type="button" class="small" data-act="sup" title="+10% (&gt;)">+10%</button>${[0.5, 0.75, 1, 1.5, 2].map(v=>`<button type="button" class="small" data-sset="${v}">${pct(v)}</button>`).join('')}</div></div>` : ''}<div class="me-btnrow"><button type="button" class="small" data-act="dup">Дублировать</button><button type="button" class="small" data-act="rotr">Повернуть 90°</button><button type="button" class="small" data-act="del">Удалить</button></div>`; return; }
     const key = [...sel][0], it = findItem(key); if(!it){ sel.clear(); body.innerHTML = ''; return; }
     const t = key[0]; let h = '';
     if(t==='o'){ const a = MapAssets.BY_ID[it.a] || {name:it.a, v:1, w:1, h:1};
       h = `<div class="me-prop-title">${esc(a.name)} <span class="muted">${a.w}×${a.h} кл.</span></div>
         <div class="me-f-row"><label class="me-f">X (центр)<input type="number" step="0.5" data-prop="x" value="${it.x}"></label><label class="me-f">Y (центр)<input type="number" step="0.5" data-prop="y" value="${it.y}"></label></div>
-        <div class="me-f-row"><label class="me-f">Поворот, °<input type="number" step="15" data-prop="r" value="${it.r}"></label><label class="me-f">Масштаб<input type="number" step="0.25" min="0.25" max="6" data-prop="s" value="${it.s}"></label></div>
+        <label class="me-f">Поворот, °<input type="number" step="15" data-prop="r" value="${it.r}"></label>
+        ${scaleBlock(it.s || 1, a)}
         ${a.v>1 ? `<label class="me-f">Вариант<select data-prop="v">${Array.from({length:a.v}, (_, i)=>`<option value="${i}" ${it.v===i?'selected':''}>${a.vn ? (i + 1) + '. ' + esc(a.vn[i]) : i + 1}</option>`).join('')}</select></label>` : ''}
         <label class="me-check"><input type="checkbox" data-prop="f" ${it.f?'checked':''}> Отражён</label>`;
     } else if(t==='w'){ h = `<div class="me-prop-title">Стена · ${it.points.length} точ.</div><label class="me-f">Материал<select data-prop="kind">${Object.keys(MapFormat.WALL_KINDS).map(k=>`<option value="${k}" ${it.kind===k?'selected':''}>${esc(MapFormat.WALL_KINDS[k].name)}</option>`).join('')}</select></label><div class="muted me-note">Точки тянутся за квадратные ручки.</div>`; }
@@ -17965,13 +17995,21 @@ const MapEditor = (function(){
     else { h = `<div class="me-prop-title">Надпись</div><label class="me-f">Текст<textarea data-prop="text" maxlength="200" rows="2">${esc(it.text)}</textarea></label><div class="me-f-row"><label class="me-f">Размер<input type="number" step="0.1" min="0.2" max="8" data-prop="size" value="${it.size}"></label><label class="me-f">Цвет<input type="color" data-prop="color" value="${it.color}"></label></div>`; }
     body.innerHTML = h + `<div class="me-btnrow"><button type="button" class="small" data-act="dup" title="Ctrl+D">Дублировать</button><button type="button" class="small" data-act="del" title="Del">Удалить</button></div>`;
   }
+  function scaleBlock(sv, a){
+    const real = a.id ? `${r3(a.w*sv)}×${r3(a.h*sv)} кл.` : '';
+    return `<div class="me-f me-scale">Масштаб <span class="muted">${real}</span>
+      <div class="me-scale-row"><input type="range" min="${S_MIN}" max="4" step="0.05" value="${Math.min(4, sv)}" data-srange><input type="number" min="10" max="${S_MAX*100}" step="5" value="${Math.round(sv*100)}" data-prop="sp" style="width:62px">%</div>
+      <div class="me-btnrow">${[0.25, 0.5, 0.75, 1, 1.5, 2, 3].map(v=>`<button type="button" class="small${Math.abs(sv - v) < 0.001 ? ' on' : ''}" data-sset="${v}">${pct(v)}</button>`).join('')}</div>
+      ${a.id ? `<div class="me-btnrow"><button type="button" class="small" data-sdef="${esc(a.id)}" title="Новые копии «${esc(a.name)}» будут ставиться с этим масштабом (сейчас ${pct(defScale(a.id))})">Сделать масштабом по умолчанию для этого объекта</button></div>` : ''}</div>`;
+  }
   function applyProp(el){
     const key = [...sel][0], it = key && findItem(key); if(!it) return;
     const p = el.dataset.prop; let v = el.type==='checkbox' ? el.checked : el.value;
     pushUndo();
     if(p==='x' || p==='y'){ it[p] = r3(clamp(num(v, it[p]), -10, MapFormat.MAX_SIDE + 10)); }
     else if(p==='r'){ it.r = r3(((num(v, 0)%360) + 360)%360); }
-    else if(p==='s'){ it.s = r3(clamp(num(v, 1), 0.25, 6)); }
+    else if(p==='s'){ it.s = r3(clamp(num(v, 1), S_MIN, S_MAX)); }
+    else if(p==='sp'){ it.s = r3(clamp(num(v, 100)/100, S_MIN, S_MAX)); }
     else if(p==='v'){ it.v = Math.round(num(v, 0)); }
     else if(p==='f'){ it.f = !!v; }
     else if(p==='width'){ it.width = r3(clamp(num(v, 1), 0.1, 20)); }
@@ -18066,6 +18104,8 @@ const MapEditor = (function(){
     const b = e.target.closest('button'); if(!b) return;
     const d = b.dataset;
     if(d.tool){ setTool(d.tool); return; }
+    if(d.sset){ scaleSel(1, num(d.sset, 1)); return; }
+    if(d.sdef){ const o = sel.size===1 && findItem([...sel][0]); if(o){ setAssetScale(d.sdef, o.s || 1); setStatus('Новые «' + ((MapAssets.BY_ID[d.sdef] || {}).name || '') + '» — ' + pct(defScale(d.sdef))); renderSide(); } return; }
     if(d.terrain){ prefs.terrain = d.terrain; savePrefs(); renderOptions(); return; }
     if(d.side){ prefs.side = d.side; savePrefs(); renderSide(); return; }
     if(d.cat){ prefs.cat = d.cat; prefs.search = ''; savePrefs(); renderSide(); return; }
@@ -18091,6 +18131,9 @@ const MapEditor = (function(){
       case 'rotl': rotateSel(-90); break;
       case 'rotr': rotateSel(90); break;
       case 'flip': flipSel(); break;
+      case 'sup': scaleSel(1.1); break;
+      case 'sdown': scaleSel(1/1.1); break;
+      case 'sreset': scaleSel(1, 1); break;
       case 'dup': duplicate(); break;
       case 'del': deleteSelection(); break;
       case 'resize': { const f = b.closest('.me-side-body'); const c = num(f.querySelector('[data-map=cols]').value, doc.cols), r = num(f.querySelector('[data-map=rows]').value, doc.rows);
@@ -18101,7 +18144,7 @@ const MapEditor = (function(){
   }
   // Перетаскивание объекта из библиотеки на карту. Мышь — сразу; палец — горизонтальным жестом
   // (вертикальный остаётся прокруткой списка). Над картой вместо иконки — «призрак» с привязкой к сетке.
-  let libDrag = null, suppressAssetClick = false;
+  let libDrag = null, suppressAssetClick = false, rangeUndo = false;
   function onLibDown(e){
     const b = e.target.closest && e.target.closest('.me-asset'); if(!b || e.button!==0) return;
     libDrag = {id:b.dataset.asset, x:e.clientX, y:e.clientY, pid:e.pointerId, touch:e.pointerType!=='mouse', on:false, el:null};
@@ -18143,6 +18186,7 @@ const MapEditor = (function(){
     const t = e.target;
     if(t.id==='meSearch'){ prefs.search = t.value; savePrefs(); renderSide(); return; }
     if(t.id==='meName'){ doc.name = t.value.slice(0, 80) || 'Карта'; doc.updated = Date.now(); scheduleSave(); return; }
+    if(t.dataset.srange!==undefined){ const o = sel.size===1 && findItem([...sel][0]); if(!o) return; if(!rangeUndo){ pushUndo(); rangeUndo = true; } o.s = r3(clamp(num(t.value, 1), S_MIN, S_MAX)); const n = t.parentNode.querySelector('[data-prop=sp]'); if(n) n.value = Math.round(o.s*100); requestRender(); return; }
     if(t.dataset.brush!==undefined){ prefs.brush = parseInt(t.value, 10) || 1; savePrefs(); const b = t.parentNode.querySelector('b'); if(b) b.textContent = prefs.brush + '×' + prefs.brush; requestRender(); return; }
     if(t.dataset.map==='name'){ doc.name = t.value.slice(0, 80) || 'Карта'; doc.updated = Date.now(); scheduleSave(); renderTop(); return; }
   }
@@ -18156,6 +18200,8 @@ const MapEditor = (function(){
     if(t.dataset.pathkind!==undefined){ prefs.pathKind = t.value; prefs.pathWidth = MapFormat.PATH_KINDS[t.value].width; savePrefs(); renderOptions(); requestRender(); return; }
     if(t.dataset.pathwidth!==undefined){ prefs.pathWidth = clamp(num(t.value, 1), 0.1, 20); savePrefs(); requestRender(); return; }
     if(t.dataset.ghostv!==undefined){ ghost.v = parseInt(t.value, 10) || 0; requestRender(); return; }
+    if(t.dataset.ghosts!==undefined){ scaleSel(1, num(t.value, 100)/100); return; }
+    if(t.dataset.srange!==undefined){ if(rangeUndo){ rangeUndo = false; changed(); } return; }
     if(t.dataset.prop){ applyProp(t); renderSide(); return; }
   }
 
