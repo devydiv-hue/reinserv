@@ -13787,7 +13787,7 @@ const MapFormat = (function(){
     plaster:{name:'Перегородка', fill:'#b9b1a2', w:0.12},
   };
   const PATH_KINDS = {
-    road:{name:'Дорога', width:3}, highway:{name:'Шоссе', width:5}, track:{name:'Грунтовка', width:2},
+    road:{name:'Дорога', width:3}, sidewalk:{name:'Тротуар', width:5}, highway:{name:'Шоссе', width:5}, track:{name:'Грунтовка', width:2},
     rail:{name:'Рельсы', width:1}, pipe:{name:'Трубопровод', width:0.7}, river:{name:'Река', width:2},
     dryriver:{name:'Сухое русло', width:2}, trench:{name:'Окоп', width:1}, cable:{name:'Кабель', width:0.2},
   };
@@ -17155,19 +17155,22 @@ const MapRender = (function(){
     ctx.beginPath(); ctx.ellipse(x, y, rx, ry, rot, 0.2, 2.6); ctx.lineWidth = 0.03; ctx.strokeStyle = 'rgba(255,248,235,.16)'; ctx.stroke();
     if(R() < 0.45){ ctx.beginPath(); ctx.ellipse(x + 0.02, y + 0.02, rx*0.6, ry*0.55, rot, 0, 6.28); ctx.fillStyle = 'rgba(62,84,92,.55)'; ctx.fill(); ctx.beginPath(); ctx.ellipse(x - rx*0.15, y - ry*0.15, rx*0.25, ry*0.12, rot, 0, 6.28); ctx.fillStyle = 'rgba(220,235,240,.25)'; ctx.fill(); } }
   function stain(ctx, x, y, r, col){ const gr = ctx.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, col); gr.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = gr; ctx.fillRect(x - r, y - r, r*2, r*2); }
-  function drawPathHD(ctx, p, k){
+  function drawPathHD(ctx, p, k, layer){
+    const LY = (n)=>layer==null || layer===n;
+    if(!/^(road|highway|sidewalk)$/.test(p.kind) && !LY(1)) return; // у остальных видов — один слой
     const w = p.width, pts = p.points, T = (id, fb)=>MapTex.pattern(id) || fb, O = (d)=>offsetPts(pts, d), R = MapAssets.mulberry(MapAssets.hashStr(p.id || (p.kind + pts.length)));
     const sp = (q, ww, col, dash)=>strokePath(ctx, q, ww, col, dash);
     ctx.save(); ctx.lineJoin = 'round'; ctx.lineCap = /^(rail|pipe|road|highway)$/.test(p.kind) ? 'butt' : 'round';
     switch(p.kind){
       case 'road': case 'highway': {
         const hw = p.kind==='highway';
-        // бордюр/обочина с тенью, полотно, кювет у кромки, светлый «горб» посередине
-        shadowed(ctx, 0.05, 0.08, 0.12, 0.45, ()=>sp(pts, w + (hw ? 0.5 : 0.22), '#3a3632'));
-        sp(pts, w + (hw ? 0.5 : 0.22), T('concrete', '#8e8a80')); sp(pts, w + (hw ? 0.5 : 0.22), 'rgba(0,0,0,.22)', [0.04, 0.55]);
-        sp(pts, w - 0.04, T('asphalt', '#45423e')); ctx.globalAlpha = 0.4; sp(pts, w - 0.1, T('cracked', '#4a4743')); ctx.globalAlpha = 1;
-        sp(pts, w*0.4, 'rgba(255,250,240,.05)');
-        [-1, 1].forEach(s=>{ sp(O(s*(w/2 - 0.1)), 0.2, 'rgba(18,15,12,.4)'); sp(O(s*(w/2 - 0.02)), 0.04, 'rgba(255,250,240,.18)'); });
+        // слой 0: бордюр/обочина с тенью; слой 1: полотно, кювет у кромки, светлый «горб»; слой 2: разметка, детали
+        if(LY(0)){ shadowed(ctx, 0.05, 0.08, 0.12, 0.45, ()=>sp(pts, w + (hw ? 0.5 : 0.22), '#3a3632'));
+          sp(pts, w + (hw ? 0.5 : 0.22), T('concrete', '#8e8a80')); sp(pts, w + (hw ? 0.5 : 0.22), 'rgba(0,0,0,.22)', [0.04, 0.55]); }
+        if(LY(1)){ sp(pts, w - 0.04, T('asphalt', '#45423e')); ctx.globalAlpha = 0.4; sp(pts, w - 0.1, T('cracked', '#4a4743')); ctx.globalAlpha = 1;
+          sp(pts, w*0.4, 'rgba(255,250,240,.05)');
+          [-1, 1].forEach(s=>{ sp(O(s*(w/2 - 0.1)), 0.2, 'rgba(18,15,12,.4)'); sp(O(s*(w/2 - 0.02)), 0.04, 'rgba(255,250,240,.18)'); }); }
+        if(!LY(2)) break;
         // разметка: стёртая, с пропусками
         if(hw){ [-0.08, 0.08].forEach(d=>sp(O(d), 0.06, 'rgba(206,176,92,.7)')); [-1, 1].forEach(s=>{ sp(O(s*w/4), 0.08, 'rgba(228,224,212,.55)', [1, 1]); sp(O(s*(w/2 - 0.38)), 0.08, 'rgba(228,224,212,.5)', [3.2 + R(), 0.3]); }); }
         else { sp(pts, 0.09, 'rgba(206,176,92,.72)', [0.7, 0.55]); [-1, 1].forEach(s=>sp(O(s*(w/2 - 0.3)), 0.06, 'rgba(225,220,205,.45)', [2.2 + R(), 0.4])); }
@@ -17181,6 +17184,13 @@ const MapRender = (function(){
           else if(r < 0.3) pothole(ctx, R, px, py);
           else if(r < 0.52) crackAt(ctx, R, px, py, a, 0.6 + R()*0.8);
           else if(r < 0.6) stain(ctx, px, py, 0.3 + R()*0.3, 'rgba(8,8,10,.35)'); });
+        break; }
+      case 'sidewalk': {
+        if(!LY(0)) break;
+        sp(pts, w + 0.12, 'rgba(40,36,32,.35)'); sp(pts, w, T('concrete', '#9a968c')); sp(pts, w, 'rgba(255,250,240,.06)');
+        [-1, 1].forEach(s=>sp(O(s*(w/2 - 0.04)), 0.08, 'rgba(30,26,22,.35)'));
+        walkPath(pts, 1, R()*0.5, (x, y, a)=>{ crossBar(ctx, x, y, a, w, 0.025, 'rgba(30,26,22,.35)'); if(R() < 0.25){ const [px, py] = side(x, y, a, (R() - 0.5)*(w - 0.4)); ctx.strokeStyle = 'rgba(96,110,52,.8)'; ctx.lineWidth = 0.02; for(let b=0;b<4;b++){ ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px + (R() - 0.5)*0.18, py - 0.06 - R()*0.1); ctx.stroke(); } } });
+        walkPath(pts, 1.7, R(), (x, y, a)=>{ const r = R(), [px, py] = side(x, y, a, (R() - 0.5)*(w - 0.6)); if(r < 0.3) crackAt(ctx, R, px, py, a, 0.4 + R()*0.4); else if(r < 0.42) stain(ctx, px, py, 0.25, 'rgba(20,18,14,.25)'); else if(r < 0.5){ ctx.fillStyle = 'rgba(40,36,30,.4)'; ctx.fillRect(px - 0.2, py - 0.15, 0.4, 0.3); } });
         break; }
       case 'track': {
         sp(pts, w + 0.6, 'rgba(110,88,60,.22)'); sp(pts, w + 0.25, 'rgba(120,96,66,.45)'); sp(pts, w, '#7a6247'); sp(pts, w, T('dirt', '#8f7553')); sp(pts, w*0.9, 'rgba(128,104,74,.35)');
@@ -17243,7 +17253,8 @@ const MapRender = (function(){
     }
     ctx.restore();
   }
-  function drawPath(ctx, p, k){ if(HD() && (k || 64) >= 6 && p.points && p.points.length >= 2) return drawPathHD(ctx, p, k); return drawPathFlat(ctx, p, k); }
+  // layer: 0 — тротуары, бордюры, тени; 1 — полотно; 2 — разметка и детали; без слоя — всё сразу
+  function drawPath(ctx, p, k, layer){ if(HD() && (k || 64) >= 6 && p.points && p.points.length >= 2) return drawPathHD(ctx, p, k, layer); if(layer==null || layer===1) return drawPathFlat(ctx, p, k); }
   // плоский вид путей — при выключенном HD и на мелком масштабе
   function drawPathFlat(ctx, p, k){
     const w = p.width, pts = p.points, hd = HD() && (k || 64) >= 6, tx = (id, fb)=>(hd && MapTex.pattern(id)) || fb;
@@ -17251,6 +17262,7 @@ const MapRender = (function(){
     switch(p.kind){
       case 'road': strokePath(ctx, pts, w + 0.12, '#2c2a27'); strokePath(ctx, pts, w, tx('cracked', '#4a4743')); strokePath(ctx, pts, 0.08, hd ? 'rgba(190,168,104,.7)' : '#d0a72c', [0.5, 0.45]); break;
       case 'highway': strokePath(ctx, pts, w + 0.3, tx('concrete', '#8e8a80')); strokePath(ctx, pts, w, tx('asphalt', '#45423e')); strokePath(ctx, pts, w*0.45, hd ? 'rgba(214,208,192,.4)' : 'rgba(233,227,211,.55)', [0.6, 0.6]); strokePath(ctx, pts, w*0.45 - 0.12, tx('asphalt', '#45423e')); strokePath(ctx, pts, 0.1, hd ? 'rgba(190,168,104,.75)' : '#d0a72c'); break;
+      case 'sidewalk': strokePath(ctx, pts, w, tx('concrete', '#9a968c')); break;
       case 'track': strokePath(ctx, pts, w, tx('dirt', '#8f7553')); strokePath(ctx, pts, w*0.55, 'rgba(94,72,48,.55)'); strokePath(ctx, pts, w*0.3, tx('dirt', '#8f7553')); break;
       case 'rail': strokePath(ctx, pts, w, '#6b5a45', [0.12, 0.2]); strokePath(ctx, pts, w*0.62, '#5e5850'); strokePath(ctx, pts, w*0.46, '#9a948a'); strokePath(ctx, pts, w*0.36, '#5e5850'); break;
       case 'pipe': strokePath(ctx, pts, w, '#4f5a60'); strokePath(ctx, pts, w*0.78, '#8a979e'); strokePath(ctx, pts, w*0.2, 'rgba(255,255,255,.25)'); strokePath(ctx, pts, w, 'rgba(30,27,24,.45)', [0.06, 1.5]); break;
@@ -17292,7 +17304,7 @@ const MapRender = (function(){
     ctx.save();
     if(opts.clip !== false){ ctx.beginPath(); ctx.rect(0, 0, doc.cols, doc.rows); ctx.clip(); }
     if(!hid.terrain) drawTerrain(ctx, doc, k, v);
-    if(!hid.paths) doc.paths.forEach(p=>{ if(visibleBox(pathBox(p.points, p.width), v)) drawPath(ctx, p, k); });
+    if(!hid.paths){ const vis = doc.paths.filter(p=>visibleBox(pathBox(p.points, p.width + 1), v)); if(HD() && (k || 64) >= 6) [0, 1, 2].forEach(layer=>vis.forEach(p=>drawPath(ctx, p, k, layer))); else vis.forEach(p=>drawPath(ctx, p, k)); }
     if(!hid.ground) doc.objects.forEach(o=>{ if(isGround(o) && visibleBox(MapAssets.objectBounds(o), v)) MapAssets.drawObject(ctx, o, k); });
     if(!hid.walls) doc.walls.forEach(w=>{ if(visibleBox(pathBox(w.points, 0.5), v)) drawWall(ctx, w, k); });
     if(!hid.objects) doc.objects.forEach(o=>{ if(!isGround(o) && visibleBox(MapAssets.objectBounds(o), v)) MapAssets.drawObject(ctx, o, k); });
@@ -17803,40 +17815,97 @@ const MapGen = (function(){
   function cityRuins(doc, opts){
     opts = opts || {}; const g = ctxFor(doc, opts.seed); g.opts = opts; reset(doc, 'dust');
     doc.gen = {id:'city', seed:g.seed, opts:{density:opts.density || 'normal', ruin:opts.ruin || 'normal', theme:opts.theme || 'mixed', scenes:opts.scenes || 'normal', prefabs:opts.prefabs || 'some', labels:opts.labels || 'buildings', lsize:opts.lsize || 'normal'}, parts:[]};
-    const DEN = {sparse:[16, 0.4, 0.3], normal:[12, 0.15, 0.8], dense:[10, 0.05, 0.95]}[opts.density] || [12, 0.15, 0.8];
-    const n = g.noise(6, 1);
-    for(let y=0;y<doc.rows;y++) for(let x=0;x<doc.cols;x++){ const v = n(x, y); if(v > 0.62) g.setT(x, y, 'gravel'); else if(v < 0.25) g.setT(x, y, 'grass'); }
-    // дороги с неравным шагом — кварталы разного размера
-    const roadsX = [], roadsY = [];
-    for(let x=g.ri(5, 9);x<doc.cols - 3;x+=g.ri(17, 24)) roadsX.push(x);
-    for(let y=g.ri(5, 9);y<doc.rows - 3;y+=g.ri(16, 22)) roadsY.push(y);
-    const roadCell = new Uint8Array(doc.cols*doc.rows);
-    roadsX.forEach(rx=>{ g.rectT(rx - 3, 0, 1, doc.rows, 'concrete'); g.rectT(rx + 3, 0, 1, doc.rows, 'concrete'); g.rectT(rx - 2, 0, 5, doc.rows, 'cracked'); for(let y=0;y<doc.rows;y++) for(let i=-3;i<=3;i++) if(rx + i>=0 && rx + i<doc.cols) roadCell[y*doc.cols + rx + i] = 1; g.path('road', 3, [[rx + 0.5, 0], [rx + 0.5, doc.rows]]); });
-    roadsY.forEach(ry=>{ g.rectT(0, ry - 3, doc.cols, 1, 'concrete'); g.rectT(0, ry + 3, doc.cols, 1, 'concrete'); g.rectT(0, ry - 2, doc.cols, 5, 'cracked'); for(let x=0;x<doc.cols;x++) for(let i=-3;i<=3;i++) if(ry + i>=0 && ry + i<doc.rows) roadCell[(ry + i)*doc.cols + x] = 1; g.path('road', 3, [[0, ry + 0.5], [doc.cols, ry + 0.5]]); });
-    roadsX.forEach(rx=>roadsY.forEach(ry=>{ g.obj('crossroad', rx - 1.5, ry - 1.5, 0, 0, true); }));
-    for(let i=0;i<doc.cols*doc.rows;i++) if(roadCell[i]) g.occ[i] = 1;
-    const xs = [0].concat(roadsX.map(r=>r + 4)), xe = roadsX.map(r=>r - 3).concat([doc.cols]);
-    const ys = [0].concat(roadsY.map(r=>r + 4)), ye = roadsY.map(r=>r - 3).concat([doc.rows]);
-    for(let bi=0;bi<xs.length;bi++) for(let bj=0;bj<ys.length;bj++){
-      const bx0 = xs[bi] + 1, by0 = ys[bj] + 1, bx1 = xe[bi] - 1, by1 = ye[bj] - 1;
-      if(bx1 - bx0 < 5 || by1 - by0 < 5) continue;
-      const lots = [[bx0, by0, bx1, by1]];
-      for(let k=0;k<2;k++){ lots.sort((a, b)=>Math.max(b[2] - b[0], b[3] - b[1]) - Math.max(a[2] - a[0], a[3] - a[1])); const [a0, b0, a1, b1] = lots[0], lw = a1 - a0, lh = b1 - b0;
-        if(Math.max(lw, lh) < DEN[0] || g.rnd() < DEN[1]) break; lots.shift();
-        if(lw >= lh){ const c = a0 + g.ri(Math.ceil(lw*0.4), Math.floor(lw*0.6)); lots.push([a0, b0, c, b1], [c + 1, b0, a1, b1]); } else { const c = b0 + g.ri(Math.ceil(lh*0.4), Math.floor(lh*0.6)); lots.push([a0, b0, a1, c], [a0, c + 1, a1, b1]); } }
-      lots.forEach(([a0, b0, a1, b1])=>{ if(a1 - a0 < 4 || b1 - b0 < 4) return; const b = building(g, a0, b0, a1, b1); if(b) doc.gen.parts.push(partOf(b, [a0, b0, a1, b1])); if(!b || g.rnd() > DEN[2]) return;
-        const strips = [[b.x + b.w + 2, b0, a1, b1], [a0, b0, b.x - 2, b1], [a0, b.y + b.h + 2, a1, b1], [a0, b0, a1, b.y - 2]].filter(q=>q[2] - q[0] >= 4 && q[3] - q[1] >= 4).sort((p, q)=>(q[2] - q[0])*(q[3] - q[1]) - (p[2] - p[0])*(p[3] - p[1]));
-        if(strips.length){ const b2 = building(g, strips[0][0], strips[0][1], strips[0][2], strips[0][3]); if(b2) doc.gen.parts.push(partOf(b2, strips[0])); } });
-      for(let i=0;i<4;i++) g.tryObj(g.pick(['dead_tree', 'rubble_pile', 'scrap_pile', 'dumpster', 'jersey', 'tree_sparse', 'car_wreck', 'trash', 'yard']), bx0, by0, bx1, by1, 6);
+    // ---- улицы: магистраль, ответвления (Т-образные примыкания), редкий второй сквозной путь, проулки ----
+    const {cols, rows} = doc, AREA = cols*rows, K = AREA/3072, n = g.noise(6, 1);
+    const DSCALE = {sparse:0.6, normal:1, dense:1.35}[opts.density] || 1;
+    for(let y=0;y<rows;y++) for(let x=0;x<cols;x++){ const v = n(x, y); if(v > 0.62) g.setT(x, y, 'gravel'); else if(v < 0.25) g.setT(x, y, 'grass'); }
+    const roads = [];
+    const chaikin = (p, it)=>{ for(let k=0;k<it;k++){ const q = [p[0]]; for(let i=0;i<p.length - 1;i++){ const [ax, ay] = p[i], [bx, by] = p[i + 1]; q.push([ax*0.75 + bx*0.25, ay*0.75 + by*0.25], [ax*0.25 + bx*0.75, ay*0.25 + by*0.75]); } q.push(p[p.length - 1]); p = q; } return p; };
+    // линия от a к b: плавная кривая / ломаная / почти прямая
+    function roadLine(a, b, mode, wob){ const L = Math.hypot(b[0] - a[0], b[1] - a[1]), nseg = Math.max(2, Math.round(L/g.ri(7, 11))), nx = -(b[1] - a[1])/L, ny = (b[0] - a[0])/L; const pts = [a];
+      let off = 0; for(let i=1;i<nseg;i++){ const t = i/nseg; off = mode==='straight' ? (g.rnd() - 0.5)*0.6 : off*0.4 + (g.rnd() - 0.5)*2*(wob || 3.5); pts.push([a[0] + (b[0] - a[0])*t + nx*off, a[1] + (b[1] - a[1])*t + ny*off]); }
+      pts.push(b); return mode==='curve' ? chaikin(pts, 3) : pts; }
+    const segDist = (px, py, ax, ay, bx, by)=>{ const dx = bx - ax, dy = by - ay, L2 = dx*dx + dy*dy || 1; let t = ((px - ax)*dx + (py - ay)*dy)/L2; t = Math.max(0, Math.min(1, t)); return Math.hypot(px - ax - dx*t, py - ay - dy*t); };
+    const distTo = (r, x, y)=>{ let m = Infinity; for(let i=0;i<r.pts.length - 1;i++){ const d = segDist(x, y, r.pts[i][0], r.pts[i][1], r.pts[i + 1][0], r.pts[i + 1][1]); if(d < m) m = d; } return m; };
+    const pointAt = (r, t)=>{ let tot = 0; const ls = []; for(let i=0;i<r.pts.length - 1;i++){ const l = Math.hypot(r.pts[i + 1][0] - r.pts[i][0], r.pts[i + 1][1] - r.pts[i][1]); ls.push(l); tot += l; }
+      let s = t*tot; for(let i=0;i<ls.length;i++){ if(s <= ls[i] || i===ls.length - 1){ const [ax, ay] = r.pts[i], [bx, by] = r.pts[i + 1], u = ls[i] ? Math.min(1, s/ls[i]) : 0; return {x:ax + (bx - ax)*u, y:ay + (by - ay)*u, a:Math.atan2(by - ay, bx - ax), len:tot}; } s -= ls[i]; } };
+    const edgePt = (side, f)=>side===0 ? [cols*f, -2] : side===1 ? [cols + 2, rows*f] : side===2 ? [cols*f, rows + 2] : [-2, rows*f];
+    const horiz = cols >= rows ? g.rnd() < 0.75 : g.rnd() < 0.25, mode0 = g.pick(['curve', 'curve', 'broken', 'straight']);
+    const big = AREA > 3500 && g.rnd() < 0.3;
+    roads.push({pts:roadLine(horiz ? edgePt(3, 0.35 + g.rnd()*0.3) : edgePt(0, 0.35 + g.rnd()*0.3), horiz ? edgePt(1, 0.3 + g.rnd()*0.4) : edgePt(2, 0.3 + g.rnd()*0.4), mode0, 4), w:big ? 5 : 3, kind:big ? 'highway' : 'road', main:1});
+    if(g.rnd() < 0.3) roads.push({pts:roadLine(horiz ? edgePt(0, 0.25 + g.rnd()*0.5) : edgePt(3, 0.25 + g.rnd()*0.5), horiz ? edgePt(2, 0.25 + g.rnd()*0.5) : edgePt(1, 0.25 + g.rnd()*0.5), g.pick(['curve', 'broken']), 3), w:3, kind:'road', main:1});
+    // ответвления: от точки на существующей улице под ~90° (±25°), до края карты или тупиком
+    const branch = (count, w, kind, minL, maxL, parents)=>{ for(let c=0, tries=0;c<count && tries<count*12;tries++){
+      const par = g.pick(parents()); if(!par) break; const p = pointAt(par, 0.12 + g.rnd()*0.76), s = g.rnd() < 0.5 ? 1 : -1, ang = p.a + s*(Math.PI/2) + (g.rnd() - 0.5)*0.9;
+      const toEdge = g.rnd() < 0.5, L = toEdge ? 200 : g.ri(minL, maxL); let ex = p.x + Math.cos(ang)*L, ey = p.y + Math.sin(ang)*L;
+      if(toEdge){ const tx = Math.cos(ang) > 0 ? (cols + 2 - p.x)/Math.cos(ang) : Math.cos(ang) < 0 ? (-2 - p.x)/Math.cos(ang) : Infinity, ty = Math.sin(ang) > 0 ? (rows + 2 - p.y)/Math.sin(ang) : Math.sin(ang) < 0 ? (-2 - p.y)/Math.sin(ang) : Infinity, tt = Math.min(tx, ty); if(tt > 60 || tt < minL) continue; ex = p.x + Math.cos(ang)*tt; ey = p.y + Math.sin(ang)*tt; }
+      else if(ex < 3 || ey < 3 || ex > cols - 3 || ey > rows - 3) continue;
+      const start = [p.x + Math.cos(ang)*(par.w/2 - 0.1), p.y + Math.sin(ang)*(par.w/2 - 0.1)], line = roadLine(start, [ex, ey], g.pick(['curve', 'curve', 'broken', 'straight']), Math.min(2.5, Math.hypot(ex - start[0], ey - start[1])/9));
+      // не вплотную и не параллельно к уже проложенным
+      const cand = {pts:line, w, kind, end:toEdge ? null : [ex, ey], ang, from:p, parent:par};
+      if(roads.some(r=>r!==par && line.slice(Math.floor(line.length*0.25)).some(([x, y])=>distTo(r, x, y) < (r.w + w)/2 + 5))) continue;
+      roads.push(cand); c++; } };
+    branch(Math.max(1, Math.round(2.4*K)) + g.ri(0, 1), 2.5, 'road', 10, 22, ()=>roads.filter(r=>r.main));
+    branch(g.ri(0, Math.max(1, Math.round(1.5*K))), 2, g.rnd() < 0.5 ? 'track' : 'road', 6, 13, ()=>roads.filter(r=>!r.main));
+    // разметка дорог: асфальт под полотном, тротуар у городских улиц; занятость
+    const roadD = new Float32Array(AREA).fill(99);
+    for(let y=0;y<rows;y++) for(let x=0;x<cols;x++){ let best = 99, br = null; roads.forEach(r=>{ const d = distTo(r, x + 0.5, y + 0.5) - r.w/2; if(d < best){ best = d; br = r; } }); roadD[y*cols + x] = best;
+      if(best < (br && br.kind==='track' ? 0.6 : 1.4)) g.occ[y*cols + x] = 1; }
+    const rp = (r)=>r.pts.map(([x, y])=>[Math.round(x*100)/100, Math.round(y*100)/100]);
+    roads.forEach(r=>{ if(r.kind!=='track') g.path('sidewalk', r.w + 2.6, rp(r)); }); roads.forEach(r=>g.path(r.kind, r.w, rp(r)));
+    // объект в произвольной точке с поворотом: занятость — по описанному прямоугольнику
+    const BY = MapAssets.BY_ID, cars = [];
+    function put(a, cx, cy, rdeg, force){ const as = BY[a]; if(!as) return false; const t = rdeg*Math.PI/180, bw = Math.abs(Math.cos(t))*as.w + Math.abs(Math.sin(t))*as.h, bh = Math.abs(Math.sin(t))*as.w + Math.abs(Math.cos(t))*as.h;
+      const x0 = Math.floor(cx - bw/2), y0 = Math.floor(cy - bh/2), cw = Math.ceil(cx + bw/2) - x0, ch = Math.ceil(cy + bh/2) - y0;
+      if(x0 < 0 || y0 < 0 || x0 + cw > cols || y0 + ch > rows) return false; if(!force && !as.g && !g.free(x0, y0, cw, ch)) return false; if(!as.g) g.mark(x0, y0, cw, ch);
+      doc.objects.push({id:newId('o'), a, x:Math.round(cx*100)/100, y:Math.round(cy*100)/100, r:Math.round(((rdeg%360) + 360)%360), s:1, v:g.variant(a, g.opts.ruin==='low' ? 'intact' : null), f:g.rnd() < 0.3}); return true; }
+    // тупики: завал или баррикада в конце; у примыкания — иногда «зебра»
+    roads.forEach(r=>{ if(r.end && g.rnd() < 0.75){ const a = g.pick(['jersey', 'barricade_car', 'rubble_pile', 'rubble_big', 'barricade']); put(a, r.end[0], r.end[1], r.ang*180/Math.PI + 90, true); }
+      if(r.from && r.kind==='road' && g.rnd() < 0.35){ const d = r.parent.w/2 + 1.8; put('zebra', r.from.x + Math.cos(r.ang)*d, r.from.y + Math.sin(r.ang)*d, r.ang*180/Math.PI + 90, true); } });
+    // ---- здания вдоль улиц: фасадом к дороге, с отступом ----
+    const tries = Math.round(26*K*DSCALE); let fails = 0;
+    const weighted = roads.filter(r=>r.kind!=='track');
+    for(let t=0;t<tries*3 && fails < 40;t++){
+      const r = g.pick(weighted.concat(roads.filter(q=>q.main))), p = pointAt(r, 0.04 + g.rnd()*0.92), s = g.rnd() < 0.5 ? 1 : -1, nx = -Math.sin(p.a)*s, ny = Math.cos(p.a)*s;
+      const back = r.w/2 + 1.4 + g.ri(1, opts.density==='dense' ? 1 : 3), cx = p.x + nx*(back + 5.5), cy = p.y + ny*(back + 5.5);
+      const bx0 = Math.max(0, Math.round(cx - 6)), by0 = Math.max(0, Math.round(cy - 6)), bx1 = Math.min(cols, Math.round(cx + 6)), by1 = Math.min(rows, Math.round(cy + 6));
+      if(bx1 - bx0 < 5 || by1 - by0 < 5){ fails++; continue; }
+      const front = Math.abs(nx) > Math.abs(ny) ? (nx > 0 ? 3 : 1) : (ny > 0 ? 0 : 2); // фасад смотрит на дорогу
+      const b = building(g, bx0, by0, bx1, by1, undefined, front); if(b){ doc.gen.parts.push(partOf(b, [bx0, by0, bx1, by1])); fails = 0; } else fails++;
+      if(doc.gen.parts.length >= tries) break;
     }
-    for(let i=0;i<Math.round(doc.cols*doc.rows/90);i++){
-      const vert = g.rnd() < 0.5 && roadsX.length;
-      if(vert){ const rx = g.pick(roadsX); const y = g.ri(1, doc.rows - 3); const a = g.pick(['car_wreck', 'car_burnt', 'rubble_pile', 'bus_wreck', 'trash']); const as = MapAssets.BY_ID[a];
-        g.doc.objects.push({id:newId('o'), a, x:rx + g.pick([-1, 0, 1]) + 0.5, y:y + as.h/2, r:g.pick([0, 180]) + (g.rnd() - 0.5)*20, s:1, v:g.variant(a), f:false}); }
-      else if(roadsY.length){ const ry = g.pick(roadsY); const x = g.ri(1, doc.cols - 3); const a = g.pick(['car_wreck', 'car_burnt', 'rubble_pile', 'trash', 'jersey']); const as = MapAssets.BY_ID[a];
-        g.doc.objects.push({id:newId('o'), a, x:x + as.h/2, y:ry + g.pick([-1, 0, 1]) + 0.5, r:90 + g.pick([0, 180]) + (g.rnd() - 0.5)*20, s:1, v:g.variant(a), f:false}); }
+    // ---- машины: вдоль полотна, по направлению движения, редко ----
+    for(let i=0, n2 = Math.round(AREA/240*DSCALE);i<n2*4 && cars.length < n2;i++){ const r = g.pick(roads), p = pointAt(r, g.rnd()), lat = (g.rnd() - 0.5)*(r.w - 1.2), cx = p.x - Math.sin(p.a)*lat, cy = p.y + Math.cos(p.a)*lat;
+      if(cx < 1 || cy < 1 || cx > cols - 1 || cy > rows - 1 || cars.some(c=>Math.hypot(c[0] - cx, c[1] - cy) < 3)) continue;
+      const a = g.pick(['car_wreck', 'car_wreck', 'car_burnt', 'pickup_rust', 'bus_wreck', 'rubble_pile', 'trash', 'car_wreck']); if(put(a, cx, cy, p.a*180/Math.PI + 90 + (g.rnd() < 0.5 ? 180 : 0) + (g.rnd() - 0.5)*40, true)) cars.push([cx, cy]); }
+    // фонари вдоль главных улиц, через одну сторону
+    roads.filter(r=>r.kind!=='track').forEach(r=>{ const L = pointAt(r, 0).len, step = g.ri(7, 10); for(let s0=g.ri(2, 5), k=0;s0<L;s0+=step, k++){ if(g.rnd() < 0.25) continue; const p = pointAt(r, s0/L), sd = k%2 ? 1 : -1, d = r.w/2 + 0.8;
+      put('lamp_post', p.x - Math.sin(p.a)*d*sd, p.y + Math.cos(p.a)*d*sd, p.a*180/Math.PI + (sd > 0 ? 180 : 0)); } });
+    // ---- экстерьер: разнообразно, но редко; у каждого вида — свой лимит на карту ----
+    const EXT = [
+      // у тротуара
+      ['bus_stop', 'side', 2, 2], ['phone_booth', 'side', 1, 1], ['hydrant', 'side', 2, 2], ['road_sign', 'side', 2, 3], ['kiosk', 'side', 1, 1], ['dumpster', 'side', 2, 3], ['parking', 'side', 1, 2], ['checkpoint', 'side', 0.3, 1], ['barricade_car', 'side', 0.6, 1], ['jersey', 'side', 1, 2],
+      // на пустыре
+      ['tree_sparse', 'open', 4, 6], ['dead_tree', 'open', 4, 6], ['dry_bush', 'open', 3, 5], ['boulder', 'open', 1, 2], ['rocks_scatter', 'open', 1, 2], ['rubble_pile', 'open', 2, 4], ['rubble_big', 'open', 0.8, 1], ['scrap_pile', 'open', 1, 2],
+      ['junk_mound', 'open', 0.4, 1], ['crater', 'open', 0.6, 2], ['puddle', 'open', 1, 2], ['tire_stack', 'open', 1, 2], ['barrels_group', 'open', 0.6, 1], ['shipping_container', 'open', 0.5, 1], ['ruin_corner', 'open', 0.6, 1], ['ruin_house', 'open', 0.5, 1],
+      ['yard', 'open', 0.5, 1], ['water_tower', 'open', 0.3, 1], ['windmill', 'open', 0.2, 1], ['tent', 'open', 0.4, 1], ['campfire', 'open', 0.4, 1], ['skull_totem', 'open', 0.2, 1], ['oil_drum_fire', 'open', 0.4, 1],
+      ['pickup_rust', 'open', 0.5, 1], ['apc_wreck', 'open', 0.25, 1], ['tank_wreck', 'open', 0.15, 1], ['plane_wreck', 'open', 0.08, 1], ['watchtower', 'open', 0.2, 1], ['pillbox', 'open', 0.15, 1], ['overpass_pillar', 'open', 0.25, 1],
+    ].filter(e=>BY[e[0]]);
+    const used = {}, nExt = Math.round(AREA/110*DSCALE);
+    for(let i=0, placed=0;i<nExt*8 && placed<nExt;i++){
+      const pool = EXT.filter(e=>(used[e[0]] || 0) < e[3]); if(!pool.length) break; let tot = 0; pool.forEach(e=>{ tot += e[2]; }); let q = g.rnd()*tot, e = pool[0]; for(const c of pool){ q -= c[2]; if(q <= 0){ e = c; break; } }
+      let ok = false;
+      if(e[1]==='side'){ const r = g.pick(roads.filter(q2=>q2.kind!=='track')); if(!r) continue; const p = pointAt(r, 0.05 + g.rnd()*0.9), sd = g.rnd() < 0.5 ? 1 : -1, d = r.w/2 + 1.3 + (BY[e[0]].h > 1 ? BY[e[0]].h/2 : 0.5);
+        ok = put(e[0], p.x - Math.sin(p.a)*d*sd, p.y + Math.cos(p.a)*d*sd, p.a*180/Math.PI + (sd > 0 ? 180 : 0)); }
+      else { const x = g.rnd()*cols, y = g.rnd()*rows, rd = roadD[Math.floor(y)*cols + Math.floor(x)]; if(rd < 2) continue; ok = put(e[0], x, y, g.rnd() < 0.7 ? g.pick([0, 90, 180, 270]) : g.rnd()*360); }
+      if(ok){ used[e[0]] = (used[e[0]] || 0) + 1; placed++;
+        // небольшие группы: у деревьев — ещё куст, у костра — палатка/спальник
+        if(e[0]==='tree_sparse' && g.rnd() < 0.5){ const c = doc.objects[doc.objects.length - 1]; put('dry_bush', c.x + 1.3, c.y + 1, 0); }
+        if(e[0]==='campfire'){ const c = doc.objects[doc.objects.length - 1]; put('sleeping_bag', c.x + 1.5, c.y + 0.5, 90); } }
     }
-    roadsX.forEach(rx=>{ for(let y=2;y<doc.rows;y+=6) g.doc.objects.push({id:newId('o'), a:'lamp_post', x:rx - 2.5, y:y + 0.5, r:180, s:1, v:g.variant('lamp_post'), f:false}); });
+    // сквер: пятно травы с деревьями (редко)
+    if(g.rnd() < 0.35){ for(let t=0;t<20;t++){ const x = g.ri(2, cols - 8), y = g.ri(2, rows - 7); if(!g.free(x, y, 6, 5)) continue; const nz = g.noise(2, g.ri(1, 999));
+      for(let j=0;j<5;j++) for(let i=0;i<6;i++) if(nz(x + i, y + j) < 0.8) g.setT(x + i, y + j, 'grass'); for(let k=0;k<g.ri(2, 4);k++) g.tryObj(g.pick(['tree_sparse', 'tree_sparse', 'dead_tree', 'dry_bush']), x, y, x + 6, y + 5, 6); g.mark(x, y, 6, 5); break; } }
   }
   /* ---------- Подземный комплекс: маршрут «вход → охрана → жилой → технический → исследования → ядро» ----------
      Комнаты связаны деревом коридоров (минимальное остовное по расстоянию + несколько петель); глубина комнаты
