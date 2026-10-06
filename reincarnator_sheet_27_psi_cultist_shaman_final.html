@@ -1434,6 +1434,7 @@
   .me-gopt{ border:1px dotted var(--ink); border-radius:8px; padding:4px 8px 8px; display:flex; flex-direction:column; gap:6px; }
   .me-gopt legend{ font-size:11px; font-weight:700; padding:0 4px; }
   .me-genform{ display:flex; flex-direction:column; gap:8px; }
+  .me-genform:has(input[name=gen][value=camp]:checked) .me-gopt[data-for=rooms],
   .me-genform:has(input[name=gen][value=city]:not(:checked)) .me-gopt[data-for=city], .me-genform:has(input[name=gen][value=bunker]:not(:checked)) .me-gopt[data-for=bunker]{ display:none; } /* flex:1 у поля — для рядов; в колонке панели поле не растягиваем */
   .me-scale-row{ display:flex; align-items:center; gap:6px; }
   .me-scale-row input[type=range]{ flex:1; min-width:0; accent-color:var(--stamp); }
@@ -13862,10 +13863,10 @@ const MapFormat = (function(){
     if(!gn || typeof gn!=='object' || !/^[a-z]{2,12}$/.test(gn.id || '')) return null;
     const I = (v)=>Math.round(clamp(num(v, 0), 0, MAX_SIDE)), out = {id:gn.id, seed:Math.round(clamp(num(gn.seed, 1), 1, 4294967295)), opts:{}, parts:[]};
     if(/^[a-z]{1,16}$/.test(gn.cond || '')) out.cond = gn.cond;
-    const o = gn.opts && typeof gn.opts==='object' ? gn.opts : {}; ['density', 'ruin', 'theme', 'scenes', 'rooms', 'cond'].forEach(k=>{ if(typeof o[k]==='string' && /^[a-z]{1,16}$/.test(o[k])) out.opts[k] = o[k]; });
+    const o = gn.opts && typeof gn.opts==='object' ? gn.opts : {}; ['density', 'ruin', 'theme', 'scenes', 'rooms', 'cond', 'prefabs'].forEach(k=>{ if(typeof o[k]==='string' && /^[a-z]{1,16}$/.test(o[k])) out.opts[k] = o[k]; });
     (Array.isArray(gn.parts) ? gn.parts : []).slice(0, 400).forEach(p=>{ if(!p || (p.k!=='b' && p.k!=='r')) return; const q = {k:p.k, x:I(p.x), y:I(p.y), w:I(p.w), h:I(p.h)}; if(!q.w || !q.h) return;
       if(Array.isArray(p.lot) && p.lot.length===4) q.lot = p.lot.map(I);
-      ['arch', 'st', 'shape', 'zone', 'role', 'scene'].forEach(k=>{ if(typeof p[k]==='string' && /^[a-z_]{1,24}$/.test(p[k])) q[k] = p[k]; });
+      ['arch', 'st', 'shape', 'zone', 'role', 'scene'].forEach(k=>{ if(typeof p[k]==='string' && /^[a-z0-9_]{1,40}$/.test(p[k])) q[k] = p[k]; });
       if(typeof p.name==='string') q.name = str(p.name, 60); if(typeof p.label==='string') q.label = str(p.label, 64); q.rooms = Math.round(clamp(num(p.rooms, 0), 0, 99));
       if(Array.isArray(p.ent)) q.ent = p.ent.slice(0, 80).filter(e=>Array.isArray(e) && e.length===3 && (e[2]==='h' || e[2]==='v')).map(e=>[I(e[0]), I(e[1]), e[2]]);
       out.parts.push(q); });
@@ -17489,18 +17490,74 @@ const MapGen = (function(){
     });
     if(st.guard) R.forEach(rm=>{ if(rm.entries.some(e=>e[2].ext)) placeSpecs(g, rm, [{a:st.guard, m:'facedoor'}], vs); });
     // мини-сцена — в одной комнате, без повторов на карте
-    if(g.rnd() < (SCENE_P[g.opts.scenes] != null ? SCENE_P[g.opts.scenes] : 0.55)){ const rms = g.shuffle(R.slice()); for(const rm of rms){ const vg = VIGNETTES.filter(v=>!g.uses['vg:' + v.id] && (!v.roles || v.roles.indexOf(rm.role) >= 0) && (!v.door || rm.entries.length));
-        if(!vg.length) continue; const v = g.pick(vg); g.uses['vg:' + v.id] = 1; placeSpecs(g, rm, v.it, {state:'ruined'}); p.scene = v.id; break; } }
+    if(g.rnd() < (SCENE_P[g.opts.scenes] != null ? SCENE_P[g.opts.scenes] : 0.55)){ const rms = g.shuffle(R.slice()).sort((a, b)=>ownSceneFits(g, b) - ownSceneFits(g, a)); for(const rm of rms){ const id = placeScene(g, rm); if(id){ p.scene = id; break; } } }
     for(let y=0;y<h;y++) for(let x=0;x<w;x++) if(p.R[y*w + x] >= 0) g.occ[(y0 + y)*doc.cols + x0 + x] = 1;
     if(st.outside) for(let i=0;i<g.ri(1, 2);i++) g.tryObj(g.pick(st.outside), Math.max(0, x0 - 3), Math.max(0, y0 - 3), Math.min(doc.cols, x0 + w + 3), Math.min(doc.rows, y0 + h + 3), 8);
     g.built.push({arch:arch.id, shape:p.shape, w, h, rooms:rooms.length});
     const lab = {id:newId('l'), x:x0 + w/2, y:Math.max(0.6, y0 - 0.55), text:arch.name + (st.name ? ' · ' + st.name : ''), size:0.5, color:'#1e1b18'}; doc.labels.push(lab); p.label = lab.id;
   }
+  /* ---------- Заготовки: нарисованные вручную комнаты и сцены ----------
+     Генератор ставит заготовку целиком (с поворотом на 90°×k и отражением), если комната подходит по типу и
+     размеру и все предметы встают, не перекрывая проходов. Своя заготовка — выделенные в редакторе предметы,
+     сохранённые в этом браузере. Каждая заготовка — не больше раза на карту. */
+  const PF_KEY = 'reincarnator_prefabs_v1';
+  const PF_GROUPS = {
+    any:['Любая', null],
+    living:['Жилая / отдых', ['living', 'b_rec', 'hall']],
+    bedroom:['Спальня / казарма', ['bedroom', 'b_barracks', 'cell', 'b_isol', 'b_director']],
+    kitchen:['Кухня / столовая', ['kitchen', 'b_mess', 'dining', 'b_pantry']],
+    bath:['Санузел / душевые', ['bath', 'b_wash', 'lockerroom', 'b_decon', 'laundry', 'laundry_big']],
+    storage:['Склад / подсобка', ['storage', 'stockroom', 'archive', 'b_store', 'b_pantry', 'sales_tool']],
+    office:['Кабинет / пост', ['office', 'boss', 'b_cmd', 'b_guard', 'reception', 'b_director', 'server', 'b_server', 'guard', 'b_check']],
+    shop:['Магазин', ['sales_food', 'sales_drug', 'sales_tool']],
+    work:['Мастерская / техника', ['workshop', 'garage_bay', 'b_power', 'b_pump', 'boilerroom', 'substation', 'b_vent']],
+    med:['Медицина', ['ward', 'surgery', 'b_med', 'b_quar', 'b_morgue']],
+    lab:['Лаборатория', ['lab', 'b_biolab', 'b_chemlab', 'b_cryo', 'b_anomlab', 'b_observe']],
+    hall:['Зал / класс', ['hall', 'classroom', 'chapel', 'dining']],
+  };
+  // взаимозаменяемые предметы: при «заменах» заготовка выглядит чуть иначе каждый раз
+  const PF_SWAP = [['crate_wood', 'crate_metal', 'ammo_crate'], ['barrel', 'barrel_toxic'], ['bed', 'bunk'], ['terminal', 'radio'], ['bookshelf', 'pantry_shelves'], ['trash', 'blood'], ['lamp', 'medkit']];
+  // встроенные: [предмет, x, y (левый верхний угол клетки), поворот]
+  const PFB = (id, name, kind, group, w, h, items)=>({id, name, kind, group, w, h, swap:true, builtin:true, items:items.map(([a, x, y, r])=>{ const as = MapAssets.BY_ID[a] || {w:1, h:1}, q = (r || 0)%180===90; return {a, x:x + (q ? as.h : as.w)/2, y:y + (q ? as.w : as.h)/2, r:r || 0, v:null, f:false, s:1}; })});
+  const PREFABS_BUILTIN = [
+    PFB('bedroom_cozy', 'Уютная спальня', 'room', 'bedroom', 5, 4, [['bed', 0, 0, 0], ['table_small', 1, 0, 0], ['wardrobe', 3, 0, 0], ['rug', 2, 1, 90], ['chair', 4, 3, 0], ['lamp', 0, 3, 0]]),
+    PFB('kitchen_family', 'Семейная кухня', 'room', 'kitchen', 5, 4, [['stove', 0, 0, 0], ['sink', 1, 0, 0], ['fridge', 2, 0, 0], ['pantry_shelves', 3, 0, 0], ['table_dining', 1, 2, 0], ['washing', 4, 3, 180]]),
+    PFB('bath_full', 'Совмещённый санузел', 'room', 'bath', 3, 3, [['toilet', 0, 0, 0], ['sink', 1, 0, 0], ['bathtub', 2, 0, 0], ['washing', 0, 2, 180]]),
+    PFB('living_tv', 'Гостиная с телевизором', 'room', 'living', 5, 5, [['tv', 2, 0, 0], ['rug', 1, 1, 0], ['table_small', 2, 2, 0], ['sofa', 1, 4, 180], ['bookshelf', 4, 1, 90], ['lamp', 0, 4, 0], ['chair', 3, 3, 0]]),
+    PFB('workshop_bench', 'Слесарный угол', 'room', 'work', 5, 4, [['workbench', 0, 0, 0], ['lathe', 2, 0, 0], ['tire_stack', 4, 0, 0], ['press', 3, 2, 0], ['barrel', 0, 3, 0], ['crate_metal', 1, 3, 0]]),
+    PFB('office_boss', 'Кабинет начальника', 'room', 'office', 4, 4, [['lamp', 0, 0, 0], ['office_desk', 1, 0, 0], ['chair', 3, 1, 0], ['bookshelf', 0, 3, 180], ['safe', 3, 3, 0]]),
+    PFB('med_dressing', 'Перевязочная', 'room', 'med', 5, 4, [['hospital_bed', 0, 0, 0], ['medkit', 1, 0, 0], ['hospital_bed', 2, 0, 0], ['sink', 4, 0, 0], ['stretcher', 4, 2, 0], ['table_small', 1, 3, 0]]),
+    PFB('storage_supply', 'Склад припасов', 'room', 'storage', 4, 3, [['pantry_shelves', 0, 0, 0], ['pantry_shelves', 2, 0, 0], ['crate_wood', 0, 2, 0], ['crate_metal', 1, 2, 0], ['barrel', 3, 2, 0]]),
+    PFB('barracks_corner', 'Угол отделения', 'room', 'bedroom', 5, 4, [['bunk', 0, 0, 0], ['bunk', 1, 0, 0], ['bunk', 2, 0, 0], ['table_small', 4, 1, 0], ['locker', 2, 3, 180]]),
+    PFB('lab_stand', 'Исследовательский стенд', 'room', 'lab', 5, 4, [['lab_bench', 0, 0, 0], ['terminal', 2, 0, 0], ['lab_bench', 3, 0, 0], ['containment_pod', 2, 2, 0], ['barrel_toxic', 0, 3, 0]]),
+    PFB('scene_supper', 'Последний ужин', 'scene', 'any', 4, 4, [['corpse', 0, 0, 0], ['table_dining', 1, 1, 0], ['blood', 3, 1, 0], ['trash', 0, 3, 0], ['lamp', 3, 3, 0]]),
+    PFB('scene_cards', 'Карточная игра', 'scene', 'any', 4, 3, [['chair', 1, 0, 0], ['chair', 0, 1, 0], ['table_small', 1, 1, 0], ['chair', 2, 1, 0], ['trash', 0, 2, 0], ['lamp', 3, 2, 0]]),
+    PFB('scene_shrine', 'Алтарь', 'scene', 'any', 4, 4, [['lamp', 0, 0, 0], ['table_small', 1, 0, 0], ['skull_totem', 2, 0, 0], ['lamp', 3, 0, 0], ['rug', 1, 1, 0], ['blood', 2, 2, 0], ['bone_pile', 3, 3, 0]]),
+    PFB('scene_night', 'Брошенная ночёвка', 'scene', 'any', 4, 3, [['sleeping_bag', 0, 0, 0], ['sleeping_bag', 1, 0, 0], ['oil_drum_fire', 3, 0, 0], ['trash', 2, 2, 0], ['radio', 3, 2, 0]]),
+  ];
+  function validPrefab(p){ return !!(p && typeof p.id==='string' && /^[a-z0-9_]{2,40}$/.test(p.id) && Array.isArray(p.items) && p.items.length && p.items.length <= 120 && p.w > 0 && p.h > 0 && p.w <= 30 && p.h <= 30 && PF_GROUPS[p.group]); }
+  function userPrefabs(){ try{ const u = JSON.parse(localStorage.getItem(PF_KEY) || '[]'); return Array.isArray(u) ? u.filter(validPrefab) : []; }catch(e){ return []; } }
+  function prefabList(){ return PREFABS_BUILTIN.concat(userPrefabs()); }
+  function saveUserPrefabs(list){ try{ localStorage.setItem(PF_KEY, JSON.stringify(list.filter(validPrefab).slice(0, 200))); return true; }catch(e){ return false; } }
+  function pfFits(p, rm){ const g2 = PF_GROUPS[p.group]; if(g2 && g2[1] && g2[1].indexOf(rm.role) < 0) return false; return Math.min(p.w, p.h) <= Math.min(rm.w, rm.h) && Math.max(p.w, p.h) <= Math.max(rm.w, rm.h); }
+  const PF_P = {none:0, some:0.3, often:0.6};
+  const ownSceneFits = (g, rm)=>userPrefabs().some(p=>p.kind==='scene' && !g.uses['pf:' + p.id] && pfFits(p, rm)) ? 1 : 0;
+  // мини-сцена комнаты: своя/встроенная сцена-заготовка или процедурная; каждая — раз на карту
+  function placeScene(g, rm){
+    const pfs = prefabList().filter(p=>p.kind==='scene' && !g.uses['pf:' + p.id] && pfFits(p, rm));
+    const vg = VIGNETTES.filter(v=>!g.uses['vg:' + v.id] && (!v.roles || v.roles.indexOf(rm.role) >= 0) && (!v.door || (rm.entries || []).length));
+    const own = pfs.filter(p=>!p.builtin); // свои сцены — намеренно нарисованные, им приоритет
+    if(pfs.length && (own.length && g.rnd() < 0.75 || g.rnd() < 0.4 || !vg.length)){ const pf = g.pick(own.length ? own : pfs); rm.prefab = null; placeSpecs(g, rm, [{m:'prefab', pf}], {state:'ruined'}); if(rm.prefab===pf.id){ g.uses['pf:' + pf.id] = 1; return pf.id; } }
+    if(vg.length){ const v = g.pick(vg); g.uses['vg:' + v.id] = 1; placeSpecs(g, rm, v.it, {state:'ruined'}); return v.id; }
+    return null;
+  }
   // Мебель комнаты по рецепту роли + добор до плотности. opts: {state, prefer, drop, ruined}
   function furnish(g, rm, opts){
     if(typeof opts !== 'object' || !opts) opts = {ruined:!!opts, state:opts ? 'ruined' : 'intact'};
     const role = ROLES[rm.role]; if(!role) return;
-    placeSpecs(g, rm, role.it, opts);
+    const pp = PF_P[g.opts && g.opts.prefabs]; let pf = null;
+    if(g.rnd() < (pp == null ? PF_P.some : pp)){ const c = prefabList().filter(p=>p.kind!=='scene' && !g.uses['pf:' + p.id] && pfFits(p, rm)); if(c.length){ pf = g.pick(c); placeSpecs(g, rm, [{m:'prefab', pf}], opts); if(rm.prefab===pf.id) g.uses['pf:' + pf.id] = 1; else pf = null; } }
+    if(!pf) placeSpecs(g, rm, role.it, opts);
     const dens = rm.role==='hall' ? 0.09 : role.sz===2 ? 0.2 : role.sz===1 ? 0.24 : 0.28, more = role.it.filter(it=>!it.focus && (it.m==='wall' || it.m==='corner' || it.m==='center'));
     for(let t=0;t<12 + rm.w*rm.h/3 && rm._used < rm.w*rm.h*dens*(1 - (opts.drop || 0)) && more.length;t++) placeSpecs(g, rm, [Object.assign({}, g.pick(more), {n:1, p:null})], opts);
     if(opts.ruined) placeSpecs(g, rm, [{a:['rubble_pile', 'trash', 'blood', 'corpse', 'trash'], m:'center', n:[0, 2]}], opts);
@@ -17530,8 +17587,9 @@ const MapGen = (function(){
     }
     // занять клетки предмета; если после этого что-то стало недоступно — откатить
     function claim(x, y, fw, fh, back){ const cells = []; for(let j=y;j<y + fh;j++) for(let i=x;i<x + fw;i++){ if(!inR(i, j)) continue; const k = ix(i, j); if(W[k]) return false; cells.push(k); }
-      cells.forEach(k=>{ W[k] = 1; }); items.push({acc:access(x, y, fw, fh, back)});
+      cells.forEach(k=>{ W[k] = 1; }); items.push({acc:access(x, y, fw, fh, back), cells});
       if(!reachable()){ cells.forEach(k=>{ W[k] = 0; }); items.pop(); return false; } return true; }
+    const unclaim = ()=>{ const it = items.pop(); if(it) it.cells.forEach(k=>{ W[k] = 0; }); };
     const put = (a, x, y, r, back, force)=>{ const as = BY[a]; if(!as) return false; const [fw, fh] = dims(a, r);
       if(!as.g){ if(!force && !g.free(x, y, fw, fh)) return false; if(!force && !claim(x, y, fw, fh, back)) return false; g.mark(x, y, fw, fh); rm._used += fw*fh; }
       doc.objects.push({id:newId('o'), a, x:x + fw/2, y:y + fh/2, r, s:1, v:g.variant(a, opts.state, opts.prefer), f:g.rnd() < 0.3}); return true; };
@@ -17543,9 +17601,29 @@ const MapGen = (function(){
     const backOf = (a, side)=>side;
     specs.forEach(it=>{
       if(it.p != null && g.rnd() > it.p) return;
-      if(opts.drop && !it.focus && it.m!=='floor' && g.rnd() < opts.drop) return;
+      if(opts.drop && !it.focus && it.m!=='floor' && it.m!=='prefab' && g.rnd() < opts.drop) return;
       const n = Array.isArray(it.n) ? g.ri(it.n[0], it.n[1]) : (it.n == null ? 1 : it.n);
       for(let c=0;c<n;c++){
+        if(it.m==='prefab'){ // заготовка: поворот 90°×k, отражение, у стены или свободно; все твёрдые предметы — или ничего
+          const pf = it.pf;
+          for(let t=0;t<14;t++){
+            const rot = g.ri(0, 3), mir = g.rnd() < 0.5, W2 = rot%2 ? pf.h : pf.w, H2 = rot%2 ? pf.w : pf.h; if(W2 > rm.w || H2 > rm.h) continue;
+            const ox = g.rnd() < 0.7 ? g.pick([rm.x, rm.x + rm.w - W2]) : g.ri(rm.x, rm.x + rm.w - W2), oy = g.rnd() < 0.7 ? g.pick([rm.y, rm.y + rm.h - H2]) : g.ri(rm.y, rm.y + rm.h - H2);
+            const tr = pf.items.map(o=>{ let x = o.x, y = o.y, r = o.r || 0, f = !!o.f, w0 = pf.w, h0 = pf.h; if(mir){ x = w0 - x; r = (360 - r)%360; f = !f; }
+              for(let k=0;k<rot;k++){ const nx = h0 - y, ny = x; x = nx; y = ny; r = (r + 90)%360; const q = w0; w0 = h0; h0 = q; }
+              let a = o.a; if(pf.swap){ const grp = PF_SWAP.find(q=>q.indexOf(a) >= 0); if(grp && g.rnd() < 0.35) a = g.pick(grp); }
+              return {a, x:ox + x, y:oy + y, r, f, s:o.s || 1, v:o.v}; });
+            let ok = true, nc = 0; const boxes = [];
+            for(const o of tr){ const as = BY[o.a]; if(!as){ ok = false; break; } if(as.g) continue; const q = Math.round(((o.r%180) + 180)%180)===90, fw = (q ? as.h : as.w)*o.s, fh = (q ? as.w : as.h)*o.s;
+              const bx = Math.round(o.x - fw/2), by = Math.round(o.y - fh/2), cw = Math.max(1, Math.round(fw)), ch = Math.max(1, Math.round(fh));
+              if(bx < rm.x || by < rm.y || bx + cw > rm.x + rm.w || by + ch > rm.y + rm.h || !g.free(bx, by, cw, ch) || !claim(bx, by, cw, ch)){ ok = false; break; } nc++; boxes.push([bx, by, cw, ch]); }
+            if(!ok){ while(nc--) unclaim(); continue; }
+            boxes.forEach(([bx, by, cw, ch])=>{ g.mark(bx, by, cw, ch); rm._used += cw*ch; });
+            tr.forEach(o=>{ doc.objects.push({id:newId('o'), a:o.a, x:o.x, y:o.y, r:o.r, s:o.s, v:o.v==null || pf.swap ? g.variant(o.a, opts.state, opts.prefer) : o.v, f:o.f}); });
+            rm.prefab = pf.id; break;
+          }
+          break;
+        }
         const a = g.pick(it.a), as = BY[a]; if(!as) continue;
         if(it.m==='floor'){ const [fw, fh] = dims(a, 0); if(rm.w - 2 >= fw && rm.h - 2 >= fh) put(a, g.ri(rm.x + 1, rm.x + rm.w - 1 - fw), g.ri(rm.y + 1, rm.y + rm.h - 1 - fh), g.pick([0, 180]), null, true); else if(rm.w >= fw && rm.h >= fh) put(a, rm.x, rm.y, 0, null, true); continue; }
         if(it.m==='wall' || it.m==='corner'){ let ok = false; for(const side of g.shuffle([0, 1, 2, 3])){ const s = wallSpots(a, side, it.m==='corner'); for(const [x, y] of g.shuffle(s.list)){ if(put(a, x, y, s.r, backOf(a, side))){ ok = true; if(it.focus) rm.focus = side; break; } } if(ok) break; } continue; }
@@ -17604,7 +17682,7 @@ const MapGen = (function(){
   const partOf = (b, lot)=>({k:'b', x:b.x, y:b.y, w:b.w, h:b.h, lot, arch:b.arch.id, name:b.arch.name, st:b.st, shape:b.shape, rooms:b.rooms, label:b.label, scene:b.scene});
   function cityRuins(doc, opts){
     opts = opts || {}; const g = ctxFor(doc, opts.seed); g.opts = opts; reset(doc, 'dust');
-    doc.gen = {id:'city', seed:g.seed, opts:{density:opts.density || 'normal', ruin:opts.ruin || 'normal', theme:opts.theme || 'mixed', scenes:opts.scenes || 'normal'}, parts:[]};
+    doc.gen = {id:'city', seed:g.seed, opts:{density:opts.density || 'normal', ruin:opts.ruin || 'normal', theme:opts.theme || 'mixed', scenes:opts.scenes || 'normal', prefabs:opts.prefabs || 'some'}, parts:[]};
     const DEN = {sparse:[16, 0.4, 0.3], normal:[12, 0.15, 0.8], dense:[10, 0.05, 0.95]}[opts.density] || [12, 0.15, 0.8];
     const n = g.noise(6, 1);
     for(let y=0;y<doc.rows;y++) for(let x=0;x<doc.cols;x++){ const v = n(x, y); if(v > 0.62) g.setT(x, y, 'gravel'); else if(v < 0.25) g.setT(x, y, 'grass'); }
@@ -17683,7 +17761,7 @@ const MapGen = (function(){
   const BZONE_FLOOR = {gate:'concrete', sec:'concrete', live:'tiles', tech:'metal', sci:'tiles', core:'metal'};
   function bunker(doc, opts){
     opts = opts || {}; const g = ctxFor(doc, opts.seed); g.opts = opts; reset(doc, 'rock');
-    doc.gen = {id:'bunker', seed:g.seed, opts:{rooms:opts.rooms || 'normal', cond:opts.cond || 'random', scenes:opts.scenes || 'normal'}, parts:[]};
+    doc.gen = {id:'bunker', seed:g.seed, opts:{rooms:opts.rooms || 'normal', cond:opts.cond || 'random', scenes:opts.scenes || 'normal', prefabs:opts.prefabs || 'some'}, parts:[]};
     const RS = {small:[11, 10], normal:[15, 13], large:[20, 17]}[opts.rooms] || [15, 13];
     const {cols, rows} = doc, n = g.noise(5, 7);
     for(let y=0;y<rows;y++) for(let x=0;x<cols;x++){ const v = n(x, y); if(v > 0.7) g.setT(x, y, 'gravel'); else if(v < 0.18) g.setT(x, y, 'dirt'); }
@@ -17756,7 +17834,7 @@ const MapGen = (function(){
     // мебель по типу; разгромленный комплекс — чаще сломанные варианты
     rooms.forEach(r=>furnish(g, r, cond==='wrecked' ? g.rnd() < 0.75 : g.rnd() < 0.2));
     const nsc = {none:0, normal:g.ri(2, 3), many:g.ri(4, 6)}[opts.scenes] != null ? {none:0, normal:g.ri(2, 3), many:g.ri(4, 6)}[opts.scenes] : g.ri(2, 3);
-    g.shuffle(rooms.filter(r=>r.zone!=='gate' && r.zone!=='core')).slice(0, nsc).forEach(r=>{ const vg = VIGNETTES.filter(v=>!g.uses['vg:' + v.id] && (!v.roles || v.roles.indexOf(r.role) >= 0)); if(!vg.length) return; const v = g.pick(vg); g.uses['vg:' + v.id] = 1; placeSpecs(g, r, v.it, {state:'ruined'}); r.scene = v.id; });
+    g.shuffle(rooms.filter(r=>r.zone!=='gate' && r.zone!=='core')).sort((a, b)=>ownSceneFits(g, b) - ownSceneFits(g, a)).slice(0, nsc).forEach(r=>{ const id = placeScene(g, r); if(id) r.scene = id; });
     // коридоры: лампы, трубы и кабели вдоль стен, обвалы
     corridorCells.forEach(([i, j], k)=>{ if(k%7===3 && g.free(i, j, 1, 1) && g.rnd() < 0.6) g.obj('lamp', i, j, 0); });
     for(let t=0;t<Math.round(corridorCells.length/40);t++){ const [i, j] = g.pick(corridorCells); g.tryObj(g.pick(['rubble_pile', 'electric_panel', 'barrel', 'crate_metal', 'trash', 'valve', 'blood']), i - 1, j - 1, i + 2, j + 2, 4); }
@@ -17804,7 +17882,7 @@ const MapGen = (function(){
   function partTitle(p){ return p.k==='b' ? (p.name || (ARCH_BY[p.arch] || {}).name || 'Здание') + (STATE_NAME[p.st] ? ' · ' + STATE_NAME[p.st] : '') : (p.name || 'Комната'); }
   function seedUniqueness(g, doc, others){ // учесть уже стоящее: варианты предметов, сцены, типы и состояния других частей
     doc.objects.forEach(o=>{ g.vc[o.a + ':' + o.v] = (g.vc[o.a + ':' + o.v] || 0) + 1; });
-    others.forEach(p=>{ if(p.scene) g.uses['vg:' + p.scene] = 1; if(p.arch) g.uses['arch:' + p.arch] = (g.uses['arch:' + p.arch] || 0) + 1; if(p.st) g.uses['bstate:' + p.st] = (g.uses['bstate:' + p.st] || 0) + 1; }); }
+    others.forEach(p=>{ if(p.scene){ g.uses['vg:' + p.scene] = 1; g.uses['pf:' + p.scene] = 1; } if(p.arch) g.uses['arch:' + p.arch] = (g.uses['arch:' + p.arch] || 0) + 1; if(p.st) g.uses['bstate:' + p.st] = (g.uses['bstate:' + p.st] || 0) + 1; }); }
   function rerollBuilding(doc, part, mode){
     const g = ctxFor(doc, 0), {cols, rows} = doc; g.opts = Object.assign({}, doc.gen.opts);
     const others = doc.gen.parts.filter(p=>p!==part && p.k==='b'), lot = part.lot || [Math.max(0, part.x - 2), Math.max(0, part.y - 2), Math.min(cols, part.x + part.w + 2), Math.min(rows, part.y + part.h + 2)];
@@ -17847,11 +17925,11 @@ const MapGen = (function(){
     const role = ROLES[part.role]; if(role) g.rectT(part.x, part.y, part.w, part.h, g.pick(role.fl));
     const rm = {x:part.x, y:part.y, w:part.w, h:part.h, role:part.role, entries}, cond = doc.gen.cond;
     furnish(g, rm, cond==='wrecked' ? g.rnd() < 0.75 : g.rnd() < 0.2);
-    delete part.scene; const sp = {none:0, normal:0.35, many:0.7}[g.opts.scenes]; if(g.rnd() < (sp == null ? 0.35 : sp)){ const vg = VIGNETTES.filter(v=>!g.uses['vg:' + v.id] && (!v.roles || v.roles.indexOf(part.role) >= 0)); if(vg.length){ const v = g.pick(vg); placeSpecs(g, rm, v.it, {state:'ruined'}); part.scene = v.id; } }
+    delete part.scene; const sp = {none:0, normal:0.35, many:0.7}[g.opts.scenes]; if(g.rnd() < (sp == null ? 0.35 : sp)){ const id = placeScene(g, rm); if(id) part.scene = id; }
     const lab = {id:newId('l'), x:part.x + part.w/2, y:part.y + 0.6, text:part.name, size:0.5, color:'#1e1b18'}; doc.labels.push(lab); part.label = lab.id; return true;
   }
   function reroll(doc, part, mode){ return part.k==='b' ? rerollBuilding(doc, part, mode) : rerollRoom(doc, part, mode); }
-  return { LIST, wallsFromMask, partAt, partTitle, reroll };
+  return { LIST, wallsFromMask, partAt, partTitle, reroll, prefabList, userPrefabs, saveUserPrefabs, validPrefab, PF_GROUPS };
 })();
 </script>
 
@@ -18366,7 +18444,7 @@ const MapEditor = (function(){
     pre = pre || {}; const po = pre.opts || {}, cur = pre.id || (doc.gen && doc.gen.id) || MapGen.LIST[0].id;
     const sel2 = (name, v, list)=>`<select name="${name}">${list.map(([k, n])=>`<option value="${k}" ${(v || list[1 % list.length][0])===k ? 'selected' : ''}>${n}</option>`).join('')}</select>`;
     const SC = [['none', 'нет'], ['normal', 'обычно'], ['many', 'много']];
-    dialog('Сгенерировать планировку', `<div class="me-genform">
+    const dl = dialog('Сгенерировать планировку', `<div class="me-genform">
       <div class="me-genlist">${MapGen.LIST.map(g=>`<label class="me-check"><input type="radio" name="gen" value="${g.id}" ${g.id===cur?'checked':''}> ${esc(g.name)}</label>`).join('')}</div>
       <label class="me-f">Зерно генерации <div class="me-scale-row"><input type="text" name="seed" maxlength="16" placeholder="случайное" value="${pre.seed ? esc(String(pre.seed)) : ''}"><button type="button" class="small" onclick="this.form.seed.value=String(1 + Math.floor(Math.random()*999999999))" title="Случайное зерно">🎲</button></div></label>
       <div class="muted me-note">Одно и то же зерно с теми же параметрами и размером карты даёт ту же самую карту. Пусто — новое случайное. Можно ввести слово.</div>
@@ -18379,12 +18457,52 @@ const MapEditor = (function(){
         <label class="me-f">Комнаты${sel2('rooms', po.rooms, [['small', 'мелкие'], ['normal', 'обычные'], ['large', 'крупные']])}</label>
         <label class="me-f">Состояние${sel2('cond', po.cond || 'random', [['random', 'случайное'], ['abandoned', 'заброшен'], ['flooded', 'затоплен'], ['infested', 'заражён'], ['wrecked', 'разгромлен']])}</label></div>
         <label class="me-f">Мини-сцены${sel2('scenes_bunker', po.scenes, SC)}</label></fieldset>
+      <fieldset class="me-gopt" data-for="rooms"><legend>Заготовки комнат и сцен</legend><div class="me-f-row"><label class="me-f">Как часто${sel2('prefabs', po.prefabs, [['none', 'не использовать'], ['some', 'иногда'], ['often', 'часто']])}</label>
+        <div class="me-f"><span class="muted">${MapGen.prefabList().length} шт. (своих ${MapGen.userPrefabs().length})</span><button type="button" class="small" data-pfmanage>Заготовки…</button></div></div></fieldset>
       <div class="muted me-note">Заменит содержимое текущей карты (${doc.cols}×${doc.rows} клеток). Отменить можно кнопкой ↶ или Ctrl+Z. Отдельное здание или комнату потом можно перегенерировать во вкладке «Свойства».</div></div>`, (f)=>{
       const id = f.gen.value, opts = {seed:seedOf(f.seed.value)};
       if(id==='city') Object.assign(opts, {density:f.density.value, ruin:f.ruin.value, theme:f.theme.value, scenes:f.scenes_city.value});
       if(id==='bunker') Object.assign(opts, {rooms:f.rooms.value, cond:f.cond.value, scenes:f.scenes_bunker.value});
+      if(id==='city' || id==='bunker') opts.prefabs = f.prefabs.value;
       runGen(id, opts);
     }, {ok:'Сгенерировать'});
+    const pb = dl.form.querySelector('[data-pfmanage]'); if(pb) pb.addEventListener('click', ()=>{ dl.close(); prefabDialog(); });
+  }
+  // Заготовки: выделенные предметы → своя заготовка (комната или сцена) для генератора; список, расстановка, обмен файлом
+  function prefabSaveDialog(){
+    const objs = [...sel].filter(k=>k[0]==='o').map(findItem).filter(Boolean); if(!objs.length) return;
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    objs.forEach(o=>{ const a = MapAssets.BY_ID[o.a] || {w:1, h:1}, s = o.s || 1, q = Math.round(((o.r||0)%180 + 180)%180)===90, w = (q ? a.h : a.w)*s, h = (q ? a.w : a.h)*s; x0 = Math.min(x0, o.x - w/2); y0 = Math.min(y0, o.y - h/2); x1 = Math.max(x1, o.x + w/2); y1 = Math.max(y1, o.y + h/2); });
+    x0 = Math.floor(x0 + 0.001); y0 = Math.floor(y0 + 0.001); const W = Math.ceil(x1 - 0.001) - x0, H = Math.ceil(y1 - 0.001) - y0;
+    if(W > 30 || H > 30) return alert('Заготовка не больше 30×30 клеток — выделите меньше.');
+    const G = MapGen.PF_GROUPS;
+    dialog('Сохранить как заготовку', `<label class="me-f">Название<input type="text" name="nm" maxlength="40" required value="Моя заготовка"></label>
+      <div class="me-f-row"><label class="me-check"><input type="radio" name="kind" value="room" checked> Комната (вместо обычной мебели)</label><label class="me-check"><input type="radio" name="kind" value="scene"> Сцена (поверх мебели)</label></div>
+      <label class="me-f">Для каких комнат<select name="group">${Object.keys(G).map(k=>`<option value="${k}">${esc(G[k][0])}</option>`).join('')}</select></label>
+      <label class="me-check"><input type="checkbox" name="swap" checked> Разрешить замены похожих предметов и других вариантов исполнения</label>
+      <div class="muted me-note">Предметов: ${objs.length}, размер ${W}×${H} клеток. Генератор ставит заготовку целиком, поворачивая и отражая её, если комната подходит по типу и размеру и все предметы встают, не перекрывая проходов. Хранится в этом браузере; можно выгрузить в файл в списке заготовок.</div>`, (f)=>{
+      const list = MapGen.userPrefabs(); const pf = {id:'u' + Date.now().toString(36) + Math.floor(Math.random()*1e4).toString(36), name:f.nm.value.trim().slice(0, 40) || 'Заготовка', kind:f.querySelector('[name=kind]:checked').value, group:f.group.value, w:W, h:H, swap:f.swap.checked,
+        items:objs.map(o=>({a:o.a, x:r3(o.x - x0), y:r3(o.y - y0), r:o.r || 0, v:o.v || 0, f:!!o.f, s:o.s || 1}))};
+      list.push(pf); if(!MapGen.saveUserPrefabs(list)) return alert('Не удалось сохранить (хранилище браузера недоступно или переполнено).') || false;
+      setStatus('Заготовка сохранена: ' + pf.name);
+    }, {ok:'Сохранить'});
+  }
+  function prefabDialog(){
+    const all = MapGen.prefabList(), G = MapGen.PF_GROUPS;
+    const d = dialog('Заготовки комнат и сцен', `<div class="me-maplist">${all.map(p=>`<div class="me-maprow"><span class="me-mapname">${esc(p.name)}</span><span class="muted">${p.kind==='scene' ? 'сцена' : 'комната'} · ${esc((G[p.group] || ['?'])[0])} · ${p.w}×${p.h}${p.builtin ? ' · встроенная' : ''}</span>
+        <button type="button" class="small" data-pfput="${esc(p.id)}" title="Поставить на карту в центр экрана">Поставить</button>${p.builtin ? '' : `<button type="button" class="small" data-pfdel="${esc(p.id)}" title="Удалить">✕</button>`}</div>`).join('')}</div>
+      <div class="muted me-note">Своя заготовка: выделите предметы на карте (рамкой) → «Свойства» → «★ Сохранить как заготовку». Генератор берёт заготовки по параметру «Заготовки» в окне генерации.</div>
+      <div class="me-btnrow"><button type="button" class="small" data-pfexp>Выгрузить свои в файл</button><button type="button" class="small" data-pfimp>Загрузить из файла</button></div>`, null);
+    d.form.addEventListener('click', (e)=>{ const b = e.target.closest('button'); if(!b) return;
+      if(b.dataset.pfdel){ if(!confirm('Удалить заготовку?')) return; MapGen.saveUserPrefabs(MapGen.userPrefabs().filter(p=>p.id!==b.dataset.pfdel)); d.close(); prefabDialog(); }
+      else if(b.dataset.pfput){ const p = all.find(q=>q.id===b.dataset.pfput); if(!p) return; d.close(); const c = toWorld(vw/2, vh/2), ox = Math.round(c.x - p.w/2), oy = Math.round(c.y - p.h/2);
+        mutate(()=>{ sel = new Set(); p.items.forEach(o=>{ const it = {id:MapFormat.newId('o'), a:o.a, x:r3(ox + o.x), y:r3(oy + o.y), r:o.r || 0, s:o.s || 1, v:o.v == null ? 0 : o.v, f:!!o.f}; doc.objects.push(it); sel.add('o:' + it.id); }); });
+        setTool('select'); setStatus('Поставлена заготовка: ' + p.name); }
+      else if(b.dataset.pfexp!==undefined){ const u = MapGen.userPrefabs(); if(!u.length) return alert('Своих заготовок пока нет.'); download('zagotovki.rprefab.json', new Blob([JSON.stringify({format:'reincarnator-prefabs', prefabs:u}, null, 1)], {type:'application/json'})); }
+      else if(b.dataset.pfimp!==undefined){ const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.json,application/json';
+        inp.onchange = ()=>{ const fl = inp.files[0]; if(!fl) return; fl.text().then(t=>{ const j = JSON.parse(t), add = (j && Array.isArray(j.prefabs) ? j.prefabs : []).filter(MapGen.validPrefab); const cur = MapGen.userPrefabs(), ids = new Set(cur.map(p=>p.id));
+          add.forEach(p=>{ if(ids.has(p.id)) p.id = 'u' + Date.now().toString(36) + Math.floor(Math.random()*1e6).toString(36); delete p.builtin; cur.push(p); }); MapGen.saveUserPrefabs(cur); d.close(); prefabDialog(); setStatus('Загружено заготовок: ' + add.length); }).catch(e=>alert('Не удалось прочитать файл: ' + e.message)); };
+        inp.click(); } });
   }
   function genPartOfSel(){ if(sel.size!==1 || !doc.gen) return null; const key = [...sel][0], it = findItem(key); if(!it) return null;
     const x = it.points ? it.points[0][0] : it.x, y = it.points ? it.points[0][1] : it.y; return MapGen.partAt(doc, x, y); }
@@ -18489,7 +18607,7 @@ const MapEditor = (function(){
     const gp = genPartOfSel(), gpHtml = gp ? `<div class="me-genpart"><div class="me-prop-title">${gp.k==='b' ? 'Здание' : 'Комната'}: ${esc(MapGen.partTitle(gp))}</div>
       <div class="me-btnrow"><button type="button" class="small" data-act="reroll" title="Тот же тип, новая планировка, мебель и состояние">↻ Перегенерировать</button>${gp.k==='b' || !/^(gate|core)$/.test(gp.zone || '') ? `<button type="button" class="small" data-act="rerolltype" title="Другой тип — из тех, что ещё не встречались на карте">⇄ Другой тип</button>` : ''}</div>
       <div class="muted me-note">Меняется только ${gp.k==='b' ? 'это здание и его двор' : 'эта комната'}, остальная карта остаётся. Отменить — Ctrl+Z.</div></div>` : '';
-    if(sel.size > 1){ const no = [...sel].filter(k=>k[0]==='o').length; body.innerHTML = `<div class="me-note">Выбрано: ${sel.size}</div>${no ? `<div class="me-f me-scale">Масштаб объектов (${no})<div class="me-btnrow"><button type="button" class="small" data-act="sdown" title="−10% (&lt;)">−10%</button><button type="button" class="small" data-act="sup" title="+10% (&gt;)">+10%</button>${[0.5, 0.75, 1, 1.5, 2].map(v=>`<button type="button" class="small" data-sset="${v}">${pct(v)}</button>`).join('')}</div></div>` : ''}<div class="me-btnrow"><button type="button" class="small" data-act="dup">Дублировать</button><button type="button" class="small" data-act="rotr">Повернуть 90°</button><button type="button" class="small" data-act="del">Удалить</button></div>`; return; }
+    if(sel.size > 1){ const no = [...sel].filter(k=>k[0]==='o').length; body.innerHTML = `<div class="me-note">Выбрано: ${sel.size}</div>${no ? `<div class="me-f me-scale">Масштаб объектов (${no})<div class="me-btnrow"><button type="button" class="small" data-act="sdown" title="−10% (&lt;)">−10%</button><button type="button" class="small" data-act="sup" title="+10% (&gt;)">+10%</button>${[0.5, 0.75, 1, 1.5, 2].map(v=>`<button type="button" class="small" data-sset="${v}">${pct(v)}</button>`).join('')}</div></div>` : ''}<div class="me-btnrow"><button type="button" class="small" data-act="dup">Дублировать</button><button type="button" class="small" data-act="rotr">Повернуть 90°</button><button type="button" class="small" data-act="del">Удалить</button></div>${no ? '<div class="me-btnrow"><button type="button" class="small" data-act="pfsave" title="Сохранить выделенные предметы как заготовку комнаты или сцены для генератора">★ Сохранить как заготовку…</button></div>' : ''}`; return; }
     const key = [...sel][0], it = findItem(key); if(!it){ sel.clear(); body.innerHTML = ''; return; }
     const t = key[0]; let h = '';
     if(t==='o'){ const a = MapAssets.BY_ID[it.a] || {name:it.a, v:1, w:1, h:1};
@@ -18545,6 +18663,7 @@ const MapEditor = (function(){
       <div class="muted me-note">Настройка этого браузера: действует и в редакторе, и на игровом столе. На слабом устройстве её можно выключить — останутся прежние плоские цвета.</div>
       ${doc.gen ? `<div class="me-genpart"><div class="me-prop-title">Генерация: ${esc((MapGen.LIST.find(x=>x.id===doc.gen.id) || {}).name || doc.gen.id)}</div><div class="muted me-note">Зерно <b>${doc.gen.seed}</b> · ${doc.gen.parts.length ? doc.gen.parts.length + (doc.gen.parts[0].k==='b' ? ' зданий' : ' комнат') : 'без частей'}</div>
         <div class="me-btnrow"><button type="button" class="small" data-act="regen" title="Открыть генерацию с этим зерном и параметрами">Повторить / настроить…</button><button type="button" class="small" data-act="regennew" title="Те же параметры, новое зерно">🎲 Новый вариант</button></div></div>` : ''}
+      <div class="me-btnrow"><button type="button" class="small" data-act="prefabs" title="Встроенные и свои заготовки комнат и сцен">Заготовки комнат и сцен…</button></div>
       <div class="muted me-note">ID карты: ${esc(doc.id)} · формат v${MapFormat.CURRENT_VERSION} · объектов ${doc.objects.length}, стен ${doc.walls.length}, путей ${doc.paths.length}, надписей ${doc.labels.length}</div>`;
   }
 
@@ -18635,6 +18754,8 @@ const MapEditor = (function(){
       case 'regen': generateDialog(doc.gen); break;
       case 'regennew': if(doc.gen) runGen(doc.gen.id, Object.assign({}, doc.gen.opts, {seed:0})); break;
       case 'reroll': rerollPart('same'); break;
+      case 'pfsave': prefabSaveDialog(); break;
+      case 'prefabs': prefabDialog(); break;
       case 'rerolltype': rerollPart('type'); break;
       case 'pngadd': pickPng(null); break;
       case 'table': sendToTable(); break;
