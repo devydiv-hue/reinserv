@@ -13863,11 +13863,13 @@ const MapFormat = (function(){
     if(!gn || typeof gn!=='object' || !/^[a-z]{2,12}$/.test(gn.id || '')) return null;
     const I = (v)=>Math.round(clamp(num(v, 0), 0, MAX_SIDE)), out = {id:gn.id, seed:Math.round(clamp(num(gn.seed, 1), 1, 4294967295)), opts:{}, parts:[]};
     if(/^[a-z]{1,16}$/.test(gn.cond || '')) out.cond = gn.cond;
-    const o = gn.opts && typeof gn.opts==='object' ? gn.opts : {}; ['density', 'ruin', 'theme', 'scenes', 'rooms', 'cond', 'prefabs'].forEach(k=>{ if(typeof o[k]==='string' && /^[a-z]{1,16}$/.test(o[k])) out.opts[k] = o[k]; });
+    if(gn.title && typeof gn.title.text==='string') out.title = {x:r3(clamp(num(gn.title.x, 0), 0, MAX_SIDE)), y:r3(clamp(num(gn.title.y, 0), 0, MAX_SIDE)), text:str(gn.title.text, 60)};
+    const o = gn.opts && typeof gn.opts==='object' ? gn.opts : {}; ['density', 'ruin', 'theme', 'scenes', 'rooms', 'cond', 'prefabs', 'labels', 'lsize'].forEach(k=>{ if(typeof o[k]==='string' && /^[a-z]{1,16}$/.test(o[k])) out.opts[k] = o[k]; });
     (Array.isArray(gn.parts) ? gn.parts : []).slice(0, 400).forEach(p=>{ if(!p || (p.k!=='b' && p.k!=='r')) return; const q = {k:p.k, x:I(p.x), y:I(p.y), w:I(p.w), h:I(p.h)}; if(!q.w || !q.h) return;
       if(Array.isArray(p.lot) && p.lot.length===4) q.lot = p.lot.map(I);
       ['arch', 'st', 'shape', 'zone', 'role', 'scene'].forEach(k=>{ if(typeof p[k]==='string' && /^[a-z0-9_]{1,40}$/.test(p[k])) q[k] = p[k]; });
       if(typeof p.name==='string') q.name = str(p.name, 60); if(typeof p.label==='string') q.label = str(p.label, 64); q.rooms = Math.round(clamp(num(p.rooms, 0), 0, 99));
+      if(Array.isArray(p.rm)) q.rm = p.rm.slice(0, 40).filter(e=>Array.isArray(e) && e.length===5 && /^[a-z_]{1,24}$/.test(e[4] || '')).map(e=>[I(e[0]), I(e[1]), I(e[2]), I(e[3]), e[4]]);
       if(Array.isArray(p.ent)) q.ent = p.ent.slice(0, 80).filter(e=>Array.isArray(e) && e.length===3 && (e[2]==='h' || e[2]==='v')).map(e=>[I(e[0]), I(e[1]), e[2]]);
       out.parts.push(q); });
     return out;
@@ -17125,7 +17127,125 @@ const MapRender = (function(){
     }
   }
   function strokePath(ctx, pts, w, color, dash){ ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]); for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i][0], pts[i][1]); ctx.lineWidth = w; ctx.strokeStyle = color; ctx.setLineDash(dash || []); ctx.stroke(); ctx.setLineDash([]); }
-  function drawPath(ctx, p, k){
+  /* ---------- Пути в HD: объём слоями (тень, бровка, полотно, разметка), детали вдоль пути ----------
+     Детали (выбоины, шпалы, фланцы, рябь…) стоят по шагу вдоль ломаной и зависят только от id пути — одинаковы
+     в редакторе и на столе и не «плавают» при перерисовке. */
+  // ломаная, смещённая вбок на d (d > 0 — вправо по ходу пути), с поправкой на угол излома
+  function offsetPts(pts, d){
+    const nrm = (p, q)=>{ const dx = q[0] - p[0], dy = q[1] - p[1], L = Math.hypot(dx, dy) || 1; return [-dy/L, dx/L]; };
+    return pts.map((p, i)=>{ let nx = 0, ny = 0;
+      if(i > 0){ const n = nrm(pts[i - 1], p); nx += n[0]; ny += n[1]; } if(i < pts.length - 1){ const n = nrm(p, pts[i + 1]); nx += n[0]; ny += n[1]; }
+      const L = Math.hypot(nx, ny) || 1; nx /= L; ny /= L; let m = 1;
+      if(i > 0 && i < pts.length - 1){ const n1 = nrm(pts[i - 1], p); m = 1/Math.max(0.4, n1[0]*nx + n1[1]*ny); }
+      return [p[0] + nx*d*m, p[1] + ny*d*m]; });
+  }
+  // точки через шаг вдоль ломаной: fn(x, y, угол, № по порядку)
+  function walkPath(pts, step, start, fn){ let carry = start || 0, n = 0;
+    for(let i=0;i<pts.length - 1;i++){ const [ax, ay] = pts[i], [bx, by] = pts[i + 1], L = Math.hypot(bx - ax, by - ay); if(!L) continue; const ang = Math.atan2(by - ay, bx - ax);
+      let t = carry; while(t <= L){ fn(ax + (bx - ax)*t/L, ay + (by - ay)*t/L, ang, n++); t += step; } carry = t - L; } }
+  // тень под приподнятым (трубы, рельсы, бордюры): смещение вниз-вправо, как у объектов карты
+  function shadowed(ctx, dx, dy, blur, a, fn){ const s = ctx.getTransform().a || 1; ctx.save(); ctx.shadowColor = `rgba(0,0,0,${a})`; ctx.shadowOffsetX = dx*s; ctx.shadowOffsetY = dy*s; ctx.shadowBlur = blur*s; fn(); ctx.restore(); }
+  // перпендикулярная планка (шпала, доска, фланец) в точке пути
+  function crossBar(ctx, x, y, ang, len, th, fill, edge, jit){ ctx.save(); ctx.translate(x, y); ctx.rotate(ang + Math.PI/2 + (jit || 0)); ctx.fillStyle = fill; ctx.fillRect(-len/2, -th/2, len, th); if(edge){ ctx.strokeStyle = edge; ctx.lineWidth = Math.min(0.02, th*0.2); ctx.strokeRect(-len/2, -th/2, len, th); } ctx.restore(); }
+  function side(x, y, ang, d){ return [x - Math.sin(ang)*d, y + Math.cos(ang)*d]; }
+  function crackAt(ctx, R, x, y, ang, len){ let cx = x, cy = y, a = ang + (R() - 0.5)*2; ctx.beginPath(); ctx.moveTo(cx, cy); for(let i=0;i<4;i++){ a += (R() - 0.5)*1.1; cx += Math.cos(a)*len/4; cy += Math.sin(a)*len/4; ctx.lineTo(cx, cy); }
+    ctx.lineWidth = 0.03; ctx.strokeStyle = 'rgba(14,12,10,.6)'; ctx.stroke(); ctx.translate(0.012, 0.012); ctx.lineWidth = 0.015; ctx.strokeStyle = 'rgba(255,250,240,.08)'; ctx.stroke(); ctx.translate(-0.012, -0.012); }
+  function pothole(ctx, R, x, y){ const rx = 0.16 + R()*0.24, ry = 0.11 + R()*0.16, rot = R()*3; const gr = ctx.createRadialGradient(x - rx*0.2, y - ry*0.2, 0, x, y, rx);
+    gr.addColorStop(0, 'rgba(12,10,8,.8)'); gr.addColorStop(0.75, 'rgba(32,28,24,.55)'); gr.addColorStop(1, 'rgba(60,54,46,0)'); ctx.beginPath(); ctx.ellipse(x, y, rx, ry, rot, 0, 6.28); ctx.fillStyle = gr; ctx.fill();
+    ctx.beginPath(); ctx.ellipse(x, y, rx, ry, rot, 0.2, 2.6); ctx.lineWidth = 0.03; ctx.strokeStyle = 'rgba(255,248,235,.16)'; ctx.stroke();
+    if(R() < 0.45){ ctx.beginPath(); ctx.ellipse(x + 0.02, y + 0.02, rx*0.6, ry*0.55, rot, 0, 6.28); ctx.fillStyle = 'rgba(62,84,92,.55)'; ctx.fill(); ctx.beginPath(); ctx.ellipse(x - rx*0.15, y - ry*0.15, rx*0.25, ry*0.12, rot, 0, 6.28); ctx.fillStyle = 'rgba(220,235,240,.25)'; ctx.fill(); } }
+  function stain(ctx, x, y, r, col){ const gr = ctx.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, col); gr.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = gr; ctx.fillRect(x - r, y - r, r*2, r*2); }
+  function drawPathHD(ctx, p, k){
+    const w = p.width, pts = p.points, T = (id, fb)=>MapTex.pattern(id) || fb, O = (d)=>offsetPts(pts, d), R = MapAssets.mulberry(MapAssets.hashStr(p.id || (p.kind + pts.length)));
+    const sp = (q, ww, col, dash)=>strokePath(ctx, q, ww, col, dash);
+    ctx.save(); ctx.lineJoin = 'round'; ctx.lineCap = /^(rail|pipe|road|highway)$/.test(p.kind) ? 'butt' : 'round';
+    switch(p.kind){
+      case 'road': case 'highway': {
+        const hw = p.kind==='highway';
+        // бордюр/обочина с тенью, полотно, кювет у кромки, светлый «горб» посередине
+        shadowed(ctx, 0.05, 0.08, 0.12, 0.45, ()=>sp(pts, w + (hw ? 0.5 : 0.22), '#3a3632'));
+        sp(pts, w + (hw ? 0.5 : 0.22), T('concrete', '#8e8a80')); sp(pts, w + (hw ? 0.5 : 0.22), 'rgba(0,0,0,.22)', [0.04, 0.55]);
+        sp(pts, w - 0.04, T('asphalt', '#45423e')); ctx.globalAlpha = 0.4; sp(pts, w - 0.1, T('cracked', '#4a4743')); ctx.globalAlpha = 1;
+        sp(pts, w*0.4, 'rgba(255,250,240,.05)');
+        [-1, 1].forEach(s=>{ sp(O(s*(w/2 - 0.1)), 0.2, 'rgba(18,15,12,.4)'); sp(O(s*(w/2 - 0.02)), 0.04, 'rgba(255,250,240,.18)'); });
+        // разметка: стёртая, с пропусками
+        if(hw){ [-0.08, 0.08].forEach(d=>sp(O(d), 0.06, 'rgba(206,176,92,.7)')); [-1, 1].forEach(s=>{ sp(O(s*w/4), 0.08, 'rgba(228,224,212,.55)', [1, 1]); sp(O(s*(w/2 - 0.38)), 0.08, 'rgba(228,224,212,.5)', [3.2 + R(), 0.3]); }); }
+        else { sp(pts, 0.09, 'rgba(206,176,92,.72)', [0.7, 0.55]); [-1, 1].forEach(s=>sp(O(s*(w/2 - 0.3)), 0.06, 'rgba(225,220,205,.45)', [2.2 + R(), 0.4])); }
+        if(hw){ // отбойники на стойках, деформационные швы
+          [-1, 1].forEach(s=>{ const q = O(s*(w/2 + 0.14)); walkPath(q, 1.2, 0.4, (x, y)=>{ ctx.fillStyle = '#2e3236'; ctx.fillRect(x - 0.05, y - 0.05, 0.1, 0.1); });
+            shadowed(ctx, 0.04, 0.07, 0.06, 0.5, ()=>sp(q, 0.09, '#8f989d')); sp(q, 0.03, 'rgba(235,240,245,.6)'); });
+          walkPath(pts, 6, 3, (x, y, a)=>crossBar(ctx, x, y, a, w - 0.2, 0.03, 'rgba(0,0,0,.35)')); }
+        // заплатки, выбоины, трещины, пятна масла
+        walkPath(pts, hw ? 2.2 : 1.5, R()*1.5, (x, y, a)=>{ const r = R(), [px, py] = side(x, y, a, (R() - 0.5)*(w - 0.8));
+          if(r < 0.17){ ctx.save(); ctx.translate(px, py); ctx.rotate(a + (R() - 0.5)*0.3); const pw = 0.4 + R()*0.9, ph = 0.3 + R()*0.5; ctx.fillStyle = 'rgba(28,26,24,.55)'; ctx.fillRect(-pw/2, -ph/2, pw, ph); ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.lineWidth = 0.025; ctx.strokeRect(-pw/2, -ph/2, pw, ph); ctx.restore(); }
+          else if(r < 0.3) pothole(ctx, R, px, py);
+          else if(r < 0.52) crackAt(ctx, R, px, py, a, 0.6 + R()*0.8);
+          else if(r < 0.6) stain(ctx, px, py, 0.3 + R()*0.3, 'rgba(8,8,10,.35)'); });
+        break; }
+      case 'track': {
+        sp(pts, w + 0.6, 'rgba(110,88,60,.22)'); sp(pts, w + 0.25, 'rgba(120,96,66,.45)'); sp(pts, w, '#7a6247'); sp(pts, w, T('dirt', '#8f7553')); sp(pts, w*0.9, 'rgba(128,104,74,.35)');
+        sp(pts, w*0.3, 'rgba(96,100,56,.18)'); // травяная полоса между колеями
+        [-1, 1].forEach(s=>{ const q = O(s*w*0.25); sp(q, w*0.22, 'rgba(50,36,22,.6)'); sp(q, w*0.12, 'rgba(30,22,14,.35)'); sp(O(s*w*0.25 + s*0.07), w*0.05, 'rgba(255,240,210,.12)'); sp(O(s*w*0.25 - s*0.08), w*0.04, 'rgba(0,0,0,.2)'); });
+        walkPath(pts, 0.32, R()*0.3, (x, y, a)=>{ if(R() < 0.6){ const [px, py] = side(x, y, a, (R() - 0.5)*w*0.25); ctx.strokeStyle = R() < 0.5 ? 'rgba(110,122,62,.75)' : 'rgba(140,140,80,.7)'; ctx.lineWidth = 0.02; for(let b=0;b<3;b++){ ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px + (R() - 0.5)*0.16, py - 0.08 - R()*0.1); ctx.stroke(); } } });
+        walkPath(pts, 2.2, R()*2, (x, y, a)=>{ if(R() < 0.4){ const s = R() < 0.5 ? -1 : 1, [px, py] = side(x, y, a, s*w*0.25); ctx.beginPath(); ctx.ellipse(px, py, 0.32 + R()*0.3, 0.1, a, 0, 6.28); ctx.fillStyle = 'rgba(58,78,84,.6)'; ctx.fill(); ctx.beginPath(); ctx.ellipse(px - 0.06, py - 0.03, 0.12, 0.03, a, 0, 6.28); ctx.fillStyle = 'rgba(220,235,240,.3)'; ctx.fill(); } });
+        walkPath(pts, 0.45, R()*0.4, (x, y, a)=>{ if(R() < 0.5){ const [px, py] = side(x, y, a, (R() - 0.5)*(w + 0.4)); ctx.beginPath(); ctx.arc(px, py, 0.03 + R()*0.04, 0, 6.28); ctx.fillStyle = R() < 0.5 ? '#5f574c' : '#7e766a'; ctx.fill(); } });
+        break; }
+      case 'rail': {
+        const bw = w*1.55;
+        sp(pts, bw + 0.15, 'rgba(0,0,0,.25)'); sp(pts, bw, T('gravel', '#8a8478')); sp(pts, bw, 'rgba(0,0,0,.18)'); sp(pts, bw*0.8, T('gravel', '#8a8478')); sp(pts, bw*0.5, 'rgba(255,250,240,.05)');
+        // шпалы с тенью, часть сгнила/сдвинута
+        shadowed(ctx, 0.03, 0.05, 0.05, 0.55, ()=>walkPath(pts, 0.42, 0.2, (x, y, a)=>{ if(R() < 0.04) return; const sh = 0.75 + R()*0.35; crossBar(ctx, x, y, a, w*1.28, 0.17, T('wood', '#5a4632'), 'rgba(20,14,8,.6)', (R() - 0.5)*0.08); crossBar(ctx, x, y, a, w*1.28, 0.17, `rgba(30,20,12,${(1 - sh)*0.8 + 0.1})`); }));
+        // рельсы: основание, головка с бликом, ржавчина; подкладки
+        [-1, 1].forEach(s=>{ const q = O(s*w*0.36); walkPath(q, 0.42, 0.2, (x, y)=>{ ctx.fillStyle = '#2b2826'; ctx.fillRect(x - 0.07, y - 0.07, 0.14, 0.14); });
+          shadowed(ctx, 0.04, 0.06, 0.05, 0.6, ()=>sp(q, 0.11, '#3a3634')); sp(q, 0.07, '#77736e'); sp(O(s*w*0.36 - 0.018), 0.025, 'rgba(232,236,240,.7)'); sp(q, 0.09, 'rgba(120,62,30,.35)', [0.25 + R()*0.3, 0.5 + R()*0.5]); });
+        break; }
+      case 'pipe': {
+        // опоры, тень, цилиндр (тень снизу-справа, блик сверху-слева), фланцы с болтами, ржавые потёки
+        walkPath(pts, 3, 1.5, (x, y, a)=>{ shadowed(ctx, 0.05, 0.08, 0.08, 0.5, ()=>crossBar(ctx, x, y, a, w + 0.35, 0.3, T('concrete', '#8e8a80'), 'rgba(0,0,0,.4)')); });
+        shadowed(ctx, 0.12, 0.18, 0.16, 0.5, ()=>sp(pts, w, '#3c464c'));
+        sp(pts, w, T('metal', '#5a676e')); sp(pts, w, 'rgba(60,75,85,.3)');
+        for(let i=0;i<pts.length - 1;i++){ const seg = [pts[i], pts[i + 1]], a = Math.atan2(seg[1][1] - seg[0][1], seg[1][0] - seg[0][0]), nx = -Math.sin(a), ny = Math.cos(a), s = (nx*-0.7 + ny*-0.7) > 0 ? 1 : -1;
+          const os = (d)=>offsetPts(seg, d); sp(os(-s*w*0.3), w*0.32, 'rgba(0,0,0,.32)'); sp(os(-s*w*0.42), w*0.12, 'rgba(0,0,0,.25)'); sp(os(s*w*0.2), w*0.16, 'rgba(255,255,255,.28)'); sp(os(s*w*0.24), w*0.05, 'rgba(255,255,255,.6)'); }
+        walkPath(pts, 2.8, 1.4, (x, y, a)=>{ shadowed(ctx, 0.04, 0.06, 0.05, 0.45, ()=>crossBar(ctx, x, y, a, w*1.32, 0.12, '#4b565c', 'rgba(0,0,0,.5)')); crossBar(ctx, x, y, a, w*1.32, 0.04, 'rgba(255,255,255,.18)');
+          for(const d of [-0.5, 0.5]){ const [bx, by] = side(x, y, a, d*w*1.15); ctx.beginPath(); ctx.arc(bx, by, 0.025, 0, 6.28); ctx.fillStyle = '#23292c'; ctx.fill(); } });
+        walkPath(pts, 0.9, R()*0.9, (x, y, a)=>{ if(R() < 0.35){ const [px, py] = side(x, y, a, (R() - 0.3)*w*0.6); stain(ctx, px, py, 0.08 + R()*0.12, 'rgba(130,64,26,.55)'); } });
+        break; }
+      case 'river': {
+        sp(pts, w + 1.1, 'rgba(96,82,56,.16)'); sp(pts, w + 0.7, T('mud', '#6d5c45')); sp(pts, w + 0.7, 'rgba(60,48,32,.25)'); sp(pts, w + 0.22, 'rgba(36,30,22,.6)');
+        sp(pts, w, T('water', '#3d5c67')); sp(pts, w, 'rgba(26,56,70,.22)'); for(let i=1;i<=8;i++) sp(pts, w*(1 - i/9), 'rgba(6,20,30,.075)'); // глубина к середине — плавно
+        sp(pts, w*0.12, 'rgba(160,200,210,.08)'); // стрежень
+        [-1, 1].forEach(s=>sp(O(s*(w/2 - 0.07)), 0.06, 'rgba(225,238,238,.35)', [0.5 + R()*0.4, 0.3]));
+        walkPath(pts, 0.5, R()*0.5, (x, y, a)=>{ if(R() < 0.75){ const [px, py] = side(x, y, a, (R() - 0.5)*w*0.8), L = 0.25 + R()*0.35; ctx.beginPath(); ctx.moveTo(px - Math.cos(a)*L/2, py - Math.sin(a)*L/2); ctx.quadraticCurveTo(px - Math.sin(a)*0.06, py + Math.cos(a)*0.06, px + Math.cos(a)*L/2, py + Math.sin(a)*L/2); ctx.lineWidth = 0.025; ctx.strokeStyle = 'rgba(200,226,232,.28)'; ctx.stroke(); } });
+        walkPath(pts, 1.3, R(), (x, y, a)=>{ const s = R() < 0.5 ? -1 : 1, r = R(), [px, py] = side(x, y, a, s*(w/2 + 0.2 + R()*0.15));
+          if(r < 0.35){ shadowed(ctx, 0.03, 0.05, 0.04, 0.5, ()=>{ ctx.beginPath(); ctx.ellipse(px, py, 0.1 + R()*0.12, 0.08 + R()*0.08, R()*3, 0, 6.28); ctx.fillStyle = '#7f786e'; ctx.fill(); }); }
+          else if(r < 0.65){ ctx.strokeStyle = 'rgba(96,110,52,.85)'; ctx.lineWidth = 0.022; for(let b=0;b<5;b++){ ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px + (R() - 0.5)*0.22, py - 0.12 - R()*0.16); ctx.stroke(); } } });
+        break; }
+      case 'dryriver': {
+        sp(pts, w + 0.6, 'rgba(120,96,64,.22)'); sp(pts, w + 0.25, T('dust', '#a08760')); sp(pts, w, T('sand', '#c4ab7b')); sp(pts, w, 'rgba(120,96,60,.12)'); sp(pts, w*0.4, 'rgba(90,70,45,.14)');
+        [-1, 1].forEach(s=>sp(O(s*(w/2 - 0.05)), 0.08, 'rgba(70,54,34,.35)'));
+        walkPath(pts, 0.45, R()*0.4, (x, y, a)=>{ const [px, py] = side(x, y, a, (R() - 0.5)*w*0.8); ctx.save(); crackAt(ctx, R, px, py, a, 0.35 + R()*0.4); ctx.restore(); });
+        walkPath(pts, 0.22, R()*0.2, (x, y, a)=>{ if(R() < 0.55){ const [px, py] = side(x, y, a, (R() - 0.5)*w*0.9), r = 0.025 + R()*0.045; ctx.beginPath(); ctx.arc(px + 0.012, py + 0.015, r, 0, 6.28); ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.fill(); ctx.beginPath(); ctx.arc(px, py, r, 0, 6.28); ctx.fillStyle = R() < 0.5 ? '#8c8072' : '#b0a594'; ctx.fill(); } });
+        break; }
+      case 'trench': {
+        // бруствер с двух сторон, глубина ямы, мешки по фронту, настил по дну, стойки обшивки
+        [-1, 1].forEach(s=>{ const q = O(s*(w/2 + 0.18)); shadowed(ctx, 0.05, 0.08, 0.1, 0.45, ()=>sp(q, 0.36, T('dirt', '#7a6448'))); sp(O(s*(w/2 + 0.24)), 0.1, 'rgba(255,240,210,.12)'); });
+        walkPath(O(-(w/2 + 0.18)), 0.36, 0.1, (x, y, a, i)=>{ ctx.save(); ctx.translate(x, y); ctx.rotate(a); ctx.beginPath(); ctx.ellipse(0, 0, 0.2, 0.13, 0, 0, 6.28); ctx.fillStyle = i%2 ? '#b39b6a' : '#c5ad7a'; ctx.fill(); ctx.strokeStyle = 'rgba(60,46,26,.55)'; ctx.lineWidth = 0.018; ctx.stroke(); ctx.restore(); });
+        sp(pts, w, '#241d15'); sp(pts, w*0.78, T('mud', '#3f352a')); sp(pts, w*0.78, 'rgba(0,0,0,.38)');
+        [-1, 1].forEach(s=>sp(O(s*(w/2 - 0.06)), 0.12, 'rgba(0,0,0,.45)'));
+        walkPath(pts, 0.3, 0.1, (x, y, a)=>{ if(R() < 0.08) return; crossBar(ctx, x, y, a, w*0.5, 0.11, T('wood', '#5a4632'), 'rgba(20,14,8,.6)', (R() - 0.5)*0.1); });
+        [-1, 1].forEach(s=>walkPath(O(s*(w/2 - 0.04)), 1.1, 0.3, (x, y)=>{ ctx.fillStyle = '#3a2c1c'; ctx.fillRect(x - 0.05, y - 0.05, 0.1, 0.1); }));
+        break; }
+      case 'cable': {
+        const cw = Math.max(0.08, w);
+        shadowed(ctx, 0.04, 0.07, 0.06, 0.55, ()=>sp(pts, cw, '#151311')); sp(O(-cw*0.2), cw*0.22, 'rgba(255,255,255,.16)');
+        walkPath(pts, 2, 1, (x, y, a)=>crossBar(ctx, x, y, a, cw*2.2, 0.06, '#5a5e60', 'rgba(0,0,0,.5)'));
+        break; }
+    }
+    ctx.restore();
+  }
+  function drawPath(ctx, p, k){ if(HD() && (k || 64) >= 6 && p.points && p.points.length >= 2) return drawPathHD(ctx, p, k); return drawPathFlat(ctx, p, k); }
+  // плоский вид путей — при выключенном HD и на мелком масштабе
+  function drawPathFlat(ctx, p, k){
     const w = p.width, pts = p.points, hd = HD() && (k || 64) >= 6, tx = (id, fb)=>(hd && MapTex.pattern(id)) || fb;
     ctx.save(); ctx.lineCap = p.kind==='rail' || p.kind==='pipe' ? 'butt' : 'round'; ctx.lineJoin = 'round';
     switch(p.kind){
@@ -17494,7 +17614,7 @@ const MapGen = (function(){
     for(let y=0;y<h;y++) for(let x=0;x<w;x++) if(p.R[y*w + x] >= 0) g.occ[(y0 + y)*doc.cols + x0 + x] = 1;
     if(st.outside) for(let i=0;i<g.ri(1, 2);i++) g.tryObj(g.pick(st.outside), Math.max(0, x0 - 3), Math.max(0, y0 - 3), Math.min(doc.cols, x0 + w + 3), Math.min(doc.rows, y0 + h + 3), 8);
     g.built.push({arch:arch.id, shape:p.shape, w, h, rooms:rooms.length});
-    const lab = {id:newId('l'), x:x0 + w/2, y:Math.max(0.6, y0 - 0.55), text:arch.name + (st.name ? ' · ' + st.name : ''), size:0.5, color:'#1e1b18'}; doc.labels.push(lab); p.label = lab.id;
+    p.rmG = R.map(rm=>[rm.x, rm.y, rm.w, rm.h, rm.role]);
   }
   /* ---------- Заготовки: нарисованные вручную комнаты и сцены ----------
      Генератор ставит заготовку целиком (с поворотом на 90°×k и отражением), если комната подходит по типу и
@@ -17674,15 +17794,15 @@ const MapGen = (function(){
         commitBuilding(g, plan, st); g.mark(x - 1, y - 1, w + 2, h + 2);
         // двор: пара предметов у здания
         for(let i=0;i<g.ri(1, 3);i++) g.tryObj(g.pick(arch.yard), Math.max(0, x - 3), Math.max(0, y - 3), Math.min(g.doc.cols, x + w + 3), Math.min(g.doc.rows, y + h + 3), 6);
-        return {x, y, w, h, arch, st:st.id, shape:plan.shape, rooms:plan.rooms.length, label:plan.label, scene:plan.scene};
+        return {x, y, w, h, arch, st:st.id, shape:plan.shape, rooms:plan.rooms.length, rm:plan.rmG, scene:plan.scene};
       }
     }
     return null;
   }
-  const partOf = (b, lot)=>({k:'b', x:b.x, y:b.y, w:b.w, h:b.h, lot, arch:b.arch.id, name:b.arch.name, st:b.st, shape:b.shape, rooms:b.rooms, label:b.label, scene:b.scene});
+  const partOf = (b, lot)=>({k:'b', x:b.x, y:b.y, w:b.w, h:b.h, lot, arch:b.arch.id, name:b.arch.name, st:b.st, shape:b.shape, rooms:b.rooms, rm:b.rm, scene:b.scene});
   function cityRuins(doc, opts){
     opts = opts || {}; const g = ctxFor(doc, opts.seed); g.opts = opts; reset(doc, 'dust');
-    doc.gen = {id:'city', seed:g.seed, opts:{density:opts.density || 'normal', ruin:opts.ruin || 'normal', theme:opts.theme || 'mixed', scenes:opts.scenes || 'normal', prefabs:opts.prefabs || 'some'}, parts:[]};
+    doc.gen = {id:'city', seed:g.seed, opts:{density:opts.density || 'normal', ruin:opts.ruin || 'normal', theme:opts.theme || 'mixed', scenes:opts.scenes || 'normal', prefabs:opts.prefabs || 'some', labels:opts.labels || 'buildings', lsize:opts.lsize || 'normal'}, parts:[]};
     const DEN = {sparse:[16, 0.4, 0.3], normal:[12, 0.15, 0.8], dense:[10, 0.05, 0.95]}[opts.density] || [12, 0.15, 0.8];
     const n = g.noise(6, 1);
     for(let y=0;y<doc.rows;y++) for(let x=0;x<doc.cols;x++){ const v = n(x, y); if(v > 0.62) g.setT(x, y, 'gravel'); else if(v < 0.25) g.setT(x, y, 'grass'); }
@@ -17761,7 +17881,7 @@ const MapGen = (function(){
   const BZONE_FLOOR = {gate:'concrete', sec:'concrete', live:'tiles', tech:'metal', sci:'tiles', core:'metal'};
   function bunker(doc, opts){
     opts = opts || {}; const g = ctxFor(doc, opts.seed); g.opts = opts; reset(doc, 'rock');
-    doc.gen = {id:'bunker', seed:g.seed, opts:{rooms:opts.rooms || 'normal', cond:opts.cond || 'random', scenes:opts.scenes || 'normal', prefabs:opts.prefabs || 'some'}, parts:[]};
+    doc.gen = {id:'bunker', seed:g.seed, opts:{rooms:opts.rooms || 'normal', cond:opts.cond || 'random', scenes:opts.scenes || 'normal', prefabs:opts.prefabs || 'some', labels:opts.labels || 'buildings', lsize:opts.lsize || 'normal'}, parts:[]};
     const RS = {small:[11, 10], normal:[15, 13], large:[20, 17]}[opts.rooms] || [15, 13];
     const {cols, rows} = doc, n = g.noise(5, 7);
     for(let y=0;y<rows;y++) for(let x=0;x<cols;x++){ const v = n(x, y); if(v > 0.7) g.setT(x, y, 'gravel'); else if(v < 0.18) g.setT(x, y, 'dirt'); }
@@ -17842,14 +17962,14 @@ const MapGen = (function(){
     // состояние комплекса
     const decor = {abandoned:['trash', 'blood', 'corpse', 'sleeping_bag'], flooded:['trash', 'sewer_grate', 'barrel'], infested:['cocoon', 'glow_mushrooms', 'glow_mushrooms', 'blood', 'bone_pile'], wrecked:['rubble_pile', 'blood', 'corpse', 'trash', 'trash']}[cond];
     rooms.forEach(r=>{ for(let k=0;k<g.ri(0, 2);k++) g.tryObj(g.pick(decor), r.x, r.y, r.x + r.w, r.y + r.h, 5); });
-    rooms.forEach(r=>{ const lab = {id:newId('l'), x:r.x + r.w/2, y:r.y + 0.6, text:r.name, size:0.5, color:'#1e1b18'}; doc.labels.push(lab);
-      doc.gen.parts.push({k:'r', x:r.x, y:r.y, w:r.w, h:r.h, zone:r.zone, role:r.role, name:r.name, label:lab.id, scene:r.scene, ent:(r.entries || []).map(([x, y, e])=>[x, y, e.o])}); });
+    rooms.forEach(r=>{
+      doc.gen.parts.push({k:'r', x:r.x, y:r.y, w:r.w, h:r.h, zone:r.zone, role:r.role, name:r.name, scene:r.scene, ent:(r.entries || []).map(([x, y, e])=>[x, y, e.o])}); });
     doc.gen.cond = cond;
-    doc.labels.push({id:newId('l'), x:cols/2, y:rows - 0.7, text:{abandoned:'Комплекс заброшен', flooded:'Нижние уровни затоплены', infested:'Комплекс заражён', wrecked:'Комплекс разгромлен'}[cond], size:0.6, color:'#9c2f1c'});
+    doc.gen.title = {x:cols/2, y:rows - 0.7, text:{abandoned:'Комплекс заброшен', flooded:'Нижние уровни затоплены', infested:'Комплекс заражён', wrecked:'Комплекс разгромлен'}[cond]};
   }
   // Лагерь в пустоши: песок с пятнами, ограда из металлолома с воротами, палатки вокруг костра, транспорт
   function wasteCamp(doc, opts){
-    opts = opts || {}; const g = ctxFor(doc, opts.seed); g.opts = opts; doc.gen = {id:'camp', seed:g.seed, opts:{}, parts:[]}; reset(doc, 'sand');
+    opts = opts || {}; const g = ctxFor(doc, opts.seed); g.opts = opts; doc.gen = {id:'camp', seed:g.seed, opts:{labels:opts.labels || 'buildings', lsize:opts.lsize || 'normal'}, parts:[]}; reset(doc, 'sand');
     const n = g.noise(7, 2), n2 = g.noise(3, 3);
     for(let y=0;y<doc.rows;y++) for(let x=0;x<doc.cols;x++){ const v = n(x, y), w = n2(x, y); if(v > 0.66) g.setT(x, y, 'dust'); else if(v < 0.2) g.setT(x, y, 'saltflat'); if(w > 0.83) g.setT(x, y, 'gravel'); }
     const cx = Math.floor(doc.cols/2), cy = Math.floor(doc.rows/2), R = Math.max(5, Math.floor(Math.min(doc.cols, doc.rows)/2) - 5);
@@ -17869,12 +17989,12 @@ const MapGen = (function(){
     [['war_rig', 0], ['buggy', 90], ['pickup_rust', 0]].forEach(([a, r])=>g.tryObj(a, Math.max(0, cx - R - 6), Math.min(doc.rows - 6, cy + R + 1), Math.min(doc.cols, cx + R + 6), doc.rows, 14, r));
     for(let i=0;i<Math.round(doc.cols*doc.rows/120);i++) g.tryObj(g.pick(['dune', 'rock_big', 'boulder', 'rocks_scatter', 'cactus', 'dry_bush', 'beast_bones', 'crater']), 0, 0, doc.cols, doc.rows, 5);
     if(doc.cols > 30) g.path('dryriver', 2, [[0, g.ri(2, 6) + 0.5], [doc.cols*0.4, g.ri(1, 8) + 0.5], [doc.cols, g.ri(2, 6) + 0.5]]);
-    doc.labels.push({id:newId('l'), x:cx, y:cy - R - 1.2 < 1 ? 1 : cy - R - 1.2, text:'Лагерь', size:1, color:'#1e1b18'});
+    doc.gen.title = {x:cx, y:cy - R - 1.2 < 1 ? 1 : cy - R - 1.2, text:'Лагерь'};
   }
   const LIST = [
-    {id:'city', name:'Руины городского квартала', run:cityRuins},
-    {id:'bunker', name:'Подземный комплекс / бункер', run:bunker},
-    {id:'camp', name:'Лагерь в пустоши', run:wasteCamp},
+    {id:'city', name:'Руины городского квартала', run:(d, o)=>{ cityRuins(d, o); applyLabels(d); }},
+    {id:'bunker', name:'Подземный комплекс / бункер', run:(d, o)=>{ bunker(d, o); applyLabels(d); }},
+    {id:'camp', name:'Лагерь в пустоши', run:(d, o)=>{ wasteCamp(d, o); applyLabels(d); }},
   ];
   const STATE_NAME = {}; BSTATES.forEach(q=>{ STATE_NAME[q.id] = q.name; });
   // Часть (здание/комната), в которой лежит точка
@@ -17926,10 +18046,34 @@ const MapGen = (function(){
     const rm = {x:part.x, y:part.y, w:part.w, h:part.h, role:part.role, entries}, cond = doc.gen.cond;
     furnish(g, rm, cond==='wrecked' ? g.rnd() < 0.75 : g.rnd() < 0.2);
     delete part.scene; const sp = {none:0, normal:0.35, many:0.7}[g.opts.scenes]; if(g.rnd() < (sp == null ? 0.35 : sp)){ const id = placeScene(g, rm); if(id) part.scene = id; }
-    const lab = {id:newId('l'), x:part.x + part.w/2, y:part.y + 0.6, text:part.name, size:0.5, color:'#1e1b18'}; doc.labels.push(lab); part.label = lab.id; return true;
+    return true;
   }
-  function reroll(doc, part, mode){ return part.k==='b' ? rerollBuilding(doc, part, mode) : rerollRoom(doc, part, mode); }
-  return { LIST, wallsFromMask, partAt, partTitle, reroll, prefabList, userPrefabs, saveUserPrefabs, validPrefab, PF_GROUPS };
+  function reroll(doc, part, mode){ const ok = part.k==='b' ? rerollBuilding(doc, part, mode) : rerollRoom(doc, part, mode); applyLabels(doc); return ok; }
+  // Подписи сгенерированного: строятся заново по сведениям о генерации (меняются без перегенерации карты).
+  // labels: none — без подписей; buildings — здания (тип · состояние) и комнаты бункера; rooms — ещё и помещения внутри
+  // зданий; full — ещё мини-сцены (красным) и общий заголовок. Свои надписи Мастера не трогаются.
+  const ROLE_NAME = {living:'Гостиная', kitchen:'Кухня', bedroom:'Спальня', bath:'Санузел', storage:'Кладовая', hall:'Холл', sales_food:'Торговый зал', sales_drug:'Торговый зал', sales_tool:'Торговый зал',
+    office:'Кабинет', boss:'Кабинет начальника', archive:'Архив', workshop:'Мастерская', garage_bay:'Бокс', reception:'Приёмная', ward:'Палата', surgery:'Операционная', classroom:'Класс', dining:'Зал',
+    stockroom:'Склад', chapel:'Молельный зал', arsenal:'Оружейная', cell:'Камера', lockerroom:'Раздевалка', lab:'Лаборатория', server:'Серверная', laundry:'Постирочная', laundry_big:'Прачечная',
+    boilerroom:'Котельная', substation:'Трансформаторная', guard:'Пост охраны'};
+  const LSIZE = {small:0.45, normal:0.65, large:0.9};
+  function applyLabels(doc){
+    const gn = doc.gen; if(!gn) return; const mode = gn.opts.labels || 'buildings', sz = LSIZE[gn.opts.lsize] || LSIZE.normal;
+    const old = new Set(gn.parts.map(p=>p.label).filter(Boolean)); gn.parts.forEach(p=>{ delete p.label; });
+    doc.labels = doc.labels.filter(l=>!/^lgen/.test(l.id) && !old.has(l.id));
+    if(mode==='none') return;
+    const add = (x, y, text, size, color)=>{ if(!text) return; const hw = String(text).length*size*0.27; x = Math.max(Math.min(hw + 0.2, doc.cols/2), Math.min(doc.cols - hw - 0.2, x)); // подпись целиком в пределах карты
+      if(text) doc.labels.push({id:'lgen' + newId(''), x:Math.round(x*1000)/1000, y:Math.round(y*1000)/1000, text:String(text).slice(0, 200), size:Math.round(size*1000)/1000, color:color || '#1e1b18'}); };
+    const sceneName = (id)=>{ const v = VIGNETTES.find(q=>q.id===id); if(v) return v.name; const pf = prefabList().find(q=>q.id===id); return pf ? pf.name : null; };
+    gn.parts.forEach(p=>{
+      if(p.k==='b'){ add(p.x + p.w/2, Math.max(sz*0.7, p.y - sz*0.75), partTitle(p), sz);
+        if(mode==='rooms' || mode==='full') (p.rm || []).forEach(([x, y, w, h, role])=>{ if(w*h >= 6 && Math.min(w, h) >= 2) add(x + w/2, y + h/2, ROLE_NAME[role], sz*0.7, '#4f4336'); }); }
+      else add(p.x + p.w/2, p.y + Math.min(0.15 + sz*0.6, p.h/2), p.name, sz);
+      if(mode==='full' && p.scene){ const n = sceneName(p.scene); if(n) add(p.x + p.w/2, p.y + p.h - Math.min(sz*0.65, p.h/3), '⚑ ' + n, sz*0.75, '#9c2f1c'); }
+    });
+    if(gn.title && (mode==='full' || gn.id!=='bunker')) add(gn.title.x, gn.title.y, gn.title.text, sz*1.35, gn.id==='bunker' ? '#9c2f1c' : '#1e1b18');
+  }
+  return { LIST, wallsFromMask, partAt, partTitle, reroll, applyLabels, prefabList, userPrefabs, saveUserPrefabs, validPrefab, PF_GROUPS };
 })();
 </script>
 
@@ -18440,10 +18584,12 @@ const MapEditor = (function(){
   function runGen(id, opts){ const g = MapGen.LIST.find(x=>x.id===id); if(!g) return;
     mutate(()=>{ g.run(doc, opts); normalizeDoc(); sel.clear(); });
     setStatus('Сгенерировано: ' + g.name + (doc.gen ? ' · зерно ' + doc.gen.seed : '')); }
+  const GEN_LBL = [['none', 'без подписей'], ['buildings', 'здания и комнаты'], ['rooms', '+ помещения внутри зданий'], ['full', '+ мини-сцены и заголовок']], GEN_LSZ = [['small', 'мелкие'], ['normal', 'обычные'], ['large', 'крупные']];
   function generateDialog(pre){
     pre = pre || {}; const po = pre.opts || {}, cur = pre.id || (doc.gen && doc.gen.id) || MapGen.LIST[0].id;
     const sel2 = (name, v, list)=>`<select name="${name}">${list.map(([k, n])=>`<option value="${k}" ${(v || list[1 % list.length][0])===k ? 'selected' : ''}>${n}</option>`).join('')}</select>`;
     const SC = [['none', 'нет'], ['normal', 'обычно'], ['many', 'много']];
+    const LBL = GEN_LBL, LSZ = GEN_LSZ;
     const dl = dialog('Сгенерировать планировку', `<div class="me-genform">
       <div class="me-genlist">${MapGen.LIST.map(g=>`<label class="me-check"><input type="radio" name="gen" value="${g.id}" ${g.id===cur?'checked':''}> ${esc(g.name)}</label>`).join('')}</div>
       <label class="me-f">Зерно генерации <div class="me-scale-row"><input type="text" name="seed" maxlength="16" placeholder="случайное" value="${pre.seed ? esc(String(pre.seed)) : ''}"><button type="button" class="small" onclick="this.form.seed.value=String(1 + Math.floor(Math.random()*999999999))" title="Случайное зерно">🎲</button></div></label>
@@ -18457,10 +18603,11 @@ const MapEditor = (function(){
         <label class="me-f">Комнаты${sel2('rooms', po.rooms, [['small', 'мелкие'], ['normal', 'обычные'], ['large', 'крупные']])}</label>
         <label class="me-f">Состояние${sel2('cond', po.cond || 'random', [['random', 'случайное'], ['abandoned', 'заброшен'], ['flooded', 'затоплен'], ['infested', 'заражён'], ['wrecked', 'разгромлен']])}</label></div>
         <label class="me-f">Мини-сцены${sel2('scenes_bunker', po.scenes, SC)}</label></fieldset>
+      <fieldset class="me-gopt"><legend>Подписи</legend><div class="me-f-row"><label class="me-f">Что подписать${sel2('labels', po.labels || 'buildings', LBL)}</label><label class="me-f">Размер${sel2('lsize', po.lsize, LSZ)}</label></div><div class="muted me-note">Подписи — обычные надписи карты: их видят и игроки на столе. Потом их можно поменять во вкладке «Карта», не перегенерируя карту.</div></fieldset>
       <fieldset class="me-gopt" data-for="rooms"><legend>Заготовки комнат и сцен</legend><div class="me-f-row"><label class="me-f">Как часто${sel2('prefabs', po.prefabs, [['none', 'не использовать'], ['some', 'иногда'], ['often', 'часто']])}</label>
         <div class="me-f"><span class="muted">${MapGen.prefabList().length} шт. (своих ${MapGen.userPrefabs().length})</span><button type="button" class="small" data-pfmanage>Заготовки…</button></div></div></fieldset>
       <div class="muted me-note">Заменит содержимое текущей карты (${doc.cols}×${doc.rows} клеток). Отменить можно кнопкой ↶ или Ctrl+Z. Отдельное здание или комнату потом можно перегенерировать во вкладке «Свойства».</div></div>`, (f)=>{
-      const id = f.gen.value, opts = {seed:seedOf(f.seed.value)};
+      const id = f.gen.value, opts = {seed:seedOf(f.seed.value), labels:f.labels.value, lsize:f.lsize.value};
       if(id==='city') Object.assign(opts, {density:f.density.value, ruin:f.ruin.value, theme:f.theme.value, scenes:f.scenes_city.value});
       if(id==='bunker') Object.assign(opts, {rooms:f.rooms.value, cond:f.cond.value, scenes:f.scenes_bunker.value});
       if(id==='city' || id==='bunker') opts.prefabs = f.prefabs.value;
@@ -18662,6 +18809,7 @@ const MapEditor = (function(){
       <label class="me-check"><input type="checkbox" data-hd ${MapTex.enabled ? 'checked' : ''}> HD-фактуры ландшафта, стен и объектов</label>
       <div class="muted me-note">Настройка этого браузера: действует и в редакторе, и на игровом столе. На слабом устройстве её можно выключить — останутся прежние плоские цвета.</div>
       ${doc.gen ? `<div class="me-genpart"><div class="me-prop-title">Генерация: ${esc((MapGen.LIST.find(x=>x.id===doc.gen.id) || {}).name || doc.gen.id)}</div><div class="muted me-note">Зерно <b>${doc.gen.seed}</b> · ${doc.gen.parts.length ? doc.gen.parts.length + (doc.gen.parts[0].k==='b' ? ' зданий' : ' комнат') : 'без частей'}</div>
+        <div class="me-f-row"><label class="me-f">Подписи<select data-genlab>${GEN_LBL.map(([k, n])=>`<option value="${k}" ${(doc.gen.opts.labels || 'buildings')===k ? 'selected' : ''}>${n}</option>`).join('')}</select></label><label class="me-f">Размер<select data-genlsize>${GEN_LSZ.map(([k, n])=>`<option value="${k}" ${(doc.gen.opts.lsize || 'normal')===k ? 'selected' : ''}>${n}</option>`).join('')}</select></label></div>
         <div class="me-btnrow"><button type="button" class="small" data-act="regen" title="Открыть генерацию с этим зерном и параметрами">Повторить / настроить…</button><button type="button" class="small" data-act="regennew" title="Те же параметры, новое зерно">🎲 Новый вариант</button></div></div>` : ''}
       <div class="me-btnrow"><button type="button" class="small" data-act="prefabs" title="Встроенные и свои заготовки комнат и сцен">Заготовки комнат и сцен…</button></div>
       <div class="muted me-note">ID карты: ${esc(doc.id)} · формат v${MapFormat.CURRENT_VERSION} · объектов ${doc.objects.length}, стен ${doc.walls.length}, путей ${doc.paths.length}, надписей ${doc.labels.length}</div>`;
@@ -18835,6 +18983,7 @@ const MapEditor = (function(){
     if(t.dataset.wallkind!==undefined){ prefs.wallKind = t.value; savePrefs(); requestRender(); return; }
     if(t.dataset.pathkind!==undefined){ prefs.pathKind = t.value; prefs.pathWidth = MapFormat.PATH_KINDS[t.value].width; savePrefs(); renderOptions(); requestRender(); return; }
     if(t.dataset.pathwidth!==undefined){ prefs.pathWidth = clamp(num(t.value, 1), 0.1, 20); savePrefs(); requestRender(); return; }
+    if((t.dataset.genlab!==undefined || t.dataset.genlsize!==undefined) && doc.gen){ const key = t.dataset.genlab!==undefined ? 'labels' : 'lsize', v = t.value; mutate(()=>{ doc.gen.opts[key] = v; MapGen.applyLabels(doc); normalizeDoc(); }); setStatus('Подписи обновлены'); return; }
     if(t.dataset.ghostv!==undefined){ ghost.v = parseInt(t.value, 10) || 0; requestRender(); return; }
     if(t.dataset.ghosts!==undefined){ scaleSel(1, num(t.value, 100)/100); return; }
     if(t.dataset.srange!==undefined){ if(rangeUndo){ rangeUndo = false; changed(); } return; }
