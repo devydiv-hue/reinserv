@@ -1434,7 +1434,7 @@
   .me-gopt{ border:1px dotted var(--ink); border-radius:8px; padding:4px 8px 8px; display:flex; flex-direction:column; gap:6px; }
   .me-gopt legend{ font-size:11px; font-weight:700; padding:0 4px; }
   .me-genform{ display:flex; flex-direction:column; gap:8px; }
-  .me-genform:has(input[name=gen][value=camp]:checked) .me-gopt[data-for=rooms],
+  .me-genform:has(input[name=gen][value=camp]:not(:checked)) .me-gopt[data-for=camp],
   .me-genform:has(input[name=gen][value=city]:not(:checked)) .me-gopt[data-for=city], .me-genform:has(input[name=gen][value=bunker]:not(:checked)) .me-gopt[data-for=bunker]{ display:none; } /* flex:1 у поля — для рядов; в колонке панели поле не растягиваем */
   .me-scale-row{ display:flex; align-items:center; gap:6px; }
   .me-scale-row input[type=range]{ flex:1; min-width:0; accent-color:var(--stamp); }
@@ -13787,7 +13787,7 @@ const MapFormat = (function(){
     plaster:{name:'Перегородка', fill:'#b9b1a2', w:0.12},
   };
   const PATH_KINDS = {
-    road:{name:'Дорога', width:3}, sidewalk:{name:'Тротуар', width:5}, highway:{name:'Шоссе', width:5}, track:{name:'Грунтовка', width:2},
+    road:{name:'Дорога', width:3}, sidewalk:{name:'Тротуар', width:5}, highway:{name:'Шоссе', width:5}, track:{name:'Грунтовка', width:2}, trail:{name:'Тропа', width:1},
     rail:{name:'Рельсы', width:1}, pipe:{name:'Трубопровод', width:0.7}, river:{name:'Река', width:2},
     dryriver:{name:'Сухое русло', width:2}, trench:{name:'Окоп', width:1}, cable:{name:'Кабель', width:0.2},
   };
@@ -13864,8 +13864,8 @@ const MapFormat = (function(){
     const I = (v)=>Math.round(clamp(num(v, 0), 0, MAX_SIDE)), out = {id:gn.id, seed:Math.round(clamp(num(gn.seed, 1), 1, 4294967295)), opts:{}, parts:[]};
     if(/^[a-z]{1,16}$/.test(gn.cond || '')) out.cond = gn.cond;
     if(gn.title && typeof gn.title.text==='string') out.title = {x:r3(clamp(num(gn.title.x, 0), 0, MAX_SIDE)), y:r3(clamp(num(gn.title.y, 0), 0, MAX_SIDE)), text:str(gn.title.text, 60)};
-    const o = gn.opts && typeof gn.opts==='object' ? gn.opts : {}; ['density', 'ruin', 'theme', 'scenes', 'rooms', 'cond', 'prefabs', 'labels', 'lsize'].forEach(k=>{ if(typeof o[k]==='string' && /^[a-z]{1,16}$/.test(o[k])) out.opts[k] = o[k]; });
-    (Array.isArray(gn.parts) ? gn.parts : []).slice(0, 400).forEach(p=>{ if(!p || (p.k!=='b' && p.k!=='r')) return; const q = {k:p.k, x:I(p.x), y:I(p.y), w:I(p.w), h:I(p.h)}; if(!q.w || !q.h) return;
+    const o = gn.opts && typeof gn.opts==='object' ? gn.opts : {}; ['density', 'ruin', 'theme', 'scenes', 'rooms', 'cond', 'prefabs', 'labels', 'lsize', 'ctype', 'perim', 'terr', 'csize', 'cstate'].forEach(k=>{ if(typeof o[k]==='string' && /^[a-z]{1,16}$/.test(o[k])) out.opts[k] = o[k]; });
+    (Array.isArray(gn.parts) ? gn.parts : []).slice(0, 400).forEach(p=>{ if(!p || (p.k!=='b' && p.k!=='r' && p.k!=='z')) return; const q = {k:p.k, x:I(p.x), y:I(p.y), w:I(p.w), h:I(p.h)}; if(!q.w || !q.h) return;
       if(Array.isArray(p.lot) && p.lot.length===4) q.lot = p.lot.map(I);
       ['arch', 'st', 'shape', 'zone', 'role', 'scene'].forEach(k=>{ if(typeof p[k]==='string' && /^[a-z0-9_]{1,40}$/.test(p[k])) q[k] = p[k]; });
       if(typeof p.name==='string') q.name = str(p.name, 60); if(typeof p.label==='string') q.label = str(p.label, 64); q.rooms = Math.round(clamp(num(p.rooms, 0), 0, 99));
@@ -13908,7 +13908,7 @@ const MapAssets = (function(){
   };
   const CATS = [
     ['city','Город'], ['mega','Мегаполис'], ['trade','Торговля'], ['life','Быт и общественные места'], ['industry','Промышленность'],
-    ['military','Военные объекты'], ['waste','Пустоши'], ['anomaly','Зоны аномалий'], ['under','Подземелья'], ['nature','Природа'],
+    ['military','Военные объекты'], ['waste','Пустоши'], ['camp','Лагерь'], ['anomaly','Зоны аномалий'], ['under','Подземелья'], ['nature','Природа'],
     ['props','Интерьер и предметы'],
   ];
   const LIST = [], BY_ID = {}, CUSTOM = []; // CUSTOM — свои объекты из PNG (CustomAssets)
@@ -15911,6 +15911,169 @@ const MapAssets = (function(){
   A('settlement_gate', 'Ворота поселения', 'waste', 4, 1, {t:'ворота поселение вход частокол', v:GATE.length, vn:VN(GATE), hd:true, lit:true}, (g, v)=>{ const d = PV(GATE, v); gateDraw(g, d); EX.settlement_gate(g, d); });
   A('oil_drum_fire', 'Бочка-костёр', 'waste', 1, 1, {t:'бочка огонь костёр', v:DRUM_FIRE.length, vn:VN(DRUM_FIRE), hd:true, lit:true}, (g, v)=>{ const d = PV(DRUM_FIRE, v); drumFireDraw(g, d); EX.oil_drum_fire(g, d); });
 
+  /* ===================== ЛАГЕРЬ ===================== */
+  /* ---- Лагерь (HD): быт, загоны и клетки, знаки ---- */
+  const pole = (k, x, y, r, col)=>{ const c = k.c; c.beginPath(); c.arc(x + r*0.5, y + r*0.7, r*1.1, 0, 6.28); k.fill('rgba(0,0,0,.35)'); c.beginPath(); c.arc(x, y, r, 0, 6.28); k.texFill('wood', '#5a4632', col, 0.4); k.stroke(k.INK, r*0.25); c.beginPath(); c.arc(x - r*0.3, y - r*0.3, r*0.35, 0, 6.28); k.fill('rgba(255,240,210,.25)'); };
+  function gardenBedDraw(g, d){ const k = hk(g), c = k.c;
+    fx.sh(k, 0.05, 0.08, 2.9, 0.84, 0.04, 0.06); k.rr(0.05, 0.08, 2.9, 0.84, 0.04); k.texFill('wood', '#5a4632', d.frame || null, 0.4); k.stroke(k.INK, 0.012);
+    k.rr(0.13, 0.16, 2.74, 0.68, 0.02); k.texFill('dirt', '#4a3a28'); k.fill('rgba(30,20,10,.35)'); for(let i=0;i<9;i++) k.line([0.18, 0.22 + i*0.07, 2.82, 0.22 + i*0.07 + k.R(-0.02, 0.02)], 'rgba(20,14,8,.18)', 0.012);
+    for(let x=0.3;x<2.8;x+=0.32) for(const y of [0.32, 0.68]){ if(d.dry && k.rnd() < 0.4) continue; const s = d.big ? 0.17 : 0.11;
+      if(d.dry){ for(let j=0;j<4;j++) k.line([x, y, x + k.R(-0.12, 0.12), y + k.R(-0.12, 0.12)], '#7a6a44', 0.015); continue; }
+      if(d.pumpkin){ k.line([x - 0.15, y, x + 0.15, y + 0.05], '#4a6a2a', 0.02); c.beginPath(); c.ellipse(x + 0.02, y + 0.03, 0.12, 0.1, 0, 0, 6.28); k.fill('rgba(0,0,0,.3)'); c.beginPath(); c.ellipse(x, y, 0.12, 0.1, 0, 0, 6.28); k.fill(x%0.64 < 0.32 ? '#b86a2a' : '#8a9a3a'); for(let j=-1;j<=1;j++) k.line([x + j*0.05, y - 0.09, x + j*0.05, y + 0.09], 'rgba(0,0,0,.2)', 0.008); continue; }
+      for(let j=0;j<6;j++){ const a = j/6*6.28 + k.rnd(); c.beginPath(); c.ellipse(x + Math.cos(a)*s*0.5, y + Math.sin(a)*s*0.5, s*0.55, s*0.28, a, 0, 6.28); k.fill(k.pick(d.cols)); } c.beginPath(); c.arc(x, y, s*0.25, 0, 6.28); k.fill(d.cols[0]); }
+    if(d.film){ c.save(); k.rr(0.1, 0.1, 2.8, 0.8, 0.3); c.fillStyle = 'rgba(220,235,235,.32)'; c.fill(); for(let x=0.3;x<2.8;x+=0.5) k.line([x, 0.1, x, 0.9], 'rgba(255,255,255,.35)', 0.02); k.line([0.2, 0.3, 2.8, 0.25], 'rgba(255,255,255,.4)', 0.03); c.restore(); }
+    if(d.can){ c.beginPath(); c.arc(2.75, 0.85, 0.09, 0, 6.28); k.texFill('metal', '#6a7a6a'); k.stroke(k.INK, 0.008); } }
+  const GBED = [{n:'Зелень', cols:['#4a6a2a', '#5a7a34', '#6a8a3a']}, {n:'Кукуруза', cols:['#6a7a2a', '#8a9a3a', '#5a6a24'], big:true, can:true}, {n:'Мутировавшие тыквы', pumpkin:true}, {n:'Под плёнкой', cols:['#4a6a2a', '#5a7a34'], film:true}, {n:'Засохшая', dry:true, frame:'#6a5a4a'}];
+  function latrineDraw(g, d){ const k = hk(g), c = k.c;
+    if(d.pit){ k.organic(0.5, 0.55, 0.38, 0.2); k.texFill('dirt', '#5a4a36'); c.beginPath(); c.ellipse(0.5, 0.55, 0.2, 0.15, 0, 0, 6.28); k.fill('#140e08'); k.plank(0.2, 0.42, 0.6, 0.1, 0, '#6a5038'); k.plank(0.2, 0.7, 0.6, 0.1, 0, '#6a5038');
+      bits.fabric(k, [0.05, 0.1, 0.95, 0.1, 0.95, 0.22, 0.05, 0.22], d.col || '#7a6a50', 4, 0); [0.05, 0.95].forEach(x=>pole(k, x, 0.16, 0.05)); return; }
+    fx.sh(k, 0.1, 0.1, 0.8, 0.8, 0.02, 0.1); k.rr(0.1, 0.1, 0.8, 0.8, 0.02);
+    if(d.tin){ k.texFill('corrugated', '#7a7e80', '#8a6a4a', 0.4); for(let x=0.15;x<0.9;x+=0.08) k.line([x, 0.1, x, 0.9], 'rgba(0,0,0,.18)', 0.012); for(let i=0;i<4;i++) k.rust(k.R(0.2, 0.8), k.R(0.2, 0.8), 0.06, false); }
+    else { k.texFill('wood', '#6a5038', '#7a6040', 0.4); for(let y=0.1;y<0.9;y+=0.16) k.line([0.1, y, 0.9, y], 'rgba(0,0,0,.3)', 0.012); }
+    k.stroke(k.INK, 0.012); k.line([0.1, 0.12, 0.9, 0.12], 'rgba(255,250,240,.25)', 0.02); c.beginPath(); c.arc(0.72, 0.28, 0.06, 0, 6.28); k.fill('#3a3a36'); k.stroke(k.INK, 0.006);
+    k.rr(0.3, 0.86, 0.4, 0.08, 0.01); k.fill('#3a2c1c'); bits.stencil(k, 0.5, 0.5, d.tin ? 'WC' : '♥', 0.18, '#2a2018', 0.5); k.blot(0.5, 1.0, 0.15, '#3a3020', 0.3); }
+  const LATRINE = [{n:'Будка из досок'}, {n:'Будка из жести', tin:true}, {n:'Яма с ширмой', pit:true}];
+  function canopyDraw(g, d){ const k = hk(g), c = k.c;
+    const P = [[0.25, 0.25], [2.75, 0.25], [2.75, 2.75], [0.25, 2.75]];
+    c.save(); c.translate(0.18, 0.26); k.organic(1.5, 1.5, 1.35, 0.06); k.fill('rgba(0,0,0,.28)'); c.restore();
+    const pts = [0.15, 0.15, 1.5, 0.3, 2.85, 0.15, 2.7, 1.5, 2.85, 2.85, 1.5, 2.7, 0.15, 2.85, 0.3, 1.5];
+    if(d.net){ k.poly(pts); c.fillStyle = 'rgba(70,82,50,.55)'; c.fill(); c.save(); k.poly(pts); c.clip(); bits.camo(k, 0, 0, 3, 3, ['#4a5236', '#5a6040', '#3a4028']); for(let i=0;i<40;i++){ const x = k.R(0.2, 2.8), y = k.R(0.2, 2.8); k.blot(x, y, 0.12, k.pick(['#4a5a30', '#6a6a3a', '#3a4428']), 0.85); } for(let i=0;i<=12;i++){ k.line([0.15 + i*0.225, 0.1, 0.15 + i*0.225, 2.9], 'rgba(20,24,12,.35)', 0.012); k.line([0.1, 0.15 + i*0.225, 2.9, 0.15 + i*0.225], 'rgba(20,24,12,.35)', 0.012); } c.restore(); }
+    else { k.poly(pts); k.texFill(d.tin ? 'corrugated' : 'concrete', d.col, d.col, 0.85); if(!d.tin){ k.poly(pts); k.fill(d.col, 0.55); }
+      c.save(); k.poly(pts); c.clip(); const gr = c.createRadialGradient(1.5, 1.5, 0.2, 1.5, 1.5, 1.6); gr.addColorStop(0, 'rgba(0,0,0,.25)'); gr.addColorStop(1, 'rgba(255,250,240,.12)'); c.fillStyle = gr; c.fillRect(0, 0, 3, 3);
+        if(d.tin) for(let x=0.2;x<2.9;x+=0.12) k.line([x, 0, x, 3], 'rgba(0,0,0,.18)', 0.02); else { k.line([0.15, 0.15, 2.85, 2.85], 'rgba(0,0,0,.15)', 0.05); k.line([2.85, 0.15, 0.15, 2.85], 'rgba(0,0,0,.15)', 0.05); }
+        for(let i=0;i<6;i++) k.streak(k.R(0.3, 2.7), 0.3, 1.5, 0.08, '#3a3026', 0.2); if(d.tin) for(let i=0;i<6;i++) k.rust(k.R(0.3, 2.7), k.R(0.3, 2.7), 0.12, false); c.restore();
+      if(d.torn){ for(let i=0;i<3;i++){ const x = k.R(0.7, 2.3), y = k.R(0.7, 2.3); k.organic(x, y, k.R(0.2, 0.35), 0.5); c.save(); c.globalCompositeOperation = c.canvas.__sprite ? 'destination-out' : 'source-over'; k.fill(c.canvas.__sprite ? '#000' : 'rgba(0,0,0,.45)'); c.restore(); } }
+      k.poly(pts); k.stroke(k.INK, 0.014); }
+    P.forEach(([x, y])=>{ pole(k, x, y, 0.07); k.line([x, y, x + (x < 1.5 ? -0.2 : 0.2), y + (y < 1.5 ? -0.2 : 0.2)], 'rgba(200,190,160,.7)', 0.01); });
+    if(d.under) d.under.forEach(([a, x, y])=>{ if(a==='crate'){ k.rr(x, y, 0.4, 0.4, 0.02); k.texFill('wood', '#6a5038'); k.stroke(k.INK, 0.008); } }); }
+  const CANOPY = [{n:'Брезент', col:'#7a6e4e'}, {n:'Синий тент', col:'#3a5a7a'}, {n:'Жесть', col:'#7a7e80', tin:true}, {n:'Маскировочная сеть', net:true}, {n:'Рваный', col:'#8a7a5a', torn:true}];
+  function dryingRackDraw(g, d){ const k = hk(g), c = k.c;
+    [0.15, 2.85].forEach(x=>{ pole(k, x, 0.5, 0.06); k.line([x, 0.5, x + (x < 1 ? -0.12 : 0.12), 0.2], '#5a4632', 0.03); k.line([x, 0.5, x + (x < 1 ? -0.12 : 0.12), 0.8], '#5a4632', 0.03); });
+    k.line([0.17, 0.52, 2.83, 0.52], 'rgba(0,0,0,.3)', 0.02); const sag = (t)=>0.5 + Math.sin(t*Math.PI)*0.08; c.beginPath(); for(let t=0;t<=1;t+=0.05) c.lineTo(0.15 + t*2.7, sag(t)); k.stroke('#c8b88a', 0.018);
+    if(d.empty) return; let x = 0.35; while(x < 2.6){ const t = (x - 0.15)/2.7, y = sag(t), w = d.hides ? k.R(0.35, 0.5) : d.meat ? 0.08 : k.R(0.2, 0.35);
+      if(d.hides){ c.beginPath(); c.ellipse(x + w/2 + 0.03, y + 0.06, w/2, 0.22, 0, 0, 6.28); k.fill('rgba(0,0,0,.3)'); k.organic(x + w/2, y + 0.04, w/2, 0.3, 0.2); k.fill(k.pick(['#8a6a4a', '#6a5038', '#9a8a6a'])); k.stroke('rgba(40,26,14,.6)', 0.01); }
+      else if(d.meat){ k.line([x, y, x + 0.02, y + 0.22], k.pick(['#8a3a2a', '#6a2a1a', '#9a4a3a']), 0.06); k.line([x - 0.015, y + 0.02, x, y + 0.2], 'rgba(255,220,200,.25)', 0.012); }
+      else { k.rr(x, y - 0.04, w, 0.26, 0.02); k.fill(k.pick(d.cols)); k.stroke('rgba(0,0,0,.35)', 0.008); k.line([x + 0.02, y, x + w - 0.02, y], 'rgba(255,255,255,.2)', 0.01); c.beginPath(); c.arc(x + 0.03, y - 0.02, 0.015, 0, 6.28); k.fill('#c8b060'); }
+      x += w + (d.meat ? 0.07 : 0.06); } }
+  const DRYRACK = [{n:'Бельё', cols:['#9a9080', '#5a6a7a', '#8a5a4a', '#c8c0a8', '#6a7a5a']}, {n:'Шкуры', hides:true}, {n:'Вяленое мясо', meat:true}, {n:'Пустая', empty:true}];
+  function fieldKitchenDraw(g, d){ const k = hk(g), c = k.c, cx = 1, cy = 1;
+    if(d.truck){ fx.sh(k, 0.2, 0.1, 1.6, 1.8, 0.1, 0.12); k.rr(0.2, 0.1, 1.6, 1.8, 0.1); k.texFill('metal', '#55605a', '#4a5a3a', 0.6); k.stroke(k.INK, 0.012); [0.45, 1.55].forEach(x=>{ c.beginPath(); c.arc(x, 0.55, 0.24, 0, 6.28); k.fill('#2a2c2a'); k.stroke(k.INK, 0.01); c.beginPath(); c.arc(x - 0.05, 0.5, 0.16, 0, 6.28); k.texFill('metal', '#8a9094'); k.stroke(k.INK, 0.008); c.beginPath(); c.arc(x, 0.55, 0.05, 0, 6.28); k.fill('#3a3836'); });
+      k.rr(0.75, 1.2, 0.5, 0.35, 0.03); k.fill('#2a2826'); k.line([1, 1.2, 1, 0.9], '#3a3836', 0.08); xb.smoke && xb.smoke(k, 1, 0.75, 0.4); [0.15, 1.85].forEach(x=>{ c.beginPath(); c.arc(x, 1.75, 0.12, 0, 6.28); k.fill('#1e1c1a'); }); bits.stencil(k, 1, 1.72, 'КП-130', 0.12, '#e4ddca', 0.5); return; }
+    if(d.drum){ bits.barrel(k, cx, cy, 0.4, '#5a4a3a', false); k.rr(cx - 0.28, cy - 0.28, 0.56, 0.56, 0.04); k.fill('#2a2622'); k.stroke(k.INK, 0.01); for(let i=0;i<4;i++) k.line([cx - 0.25 + i*0.16, cy - 0.28, cx - 0.25 + i*0.16, cy + 0.28], '#4a4440', 0.03); k.radial(cx, cy + 0.42, 0.3, '#ff8a2a', 0.5); k.rr(cx - 0.12, cy + 0.32, 0.24, 0.1, 0.02); k.fill('#ff9a3a');
+      xb.pot(k, cx + 0.05, cy - 0.02, 0.18); k.line([cx + 0.4, cy - 0.3, cx + 0.4, cy - 0.85], '#3a3836', 0.07); xb.firewood(k, 1.65, 1.6, 4, 0.3); return; }
+    if(!d.cold){ bits.logs(k, cx, cy, 0.4, 5, false); bits.fire(k, cx, cy + 0.28, 0.22, 1); bits.fire(k, cx - 0.3, cy + 0.12, 0.16, 1); } else { bits.logs(k, cx, cy, 0.38, 5, true); k.blot(cx, cy, 0.3, '#2a2420', 0.5); }
+    for(let i=0;i<3;i++){ const a = i*2.09 + 0.5; k.line([cx + Math.cos(a)*0.75 + 0.03, cy + Math.sin(a)*0.75 + 0.04, cx + 0.03, cy - 0.1 + 0.04], 'rgba(0,0,0,.3)', 0.06); k.line([cx + Math.cos(a)*0.75, cy + Math.sin(a)*0.75, cx, cy - 0.1], '#3a3430', 0.05); }
+    c.beginPath(); c.arc(cx + 0.06, cy + 0.08, 0.36, 0, 6.28); k.fill('rgba(0,0,0,.4)'); c.beginPath(); c.arc(cx, cy, 0.36, 0, 6.28); k.texFill('metal', '#3a3836', null, 0.4); k.stroke(k.INK, 0.012); c.beginPath(); c.arc(cx, cy, 0.29, 0, 6.28);
+    c.fillStyle = k.lin(cx - 0.3, cy - 0.3, cx + 0.3, cy + 0.3, [[0, d.cold ? '#5a5040' : '#8a6a3a'], [1, d.cold ? '#3a3020' : '#5a3a1a']]); c.fill(); if(!d.cold){ for(let i=0;i<5;i++){ c.beginPath(); c.arc(cx + k.R(-0.18, 0.18), cy + k.R(-0.18, 0.18), 0.03, 0, 6.28); k.fill('rgba(255,240,200,.5)'); } k.radial(cx, cy - 0.3, 0.5, '#e8e0d0', 0.18); }
+    k.line([cx - 0.1, cy - 0.05, cx + 0.55, cy - 0.45], '#6a5038', 0.04); xb.firewood(k, 1.6, 1.65, 4, 0.2); k.rr(0.1, 1.45, 0.45, 0.45, 0.03); k.texFill('wood', '#6a5038'); k.stroke(k.INK, 0.008); for(let i=0;i<3;i++){ c.beginPath(); c.arc(0.2 + i*0.13, 1.6, 0.05, 0, 6.28); k.fill(k.pick(['#c8b060', '#8a5a3a', '#6a7a4a'])); } }
+  const FKITCHEN = [{n:'Котёл на огне'}, {n:'Котёл остыл', cold:true}, {n:'Печь из бочки', drum:true}, {n:'Армейская кухня', truck:true}];
+  function cisternDraw(g, d){ const k = hk(g), c = k.c, cx = 1, cy = 1;
+    if(d.stand){ [[0.35, 0.35], [1.65, 0.35], [0.35, 1.65], [1.65, 1.65]].forEach(([x, y])=>pole(k, x, y, 0.06)); }
+    c.beginPath(); c.arc(cx + 0.1, cy + 0.14, 0.78, 0, 6.28); k.fill('rgba(0,0,0,.4)'); c.beginPath(); c.arc(cx, cy, 0.78, 0, 6.28); k.texFill(d.plastic ? 'concrete' : 'metal', d.col, d.col, 0.6); k.stroke(k.INK, 0.014);
+    const gr = c.createRadialGradient(cx - 0.3, cy - 0.3, 0.05, cx, cy, 0.8); gr.addColorStop(0, 'rgba(255,255,255,.3)'); gr.addColorStop(1, 'rgba(0,0,0,.3)'); c.beginPath(); c.arc(cx, cy, 0.78, 0, 6.28); c.fillStyle = gr; c.fill();
+    for(let r=0.3;r<0.78;r+=0.16){ c.beginPath(); c.arc(cx, cy, r, 0, 6.28); k.stroke('rgba(0,0,0,.18)', 0.02); } c.beginPath(); c.arc(cx, cy, 0.18, 0, 6.28); k.fill('#2a2c2e'); k.stroke(k.INK, 0.01);
+    if(d.filter){ k.rr(cx + 0.35, cy - 0.65, 0.4, 0.3, 0.03); k.texFill('metal', '#6a7a7a'); k.stroke(k.INK, 0.008); xb.cable(k, [cx + 0.55, cy - 0.35, cx + 0.3, cy - 0.1], '#3a3e40', 0.04); }
+    k.line([cx + 0.7, cy + 0.3, cx + 0.95, cy + 0.42], '#5a5e60', 0.06); c.beginPath(); c.arc(cx + 0.95, cy + 0.42, 0.05, 0, 6.28); k.fill('#c83a2a');
+    [[1.75, 1.7], [1.45, 1.85]].forEach(([x, y])=>{ c.beginPath(); c.arc(x, y, 0.12, 0, 6.28); k.texFill('metal', '#7a7e80'); k.stroke(k.INK, 0.008); c.beginPath(); c.arc(x, y, 0.08, 0, 6.28); k.fill('rgba(60,90,100,.7)'); });
+    if(d.rust){ for(let i=0;i<10;i++) k.rust(cx + k.R(-0.6, 0.6), cy + k.R(-0.6, 0.6), k.R(0.04, 0.1), i%5===0); k.puddle(1.7, 1.2, 0.3, 0.2); } else k.puddle(1.85, 1.55, 0.14, 0.1); }
+  const CISTERN = [{n:'Бочка на подставке', col:'#4a6a8a', stand:true}, {n:'Пластиковая ёмкость', col:'#c8c0a8', plastic:true}, {n:'Ржавая, протекает', col:'#6a5a4a', rust:true}, {n:'С фильтром', col:'#5a6a6a', filter:true}];
+  function cageDraw(g, d){ const k = hk(g), c = k.c;
+    fx.sh(k, 0.1, 0.1, 1.8, 1.8, 0.02, 0.1); k.rr(0.1, 0.1, 1.8, 1.8, 0.02); k.texFill('dirt', '#4a3e30'); k.fill('rgba(0,0,0,.2)');
+    if(d.who==='prisoner'){ c.beginPath(); c.ellipse(1.05, 1.15, 0.28, 0.2, 0.4, 0, 6.28); k.fill('rgba(0,0,0,.35)'); c.beginPath(); c.ellipse(1, 1.1, 0.26, 0.18, 0.4, 0, 6.28); k.fill('#6a5a48'); c.beginPath(); c.arc(0.78, 0.95, 0.1, 0, 6.28); k.fill('#a07a5a'); k.line([1.1, 1.2, 1.4, 1.4], '#6a5a48', 0.08); bits.fabric(k, [0.4, 1.4, 0.8, 1.4, 0.8, 1.7, 0.4, 1.7], '#7a6a50', 3, 0); xb.links(k, 0.3, 0.3, 5, 0.6); }
+    if(d.who==='bones'){ bits.skull(k, 1.1, 0.9, 0.12, 0.5); for(let i=0;i<6;i++) k.line([k.R(0.4, 1.6), k.R(0.4, 1.6), k.R(0.4, 1.6), k.R(0.4, 1.6)], '#d4cbb2', 0.035); k.blot(1, 1.2, 0.3, '#3a1a10', 0.4); }
+    if(d.who==='mutant'){ c.beginPath(); c.ellipse(1.05, 1.08, 0.45, 0.3, -0.3, 0, 6.28); k.fill('rgba(0,0,0,.35)'); c.beginPath(); c.ellipse(1, 1, 0.42, 0.28, -0.3, 0, 6.28); k.fill('#5a6a4a'); for(let i=0;i<6;i++){ const a = i/6*6.28; k.line([1 + Math.cos(a)*0.3, 1 + Math.sin(a)*0.2, 1 + Math.cos(a)*0.55, 1 + Math.sin(a)*0.4], '#4a5a3a', 0.05); } c.beginPath(); c.arc(0.7, 0.85, 0.035, 0, 6.28); k.fill('#e8c040'); }
+    k.blot(0.6, 0.6, 0.15, '#2a2018', 0.35); k.leaves(0.2, 0.2, 1.6, 1.6, 5);
+    const bars = (o)=>{ for(let i=0;i<=8;i++){ const t = 0.1 + i*0.225; k.line([t + 0.03, 0.1 + 0.04, t + 0.03, 1.9 + 0.04], 'rgba(0,0,0,.35)', 0.04); k.line([t, 0.1, t, 1.9], '#4a4e50', 0.035); k.line([t - 0.01, 0.1, t - 0.01, 1.9], 'rgba(220,225,230,.3)', 0.01); } };
+    bars(); for(let i=0;i<=8;i++){ const t = 0.1 + i*0.225; k.line([0.1, t, 1.9, t], '#3e4244', 0.025); } k.rr(0.1, 0.1, 1.8, 1.8, 0.02); k.stroke('#2a2c2e', 0.05);
+    for(let i=0;i<12;i++) k.rust(k.R(0.1, 1.9), k.R(0.1, 1.9), 0.04, false);
+    if(d.open){ c.save(); c.translate(1.9, 0.6); c.rotate(0.9); k.rr(0, -0.04, 0.8, 0.08, 0.01); k.fill('#4a4e50'); c.restore(); k.line([1.9, 0.55, 1.9, 1.35], 'rgba(0,0,0,.6)', 0.06); }
+    else { k.rr(1.82, 0.85, 0.16, 0.22, 0.03); k.texFill('metal', '#8a7a3a'); k.stroke(k.INK, 0.008); } }
+  const CAGE = [{n:'С пленником', who:'prisoner'}, {n:'Пустая'}, {n:'Кости', who:'bones', open:true}, {n:'С мутантом', who:'mutant'}, {n:'Открыта', open:true}];
+  function penDraw(g, d){ const k = hk(g), c = k.c;
+    k.rr(0.1, 0.1, 3.8, 3.8, 0.02); k.texFill('mud', '#5a4a36'); k.fill('rgba(70,56,36,.35)'); for(let i=0;i<14;i++) k.blot(k.R(0.4, 3.6), k.R(0.4, 3.6), k.R(0.08, 0.2), '#3a2a18', 0.4); k.tufts(0.2, 0.2, 3.6, 3.6, 10, ['#7a7a40', '#8a8a4a']);
+    // сено, поилка
+    k.organic(0.75, 0.8, 0.45, 0.4, 0.35); k.fill('#c8a860'); for(let i=0;i<20;i++){ const a = k.R(0, 6.28), r = k.R(0, 0.4); k.line([0.75 + Math.cos(a)*r, 0.8 + Math.sin(a)*r*0.8, 0.75 + Math.cos(a)*r + k.R(-0.12, 0.12), 0.8 + Math.sin(a)*r*0.8 + k.R(-0.08, 0.08)], k.pick(['#a8884a', '#d8b870']), 0.015); }
+    k.rr(2.6, 0.45, 1.0, 0.32, 0.04); k.texFill('wood', '#5a4632'); k.stroke(k.INK, 0.01); k.rr(2.66, 0.51, 0.88, 0.2, 0.02); k.fill('rgba(50,80,90,.75)'); k.line([2.7, 0.55, 3.2, 0.55], 'rgba(220,235,240,.35)', 0.02);
+    const posts = []; for(let i=0;i<=6;i++){ const t = 0.15 + i*0.617; posts.push([t, 0.15], [t, 3.85]); if(i>0 && i<6) posts.push([0.15, t], [3.85, t]); }
+    const gateGap = (x, y)=>!d.broken && y > 3.8 && x > 1.4 && x < 2.6;
+    const rail = (pts)=>{ if(d.wire){ k.line(pts.map(v=>v + 0.03), 'rgba(0,0,0,.3)', 0.05); k.line(pts, 'rgba(175,182,188,.9)', 0.04, 1, [0.04, 0.05]); k.line(pts, 'rgba(150,158,165,.8)', 0.012); } else { for(const o of [-0.06, 0.06]){ const q = pts.map((v, i)=>v + (pts[0]===pts[2] ? (i%2 ? 0 : o) : (i%2 ? o : 0))); k.line(q.map(v=>v + 0.04), 'rgba(0,0,0,.4)', 0.07); k.line(q, '#8a6a48', 0.07); k.line(q.map((v, i)=>v - 0.015), 'rgba(255,235,200,.3)', 0.018); } } };
+    rail([0.15, 0.15, 3.85, 0.15]); rail([0.15, 0.15, 0.15, 3.85]); rail([3.85, 0.15, 3.85, 3.85]);
+    if(d.broken){ rail([0.15, 3.85, 1.3, 3.85]); rail([2.9, 3.85, 3.85, 3.85]); k.plank(1.4, 3.5, 0.9, 0.08, 0.6, '#6a5038', true); } else { rail([0.15, 3.85, 1.4, 3.85]); rail([2.6, 3.85, 3.85, 3.85]); c.save(); c.translate(1.4, 3.85); c.rotate(-0.6); k.rr(0, -0.05, 1.2, 0.1, 0.02); k.fill('#7a5a3a'); k.stroke(k.INK, 0.008); c.restore(); }
+    posts.forEach(([x, y])=>{ if(gateGap(x, y)) return; pole(k, x, y, 0.07); }); }
+  const PEN = [{n:'Деревянный'}, {n:'Из сетки', wire:true}, {n:'Разломан', broken:true}];
+  function packAnimalDraw(g, d){ const k = hk(g), c = k.c, cx = 0.5, cy = 1.05;
+    c.beginPath(); c.ellipse(cx + 0.08, cy + 0.12, 0.36, 0.72, 0, 0, 6.28); k.fill('rgba(0,0,0,.35)');
+    if(d.dead){ c.save(); c.translate(cx, cy); c.rotate(1.2); } else { c.save(); c.translate(cx, cy); }
+    const hide = d.col; k.line([0, 0.6, 0.06, 0.88, 0.02, 0.93], '#3a2a1a', 0.035);
+    k.rr(-0.33, -0.55, 0.66, 1.15, 0.3); k.texFill('dirt', hide, hide, 0.8); k.fill(hide, 0.6); k.stroke('rgba(30,20,10,.6)', 0.015);
+    for(let i=0;i<5;i++) k.blot(k.R(-0.2, 0.2), k.R(-0.4, 0.4), k.R(0.05, 0.12), d.spot || '#3a2a1a', 0.5); c.beginPath(); c.ellipse(-0.08, -0.15, 0.12, 0.35, 0, 0, 6.28); k.fill('rgba(255,240,210,.15)');
+    k.line([0, 0.55, 0.05, 0.85], hide, 0.05);
+    const heads = d.oneHead ? [0] : [-0.13, 0.13]; heads.forEach(hx=>{ k.line([0, -0.5, hx*1.2, -0.68], hide, 0.14); c.beginPath(); c.ellipse(hx*1.2, -0.74, 0.12, 0.17, hx*1.5, 0, 6.28); k.fill(hide); c.beginPath(); c.ellipse(hx*1.2 - 0.12, -0.66, 0.06, 0.03, -0.5, 0, 6.28); k.fill(hide); c.beginPath(); c.ellipse(hx*1.2 + 0.12, -0.66, 0.06, 0.03, 0.5, 0, 6.28); k.fill(hide); k.stroke('rgba(30,20,10,.6)', 0.012); c.beginPath(); c.ellipse(hx*1.3, -0.84, 0.07, 0.05, 0, 0, 6.28); k.fill('#c8a090'); k.line([hx*1.2 - 0.1, -0.7, hx*1.2 - 0.2, -0.78], '#e0d8c0', 0.025); k.line([hx*1.2 + 0.1, -0.7, hx*1.2 + 0.2, -0.78], '#e0d8c0', 0.025); });
+    if(d.packs){ [-1, 1].forEach(s=>{ k.rr(s*0.28 - (s < 0 ? 0.2 : 0), -0.25, 0.2, 0.42, 0.05); k.texFill('wood', '#6a5038', '#7a6a4a', 0.5); k.stroke(k.INK, 0.008); }); k.rr(-0.24, -0.18, 0.48, 0.28, 0.04); k.fill('#7a6a50'); k.stroke(k.INK, 0.008); k.line([-0.3, -0.05, 0.3, -0.05], '#4a3a28', 0.025); }
+    if(d.dead){ k.blot(0.1, 0.3, 0.3, '#5a1a10', 0.5); } c.restore(); }
+  const PACK = [{n:'Брамин с поклажей', col:'#8a6a4a', packs:true}, {n:'Брамин пасётся', col:'#9a7a5a'}, {n:'Мутировавший вол', col:'#6a6a5a', spot:'#4a5a3a', oneHead:true}, {n:'Мёртвый', col:'#7a6a5a', dead:true}];
+  function arenaDraw(g, d){ const k = hk(g), c = k.c, cx = 2, cy = 2;
+    k.organic(cx, cy, 1.85, 0.05); k.texFill('dirt', '#6a5a44'); k.organic(cx, cy, 1.45, 0.08); const gr = c.createRadialGradient(cx, cy, 0.2, cx, cy, 1.5); gr.addColorStop(0, '#5a4630'); gr.addColorStop(0.8, '#3a2c1e'); gr.addColorStop(1, '#1e160e'); c.fillStyle = gr; c.fill();
+    c.save(); k.organic(cx, cy, 1.45, 0.08); c.clip(); for(let i=0;i<10;i++) k.blot(cx + k.R(-1, 1), cy + k.R(-1, 1), k.R(0.08, 0.25), d.abandoned ? '#3a3020' : '#5a1a10', 0.45); for(let i=0;i<12;i++) k.line([cx + k.R(-1, 1), cy + k.R(-1, 1), cx + k.R(-1, 1), cy + k.R(-1, 1)], 'rgba(0,0,0,.15)', 0.02); if(!d.abandoned){ xb.links(k, cx - 0.2, cy - 0.1, 7, 0.4); bits.skull(k, cx + 0.6, cy + 0.5, 0.1, 1); } else k.tufts(cx - 1, cy - 1, 2, 2, 8); c.restore();
+    if(d.net){ for(let i=0;i<20;i++){ const a = i/20*6.28; pole(k, cx + Math.cos(a)*1.6, cy + Math.sin(a)*1.6, 0.05); } c.beginPath(); c.arc(cx, cy, 1.6, 0, 6.28); k.stroke('rgba(170,175,180,.75)', 0.03); c.beginPath(); c.arc(cx, cy, 1.55, 0, 6.28); k.stroke('rgba(170,175,180,.45)', 0.015, 0.8); }
+    else for(let i=0;i<22;i++){ if(d.abandoned && i%5===0) continue; const a = i/22*6.28; k.tire(cx + Math.cos(a)*1.62, cy + Math.sin(a)*1.62, 0.2); }
+    if(!d.abandoned){ k.rr(cx - 0.4, 0.02, 0.8, 0.22, 0.03); k.texFill('wood', '#6a5038'); k.stroke(k.INK, 0.008); xb.lantern && xb.lantern(k, 0.4, 0.4); xb.lantern && xb.lantern(k, 3.6, 3.6); } }
+  const ARENA = [{n:'Яма в покрышках'}, {n:'Ринг из сетки', net:true}, {n:'Заброшенная', abandoned:true}];
+  function bannerDraw(g, d){ const k = hk(g), c = k.c;
+    const cloth = ()=>{ c.beginPath(); c.moveTo(0.3, 0.37); c.bezierCurveTo(0.5, 0.3, 0.7, 0.44, 0.97, 0.36); if(d.torn){ c.lineTo(0.86, 0.43); c.lineTo(0.95, 0.47); c.lineTo(0.84, 0.52); } c.lineTo(0.95, 0.55); c.bezierCurveTo(0.7, 0.63, 0.5, 0.49, 0.3, 0.56); c.closePath(); };
+    c.save(); c.translate(0.1, 0.16); cloth(); k.fill('rgba(0,0,0,.3)'); c.restore(); cloth();
+    c.fillStyle = k.lin(0.3, 0.3, 0.95, 0.6, [[0, shade(d.col, 0.12)], [0.5, d.col], [1, shade(d.col, -0.25)]]); c.fill(); k.stroke('rgba(20,14,8,.5)', 0.01);
+    c.save(); c.clip(); for(let i=0;i<3;i++) k.line([0.4 + i*0.18, 0.25, 0.42 + i*0.18, 0.65], 'rgba(0,0,0,.18)', 0.05); k.line([0.3, 0.33, 0.95, 0.38], 'rgba(255,255,255,.2)', 0.03);
+      for(let i=0;i<3;i++) k.line([0.45 + i*0.17, 0.3, 0.47 + i*0.17, 0.62], 'rgba(0,0,0,.14)', 0.06);
+      if(d.sign==='skull') bits.skull(k, 0.62, 0.45, 0.07, 0); if(d.sign==='star') xb.star(k, 0.62, 0.45, 0.09, '#e8c040'); if(d.sign==='leaf'){ k.line([0.55, 0.52, 0.7, 0.38], '#e4ddca', 0.03); k.line([0.58, 0.48, 0.66, 0.5], '#e4ddca', 0.02); } if(d.sign==='wheel'){ c.beginPath(); c.arc(0.62, 0.45, 0.08, 0, 6.28); k.stroke('#2a2018', 0.02); for(let i=0;i<4;i++){ const a = i*0.785; k.line([0.62 - Math.cos(a)*0.08, 0.45 - Math.sin(a)*0.08, 0.62 + Math.cos(a)*0.08, 0.45 + Math.sin(a)*0.08], '#2a2018', 0.012); } } c.restore();
+    pole(k, 0.3, 0.46, 0.07); c.beginPath(); c.arc(0.3, 0.46, 0.03, 0, 6.28); k.fill('#c8b060'); [[0.05, 0.85], [0.55, 0.9], [0.1, 0.1]].forEach(([x, y])=>k.line([0.3, 0.46, x, y], 'rgba(200,190,160,.5)', 0.008)); }
+  const BANNER = [{n:'Рейдерское знамя', col:'#2a2420', sign:'skull'}, {n:'Флаг поселения', col:'#4a6a3a', sign:'leaf'}, {n:'Военный флаг', col:'#8e2e26', sign:'star'}, {n:'Караванный вымпел', col:'#c8a040', sign:'wheel'}, {n:'Рваное полотнище', col:'#7a6a5a', torn:true}];
+  function signpostDraw(g, d){ const k = hk(g), c = k.c;
+    if(d.stop){ c.save(); c.translate(0.08, 0.1); c.beginPath(); for(let i=0;i<8;i++){ const a = i/8*6.28 + 0.39; c.lineTo(0.5 + Math.cos(a)*0.3, 0.5 + Math.sin(a)*0.3); } k.fill('rgba(0,0,0,.35)'); c.restore();
+      c.beginPath(); for(let i=0;i<8;i++){ const a = i/8*6.28 + 0.39; c.lineTo(0.5 + Math.cos(a)*0.3, 0.5 + Math.sin(a)*0.3); } k.fill('#a82a22'); k.stroke('#e4ddca', 0.03); bits.stencil(k, 0.5, 0.5, 'СТОЙ', 0.11, '#e4ddca', 1); for(let i=0;i<4;i++) k.rust(k.R(0.3, 0.7), k.R(0.3, 0.7), 0.04, i===0); return; }
+    if(d.skulls){ pole(k, 0.5, 0.5, 0.06); [[0.25, 0.3], [0.72, 0.35], [0.4, 0.75]].forEach(([x, y], i)=>{ k.line([0.5, 0.5, x, y], '#5a4632', 0.03); bits.skull(k, x, y, 0.08, i); }); bits.stencil(k, 0.5, 0.92, 'ВОН', 0.1, '#c83a2a', 0.8); return; }
+    [[0.12, -0.5, '#6a5038', 'Вода 2 км'], [0.08, 0.6, '#5a4632', 'Рынок'], [0.1, 2.6, '#6a5a3a', 'Город †']].forEach(([w, a, col, txt])=>{ c.save(); c.translate(0.5, 0.5); c.rotate(a); c.translate(0.04, 0.06); k.fillP([0, -0.07, 0.36, -0.07, 0.44, 0, 0.36, 0.07, 0, 0.07], 'rgba(0,0,0,.3)'); c.translate(-0.04, -0.06); k.fillP([0, -0.07, 0.36, -0.07, 0.44, 0, 0.36, 0.07, 0, 0.07], col); k.poly([0, -0.07, 0.36, -0.07, 0.44, 0, 0.36, 0.07, 0, 0.07]); k.stroke(k.INK, 0.008); k.line([0.03, 0, 0.3, 0], 'rgba(230,220,200,.5)', 0.02); c.restore(); });
+    pole(k, 0.5, 0.5, 0.06); }
+  const SIGNPOST = [{n:'Стрелки'}, {n:'«Стой»', stop:true}, {n:'Черепа на кольях', skulls:true}];
+  function searchlightDraw(g, d){ const k = hk(g), c = k.c, cx = 0.5, cy = 0.55;
+    if(d.on){ c.save(); c.beginPath(); c.moveTo(cx, cy); c.arc(cx, cy, 3.2, -Math.PI/2 - 0.22, -Math.PI/2 + 0.22); c.closePath(); const gr = c.createRadialGradient(cx, cy, 0.1, cx, cy, 3.2); gr.addColorStop(0, 'rgba(255,250,215,.45)'); gr.addColorStop(1, 'rgba(255,250,215,0)'); c.fillStyle = gr; c.fill(); c.restore(); }
+    for(let i=0;i<3;i++){ const a = i*2.09 + 1.57; k.line([cx + 0.03, cy + 0.04, cx + Math.cos(a)*0.4 + 0.03, cy + Math.sin(a)*0.4 + 0.04], 'rgba(0,0,0,.35)', 0.05); k.line([cx, cy, cx + Math.cos(a)*0.4, cy + Math.sin(a)*0.4], '#4a4e50', 0.04); }
+    c.save(); c.translate(cx, cy); c.rotate(d.broken ? 0.9 : 0); k.rr(-0.18, -0.3, 0.36, 0.42, 0.06); k.texFill('metal', '#5a6060', '#4a5a3a', 0.5); k.stroke(k.INK, 0.01); c.beginPath(); c.ellipse(0, -0.3, 0.17, 0.06, 0, 0, 6.28); k.fill(d.on ? '#fffbe0' : d.broken ? '#1a1c1e' : '#9aa0a0'); k.stroke(k.INK, 0.008);
+    if(d.broken) for(let i=0;i<5;i++) k.line([0, -0.3, k.R(-0.14, 0.14), -0.3 + k.R(-0.05, 0.05)], 'rgba(220,230,230,.6)', 0.006); c.restore();
+    if(d.on) k.radial(cx, cy - 0.3, 0.4, '#fffbe0', 0.6); xb.cable(k, [cx, cy + 0.1, cx + 0.25, cy + 0.35, cx + 0.45, cy + 0.4], '#1a1816', 0.02); }
+  const SEARCH = [{n:'Светит', on:true}, {n:'Выключен'}, {n:'Разбит', broken:true}];
+  function radioMastDraw(g, d){ const k = hk(g), c = k.c, cx = 1, cy = 1;
+    for(let i=0;i<4;i++){ const a = i*1.57 + 0.785, ex = cx + Math.cos(a)*0.92, ey = cy + Math.sin(a)*0.92; k.line([cx + 0.02, cy + 0.03, ex + 0.02, ey + 0.03], 'rgba(0,0,0,.3)', 0.014); k.line([cx, cy, ex, ey], 'rgba(205,200,190,.8)', 0.012); pole(k, ex, ey, 0.045); }
+    if(d.pipes){ c.beginPath(); c.arc(cx + 0.06, cy + 0.08, 0.12, 0, 6.28); k.fill('rgba(0,0,0,.4)'); c.beginPath(); c.arc(cx, cy, 0.11, 0, 6.28); k.texFill('metal', '#6a6e70', '#7a5a3a', 0.6); k.stroke(k.INK, 0.01); for(let i=0;i<4;i++) k.rust(cx + k.R(-0.08, 0.08), cy + k.R(-0.08, 0.08), 0.03, false); k.line([cx, cy, cx + 0.5, cy - 0.35], '#6a6e70', 0.04); k.line([cx, cy, cx - 0.45, cy - 0.3], '#6a6e70', 0.03); }
+    else { const tri = (r, col)=>{ c.beginPath(); for(let i=0;i<3;i++){ const a = i*2.094 - 1.57; c.lineTo(cx + Math.cos(a)*r, cy + Math.sin(a)*r); } c.closePath(); k.stroke(col, 0.025); }; shadowRing(k, cx, cy, 0.3); tri(0.3, '#c8302a'); tri(0.2, '#e4ddca'); tri(0.1, '#c8302a'); for(let i=0;i<3;i++){ const a = i*2.094 - 1.57; k.line([cx, cy, cx + Math.cos(a)*0.3, cy + Math.sin(a)*0.3], '#8a8e90', 0.015); } }
+    if(d.dish) dish(k, cx + 0.45, cy + 0.3, 0.22); k.rr(cx - 0.75, cy + 0.45, 0.4, 0.3, 0.03); k.texFill('metal', '#55605a'); k.stroke(k.INK, 0.008); xb.cable(k, [cx - 0.55, cy + 0.45, cx - 0.2, cy + 0.15, cx, cy], '#1a1816', 0.015);
+    c.beginPath(); c.arc(cx, cy, 0.05, 0, 6.28); k.fill('#e8402a'); k.radial(cx, cy, 0.25, '#ff5030', 0.35); }
+  function shadowRing(k, cx, cy, r){ const c = k.c; c.beginPath(); c.arc(cx + 0.06, cy + 0.08, r, 0, 6.28); k.fill('rgba(0,0,0,.25)'); }
+  const RMAST = [{n:'Решётчатая мачта'}, {n:'С тарелкой', dish:true}, {n:'Самодельная из труб', pipes:true}];
+  function trophyPoleDraw(g, d){ const k = hk(g), c = k.c, cx = 0.5, cy = 0.5;
+    if(d.gallows){ k.line([0.15 + 0.04, 0.5 + 0.05, 0.85 + 0.04, 0.5 + 0.05], 'rgba(0,0,0,.35)', 0.1); k.line([0.15, 0.5, 0.85, 0.5], '#5a4632', 0.09); pole(k, 0.15, 0.5, 0.08); k.line([0.7, 0.5, 0.7, 0.62], '#c8b88a', 0.015);
+      c.beginPath(); c.ellipse(0.74, 0.86, 0.14, 0.2, 0.2, 0, 6.28); k.fill('rgba(0,0,0,.35)'); c.beginPath(); c.ellipse(0.7, 0.8, 0.12, 0.17, 0.2, 0, 6.28); k.fill('#5a4a3a'); c.beginPath(); c.arc(0.7, 0.66, 0.07, 0, 6.28); k.fill('#8a7058'); return; }
+    pole(k, cx, cy, 0.09); const items = d.helmets ? 'h' : 's';
+    for(let i=0;i<5;i++){ const a = i/5*6.28 + 0.3, r = 0.3, x = cx + Math.cos(a)*r, y = cy + Math.sin(a)*r; k.line([cx, cy, x, y], d.helmets ? '#5a5e60' : '#c8b88a', 0.012);
+      if(items==='s') bits.skull(k, x, y, 0.08, a); else { c.beginPath(); c.arc(x + 0.02, y + 0.03, 0.09, 0, 6.28); k.fill('rgba(0,0,0,.35)'); c.beginPath(); c.arc(x, y, 0.09, 0, 6.28); k.texFill('metal', '#55605a', i%2 ? '#4a5a3a' : '#6a6a6a', 0.6); k.stroke(k.INK, 0.008); c.beginPath(); c.arc(x - 0.03, y - 0.03, 0.03, 0, 6.28); k.fill('rgba(255,255,255,.3)'); } }
+    xb.links(k, cx - 0.05, cy + 0.15, 4, 1.4); k.blot(cx, cy + 0.3, 0.12, '#4a1a10', 0.4); }
+  const TROPHY = [{n:'Черепа'}, {n:'Шлемы и доспехи', helmets:true}, {n:'Виселица', gallows:true}];
+  A('garden_bed', 'Огородная грядка', 'camp', 3, 1, {t:'грядка огород овощи посадки ферма', v:GBED.length, vn:VN(GBED), hd:true}, (g, v)=>gardenBedDraw(g, PV(GBED, v)));
+  A('latrine', 'Отхожее место', 'camp', 1, 1, {t:'туалет отхожее место будка нужник', v:LATRINE.length, vn:VN(LATRINE), hd:true}, (g, v)=>latrineDraw(g, PV(LATRINE, v)));
+  A('canopy', 'Навес на столбах', 'camp', 3, 3, {t:'навес тент брезент столбы укрытие', v:CANOPY.length, vn:VN(CANOPY), hd:true}, (g, v)=>canopyDraw(g, PV(CANOPY, v)));
+  A('drying_rack', 'Сушилка', 'camp', 3, 1, {t:'сушилка верёвка бельё шкуры мясо', v:DRYRACK.length, vn:VN(DRYRACK), hd:true}, (g, v)=>dryingRackDraw(g, PV(DRYRACK, v)));
+  A('field_kitchen', 'Полевая кухня', 'camp', 2, 2, {t:'кухня котёл костёр еда печь', v:FKITCHEN.length, vn:VN(FKITCHEN), hd:true, lit:true}, (g, v)=>fieldKitchenDraw(g, PV(FKITCHEN, v)));
+  A('water_cistern', 'Цистерна с водой', 'camp', 2, 2, {t:'вода цистерна бочка запас', v:CISTERN.length, vn:VN(CISTERN), hd:true}, (g, v)=>cisternDraw(g, PV(CISTERN, v)));
+  A('cage', 'Клетка', 'camp', 2, 2, {t:'клетка пленник тюрьма решётка', v:CAGE.length, vn:VN(CAGE), hd:true}, (g, v)=>cageDraw(g, PV(CAGE, v)));
+  A('animal_pen', 'Загон', 'camp', 4, 4, {t:'загон скот изгородь брамин ферма', g:true, v:PEN.length, vn:VN(PEN), hd:true}, (g, v)=>penDraw(g, PV(PEN, v)));
+  A('pack_animal', 'Вьючное животное', 'camp', 1, 2, {t:'брамин вол корова вьючное животное караван', v:PACK.length, vn:VN(PACK), hd:true}, (g, v)=>packAnimalDraw(g, PV(PACK, v)));
+  A('arena_pit', 'Арена-яма', 'camp', 4, 4, {t:'арена яма бои ринг', g:true, v:ARENA.length, vn:VN(ARENA), hd:true}, (g, v)=>arenaDraw(g, PV(ARENA, v)));
+  A('banner', 'Знамя', 'camp', 1, 1, {t:'флаг знамя вымпел штандарт', v:BANNER.length, vn:VN(BANNER), hd:true}, (g, v)=>bannerDraw(g, PV(BANNER, v)));
+  A('signpost', 'Указатель', 'camp', 1, 1, {t:'указатель знак табличка столб', v:SIGNPOST.length, vn:VN(SIGNPOST), hd:true}, (g, v)=>signpostDraw(g, PV(SIGNPOST, v)));
+  A('searchlight', 'Прожектор', 'camp', 1, 1, {t:'прожектор свет фонарь охрана', v:SEARCH.length, vn:VN(SEARCH), hd:true, lit:true}, (g, v)=>searchlightDraw(g, PV(SEARCH, v)));
+  A('radio_mast', 'Радиомачта', 'camp', 2, 2, {t:'радио мачта антенна связь', v:RMAST.length, vn:VN(RMAST), hd:true}, (g, v)=>radioMastDraw(g, PV(RMAST, v)));
+  A('trophy_pole', 'Столб с трофеями', 'camp', 1, 1, {t:'трофеи черепа столб виселица', v:TROPHY.length, vn:VN(TROPHY), hd:true}, (g, v)=>trophyPoleDraw(g, PV(TROPHY, v)));
+
   /* ===================== ЗОНЫ АНОМАЛИЙ ===================== */
   /* ---- Аномалии (HD) ---- */
   // камень сверху: гранёный силуэт, свет с северо-запада, трещины, лишайник
@@ -17192,6 +17355,10 @@ const MapRender = (function(){
         walkPath(pts, 1, R()*0.5, (x, y, a)=>{ crossBar(ctx, x, y, a, w, 0.025, 'rgba(30,26,22,.35)'); if(R() < 0.25){ const [px, py] = side(x, y, a, (R() - 0.5)*(w - 0.4)); ctx.strokeStyle = 'rgba(96,110,52,.8)'; ctx.lineWidth = 0.02; for(let b=0;b<4;b++){ ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px + (R() - 0.5)*0.18, py - 0.06 - R()*0.1); ctx.stroke(); } } });
         walkPath(pts, 1.7, R(), (x, y, a)=>{ const r = R(), [px, py] = side(x, y, a, (R() - 0.5)*(w - 0.6)); if(r < 0.3) crackAt(ctx, R, px, py, a, 0.4 + R()*0.4); else if(r < 0.42) stain(ctx, px, py, 0.25, 'rgba(20,18,14,.25)'); else if(r < 0.5){ ctx.fillStyle = 'rgba(40,36,30,.4)'; ctx.fillRect(px - 0.2, py - 0.15, 0.4, 0.3); } });
         break; }
+      case 'trail': { // натоптанная тропа: мягкая кромка, светлее посередине, следы и камешки
+        for(let i=0;i<4;i++) sp(pts, w*(1.5 - i*0.18), 'rgba(110,88,62,.12)'); sp(pts, w*0.8, 'rgba(120,98,70,.25)'); sp(pts, w*0.4, 'rgba(160,138,104,.18)');
+        walkPath(pts, 0.35, R()*0.3, (x, y, a)=>{ if(R() < 0.5){ const [px, py] = side(x, y, a, (R() - 0.5)*w*0.6); ctx.beginPath(); ctx.ellipse(px, py, 0.06, 0.035, a, 0, 6.28); ctx.fillStyle = 'rgba(70,52,34,.35)'; ctx.fill(); } if(R() < 0.25){ const [px, py] = side(x, y, a, (R() - 0.5)*w*1.4); ctx.beginPath(); ctx.arc(px, py, 0.025 + R()*0.03, 0, 6.28); ctx.fillStyle = R() < 0.5 ? '#6f675c' : '#8a8276'; ctx.fill(); } });
+        break; }
       case 'track': {
         sp(pts, w + 0.6, 'rgba(110,88,60,.22)'); sp(pts, w + 0.25, 'rgba(120,96,66,.45)'); sp(pts, w, '#7a6247'); sp(pts, w, T('dirt', '#8f7553')); sp(pts, w*0.9, 'rgba(128,104,74,.35)');
         sp(pts, w*0.3, 'rgba(96,100,56,.18)'); // травяная полоса между колеями
@@ -17263,6 +17430,7 @@ const MapRender = (function(){
       case 'road': strokePath(ctx, pts, w + 0.12, '#2c2a27'); strokePath(ctx, pts, w, tx('cracked', '#4a4743')); strokePath(ctx, pts, 0.08, hd ? 'rgba(190,168,104,.7)' : '#d0a72c', [0.5, 0.45]); break;
       case 'highway': strokePath(ctx, pts, w + 0.3, tx('concrete', '#8e8a80')); strokePath(ctx, pts, w, tx('asphalt', '#45423e')); strokePath(ctx, pts, w*0.45, hd ? 'rgba(214,208,192,.4)' : 'rgba(233,227,211,.55)', [0.6, 0.6]); strokePath(ctx, pts, w*0.45 - 0.12, tx('asphalt', '#45423e')); strokePath(ctx, pts, 0.1, hd ? 'rgba(190,168,104,.75)' : '#d0a72c'); break;
       case 'sidewalk': strokePath(ctx, pts, w, tx('concrete', '#9a968c')); break;
+      case 'trail': strokePath(ctx, pts, w, 'rgba(120,96,66,.35)'); break;
       case 'track': strokePath(ctx, pts, w, tx('dirt', '#8f7553')); strokePath(ctx, pts, w*0.55, 'rgba(94,72,48,.55)'); strokePath(ctx, pts, w*0.3, tx('dirt', '#8f7553')); break;
       case 'rail': strokePath(ctx, pts, w, '#6b5a45', [0.12, 0.2]); strokePath(ctx, pts, w*0.62, '#5e5850'); strokePath(ctx, pts, w*0.46, '#9a948a'); strokePath(ctx, pts, w*0.36, '#5e5850'); break;
       case 'pipe': strokePath(ctx, pts, w, '#4f5a60'); strokePath(ctx, pts, w*0.78, '#8a979e'); strokePath(ctx, pts, w*0.2, 'rgba(255,255,255,.25)'); strokePath(ctx, pts, w, 'rgba(30,27,24,.45)', [0.06, 1.5]); break;
@@ -18036,34 +18204,210 @@ const MapGen = (function(){
     doc.gen.cond = cond;
     doc.gen.title = {x:cols/2, y:rows - 0.7, text:{abandoned:'Комплекс заброшен', flooded:'Нижние уровни затоплены', infested:'Комплекс заражён', wrecked:'Комплекс разгромлен'}[cond]};
   }
-  // Лагерь в пустоши: песок с пятнами, ограда из металлолома с воротами, палатки вокруг костра, транспорт
+  /* ---------- Лагерь: тип → место → граница и ограда → зоны по схеме (функциональная / кольцами / улицей) → состояние ----------
+     Зоны — части карты (подписи, перегенерация по одной), как комнаты бункера. */
+  const CROLES = {
+    c_tents:   {sz:2, fl:['dirt'], it:[{a:['tent'], m:'grid'}, {a:['sleeping_bag'], m:'wall', n:[0, 2]}, {a:['oil_drum_fire', 'campfire'], m:'center', p:0.4}, {a:['drying_rack'], m:'wall', p:0.4}, {a:['trash'], m:'floor', p:0.4}]},
+    c_shacks:  {sz:2, fl:['dirt', 'dust'], it:[{a:['scrap_shack'], m:'center', n:[1, 3]}, {a:['sleeping_bag'], m:'wall', n:[0, 2]}, {a:['barrel', 'water_cistern'], m:'corner', p:0.6}, {a:['drying_rack'], m:'wall', p:0.5}, {a:['tire_stack', 'crate_wood'], m:'corner', p:0.5}]},
+    c_kitchen: {sz:1, fl:['dust'], it:[{a:['field_kitchen'], m:'center1'}, {a:['table_dining'], m:'center', p:0.6}, {a:['barrel'], m:'corner', n:[1, 2]}, {a:['water_cistern'], m:'corner', p:0.5}, {a:['crate_wood'], m:'corner', p:0.7}, {a:['crate_wood'], m:'wall', p:0.3}]},
+    c_storage: {sz:1, fl:['gravel', 'dust'], it:[{a:['canopy'], m:'center1'}, {a:['crate_wood', 'crate_metal'], m:'corner', n:[2, 4]}, {a:['barrels_group', 'barrel'], m:'corner', n:[1, 2]}, {a:['pallet'], m:'wall', p:0.6}, {a:['shipping_container'], m:'wall', p:0.2}]},
+    c_workshop:{sz:1, fl:['gravel'], it:[{a:['canopy'], m:'center1', p:0.6}, {a:['workbench'], m:'wall'}, {a:['scrap_pile'], m:'corner'}, {a:['tire_stack'], m:'corner', n:[1, 2]}, {a:['generator'], m:'corner', p:0.5}, {a:['lathe'], m:'wall', p:0.3}, {a:['barrel'], m:'corner', p:0.6}]},
+    c_garden:  {sz:2, fl:['dirt'], it:[{a:['garden_bed'], m:'grid'}, {a:['moisture_trap'], m:'corner', n:[1, 2]}, {a:['water_cistern'], m:'corner', p:0.4}]},
+    c_water:   {sz:1, fl:['dust'], it:[{a:['water_cistern'], m:'center1'}, {a:['moisture_trap'], m:'ring', n:[2, 4]}, {a:['barrel'], m:'corner', p:0.6}]},
+    c_market:  {sz:2, fl:['dust'], it:[{a:['market_stall', 'market_tent'], m:'grid'}, {a:['canopy'], m:'corner', p:0.3}, {a:['crate_wood'], m:'corner', n:[1, 2]}, {a:['banner'], m:'corner', p:0.6}]},
+    c_elder:   {sz:1, fl:['dust'], it:[{a:['scrap_shack', 'big_tent'], m:'center1'}, {a:['banner'], m:'corner'}, {a:['radio'], m:'corner', p:0.4}, {a:['crate_metal'], m:'corner'}, {a:['table_small'], m:'center', p:0.5}]},
+    c_latrine: {sz:0, fl:['dirt'], it:[{a:['latrine'], m:'wall', n:[1, 2]}, {a:['trash'], m:'floor', p:0.5}]},
+    c_pen:     {sz:1, fl:['mud'], it:[{a:['animal_pen'], m:'center1'}, {a:['pack_animal'], m:'center', n:[1, 3]}]},
+    c_watch:   {sz:0, fl:['dust'], it:[{a:['watchtower', 'scrap_tower'], m:'center1'}, {a:['searchlight'], m:'corner', p:0.6}, {a:['sandbags_line'], m:'wall', p:0.5}, {a:['ammo_crate'], m:'corner', p:0.4}]},
+    c_barracks:{sz:2, fl:['dirt', 'dust'], it:[{a:['scrap_shack', 'big_tent'], m:'center', n:[1, 2]}, {a:['sleeping_bag'], m:'wall', n:[2, 4]}, {a:['oil_drum_fire'], m:'center', p:0.7}, {a:['weapon_rack'], m:'wall', p:0.5}, {a:['trash'], m:'floor', n:[1, 2]}, {a:['tire_stack'], m:'corner', p:0.5}]},
+    c_boss:    {sz:1, fl:['dust'], it:[{a:['big_tent', 'scrap_shack'], m:'center1'}, {a:['trophy_pole'], m:'corner', n:[1, 2]}, {a:['banner'], m:'corner'}, {a:['crate_metal', 'safe'], m:'corner'}, {a:['oil_drum_fire'], m:'corner', p:0.7}]},
+    c_garage:  {sz:2, fl:['gravel'], it:[{a:['war_rig', 'buggy', 'pickup_rust'], m:'center', n:[1, 2]}, {a:['tire_stack'], m:'corner', n:[1, 3]}, {a:['fuel_pump'], m:'wall'}, {a:['barrels_group'], m:'corner'}, {a:['workbench'], m:'wall', p:0.5}, {a:['scrap_pile'], m:'corner', p:0.6}]},
+    c_cages:   {sz:1, fl:['dirt'], it:[{a:['cage'], m:'grid'}, {a:['blood'], m:'floor', n:[1, 2]}, {a:['trophy_pole'], m:'corner', p:0.5}]},
+    c_arena:   {sz:2, fl:['dust'], it:[{a:['arena_pit'], m:'center1'}, {a:['trophy_pole'], m:'corner', p:0.6}, {a:['oil_drum_fire'], m:'corner', n:[1, 2]}, {a:['banner'], m:'corner', p:0.5}]},
+    c_shrine:  {sz:0, fl:['ash', 'dust'], it:[{a:['skull_totem'], m:'center1'}, {a:['trophy_pole'], m:'ring', n:[3, 5]}, {a:['bone_pile'], m:'corner', n:[1, 2]}, {a:['blood'], m:'floor'}]},
+    c_loot:    {sz:1, fl:['gravel'], it:[{a:['crate_metal', 'crate_wood', 'ammo_crate'], m:'corner', n:[2, 4]}, {a:['barrels_group'], m:'corner'}, {a:['shipping_container'], m:'wall', p:0.4}, {a:['scrap_pile'], m:'corner', p:0.6}, {a:['weapon_rack'], m:'wall', p:0.5}, {a:['safe'], m:'corner', p:0.3}]},
+    c_wagons:  {sz:2, fl:['dirt'], it:[{a:['caravan_cart'], m:'center', n:[1, 3]}, {a:['pack_animal'], m:'center', n:[1, 2]}, {a:['crate_wood'], m:'corner', n:[1, 2]}, {a:['barrel'], m:'corner', p:0.6}]},
+    c_plaza:   {sz:1, fl:['dust'], it:[{a:['campfire'], m:'center1'}, {a:['sleeping_bag'], m:'ring', n:[3, 6]}, {a:['crate_wood'], m:'corner', p:0.6}, {a:['banner'], m:'corner', p:0.6}]},
+    c_trade:   {sz:2, fl:['dust'], it:[{a:['market_stall'], m:'grid'}, {a:['market_tent'], m:'corner', p:0.5}, {a:['crate_wood'], m:'corner', n:[1, 2]}]},
+    c_bedroll: {sz:1, fl:['dirt'], it:[{a:['sleeping_bag'], m:'grid'}, {a:['tent'], m:'corner', p:0.6}, {a:['lamp'], m:'corner', p:0.5}]},
+    c_goods:   {sz:1, fl:['gravel'], it:[{a:['canopy'], m:'center1'}, {a:['crate_wood', 'crate_metal'], m:'corner', n:[2, 3]}, {a:['barrels_group', 'pallet'], m:'corner', n:[1, 2]}]},
+    c_guard:   {sz:0, fl:['dust'], it:[{a:['sandbags_line', 'sandbags_arc'], m:'center1'}, {a:['oil_drum_fire'], m:'corner', p:0.7}, {a:['searchlight'], m:'corner', p:0.5}, {a:['ammo_crate'], m:'corner', p:0.5}]},
+    c_miltents:{sz:2, fl:['dust'], it:[{a:['big_tent', 'tent'], m:'grid'}]},
+    c_hq:      {sz:1, fl:['gravel'], it:[{a:['big_tent'], m:'center1'}, {a:['radio_mast'], m:'corner'}, {a:['banner'], m:'corner'}, {a:['radio', 'terminal'], m:'corner', p:0.6}, {a:['generator'], m:'corner', p:0.5}]},
+    c_comms:   {sz:0, fl:['gravel'], it:[{a:['radio_mast'], m:'center1'}, {a:['generator'], m:'corner'}, {a:['radio'], m:'corner'}, {a:['crate_metal'], m:'corner', p:0.5}]},
+    c_armory:  {sz:1, fl:['gravel'], it:[{a:['canopy'], m:'center1'}, {a:['weapon_rack'], m:'wall', n:[2, 3]}, {a:['ammo_crate'], m:'corner', n:[2, 4]}, {a:['crate_metal'], m:'corner', p:0.6}]},
+    c_mess:    {sz:1, fl:['dust'], it:[{a:['field_kitchen'], m:'center1'}, {a:['table_dining'], m:'corner', n:[1, 2]}, {a:['water_cistern'], m:'corner'}, {a:['crate_wood'], m:'corner', p:0.6}]},
+    c_motor:   {sz:2, fl:['gravel'], it:[{a:['pickup_rust', 'buggy', 'apc_wreck', 'war_rig'], m:'center', n:[1, 3]}, {a:['fuel_pump'], m:'wall'}, {a:['tire_stack', 'barrels_group'], m:'corner', n:[1, 3]}]},
+    c_medic:   {sz:1, fl:['dust'], it:[{a:['big_tent'], m:'center1'}, {a:['stretcher'], m:'wall', n:[1, 3]}, {a:['medkit'], m:'corner', n:[1, 2]}, {a:['water_cistern'], m:'corner', p:0.4}]},
+  };
+  Object.assign(ROLES, CROLES);
+  // [роль, название, ширина[min,max], высота[min,max], вероятность, место, количество]
+  const CAMP_TYPES = {
+    settle:{name:'Поселение', perim:['scrap', 'scrap', 'palisade', 'vehicles', 'wire', 'none'], schemes:['zones', 'radial', 'street'], banner:1, zones:[
+      ['c_kitchen', 'Общая кухня', [5, 6], [5, 6], 1, 'center'], ['c_market', 'Рынок', [6, 8], [5, 6], 0.7, 'center'], ['c_shacks', 'Жилые хижины', [6, 8], [6, 7], 1, 'ring', 2], ['c_tents', 'Палатки', [6, 8], [5, 7], 0.7, 'ring'],
+      ['c_elder', 'Дом старосты', [5, 6], [5, 6], 0.8, 'ring'], ['c_storage', 'Склад', [5, 6], [5, 6], 1, 'gate'], ['c_workshop', 'Мастерская', [5, 6], [5, 6], 1, 'outer'], ['c_garden', 'Огород', [6, 8], [4, 6], 1, 'outer', 2],
+      ['c_water', 'Водосбор', [4, 5], [4, 5], 0.8, 'outer'], ['c_pen', 'Загон', [5, 6], [5, 6], 0.5, 'gate'], ['c_watch', 'Дозорный пост', [3, 4], [3, 4], 0.7, 'gate'], ['c_latrine', 'Отхожее место', [3, 4], [2, 3], 1, 'downwind']]},
+    raiders:{name:'Лагерь банды', perim:['scrap', 'vehicles', 'vehicles', 'wire', 'none'], schemes:['zones', 'radial'], banner:1, zones:[
+      ['c_arena', 'Арена', [6, 7], [6, 7], 0.6, 'center'], ['c_boss', 'Логово вожака', [6, 7], [5, 6], 1, 'ring'], ['c_barracks', 'Бараки', [6, 8], [5, 7], 1, 'ring', 2], ['c_garage', 'Гараж', [6, 8], [6, 7], 1, 'gate'],
+      ['c_cages', 'Клетки', [5, 7], [4, 5], 1, 'outer'], ['c_loot', 'Добыча', [5, 6], [4, 5], 1, 'outer'], ['c_kitchen', 'Кухня', [5, 6], [5, 6], 0.7, 'ring'], ['c_shrine', 'Святилище', [4, 5], [4, 5], 0.5, 'outer'],
+      ['c_watch', 'Дозор', [3, 4], [3, 4], 0.8, 'gate'], ['c_latrine', 'Отхожее место', [3, 4], [2, 3], 1, 'downwind']]},
+    caravan:{name:'Стоянка каравана', perim:['vehicles', 'vehicles', 'none', 'wire'], schemes:['radial', 'radial', 'zones'], banner:1, zones:[
+      ['c_plaza', 'Общий костёр', [6, 7], [6, 7], 1, 'center'], ['c_wagons', 'Повозки', [7, 8], [6, 7], 1, 'ring', 2], ['c_trade', 'Торговые ряды', [7, 8], [5, 6], 1, 'ring'], ['c_bedroll', 'Ночлег', [6, 7], [5, 6], 1, 'ring'],
+      ['c_pen', 'Загон', [5, 6], [5, 6], 1, 'outer'], ['c_goods', 'Товары', [5, 6], [5, 6], 1, 'outer'], ['c_water', 'Вода', [4, 5], [4, 5], 0.5, 'outer'], ['c_guard', 'Охрана', [3, 4], [3, 4], 1, 'gate'], ['c_latrine', 'Отхожее место', [3, 4], [2, 3], 0.6, 'downwind']]},
+    military:{name:'Военный лагерь', perim:['wire', 'wire', 'sandbag'], schemes:['street'], rect:1, banner:1, zones:[
+      ['c_hq', 'Штаб', [6, 7], [6, 7], 1, 'center'], ['c_miltents', 'Палаточный городок', [8, 10], [7, 8], 1, 'ring', 2], ['c_comms', 'Связь', [4, 5], [4, 5], 1, 'ring'], ['c_armory', 'Оружейная', [5, 6], [5, 6], 1, 'ring'],
+      ['c_mess', 'Полевая кухня', [6, 7], [5, 6], 1, 'ring'], ['c_motor', 'Автопарк', [7, 8], [6, 7], 1, 'gate'], ['c_medic', 'Лазарет', [6, 7], [5, 6], 0.8, 'outer'], ['c_guard', 'КПП', [3, 4], [3, 4], 1, 'gate'], ['c_latrine', 'Отхожее место', [3, 4], [2, 3], 1, 'downwind']]},
+  };
+  const CAMP_NAMES = {settle:['Ржавый Ключ', 'Новая Надежда', 'Пыльный Колодец', 'Тихий Угол', 'Последний Приют', 'Солёная Балка', 'Сухой Ручей'], raiders:['Черепа', 'Ржавые Псы', 'Пыльные Волки', 'Палачи', 'Красные Бензобаки', 'Шакалы'],
+    caravan:['Медный Путь', 'Три Брамина', 'Соляной Караван', 'Длинная Дорога', 'Звон Монет'], military:null};
   function wasteCamp(doc, opts){
-    opts = opts || {}; const g = ctxFor(doc, opts.seed); g.opts = opts; doc.gen = {id:'camp', seed:g.seed, opts:{labels:opts.labels || 'buildings', lsize:opts.lsize || 'normal'}, parts:[]}; reset(doc, 'sand');
-    const n = g.noise(7, 2), n2 = g.noise(3, 3);
-    for(let y=0;y<doc.rows;y++) for(let x=0;x<doc.cols;x++){ const v = n(x, y), w = n2(x, y); if(v > 0.66) g.setT(x, y, 'dust'); else if(v < 0.2) g.setT(x, y, 'saltflat'); if(w > 0.83) g.setT(x, y, 'gravel'); }
-    const cx = Math.floor(doc.cols/2), cy = Math.floor(doc.rows/2), R = Math.max(5, Math.floor(Math.min(doc.cols, doc.rows)/2) - 5);
-    g.rectT(cx - R + 1, cy - R + 1, 2*R - 2, 2*R - 2, 'dust');
-    // ограда-восьмиугольник по узлам сетки, ворота — разрыв снизу
-    const c = Math.round(R*0.42);
-    const ring = [[cx - R + c, cy - R], [cx + R - c, cy - R], [cx + R, cy - R + c], [cx + R, cy + R - c], [cx + R - c, cy + R], [cx + 2, cy + R]];
-    g.wall('scrap', ring); g.wall('scrap', [[cx - 2, cy + R], [cx - R + c, cy + R], [cx - R, cy + R - c], [cx - R, cy - R + c], [cx - R + c, cy - R]]);
-    g.doc.objects.push({id:newId('o'), a:'settlement_gate', x:cx, y:cy + R, r:0, s:1, v:0, f:false});
-    g.mark(cx - R, cy - R, 2*R, 2*R);
-    for(let y=cy - R + 2;y<cy + R - 1;y++) for(let x=cx - R + 2;x<cx + R - 1;x++) g.occ[y*doc.cols + x] = 0;
-    g.obj('campfire', cx, cy, 0, 0, true); g.mark(cx - 1, cy - 1, 3, 3);
-    for(let i=0;i<8;i++){ const a = i/8*Math.PI*2 + 0.3, r = R*0.55; const tx = Math.round(cx + Math.cos(a)*r) - 1, ty = Math.round(cy + Math.sin(a)*r) - 1; g.obj(i%3===2 ? 'big_tent' : 'tent', tx, ty, 0); }
-    ['scrap_shack', 'scrap_shack', 'water_tower', 'moisture_trap', 'moisture_trap', 'scrap_pile', 'barrels_group', 'oil_drum_fire', 'caravan_cart', 'workbench', 'skull_totem', 'solar_panels'].forEach(a=>g.tryObj(a, cx - R + 2, cy - R + 2, cx + R - 1, cy + R - 1, 14));
-    [[cx - R + c, cy - R], [cx + R - c - 2, cy - R], [cx - R, cy + R - c - 2], [cx + R - 2, cy + R - c - 2]].forEach(([x, y])=>g.obj('scrap_tower', x, y, 0, 0, true));
-    g.path('track', 2, [[cx + 0.5, cy + R + 0.5], [cx + 0.5 + g.ri(-4, 4), doc.rows]]);
-    [['war_rig', 0], ['buggy', 90], ['pickup_rust', 0]].forEach(([a, r])=>g.tryObj(a, Math.max(0, cx - R - 6), Math.min(doc.rows - 6, cy + R + 1), Math.min(doc.cols, cx + R + 6), doc.rows, 14, r));
-    for(let i=0;i<Math.round(doc.cols*doc.rows/120);i++) g.tryObj(g.pick(['dune', 'rock_big', 'boulder', 'rocks_scatter', 'cactus', 'dry_bush', 'beast_bones', 'crater']), 0, 0, doc.cols, doc.rows, 5);
-    if(doc.cols > 30) g.path('dryriver', 2, [[0, g.ri(2, 6) + 0.5], [doc.cols*0.4, g.ri(1, 8) + 0.5], [doc.cols, g.ri(2, 6) + 0.5]]);
-    doc.gen.title = {x:cx, y:cy - R - 1.2 < 1 ? 1 : cy - R - 1.2, text:'Лагерь'};
+    opts = opts || {}; const g = ctxFor(doc, opts.seed); g.opts = opts; const {cols, rows} = doc, AREA = cols*rows;
+    const typeId = CAMP_TYPES[opts.ctype] ? opts.ctype : g.pick(Object.keys(CAMP_TYPES)), T = CAMP_TYPES[typeId];
+    const terr = ['waste', 'ruins', 'dryriver', 'rocks'].indexOf(opts.terr) >= 0 ? opts.terr : g.pick(['waste', 'waste', 'ruins', 'dryriver', 'rocks']);
+    const perim = ['scrap', 'palisade', 'wire', 'vehicles', 'none', 'sandbag'].indexOf(opts.perim) >= 0 ? opts.perim : g.pick(T.perim);
+    const cstate = ['living', 'abandoned', 'ravaged'].indexOf(opts.cstate) >= 0 ? opts.cstate : g.pick(['living', 'living', 'living', 'abandoned', 'ravaged']);
+    const scheme = g.pick(T.schemes);
+    reset(doc, terr==='rocks' ? 'dust' : 'sand');
+    doc.gen = {id:'camp', seed:g.seed, opts:{ctype:opts.ctype || 'random', perim:opts.perim || 'random', terr:opts.terr || 'random', csize:opts.csize || 'medium', cstate:opts.cstate || 'random', scenes:opts.scenes || 'normal', prefabs:opts.prefabs || 'some', labels:opts.labels || 'buildings', lsize:opts.lsize || 'normal'}, parts:[]};
+    const n1 = g.noise(7, 2), n2 = g.noise(3, 3);
+    for(let y=0;y<rows;y++) for(let x=0;x<cols;x++){ const v = n1(x, y), w = n2(x, y); if(terr==='rocks'){ if(v > 0.6) g.setT(x, y, 'gravel'); else if(v < 0.25) g.setT(x, y, 'rock'); } else { if(v > 0.66) g.setT(x, y, 'dust'); else if(v < 0.2) g.setT(x, y, 'saltflat'); if(w > 0.83) g.setT(x, y, 'gravel'); } }
+    // граница лагеря: неровный эллипс (у военных — прямоугольник)
+    const fr = {small:0.27, medium:0.37, full:0.46}[opts.csize] || 0.37, R = Math.max(7, Math.min(cols, rows)*fr);
+    const cx = cols/2 + g.ri(-2, 2), cy = rows/2 + g.ri(-2, 2), asp = T.rect ? 1 : 0.85 + g.rnd()*0.3;
+    let poly = [];
+    if(T.rect){ const hw = Math.round(R*1.1*Math.min(1.2, cols/rows)), hh = Math.round(R); poly = [[cx - hw, cy - hh], [cx + hw, cy - hh], [cx + hw, cy + hh], [cx - hw, cy + hh]].map(([x, y])=>[Math.round(x), Math.round(y)]); }
+    else { const nV = g.ri(13, 18), ph = g.rnd()*6.28, nz = g.noise(1.4, g.ri(1, 999)); for(let i=0;i<nV;i++){ const a = i/nV*6.28 + (g.rnd() - 0.5)*0.15, r = R*(0.86 + nz(i, 3)*0.28); poly.push([Math.round((cx + Math.cos(a + ph)*r*asp)*2)/2, Math.round((cy + Math.sin(a + ph)*r/asp)*2)/2]); } }
+    poly = poly.map(([x, y])=>[Math.max(1.5, Math.min(cols - 1.5, x)), Math.max(1.5, Math.min(rows - 1.5, y))]);
+    const inPoly = (x, y)=>{ let c = false; for(let i=0, j=poly.length - 1;i<poly.length;j=i++){ const [xi, yi] = poly[i], [xj, yj] = poly[j]; if((yi > y) !== (yj > y) && x < (xj - xi)*(y - yi)/(yj - yi) + xi) c = !c; } return c; };
+    const edgeDist = (x, y)=>{ let m = Infinity; for(let i=0;i<poly.length;i++){ const [ax, ay] = poly[i], [bx, by] = poly[(i + 1)%poly.length], dx = bx - ax, dy = by - ay, L2 = dx*dx + dy*dy || 1; let t = ((x - ax)*dx + (y - ay)*dy)/L2; t = Math.max(0, Math.min(1, t)); m = Math.min(m, Math.hypot(x - ax - dx*t, y - ay - dy*t)); } return m; };
+    // ворота: со стороны ближайшего края карты, куда уходит дорога; ветер — для отхожего места
+    const sides = [[cy, 0, -Math.PI/2], [cols - cx, 1, 0], [rows - cy, 2, Math.PI/2], [cx, 3, Math.PI]].sort((a, b)=>a[0] - b[0]), gateAng = sides[g.rnd() < 0.7 ? 0 : 1][2] + (g.rnd() - 0.5)*0.5;
+    const rayHit = (ang)=>{ let best = null; for(let i=0;i<poly.length;i++){ const [ax, ay] = poly[i], [bx, by] = poly[(i + 1)%poly.length], dx = Math.cos(ang), dy = Math.sin(ang), ex = bx - ax, ey = by - ay, den = dx*ey - dy*ex; if(Math.abs(den) < 1e-9) continue; const t = ((ax - cx)*ey - (ay - cy)*ex)/den, u = ((ax - cx)*dy - (ay - cy)*dx)/den; if(t > 0 && u >= 0 && u <= 1 && (!best || t < best.t)) best = {t, i, u, x:cx + dx*t, y:cy + dy*t}; } return best; };
+    const gate = rayHit(gateAng) || {t:R, i:0, u:0.5, x:(poly[0][0] + poly[1][0])/2, y:(poly[0][1] + poly[1][1])/2}, gate2 = g.rnd() < 0.4 ? rayHit(gateAng + Math.PI + (g.rnd() - 0.5)*1.2) : null, wind = gateAng + Math.PI/2 + (g.rnd() < 0.5 ? 0 : Math.PI) + (g.rnd() - 0.5)*0.8;
+    const attackAng = cstate==='ravaged' ? gateAng + (g.rnd() - 0.5)*2.4 : null;
+    // местность вокруг: скалы с одной-двух сторон, руины, сухое русло
+    const occAll = (x, y)=>x < 0 || y < 0 || x >= cols || y >= rows;
+    let cliffAng = null;
+    if(terr==='rocks'){ cliffAng = gateAng + Math.PI + (g.rnd() - 0.5)*1.4; const span = 0.9 + g.rnd()*0.7;
+      for(let y=0;y<rows;y++) for(let x=0;x<cols;x++){ const a = Math.atan2(y + 0.5 - cy, x + 0.5 - cx), da = Math.abs(((a - cliffAng + Math.PI*3)%(Math.PI*2)) - Math.PI), d = Math.hypot(x + 0.5 - cx, y + 0.5 - cy);
+        if(da < span && d > R*(1.02 + n2(x, y)*0.15)){ g.setT(x, y, 'rock'); if(!inPoly(x + 0.5, y + 0.5)) g.occ[y*cols + x] = 1; } } }
+    if(terr==='dryriver'){ const off = R*(1.05 + g.rnd()*0.25), ra = gateAng + Math.PI/2 + (g.rnd() < 0.5 ? 0 : Math.PI), px = cx + Math.cos(ra)*off, py = cy + Math.sin(ra)*off, dir = ra + Math.PI/2;
+      const pts = []; for(let t=-1.3;t<=1.3;t+=0.26){ const L = Math.max(cols, rows)*t, w = Math.sin(t*3 + g.rnd())*2.5; pts.push([px + Math.cos(dir)*L + Math.cos(ra)*w, py + Math.sin(dir)*L + Math.sin(ra)*w]); }
+      g.path('dryriver', g.ri(2, 3), pts); }
+    // ---- ограда ----
+    const breach = new Set();
+    const wallKind = {scrap:'scrap', palisade:'wood', wire:'fence', sandbag:'sandbag'}[perim];
+    const segGate = (i, u0)=>[gate, gate2].some(gt=>gt && gt.i===i);
+    const placed = [], put = (a, x, y, r, force)=>{ const as = MapAssets.BY_ID[a]; if(!as) return false; const t = r*Math.PI/180, bw = Math.abs(Math.cos(t))*as.w + Math.abs(Math.sin(t))*as.h, bh = Math.abs(Math.sin(t))*as.w + Math.abs(Math.cos(t))*as.h;
+      const x0 = Math.floor(x - bw/2), y0 = Math.floor(y - bh/2), cw = Math.ceil(x + bw/2) - x0, ch = Math.ceil(y + bh/2) - y0; if(x0 < 0 || y0 < 0 || x0 + cw > cols || y0 + ch > rows) return false;
+      if(!force && !as.g && !g.free(x0, y0, cw, ch)) return false; if(!as.g) g.mark(x0, y0, cw, ch); const o = {id:newId('o'), a, x:Math.round(x*100)/100, y:Math.round(y*100)/100, r:Math.round(((r%360) + 360)%360), s:1, v:g.variant(a, cstate==='living' ? 'intact' : 'ruined', cstate==='abandoned' ? /пуст|потух|остыл|рван|ржав|брош|выключ|засох/i : null), f:g.rnd() < 0.3}; doc.objects.push(o); placed.push(o); return o; };
+    const inCliff = (x, y)=>{ const cx2 = Math.floor(x), cy2 = Math.floor(y); return cx2 >= 0 && cy2 >= 0 && cx2 < cols && cy2 < rows && doc.terrain[cy2*cols + cx2]===TI.rock; };
+    for(let i=0;i<poly.length;i++){
+      const a = poly[i], b = poly[(i + 1)%poly.length], len = Math.hypot(b[0] - a[0], b[1] - a[1]), ang = Math.atan2(b[1] - a[1], b[0] - a[0]);
+      // отрезок стены, кроме проёма ворот и пролома; у скалы вместо ограды — скальный край
+      const gts = [gate, gate2].filter(gt=>gt && gt.i===i).map(gt=>gt.u*len);
+      const pieces = []; let s0 = 0; gts.sort((p, q)=>p - q).forEach(p=>{ pieces.push([s0, Math.max(s0, p - 2)]); s0 = p + 2; }); pieces.push([s0, len]);
+      pieces.forEach(([s1, s2])=>{ if(s2 - s1 < 0.3) return; let pts = [[a[0] + Math.cos(ang)*s1, a[1] + Math.sin(ang)*s1], [a[0] + Math.cos(ang)*s2, a[1] + Math.sin(ang)*s2]];
+        const mid = [(pts[0][0] + pts[1][0])/2, (pts[0][1] + pts[1][1])/2], midAng = Math.atan2(mid[1] - cy, mid[0] - cx);
+        if(cliffAng != null && inCliff(mid[0] + Math.cos(midAng)*1.5, mid[1] + Math.sin(midAng)*1.5)){ g.wall('rock', pts); return; }
+        if(attackAng != null && Math.abs(((midAng - attackAng + Math.PI*3)%(Math.PI*2)) - Math.PI) < 0.28){ breach.add(i); const m1 = s1 + (s2 - s1)*0.3, m2 = s1 + (s2 - s1)*0.7; pts = [[a[0] + Math.cos(ang)*s1, a[1] + Math.sin(ang)*s1], [a[0] + Math.cos(ang)*m1, a[1] + Math.sin(ang)*m1]];
+          if(wallKind) g.wall(wallKind, pts); if(wallKind) g.wall(wallKind, [[a[0] + Math.cos(ang)*m2, a[1] + Math.sin(ang)*m2], [a[0] + Math.cos(ang)*s2, a[1] + Math.sin(ang)*s2]]); return; }
+        if(perim==='vehicles'){ let s = s1 + 0.6; while(s < s2 - 1){ const A = g.pick(typeId==='caravan' ? ['caravan_cart', 'caravan_cart', 'car_wreck', 'pickup_rust'] : ['car_wreck', 'car_wreck', 'bus_wreck', 'pickup_rust', 'car_burnt', 'war_rig']), as = MapAssets.BY_ID[A], L = Math.max(as.w, as.h);
+            if(s + L > s2) break; const px = a[0] + Math.cos(ang)*(s + L/2), py = a[1] + Math.sin(ang)*(s + L/2); put(A, px, py, ang*180/Math.PI + 90 + (as.h > as.w ? 0 : -90) + (g.rnd() - 0.5)*14, true); s += L + (g.rnd() < 0.3 ? 0.8 : 0.15);
+            if(g.rnd() < 0.25 && s < s2 - 2){ put(g.pick(['jersey', 'barricade', 'tire_stack']), a[0] + Math.cos(ang)*(s + 1), a[1] + Math.sin(ang)*(s + 1), ang*180/Math.PI, true); s += 2; } } return; }
+        pts = pts.map(p=>p.map(v=>Math.round(v*100)/100)); if(wallKind) g.wall(wallKind, pts);
+        if(perim==='wire'){ for(let s=s1 + 1.5;s<s2 - 1.5;s+=3.2) put('barbed_wire', a[0] + Math.cos(ang)*s + Math.cos(ang - Math.PI/2)*0.8, a[1] + Math.sin(ang)*s + Math.sin(ang - Math.PI/2)*0.8, ang*180/Math.PI, true); } });
+    }
+    // ворота, вышки по ограде, дорога наружу, указатель
+    const gateObj = {scrap:'settlement_gate', palisade:'settlement_gate', wire:'gate_metal', sandbag:'checkpoint', vehicles:null, none:null}[perim];
+    [gate, gate2].forEach((gt, gi)=>{ if(!gt) return; const a = poly[gt.i], b = poly[(gt.i + 1)%poly.length], ang = Math.atan2(b[1] - a[1], b[0] - a[0]);
+      if(gateObj) put(gateObj, gt.x, gt.y, ang*180/Math.PI + (gateObj==='checkpoint' ? 90 : 0), true);
+      else if(perim==='none') [-1, 1].forEach(s=>put(g.pick(['sandbags_line', 'barricade']), gt.x + Math.cos(ang)*s*2.6, gt.y + Math.sin(ang)*s*2.6, ang*180/Math.PI, true));
+      const out = Math.atan2(gt.y - cy, gt.x - cx), pts = [[gt.x, gt.y]]; let px = gt.x, py = gt.y, a2 = out; for(let k=0;k<30;k++){ a2 += (g.rnd() - 0.5)*0.35; a2 = a2*0.7 + out*0.3; px += Math.cos(a2)*3; py += Math.sin(a2)*3; pts.push([Math.round(px*100)/100, Math.round(py*100)/100]); if(px < -2 || py < -2 || px > cols + 2 || py > rows + 2) break; }
+      g.path('track', 2, pts); if(gi===0) put('signpost', gt.x + Math.cos(out)*3 + Math.cos(out + Math.PI/2)*2, gt.y + Math.sin(out)*3 + Math.sin(out + Math.PI/2)*2, 0); });
+    if(perim==='scrap' || perim==='palisade' || T.rect){ const nT = T.rect ? 4 : g.ri(2, 4); const idx = T.rect ? [0, 1, 2, 3] : g.shuffle(poly.map((_, i)=>i)).slice(0, nT);
+      idx.forEach(i=>{ const [x, y] = poly[i], ia = Math.atan2(cy - y, cx - x); put(T.rect || perim==='palisade' ? 'watchtower' : 'scrap_tower', x + Math.cos(ia)*1.6, y + Math.sin(ia)*1.6, 0, true); if(g.rnd() < 0.5) put('searchlight', x + Math.cos(ia)*3, y + Math.sin(ia)*3, ia*180/Math.PI - 90); }); }
+    // занятость: вне лагеря и полоса вдоль ограды — заняты (зоны внутри с отступом)
+    const inside = new Uint8Array(AREA); for(let y=0;y<rows;y++) for(let x=0;x<cols;x++){ const px = x + 0.5, py = y + 0.5; if(inPoly(px, py) && edgeDist(px, py) > 1.6) inside[y*cols + x] = 1; }
+    const occBefore = g.occ.slice(); for(let i=0;i<AREA;i++) if(!inside[i]) g.occ[i] = 1;
+    // ---- зоны ----
+    const list = []; T.zones.forEach(z=>{ const cnt = z[6] || 1; for(let i=0;i<cnt;i++) if(g.rnd() < z[4] || (i===0 && z[4]===1)) list.push(z); });
+    const ringZ = list.filter(z=>z[5]==='ring'), outerZ = list.filter(z=>z[5]==='outer'), base = g.rnd()*6.28;
+    const target = (z, k)=>{ // куда тянется зона по выбранной схеме
+      if(z[5]==='center') return [cx, cy];
+      if(z[5]==='gate') return [gate.x - Math.cos(gateAng)*(4 + k*2), gate.y - Math.sin(gateAng)*(4 + k*2)];
+      if(z[5]==='downwind') return [cx + Math.cos(wind)*R*0.8, cy + Math.sin(wind)*R*0.8];
+      if(scheme==='street'){ const all = ringZ.concat(outerZ), j = all.indexOf(z), t = (j + 1)/(all.length + 1), sd = j%2 ? 1 : -1, sx = gate.x + (cx - gate.x)*t*1.6, sy = gate.y + (cy - gate.y)*t*1.6, pa = gateAng + Math.PI/2; return [sx + Math.cos(pa)*sd*5.5, sy + Math.sin(pa)*sd*5.5]; }
+      if(scheme==='radial'){ const arr = z[5]==='ring' ? ringZ : outerZ, j = arr.indexOf(z), a = base + (j + 0.5)/arr.length*6.28, r = (z[5]==='ring' ? 0.48 : 0.78)*R; return [cx + Math.cos(a)*r, cy + Math.sin(a)*r]; }
+      // функциональные кварталы: жильё / хозяйство / земледелие — каждый в своей стороне
+      const grp = /c_(tents|shacks|elder|barracks|boss|bedroll|miltents|kitchen|mess|plaza|hq|comms|wagons)/.test(z[0]) ? 0 : /c_(garden|pen|water|cages|shrine|medic)/.test(z[0]) ? 2 : 1, a = gateAng + Math.PI + (grp - 1)*2.1 + (g.rnd() - 0.5)*0.6;
+      return [cx + Math.cos(a)*R*(z[5]==='ring' ? 0.45 : 0.72), cy + Math.sin(a)*R*(z[5]==='ring' ? 0.45 : 0.72)]; };
+    const zones = []; let gk = 0;
+    const ZK = Math.max(1, Math.min(1.7, R/12)); // крупнее лагерь — крупнее зоны
+    list.forEach(z=>{ let [tx, ty] = target(z, z[5]==='gate' ? gk++ : 0); let done = false;
+      for(let shrink=0;shrink<4 && !done;shrink++){ const w = Math.max(3, Math.round(g.ri(z[2][0], z[2][1])*(z[0]==='c_latrine' || z[0]==='c_watch' || z[0]==='c_guard' ? 1 : ZK)) - shrink), h = Math.max(2, Math.round(g.ri(z[3][0], z[3][1])*(z[0]==='c_latrine' || z[0]==='c_watch' || z[0]==='c_guard' ? 1 : ZK)) - shrink);
+        for(let r=0;r<R*1.2 && !done;r+=1){ const steps = Math.max(1, Math.round(r*4)); for(let s=0;s<steps;s++){ const a = s/steps*6.28 + base, x = Math.round(tx + Math.cos(a)*r - w/2), y = Math.round(ty + Math.sin(a)*r - h/2);
+          if(g.free(x - 1, y - 1, w + 2, h + 2)){ zones.push({x, y, w, h, role:z[0], name:z[1]}); g.mark(x - 1, y - 1, w + 2, h + 2); done = true; break; } } } } });
+    // одинаковые зоны — с номером; вход в зону — со стороны центра лагеря
+    const cnt = {}; zones.forEach(z=>{ cnt[z.name] = (cnt[z.name] || 0) + 1; if(cnt[z.name] > 1) z.name += ' ' + cnt[z.name]; });
+    for(let i=0;i<AREA;i++) g.occ[i] = occBefore[i] || !inside[i] ? 1 : 0; zones.forEach(z=>g.mark(z.x - 1, z.y - 1, 0, 0));
+    zones.forEach(z=>{ const zx = z.x + z.w/2, zy = z.y + z.h/2, dx = cx - zx, dy = cy - zy; z.entries = [];
+      if(Math.abs(dx) > Math.abs(dy)){ const ex = dx > 0 ? z.x + z.w - 1 : z.x; for(let y=z.y + Math.floor(z.h/2) - 1;y<=z.y + Math.floor(z.h/2);y++) z.entries.push([ex, y, {o:'v', ext:true}]); }
+      else { const ey = dy > 0 ? z.y + z.h - 1 : z.y; for(let x=z.x + Math.floor(z.w/2) - 1;x<=z.x + Math.floor(z.w/2);x++) z.entries.push([x, ey, {o:'h', ext:true}]); }
+      // пятно земли под зоной — зоны читаются на карте
+      const fl = g.pick((ROLES[z.role] || {fl:['dust']}).fl), nz = g.noise(1.8, g.ri(1, 999)); for(let y=z.y - 1;y<=z.y + z.h;y++) for(let x=z.x - 1;x<=z.x + z.w;x++){ if(x < 0 || y < 0 || x >= cols || y >= rows) continue; const edge = x < z.x || y < z.y || x >= z.x + z.w || y >= z.y + z.h; if(!edge || nz(x, y) < 0.45) g.setT(x, y, fl); } });
+    // улица от ворот к центру (схема «улица»)
+    if(scheme==='street') g.path('trail', 2.2, [[gate.x, gate.y], [cx + (gate.x - cx)*0.4 + g.ri(-1, 1), cy + (gate.y - cy)*0.4 + g.ri(-1, 1)], [cx, cy]].map(p=>p.map(v=>Math.round(v*100)/100)));
+    // мебель зон (с проверкой проходов); каждая зона — в отдельности
+    const ruinedZone = (z)=>cstate==='abandoned' ? g.rnd() < 0.6 : cstate==='ravaged' && attackAng!=null ? Math.abs(((Math.atan2(z.y + z.h/2 - cy, z.x + z.w/2 - cx) - attackAng + Math.PI*3)%(Math.PI*2)) - Math.PI) < 1.1 : false;
+    zones.forEach(z=>{ z.ruined = ruinedZone(z); furnish(g, z, {state:z.ruined ? 'ruined' : 'intact', ruined:z.ruined, drop:cstate==='abandoned' ? 0.3 : z.ruined ? 0.25 : 0, prefer:cstate==='abandoned' ? /пуст|потух|остыл|рван|ржав|брош|выключ|засох/i : z.ruined ? /сгор|обгор|разбит|рван|разлом|мёртв|опрокин/i : null}); });
+    // натоптанные тропы от входов зон к центру лагеря
+    if(cstate!=='abandoned' || g.rnd() < 0.5) zones.forEach(z=>{ if(!z.entries.length || z.role==='c_kitchen' && scheme!=='street') return; const [ex, ey] = z.entries[0], tx = cx + (g.rnd() - 0.5)*2, ty = cy + (g.rnd() - 0.5)*2; if(Math.hypot(ex - tx, ey - ty) < 3) return;
+      const mx = (ex + tx)/2 + (g.rnd() - 0.5)*3, my = (ey + ty)/2 + (g.rnd() - 0.5)*3; g.path('trail', 1.1, [[ex + 0.5, ey + 0.5], [mx, my], [tx, ty]].map(p=>p.map(v=>Math.round(v*100)/100))); });
+    // жизнь между зонами: мелочи по типу лагеря (редко, со своими лимитами)
+    const FILL = {settle:['barrel', 'crate_wood', 'sleeping_bag', 'trash', 'drying_rack', 'water_cistern', 'oil_drum_fire', 'tire_stack', 'pallet'], raiders:['oil_drum_fire', 'tire_stack', 'trash', 'trophy_pole', 'barrel', 'scrap_pile', 'blood', 'skull_totem'], caravan:['crate_wood', 'barrel', 'sleeping_bag', 'pack_animal', 'campfire', 'pallet', 'trash'], military:['crate_metal', 'ammo_crate', 'sandbags_line', 'jerry' in MapAssets.BY_ID ? 'jerry' : 'barrel', 'barrel', 'lamp_post', 'radio']}[typeId];
+    const fN = Math.round(AREA/170*(cstate==='abandoned' ? 0.5 : 1)), fUsed = {}; for(let i=0, k=0;i<fN*10 && k<fN;i++){ const a = g.pick(FILL); if((fUsed[a] || 0) >= 3) continue; const x = cx + (g.rnd() - 0.5)*R*1.8, y = cy + (g.rnd() - 0.5)*R*1.8; if(!inPoly(x, y) || edgeDist(x, y) < 1.8) continue; if(put(a, x, y, g.rnd() < 0.7 ? g.pick([0, 90, 180, 270]) : g.rnd()*360)){ fUsed[a] = (fUsed[a] || 0) + 1; k++; } }
+    // мини-сцены в зонах
+    const nsc = {none:0, normal:g.ri(1, 2), many:g.ri(3, 4)}[opts.scenes]; g.shuffle(zones.slice()).slice(0, nsc == null ? 1 : nsc).forEach(z=>{ const id = placeScene(g, z); if(id) z.scene = id; });
+    // знамёна у ворот и в центре
+    if(cstate!=='abandoned'){ const bv = {settle:1, raiders:0, caravan:3, military:2}[typeId]; [gate].concat(gate2 ? [gate2] : []).forEach(gt=>{ const ia = Math.atan2(cy - gt.y, cx - gt.x); const o = put('banner', gt.x + Math.cos(ia)*2 + Math.cos(ia + 1.57)*2.5, gt.y + Math.sin(ia)*2 + Math.sin(ia + 1.57)*2.5, 0); if(o) o.v = cstate==='ravaged' ? 4 : bv; }); }
+    // состояние: следы боя у пролома / запустение
+    if(cstate==='ravaged' && attackAng != null){ const bx = cx + Math.cos(attackAng)*R, by = cy + Math.sin(attackAng)*R;
+      for(let y=0;y<rows;y++) for(let x=0;x<cols;x++){ const d = Math.hypot(x + 0.5 - bx, y + 0.5 - by); if(d < R*0.7 && n2(x*1.7, y*1.7) < 0.55 - d/(R*2)) g.setT(x, y, 'ash'); }
+      for(let k=0;k<g.ri(3, 6);k++){ const a = attackAng + (g.rnd() - 0.5)*1.2, r = R*(0.6 + g.rnd()*0.6); put(g.pick(['corpse', 'blood', 'blood', 'rubble_pile', 'car_burnt', 'corpse']), cx + Math.cos(a)*r, cy + Math.sin(a)*r, g.rnd()*360, true); }
+      for(let k=0;k<g.ri(1, 3);k++){ const a = attackAng + (g.rnd() - 0.5)*0.8, r = R*(1.1 + g.rnd()*0.4); put('crater', cx + Math.cos(a)*r, cy + Math.sin(a)*r, 0); } }
+    if(cstate==='abandoned'){ for(let k=0;k<Math.round(AREA/300);k++) g.tryObj(g.pick(['dry_bush', 'trash', 'dry_bush', 'rocks_scatter']), 0, 0, cols, rows, 4); for(let y=0;y<rows;y++) for(let x=0;x<cols;x++) if(inside[y*cols + x] && n1(x*2.3, y*2.3) > 0.72) g.setT(x, y, 'sand'); }
+    // окрестности: руины / скалы / пустошь
+    for(let i=0;i<AREA;i++) if(!inside[i] && !occBefore[i]) g.occ[i] = 0;
+    for(let y=0;y<rows;y++) for(let x=0;x<cols;x++) if(inPoly(x + 0.5, y + 0.5) || edgeDist(x + 0.5, y + 0.5) < 2.2) g.occ[y*cols + x] = 1;
+    if(terr==='ruins'){ for(let k=0;k<g.ri(3, 6);k++){ const a = g.rnd()*6.28, r = R*(1.15 + g.rnd()*0.5), x = Math.round(cx + Math.cos(a)*r), y = Math.round(cy + Math.sin(a)*r), L1 = g.ri(3, 6), L2 = g.ri(2, 5), kind = g.pick(['brick', 'concrete']);
+        if(x < 2 || y < 2 || x > cols - 3 || y > rows - 3 || !g.free(x - 1, y - 1, 3, 3)) continue; g.wall(kind, [[x + L1, y], [x, y], [x, y + L2]]); g.tryObj(g.pick(['rubble_pile', 'rubble_big', 'ruin_corner']), x - 2, y - 2, x + L1 + 2, y + L2 + 2, 4); }
+      for(let k=0;k<g.ri(2, 4);k++) g.tryObj(g.pick(['ruin_house', 'ruin_corner', 'rubble_big', 'car_wreck', 'lamp_post', 'bus_wreck']), 0, 0, cols, rows, 8); }
+    if(terr==='rocks'){ for(let k=0;k<Math.round(AREA/120);k++){ const a = cliffAng + (g.rnd() - 0.5)*2, r = R*(1.15 + g.rnd()*0.6); const x = Math.round(cx + Math.cos(a)*r), y = Math.round(cy + Math.sin(a)*r); g.tryObj(g.pick(['rock_big', 'rock_big', 'boulder', 'rocks_scatter']), x - 2, y - 2, x + 2, y + 2, 3); } }
+    for(let i=0;i<Math.round(AREA/140);i++) g.tryObj(g.pick(terr==='rocks' ? ['boulder', 'rocks_scatter', 'dry_bush', 'cactus', 'beast_bones'] : ['dune', 'rock_big', 'boulder', 'rocks_scatter', 'cactus', 'dry_bush', 'beast_bones', 'crater', 'tire_stack', 'scrap_pile']), 0, 0, cols, rows, 5);
+    // части карты: зоны; заголовок лагеря
+    zones.forEach(z=>doc.gen.parts.push({k:'z', x:z.x, y:z.y, w:z.w, h:z.h, role:z.role, name:z.name, zone:typeId, scene:z.scene, ent:z.entries.map(([x, y, e])=>[x, y, e.o])}));
+    const nm = CAMP_NAMES[typeId], title = typeId==='military' ? 'Блокпост №' + g.ri(3, 49) : T.name + ' «' + g.pick(nm) + '»';
+    const topY = Math.min.apply(null, poly.map(p=>p[1])); doc.gen.title = {x:cx, y:Math.max(1, topY - 1.3), text:title + (cstate==='abandoned' ? ' (брошен)' : cstate==='ravaged' ? ' (разорён)' : '')};
+    doc.gen.camp = typeId;
+  }
+  // перегенерация зоны лагеря: та же или другая зона того же типа лагеря
+  function rerollZone(doc, part, mode){
+    const g = ctxFor(doc, 0), {cols} = doc; g.opts = Object.assign({}, doc.gen.opts);
+    const others = doc.gen.parts.filter(p=>p!==part), T = CAMP_TYPES[part.zone] || CAMP_TYPES.settle;
+    const inside = (x, y)=>x > part.x + 0.01 && y > part.y + 0.01 && x < part.x + part.w - 0.01 && y < part.y + part.h - 0.01;
+    doc.objects = doc.objects.filter(o=>!inside(o.x, o.y));
+    g.occ.fill(1); for(let y=part.y;y<part.y + part.h;y++) for(let x=part.x;x<part.x + part.w;x++) g.occ[y*cols + x] = 0;
+    const entries = (part.ent || []).map(([x, y, o])=>[x, y, {o, ext:true}]); seedUniqueness(g, doc, others);
+    if(mode==='type'){ const used = {}; others.forEach(p=>{ used[p.role] = 1; }); const area = part.w*part.h;
+      const fit = (z)=>z[0]!==part.role && z[2][0]*z[3][0] <= area + 4, fresh = T.zones.filter(z=>fit(z) && !used[z[0]]), pool = fresh.length ? fresh : T.zones.filter(fit); if(pool.length){ const z = g.pick(pool); part.role = z[0]; part.name = z[1]; } }
+    const rm = {x:part.x, y:part.y, w:part.w, h:part.h, role:part.role, entries}; furnish(g, rm, {state:'intact'});
+    delete part.scene; return true;
   }
   const LIST = [
     {id:'city', name:'Руины городского квартала', run:(d, o)=>{ cityRuins(d, o); applyLabels(d); }},
     {id:'bunker', name:'Подземный комплекс / бункер', run:(d, o)=>{ bunker(d, o); applyLabels(d); }},
-    {id:'camp', name:'Лагерь в пустоши', run:(d, o)=>{ wasteCamp(d, o); applyLabels(d); }},
+    {id:'camp', name:'Лагерь', run:(d, o)=>{ wasteCamp(d, o); applyLabels(d); }},
   ];
   const STATE_NAME = {}; BSTATES.forEach(q=>{ STATE_NAME[q.id] = q.name; });
   // Часть (здание/комната), в которой лежит точка
@@ -18117,7 +18461,7 @@ const MapGen = (function(){
     delete part.scene; const sp = {none:0, normal:0.35, many:0.7}[g.opts.scenes]; if(g.rnd() < (sp == null ? 0.35 : sp)){ const id = placeScene(g, rm); if(id) part.scene = id; }
     return true;
   }
-  function reroll(doc, part, mode){ const ok = part.k==='b' ? rerollBuilding(doc, part, mode) : rerollRoom(doc, part, mode); applyLabels(doc); return ok; }
+  function reroll(doc, part, mode){ const ok = part.k==='b' ? rerollBuilding(doc, part, mode) : part.k==='z' ? rerollZone(doc, part, mode) : rerollRoom(doc, part, mode); applyLabels(doc); return ok; }
   // Подписи сгенерированного: строятся заново по сведениям о генерации (меняются без перегенерации карты).
   // labels: none — без подписей; buildings — здания (тип · состояние) и комнаты бункера; rooms — ещё и помещения внутри
   // зданий; full — ещё мини-сцены (красным) и общий заголовок. Свои надписи Мастера не трогаются.
@@ -18672,6 +19016,13 @@ const MapEditor = (function(){
         <label class="me-f">Комнаты${sel2('rooms', po.rooms, [['small', 'мелкие'], ['normal', 'обычные'], ['large', 'крупные']])}</label>
         <label class="me-f">Состояние${sel2('cond', po.cond || 'random', [['random', 'случайное'], ['abandoned', 'заброшен'], ['flooded', 'затоплен'], ['infested', 'заражён'], ['wrecked', 'разгромлен']])}</label></div>
         <label class="me-f">Мини-сцены${sel2('scenes_bunker', po.scenes, SC)}</label></fieldset>
+      <fieldset class="me-gopt" data-for="camp"><legend>Лагерь</legend><div class="me-f-row">
+        <label class="me-f">Тип${sel2('ctype', po.ctype || 'random', [['random', 'случайный'], ['settle', 'поселение'], ['raiders', 'банда рейдеров'], ['caravan', 'стоянка каравана'], ['military', 'военный']])}</label>
+        <label class="me-f">Ограда${sel2('perim', po.perim || 'random', [['random', 'по типу'], ['scrap', 'стена из лома'], ['palisade', 'частокол'], ['wire', 'сетка и колючка'], ['vehicles', 'кольцо машин'], ['sandbag', 'мешки с песком'], ['none', 'без ограды']])}</label></div><div class="me-f-row">
+        <label class="me-f">Местность${sel2('terr', po.terr || 'random', [['random', 'случайная'], ['waste', 'пустошь'], ['ruins', 'среди руин'], ['dryriver', 'у сухого русла'], ['rocks', 'в скалах']])}</label>
+        <label class="me-f">Размер${sel2('csize', po.csize || 'medium', [['small', 'маленький'], ['medium', 'средний'], ['full', 'во всю карту']])}</label></div><div class="me-f-row">
+        <label class="me-f">Состояние${sel2('cstate', po.cstate || 'random', [['random', 'случайное'], ['living', 'обжитой'], ['abandoned', 'брошенный'], ['ravaged', 'разорённый']])}</label>
+        <label class="me-f">Мини-сцены${sel2('scenes_camp', po.scenes, SC)}</label></div></fieldset>
       <fieldset class="me-gopt"><legend>Подписи</legend><div class="me-f-row"><label class="me-f">Что подписать${sel2('labels', po.labels || 'buildings', LBL)}</label><label class="me-f">Размер${sel2('lsize', po.lsize, LSZ)}</label></div><div class="muted me-note">Подписи — обычные надписи карты: их видят и игроки на столе. Потом их можно поменять во вкладке «Карта», не перегенерируя карту.</div></fieldset>
       <fieldset class="me-gopt" data-for="rooms"><legend>Заготовки комнат и сцен</legend><div class="me-f-row"><label class="me-f">Как часто${sel2('prefabs', po.prefabs, [['none', 'не использовать'], ['some', 'иногда'], ['often', 'часто']])}</label>
         <div class="me-f"><span class="muted">${MapGen.prefabList().length} шт. (своих ${MapGen.userPrefabs().length})</span><button type="button" class="small" data-pfmanage>Заготовки…</button></div></div></fieldset>
@@ -18679,7 +19030,8 @@ const MapEditor = (function(){
       const id = f.gen.value, opts = {seed:seedOf(f.seed.value), labels:f.labels.value, lsize:f.lsize.value};
       if(id==='city') Object.assign(opts, {density:f.density.value, ruin:f.ruin.value, theme:f.theme.value, scenes:f.scenes_city.value});
       if(id==='bunker') Object.assign(opts, {rooms:f.rooms.value, cond:f.cond.value, scenes:f.scenes_bunker.value});
-      if(id==='city' || id==='bunker') opts.prefabs = f.prefabs.value;
+      if(id==='camp') Object.assign(opts, {ctype:f.ctype.value, perim:f.perim.value, terr:f.terr.value, csize:f.csize.value, cstate:f.cstate.value, scenes:f.scenes_camp.value});
+      opts.prefabs = f.prefabs.value;
       runGen(id, opts);
     }, {ok:'Сгенерировать'});
     const pb = dl.form.querySelector('[data-pfmanage]'); if(pb) pb.addEventListener('click', ()=>{ dl.close(); prefabDialog(); });
@@ -18820,9 +19172,9 @@ const MapEditor = (function(){
   function cloneCanvas(c){ const n = document.createElement('canvas'); n.width = c.width; n.height = c.height; n.style.width = c.style.width; n.style.height = c.style.height; n.getContext('2d').drawImage(c, 0, 0); return n; }
   function renderProps(body){
     if(!sel.size){ body.innerHTML = '<div class="muted me-note">Ничего не выбрано. Инструмент «Выбор» (V): клик по объекту, стене, пути или надписи.</div>' + (doc.gen && doc.gen.parts.length ? '<div class="muted me-note">Чтобы перегенерировать одно здание или комнату сгенерированной карты, выберите любой предмет или стену внутри него.</div>' : ''); return; }
-    const gp = genPartOfSel(), gpHtml = gp ? `<div class="me-genpart"><div class="me-prop-title">${gp.k==='b' ? 'Здание' : 'Комната'}: ${esc(MapGen.partTitle(gp))}</div>
+    const gp = genPartOfSel(), gpHtml = gp ? `<div class="me-genpart"><div class="me-prop-title">${gp.k==='b' ? 'Здание' : gp.k==='z' ? 'Зона лагеря' : 'Комната'}: ${esc(MapGen.partTitle(gp))}</div>
       <div class="me-btnrow"><button type="button" class="small" data-act="reroll" title="Тот же тип, новая планировка, мебель и состояние">↻ Перегенерировать</button>${gp.k==='b' || !/^(gate|core)$/.test(gp.zone || '') ? `<button type="button" class="small" data-act="rerolltype" title="Другой тип — из тех, что ещё не встречались на карте">⇄ Другой тип</button>` : ''}</div>
-      <div class="muted me-note">Меняется только ${gp.k==='b' ? 'это здание и его двор' : 'эта комната'}, остальная карта остаётся. Отменить — Ctrl+Z.</div></div>` : '';
+      <div class="muted me-note">Меняется только ${gp.k==='b' ? 'это здание и его двор' : gp.k==='z' ? 'эта зона' : 'эта комната'}, остальная карта остаётся. Отменить — Ctrl+Z.</div></div>` : '';
     if(sel.size > 1){ const no = [...sel].filter(k=>k[0]==='o').length; body.innerHTML = `<div class="me-note">Выбрано: ${sel.size}</div>${no ? `<div class="me-f me-scale">Масштаб объектов (${no})<div class="me-btnrow"><button type="button" class="small" data-act="sdown" title="−10% (&lt;)">−10%</button><button type="button" class="small" data-act="sup" title="+10% (&gt;)">+10%</button>${[0.5, 0.75, 1, 1.5, 2].map(v=>`<button type="button" class="small" data-sset="${v}">${pct(v)}</button>`).join('')}</div></div>` : ''}<div class="me-btnrow"><button type="button" class="small" data-act="dup">Дублировать</button><button type="button" class="small" data-act="rotr">Повернуть 90°</button><button type="button" class="small" data-act="del">Удалить</button></div>${no ? '<div class="me-btnrow"><button type="button" class="small" data-act="pfsave" title="Сохранить выделенные предметы как заготовку комнаты или сцены для генератора">★ Сохранить как заготовку…</button></div>' : ''}`; return; }
     const key = [...sel][0], it = findItem(key); if(!it){ sel.clear(); body.innerHTML = ''; return; }
     const t = key[0]; let h = '';
@@ -18877,7 +19229,7 @@ const MapEditor = (function(){
       <div class="me-btnrow"><button type="button" class="small" data-act="fit">Показать всю карту (0)</button><button type="button" class="small" data-act="clear">Очистить карту…</button></div>
       <label class="me-check"><input type="checkbox" data-hd ${MapTex.enabled ? 'checked' : ''}> HD-фактуры ландшафта, стен и объектов</label>
       <div class="muted me-note">Настройка этого браузера: действует и в редакторе, и на игровом столе. На слабом устройстве её можно выключить — останутся прежние плоские цвета.</div>
-      ${doc.gen ? `<div class="me-genpart"><div class="me-prop-title">Генерация: ${esc((MapGen.LIST.find(x=>x.id===doc.gen.id) || {}).name || doc.gen.id)}</div><div class="muted me-note">Зерно <b>${doc.gen.seed}</b> · ${doc.gen.parts.length ? doc.gen.parts.length + (doc.gen.parts[0].k==='b' ? ' зданий' : ' комнат') : 'без частей'}</div>
+      ${doc.gen ? `<div class="me-genpart"><div class="me-prop-title">Генерация: ${esc((MapGen.LIST.find(x=>x.id===doc.gen.id) || {}).name || doc.gen.id)}</div><div class="muted me-note">Зерно <b>${doc.gen.seed}</b> · ${doc.gen.parts.length ? doc.gen.parts.length + (doc.gen.parts[0].k==='b' ? ' зданий' : doc.gen.parts[0].k==='z' ? ' зон' : ' комнат') : 'без частей'}</div>
         <div class="me-f-row"><label class="me-f">Подписи<select data-genlab>${GEN_LBL.map(([k, n])=>`<option value="${k}" ${(doc.gen.opts.labels || 'buildings')===k ? 'selected' : ''}>${n}</option>`).join('')}</select></label><label class="me-f">Размер<select data-genlsize>${GEN_LSZ.map(([k, n])=>`<option value="${k}" ${(doc.gen.opts.lsize || 'normal')===k ? 'selected' : ''}>${n}</option>`).join('')}</select></label></div>
         <div class="me-btnrow"><button type="button" class="small" data-act="regen" title="Открыть генерацию с этим зерном и параметрами">Повторить / настроить…</button><button type="button" class="small" data-act="regennew" title="Те же параметры, новое зерно">🎲 Новый вариант</button></div></div>` : ''}
       <div class="me-btnrow"><button type="button" class="small" data-act="prefabs" title="Встроенные и свои заготовки комнат и сцен">Заготовки комнат и сцен…</button></div>
