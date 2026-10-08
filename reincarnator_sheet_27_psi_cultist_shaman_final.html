@@ -114,7 +114,9 @@
     background: linear-gradient(180deg, rgba(0,0,0,.25), rgba(0,0,0,.45)), var(--tx-tuna) center 40%/100% auto no-repeat, var(--stamp);
     -webkit-mask: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent); mask: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent); box-shadow:0 0 18px rgba(156,47,28,.5); }
   /* пергамент: травертин под светлой вуалью цвета карточки (≈16% фактуры) */
-  .panel{ background: linear-gradient(rgba(239,230,204,.84), rgba(239,230,204,.84)), var(--tx-stone) center/cover no-repeat, var(--card); } /* один камень на карточку — без повторов */
+  body .panel{ background: linear-gradient(rgba(239,230,204,calc(1 - .2*var(--tx-k))), rgba(239,230,204,calc(1 - .2*var(--tx-k)))), var(--tx-stone) center/cover no-repeat, var(--card);
+    background-blend-mode: normal, multiply; } /* один камень на карточку (без повторов), умножением — как старая бумага */
+  body .panel .panel{ background:transparent; background-blend-mode:normal; }
   /* водяные знаки по смыслу раздела — поверх, умножением: тёмный текст не меняется, светлое чуть темнеет */
   .panel.tex-body::after, .panel.tex-mind::after, .panel.tex-psi::after, .panel.tex-soul::after{ content:''; position:absolute; inset:0; border-radius:12px; pointer-events:none; mix-blend-mode:multiply; }
   .panel.tex-mind::after{ opacity:calc(.22*var(--tx-k)); background:var(--tx-brain) 0 0/260px auto repeat; filter:grayscale(1) sepia(.5) contrast(1.2);
@@ -138,6 +140,13 @@
     -webkit-text-stroke:2.6px #fbf4e2; paint-order:stroke fill; box-shadow:0 3px 0 rgba(0,0,0,.5), 0 0 0 1px rgba(246,236,212,.15); }
   .topbar .controls button:hover:not(:disabled){ background:#120d0a; color:#fff6e4; -webkit-text-stroke:2.6px #0a0608; }
   .topbar .controls button.primary:hover:not(:disabled){ filter:brightness(1.15); }
+  #sheetTabView button, #xpTabView button, #sheetTabView .button-like{ background:#f6efd9; color:#120d0a; border-color:#120d0a; -webkit-text-stroke:2.2px #fbf4e2; paint-order:stroke fill; box-shadow:0 3px 0 rgba(0,0,0,.4); }
+  #sheetTabView button:hover:not(:disabled), #xpTabView button:hover:not(:disabled), #sheetTabView .button-like:hover{ background:#120d0a; color:#fff6e4; -webkit-text-stroke:2.2px #0a0608; }
+  #sheetTabView button.primary, #xpTabView button.primary, #sheetTabView button.active, #sheetTabView button.on{ background: linear-gradient(180deg, rgba(110,22,12,.78), rgba(48,6,3,.86)), var(--tx-meat) center/260px auto, var(--stamp);
+    border-color:#2a0804; color:#fff6e4; -webkit-text-stroke:2.2px #1a0402; }
+  .topbar .controls .button-like{ font-size:12.5px; letter-spacing:.05em; padding:8px 17px; background:#f6efd9; color:#120d0a; border-color:#120d0a;
+    -webkit-text-stroke:2.6px #fbf4e2; paint-order:stroke fill; box-shadow:0 3px 0 rgba(0,0,0,.5), 0 0 0 1px rgba(246,236,212,.15); }
+  .topbar .controls .button-like:hover{ background:#120d0a; color:#fff6e4; -webkit-text-stroke:2.6px #0a0608; }
   .topbar .controls #btnUndo{ background:#0e0a0c; color:#fff6e4; border-color:#8a7a68; -webkit-text-stroke:2.6px #0a0608; }
   .wrap{max-width:1180px; margin:0 auto;}
   .topbar{
@@ -439,9 +448,12 @@
     background:linear-gradient(180deg, rgba(0,0,0,.035), rgba(0,0,0,.015));
     border:1px solid rgba(0,0,0,.08);
   }
-  .zone-legend{ display:flex; flex-direction:column; gap:5px; font-size:11.5px; min-width:96px; }
-  .zone-legend-item{ color:var(--ink-soft); transition: color .15s ease; }
-  .zone-legend-item.on{ color:var(--ink); font-weight:700; }
+  .zone-legend{ display:flex; flex-wrap:wrap; gap:6px; font-size:12px; }
+  .zone-legend-item{ color:var(--ink-soft); padding:3px 11px; border:1.5px dashed rgba(28,23,18,.35); border-radius:999px; text-decoration:line-through; text-decoration-color:rgba(92,82,64,.45); transition: color .15s ease, background-color .15s ease; }
+  .zone-legend-item.on{ color:#fff6e4; font-weight:700; text-decoration:none; border:1.5px solid #2a0804; -webkit-text-stroke:2px #1a0402; paint-order:stroke fill;
+    background: linear-gradient(180deg, rgba(110,22,12,.78), rgba(48,6,3,.86)), var(--tx-meat) center/220px auto, var(--stamp); }
+  .zone-legend-title{ width:100%; font-size:10px; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-soft); }
+  .figure-conflict{ width:100%; }
   /* ======================================================================
      Объёмная (CSS 3D) фигура — см. buildBodyFigureHtml/getFigureMood в скрипте. Техника "CSS-кубик":
      .p3d — пустой узел-сустав в общем 3D-пространстве (position:absolute + preserve-3d, сам по себе
@@ -8721,7 +8733,7 @@ function loadThreeJs(){
 // объявления THREE_STATE выше по файлу (let в temporal dead zone до своей строки — в отличие от
 // function-объявлений, let не поднимается целиком, только имя; вызов раньше строки объявления бросает
 // ReferenceError, а не тихо работает).
-loadThreeJs();
+// loadThreeJs(); — 3D-фигура брони убрана: зоны показываются текстом (см. renderArmorZones)
 // Базовые тона — теперь только для генерации текстур (см. fig3NoiseTexture) и как основа материала.
 // FIG3_COLORS ниже — не сами цвета, а КЛЮЧИ в кэш материалов (fig3Material): у всех вызовов
 // fig3Box/fig3Cyl/fig3Sphere по всему ригу сигнатура не изменилась (как и раньше, передают
@@ -9155,16 +9167,13 @@ function renderArmorZones(){
   // догрузится — сам вызовет renderArmorZones() ещё раз и подставит WebGL. Если интернета нет вовсе
   // (CDN недоступен) — THREE_STATE навсегда 'failed', и лист просто продолжает работать на CSS-3D,
   // ничем не отличаясь от версии до этого захода.
-  const useWebGL = (mood!=='conflict') && THREE_STATE==='ready';
+  // Защищённые зоны показываются только текстом: закрытые надетой бронёй выделены, открытые — зачёркнуты
+  const useWebGL = false;
   const hasSiz = getWornArmorHasSiz();
-  const figureHtml = mood==='conflict'
-    ? `<div class="figure-conflict">Ты по-моему перепутал.<br>Проверь состояния.</div>`
-    : useWebGL
-      ? `<div class="figure-stage mood-${mood} figure-stage-webgl" id="figureStage3dHost"></div>`
-      : `<div class="figure-stage mood-${mood}">${buildBodyFigureHtml(active, hasSiz, mood)}</div>`;
+  const figureHtml = mood==='conflict' ? `<div class="figure-conflict">Ты по-моему перепутал.<br>Проверь состояния.</div>` : '';
   el.innerHTML = `<div class="armor-zones-row">
       ${figureHtml}
-      <div class="zone-legend">${legend}</div>
+      <div class="zone-legend"><span class="zone-legend-title">Защищённые зоны${hasSiz ? ' · есть СИЗ' : ''}</span>${legend}</div>
     </div>
     <div class="armor-stat-cards">${cards || '<span class="muted">Ничего не надето</span>'}</div>`;
   if(useWebGL){
