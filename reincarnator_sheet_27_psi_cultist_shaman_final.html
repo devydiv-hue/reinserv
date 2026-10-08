@@ -134,20 +134,20 @@
   .tab-bar .tab-btn{ font-size:12.5px; letter-spacing:.05em; padding:8px 18px; background:rgba(14,10,12,.92); color:#fff6e4; border-color:#8a7a68;
     -webkit-text-stroke:2.6px #0a0608; paint-order:stroke fill; box-shadow:0 3px 0 rgba(0,0,0,.5); }
   .tab-bar .tab-btn:hover{ background:rgba(30,22,26,.96); color:#fff; border-color:var(--vellum-bright); }
-  .tab-bar .tab-btn.active, .topbar .controls button.primary{ background: linear-gradient(180deg, rgba(110,22,12,.78), rgba(48,6,3,.86)), var(--tx-meat) center/260px auto, var(--stamp);
+  .tab-bar .tab-btn.active, body #sheetControls button.primary{ background: linear-gradient(180deg, rgba(110,22,12,.78), rgba(48,6,3,.86)), var(--tx-meat) center/260px auto, var(--stamp);
     border-color:#2a0804; color:#fff6e4; -webkit-text-stroke:2.6px #1a0402; paint-order:stroke fill; }
-  .topbar .controls button{ font-size:12.5px; letter-spacing:.05em; padding:8px 17px; background:#f6efd9; color:#120d0a; border-color:#120d0a;
+  body #sheetControls button{ font-size:12.5px; letter-spacing:.05em; padding:8px 17px; background:#f6efd9; color:#120d0a; border-color:#120d0a;
     -webkit-text-stroke:2.6px #fbf4e2; paint-order:stroke fill; box-shadow:0 3px 0 rgba(0,0,0,.5), 0 0 0 1px rgba(246,236,212,.15); }
-  .topbar .controls button:hover:not(:disabled){ background:#120d0a; color:#fff6e4; -webkit-text-stroke:2.6px #0a0608; }
-  .topbar .controls button.primary:hover:not(:disabled){ filter:brightness(1.15); }
+  body #sheetControls button:hover:not(:disabled){ background:#120d0a; color:#fff6e4; -webkit-text-stroke:2.6px #0a0608; }
+  body #sheetControls button.primary:hover:not(:disabled){ filter:brightness(1.15); }
   #sheetTabView button, #xpTabView button, #sheetTabView .button-like{ background:#f6efd9; color:#120d0a; border-color:#120d0a; -webkit-text-stroke:2.2px #fbf4e2; paint-order:stroke fill; box-shadow:0 3px 0 rgba(0,0,0,.4); }
   #sheetTabView button:hover:not(:disabled), #xpTabView button:hover:not(:disabled), #sheetTabView .button-like:hover{ background:#120d0a; color:#fff6e4; -webkit-text-stroke:2.2px #0a0608; }
   #sheetTabView button.primary, #xpTabView button.primary, #sheetTabView button.active, #sheetTabView button.on{ background: linear-gradient(180deg, rgba(110,22,12,.78), rgba(48,6,3,.86)), var(--tx-meat) center/260px auto, var(--stamp);
     border-color:#2a0804; color:#fff6e4; -webkit-text-stroke:2.2px #1a0402; }
-  .topbar .controls .button-like{ font-size:12.5px; letter-spacing:.05em; padding:8px 17px; background:#f6efd9; color:#120d0a; border-color:#120d0a;
+  body #sheetControls .button-like{ font-size:12.5px; letter-spacing:.05em; padding:8px 17px; background:#f6efd9; color:#120d0a; border-color:#120d0a;
     -webkit-text-stroke:2.6px #fbf4e2; paint-order:stroke fill; box-shadow:0 3px 0 rgba(0,0,0,.5), 0 0 0 1px rgba(246,236,212,.15); }
-  .topbar .controls .button-like:hover{ background:#120d0a; color:#fff6e4; -webkit-text-stroke:2.6px #0a0608; }
-  .topbar .controls #btnUndo{ background:#0e0a0c; color:#fff6e4; border-color:#8a7a68; -webkit-text-stroke:2.6px #0a0608; }
+  body #sheetControls .button-like:hover{ background:#120d0a; color:#fff6e4; -webkit-text-stroke:2.6px #0a0608; }
+  body #sheetControls #btnUndo{ background:#0e0a0c; color:#fff6e4; border-color:#8a7a68; -webkit-text-stroke:2.6px #0a0608; }
   .wrap{max-width:1180px; margin:0 auto;}
   .topbar{
     display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:12px;
@@ -223,6 +223,8 @@
   .ab-card-src{ border-left:3px solid currentColor; padding-left:8px; }
   .ab-src{ font-size:10.5px; text-transform:uppercase; letter-spacing:.03em; color:var(--ink-soft); margin-bottom:2px; }
   .ab-src b{ color:var(--ink); }
+  .sheet-controls{ margin:4px 0 18px; }
+  .topbar .sheet-controls{ margin:0; }
   .sheet-flow{ display:flex; gap:16px; align-items:flex-start; }
   .sheet-flow > .sheet-col{ flex:1 1 0; min-width:0; }
   .field-row{display:flex; gap:14px; margin-bottom:10px; flex-wrap:wrap;}
@@ -1575,17 +1577,6 @@
     <div>
       <h1>Реинкарнатор // Лист персонажа</h1>
     </div>
-    <div class="controls">
-      <button class="primary" id="btnGenerate">⚄ Сгенерировать персонажа</button>
-      <button id="btnMode">🎲 Режим: случайный</button>
-      <button id="btnReset">Сбросить</button>
-      <button id="btnUndo" title="Отменить последнее действие (Ctrl+Z)" disabled>↶ Отменить</button>
-      <button id="btnSaveAs">💾 Сохранить как…</button>
-      <button id="btnExportFile">⬇ Экспорт в файл</button>
-      <label class="button-like" id="btnImportFileLabel" style="display:inline-flex;align-items:center;cursor:pointer;">⬆ Импорт из файла
-        <input type="file" id="fileImportInput" accept="application/json,.json" style="display:none;">
-      </label>
-    </div>
   </div>
 
   <div class="tab-bar" id="mainTabBar">
@@ -1650,6 +1641,19 @@
       <button class="small" id="btnRefreshSaves">🔄 Обновить список</button>
     </div>
     <div id="savesListBox"><span class="muted">—</span></div>
+  </div>
+
+  <!-- Действия с персонажем — под сохранениями, над листом -->
+  <div class="controls sheet-controls" id="sheetControls">
+    <button class="primary" id="btnGenerate">⚄ Сгенерировать персонажа</button>
+    <button id="btnMode">🎲 Режим: случайный</button>
+    <button id="btnReset">Сбросить</button>
+    <button id="btnUndo" title="Отменить последнее действие (Ctrl+Z)" disabled>↶ Отменить</button>
+    <button id="btnSaveAs">💾 Сохранить как…</button>
+    <button id="btnExportFile">⬇ Экспорт в файл</button>
+    <label class="button-like" id="btnImportFileLabel" style="display:inline-flex;align-items:center;cursor:pointer;">⬆ Импорт из файла
+      <input type="file" id="fileImportInput" accept="application/json,.json" style="display:none;">
+    </label>
   </div>
 
   <div id="pendingBox"></div>
@@ -11140,6 +11144,9 @@ function toggleMainTab(tab){
     document.getElementById(view).style.display = k===tab ? '' : 'none';
     document.getElementById(btn).classList.toggle('active', k===tab);
   });
+  // кнопки действий с персонажем: на листе — под «Сохранениями», на остальных вкладках — в шапке
+  const ctl = document.getElementById('sheetControls');
+  if(ctl){ if(tab==='sheet'){ const sp = document.getElementById('savesPanel'); if(sp && ctl.previousElementSibling!==sp) sp.after(ctl); } else { const tb = document.querySelector('.topbar'); if(tb && ctl.parentElement!==tb) tb.appendChild(ctl); } }
   document.body.classList.toggle('table-mode', tab==='table'); // шапка и вкладки уходят вверх, стол — на весь экран
   document.body.classList.toggle('editor-mode', tab==='maps');  // редактор карт — так же на весь экран
   if(typeof MapEditor!=='undefined'){ try{ MapEditor.setVisible(tab==='maps'); }catch(e){ console.error('[Редактор карт]', e); } }
