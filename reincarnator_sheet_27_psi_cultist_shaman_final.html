@@ -217,6 +217,12 @@
   }
   /* Поток разделов листа: колонки-«кладка» (см. SheetMasonry в скрипте) — каждый следующий раздел встаёт
      в самую короткую колонку, поэтому под короткими разделами не остаётся пустот. Без скрипта — просто столбец. */
+  .abilities-panel #abilitiesBox{ column-count:3; column-gap:26px; column-rule:1px dotted rgba(28,23,18,.35); }
+  .abilities-panel .ab-item{ break-inside:avoid; }
+  .abilities-panel .ab-head{ break-after:avoid; }
+  .abilities-panel .ab-group{ break-inside:auto; }
+  @media (max-width:1000px){ .abilities-panel #abilitiesBox{ column-count:2; } }
+  @media (max-width:640px){ .abilities-panel #abilitiesBox{ column-count:1; } }
   .sheet-flow{ display:flex; gap:16px; align-items:flex-start; }
   .sheet-flow > .sheet-col{ flex:1 1 0; min-width:0; }
   .field-row{display:flex; gap:14px; margin-bottom:10px; flex-wrap:wrap;}
@@ -1787,10 +1793,6 @@
         <h2>Знания старого мира</h2>
         <div id="statsOldWorld" class="stat-block"></div>
       </div>
-      <div class="panel tex-psi">
-        <div class="flex-between"><h2>Способности</h2><button class="small" onclick="resetAllAbilitySpent()">↺ Сбросить все</button></div>
-        <div id="abilitiesBox"><span class="muted">—</span></div>
-      </div>
       <div class="panel">
         <h2>Достоинства и недостатки</h2>
         <div id="advFlawBox"></div>
@@ -1802,6 +1804,14 @@
           <textarea id="fReligionText" rows="2" placeholder="Впишите религию/веру персонажа"></textarea>
           <div id="fReligionDropdown" class="align-dropdown"></div>
         </div>
+      </div>
+    </div>
+
+    <!-- Способности — во всю ширину, текст в несколько колонок: длинный список не тянется узкой полосой -->
+    <div class="col-12">
+      <div class="panel tex-psi abilities-panel">
+        <div class="flex-between"><h2>Способности</h2><button class="small" onclick="resetAllAbilitySpent()">↺ Сбросить все</button></div>
+        <div id="abilitiesBox"><span class="muted">—</span></div>
       </div>
     </div>
 
@@ -10003,10 +10013,10 @@ function renderAbilities(){
   const ownedNames = new Set(character.abilities.map(a=>a.name));
   let html='';
   const keys=Object.keys(groups);
-  if(keys.length){ html+=`<div class="item-line"><b>Предписанные способности</b><div class="muted">Способности, полученные из архетипа и его источников.</div></div>`;
-    keys.forEach(k=>{html+=`<div class="item-line" style="border-left:3px solid currentColor;padding-left:8px;"><b>${k}</b>`; const tiers={}; groups[k].forEach(a=>(tiers[a.abilityTier||a.abilityGroup||''] = tiers[a.abilityTier||a.abilityGroup||''] || []).push(a));
-      Object.keys(tiers).forEach(t=>{html+=`<div class="muted" style="margin-top:5px;"><b>${t}</b></div>`+tiers[t].map(a=>`<div style="margin:3px 0 5px"><b>${a.name}</b>${a.text?': '+linkifyAbilityRollRefs(a.text):''}${a.enhancedText?`<div><b><i>Усилено (${escapeHtml(a.enhancedSource||'')}): ${linkifyAbilityRollRefs(a.enhancedText)}</i></b></div>`:''}${abilityNoteLinksHtml(a.name,ownedNames)}${a.userNote?`<div class="muted">Заметка: ${a.userNote}</div>`:''}<div class="choice-btns"><button class="small" onclick="editAbilityNote('${a.id}')">${a.userNote?'✎ Изменить заметку':'+ Заметка'}</button>${abilityFlagHtml(a)}</div></div>`).join('');}); html+='</div>'; }); }
-  if(ordinary.length){html+='<div class="item-line" style="margin-top:8px"><b>Другие способности</b></div>'+ordinary.map(a=>`<div class="item-line"><b>${a.name||'Способность'}</b>${a.text?': '+linkifyAbilityRollRefs(a.text):''} <span class="tag">${a.source}</span>${a.userNote?`<div class="muted">Заметка: ${a.userNote}</div>`:''}<div class="choice-btns"><button class="small" onclick="editAbilityNote('${a.id}')">${a.userNote?'✎ Изменить заметку':'+ Заметка'}</button>${abilityFlagHtml(a)}</div></div>`).join('');}
+  if(keys.length){ html+=`<div class="item-line ab-head"><b>Предписанные способности</b><div class="muted">Способности, полученные из архетипа и его источников.</div></div>`;
+    keys.forEach(k=>{html+=`<div class="item-line ab-group" style="border-left:3px solid currentColor;padding-left:8px;"><b class="ab-head">${k}</b>`; const tiers={}; groups[k].forEach(a=>(tiers[a.abilityTier||a.abilityGroup||''] = tiers[a.abilityTier||a.abilityGroup||''] || []).push(a));
+      Object.keys(tiers).forEach(t=>{html+=`<div class="muted ab-head" style="margin-top:5px;"><b>${t}</b></div>`+tiers[t].map(a=>`<div class="ab-item" style="margin:3px 0 5px"><b>${a.name}</b>${a.text?': '+linkifyAbilityRollRefs(a.text):''}${a.enhancedText?`<div><b><i>Усилено (${escapeHtml(a.enhancedSource||'')}): ${linkifyAbilityRollRefs(a.enhancedText)}</i></b></div>`:''}${abilityNoteLinksHtml(a.name,ownedNames)}${a.userNote?`<div class="muted">Заметка: ${a.userNote}</div>`:''}<div class="choice-btns"><button class="small" onclick="editAbilityNote('${a.id}')">${a.userNote?'✎ Изменить заметку':'+ Заметка'}</button>${abilityFlagHtml(a)}</div></div>`).join('');}); html+='</div>'; }); }
+  if(ordinary.length){html+='<div class="item-line ab-head" style="margin-top:8px"><b>Другие способности</b></div>'+ordinary.map(a=>`<div class="item-line ab-item"><b>${a.name||'Способность'}</b>${a.text?': '+linkifyAbilityRollRefs(a.text):''} <span class="tag">${a.source}</span>${a.userNote?`<div class="muted">Заметка: ${a.userNote}</div>`:''}<div class="choice-btns"><button class="small" onclick="editAbilityNote('${a.id}')">${a.userNote?'✎ Изменить заметку':'+ Заметка'}</button>${abilityFlagHtml(a)}</div></div>`).join('');}
   el.innerHTML=html||'<span class="muted">—</span>';
 }
 window.toggleAbilitySpent = function(id){
