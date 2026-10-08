@@ -5468,6 +5468,9 @@ let character = null;
 let pendingRoleplayChoices = []; // [{id, label, among, resolved:false}] — always manual, per rules ("в зависимости от отыгрыша")
 let pendingChoices = []; // [{id, title, options:[{label, apply(c)}]}] — manual-mode-only point/choice allocation
 let pendingItemRolls = []; // [{id, title, options:[{label, apply(c)}]}] — manual-mode-only item table rolls, rendered next to Инвентарь
+// Режим «Случайный⚡»: всё, как в «случайном», и вдобавок выборы «в зависимости от отыгрыша» тоже делаются случайно
+// (с учётом оговорки «к не самому высокому…»), а не ждут игрока.
+let roleplayRandom = false;
 let randomMode = true; // toggled by the "случайный/ручной" button — governs choice/distribute/reduceDistinct/choiceMixed/weaponChoice/abilityChoice
 
 function randInt(n){ return 1 + Math.floor(Math.random()*n); }
@@ -6043,6 +6046,14 @@ function applyModifier(c, mod, source, auto){
       break;
     }
     case 'roleplay': {
+      if(roleplayRandom && mod.among && mod.among.length){
+        let pool = mod.among.slice();
+        if(/не самому высокому|не самое высокое|не самого высокого/i.test(mod.label)){ const mx = Math.max.apply(null, pool.map(st=>c.stats[st]||0)); const lower = pool.filter(st=>(c.stats[st]||0) < mx); if(lower.length) pool = lower; }
+        const stat = pool[Math.floor(Math.random()*pool.length)];
+        addLog(c, stat, 1, source+' (отыгрыш — случайно)');
+        logEvent(c, `Отыгрыш (случайно): «${mod.label}» → ${STAT_LABELS[stat] || stat} +1 (источник: ${source}).`);
+        break;
+      }
       pendingRoleplayChoices.push({
         id: 'rp'+Math.random().toString(36).slice(2),
         label: mod.label, among: mod.among, source
@@ -10424,9 +10435,13 @@ document.getElementById('btnGenerate').onclick = ()=>{
   character = generateCharacter();
   renderAll();
 };
+// Режимы по кругу: случайный → случайный⚡ (и отыгрыш случайно) → ручной → случайный
 document.getElementById('btnMode').onclick = (e)=>{
-  randomMode = !randomMode;
-  e.target.textContent = randomMode ? '🎲 Режим: случайный' : '✋ Режим: ручной';
+  if(randomMode && !roleplayRandom){ roleplayRandom = true; }
+  else if(randomMode && roleplayRandom){ randomMode = false; roleplayRandom = false; }
+  else { randomMode = true; roleplayRandom = false; }
+  e.target.textContent = !randomMode ? '✋ Режим: ручной' : roleplayRandom ? '🎲 Режим: случайный⚡' : '🎲 Режим: случайный';
+  e.target.title = !randomMode ? 'Все выборы делает игрок' : roleplayRandom ? 'Всё случайно, включая выборы «в зависимости от отыгрыша»' : 'Всё случайно, кроме выборов «в зависимости от отыгрыша» — их делает игрок';
 };
 document.getElementById('btnReset').onclick = ()=>{
   character = null; pendingRoleplayChoices=[]; pendingChoices=[]; pendingItemRolls=[];
