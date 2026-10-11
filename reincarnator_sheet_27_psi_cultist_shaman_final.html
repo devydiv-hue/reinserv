@@ -1248,6 +1248,11 @@
   .bst-toast{ position:fixed; left:50%; bottom:24px; transform:translate(-50%,8px); opacity:0; z-index:10000; pointer-events:none; padding:7px 16px; border-radius:999px;
     background:var(--stamp); color:#fff6e4; font-weight:700; font-size:12px; transition:opacity .18s ease, transform .18s ease; }
   .bst-toast.show{ opacity:1; transform:translate(-50%,0); }
+  .bst-extra{ padding-left:8px; border-left:3px solid #3f6b4a; }
+  .bst-cat{ border:1.5px dashed rgba(28,23,18,.4); border-radius:8px; padding:6px 8px; margin:6px 0; }
+  .bst-cat-row{ display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin:4px 0; }
+  .bst-cat select{ font-size:12px; max-width:100%; flex:1 1 160px; min-width:0; }
+  .bst-cat-prev{ font-size:12px; margin-top:4px; }
   .bst-modal{ position:fixed; inset:0; z-index:9000; background:rgba(10,8,6,.55); display:flex; align-items:flex-start; justify-content:center; overflow:auto; padding:30px 12px; }
   .bst-modal-box{ width:min(820px,100%); box-sizing:border-box; }
   .bst-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(170px,1fr)); gap:0 10px; }
@@ -22694,6 +22699,7 @@ const Bestiary = (function(){
       body:S(t.body, 600), mind:S(t.mind, 600), skills:S(t.skills, 1500), know:S(t.know, 1500),
       abil:arr(t.abil, 40).map(a=>Array.isArray(a) ? [S(a[0], 120), S(a[1], 3000)] : null).filter(a=>a && (a[0] || a[1])),
       gear:arr(t.gear, 30).map(g=>S(g, 2000)).filter(Boolean),
+      extra:arr(t.extra, 30).map(g=>S(g, 2000)).filter(Boolean), // добавлено из каталога книги (можно убрать)
       chances:arr(t.chances, 10).map(c=>Array.isArray(c) ? [int(c[0], 1, 1, 100), int(c[1], 6, 1, 100), S(c[2], 600),
         (c[3] && typeof c[3]==='object' && c[3].def!=null) ? {def:int(c[3].def, 0, 0, 99)} : null] : null).filter(Boolean),
       tables:arr(t.tables, 10).map(tb=>tb && typeof tb==='object' ? {kind:KINDS[tb.kind] ? tb.kind : 'other', title:S(tb.title, 200), die:int(tb.die, 6, 2, 100),
@@ -22771,7 +22777,7 @@ const Bestiary = (function(){
   }
   function instWeapons(tpl, inst){
     const out = [];
-    tpl.gear.forEach(g=>itemsIn(g).forEach(it=>{ if(it.kind==='weapon') out.push(weaponOf(it)); }));
+    tpl.gear.concat(tpl.extra || []).forEach(g=>itemsIn(g).forEach(it=>{ if(it.kind==='weapon') out.push(weaponOf(it)); }));
     tpl.tables.forEach((tb, i)=>{ if(tb.kind!=='weapon' && tb.kind!=='other') return; const sel = inst && inst.tbl[i];
       const row = sel && tb.rows[sel.idx]; if(row) itemsIn(row[1]).forEach(it=>{ if(it.kind==='weapon') out.push(weaponOf(it)); }); });
     return out;
@@ -22782,6 +22788,9 @@ const Bestiary = (function(){
     tpl.tables.forEach((tb, i)=>{ if(tb.kind!=='armor') return; const sel = inst.tbl[i], row = sel && tb.rows[sel.idx]; if(!row) return;
       const a = itemsIn(row[1]).find(it=>it.kind==='armor'); if(!a) return; const pd = parseDef(a.stats.replace(/^.*?защита/i, '')); def = pd.def; subs = pd.subs; armorName = cap(a.name); });
     tpl.chances.forEach((c, i)=>{ if(inst.ch[i] && c[3] && c[3].def!=null){ def = c[3].def; subs = {}; armorName = ''; } });
+    (tpl.extra || []).forEach(g=>itemsIn(g).forEach(it=>{ // броня из каталога на торс / всё тело — заменяет защиту жетона
+      if(it.kind!=='armor' || !/торс|вс[её] тело/i.test(it.stats)) return;
+      const pd = parseDef(it.stats.replace(/^.*?защита/i, '')); def = pd.def; subs = pd.subs; armorName = cap(it.name); }));
     const ws = instWeapons(tpl, inst), w = (keepWeapon && ws.find(x=>x.text===keepWeapon)) || ws[0] || null;
     return {defense:def, defenseSubs:subs, armorName, weaponText:w ? w.text : '', atkSkill:w ? w.skill : null,
             strength:Math.max(0, Math.min(20, statFrom(tpl.body, 'сила'))), reflexes:Math.max(0, Math.min(20, statFrom(tpl.body, 'рефлексы'))),
@@ -22879,15 +22888,65 @@ const Bestiary = (function(){
     tpl.abil.forEach(a=>h.push(`<p class="bst-ab"><b>${esc(a[0])}${a[0] ? ':' : ''}</b> ${plainHtml(a[1], a[0])}</p>`));
     const tables = tpl.tables.map((tb, i)=>({tb, i})), moves = tables.filter(x=>x.tb.kind==='move'), eqTables = tables.filter(x=>x.tb.kind!=='move');
     moves.forEach(x=>h.push(tableHtml(tpl, x.tb, x.i, inst, ctx)));
-    if(tpl.gear.length || tpl.chances.length || eqTables.length){
+    {
       h.push('<div class="bst-eq">Экипировка</div>');
       tpl.gear.forEach(g=>h.push(`<p>${richHtml(g, ctx)}</p>`));
+      (tpl.extra || []).forEach((g, i)=>h.push(`<p class="bst-extra">${richHtml(g, ctx)} <button type="button" class="bst-mini" data-act="extra-del" data-i="${i}" title="Убрать">✕</button></p>`));
+      h.push(catalogHtml());
       tpl.chances.forEach((c, i)=>{ const st = inst ? (inst.ch[i] ? '<span class="bst-yes">✓ выпало</span>' : '<span class="bst-no">✗ не выпало</span>') : '';
         h.push(`<p class="bst-chance">С шансом ${c[0]} из ${c[1]}: ${plainHtml(c[2])} ${st}${inst ? ` <button type="button" class="bst-mini" data-act="chance" data-i="${i}" title="Переключить">⇄</button>` : ''}</p>`); });
       eqTables.forEach(x=>h.push(tableHtml(tpl, x.tb, x.i, inst, ctx)));
     }
     if(tpl.notes) h.push(`<div class="bst-note">${plainHtml(tpl.notes)}</div>`);
     return h.join('');
+  }
+  /* ---------- экипировка из каталога книги (тот же ITEM_CATALOG, что и в инвентаре листа) ---------- */
+  let catOpen = false, catGc = '', catItem = 0;
+  function catKeys(){ const out = []; Object.keys(ITEM_CATALOG).forEach(g=>Object.keys(ITEM_CATALOG[g].categories).forEach(c=>out.push(g + '|' + c))); return out; }
+  function catItems(gc){ const [g, c] = String(gc).split('|'); const gen = ITEM_CATALOG[g], cat = gen && gen.categories[c]; return cat ? cat.items : []; }
+  function catItemOptions(){ return catItems(catGc).map((it, i)=>`<option value="${i}" ${i===catItem ? 'selected' : ''}>${esc(it.name)} — ${esc(it.price)} кр. (${esc(it.avail)})</option>`).join(''); }
+  function catPreview(){ const it = catItems(catGc)[catItem]; return it ? esc(it.desc) + ` <span class="bst-muted">(вес: ${esc(it.weight)})</span>` : ''; }
+  function catalogHtml(){
+    if(typeof ITEM_CATALOG==='undefined') return '';
+    if(!catOpen) return `<div class="bst-cat-row"><button type="button" class="bst-mini" data-act="cat-open">+ Из каталога книги</button></div>`;
+    if(!catGc || !catItems(catGc).length){ catGc = catKeys().find(k=>/\|weapons$/.test(k)) || catKeys()[0]; catItem = 0; }
+    const gcOpts = Object.keys(ITEM_CATALOG).map(g=>`<optgroup label="${esc(ITEM_CATALOG[g].label)}">` + Object.keys(ITEM_CATALOG[g].categories).map(c=>
+      `<option value="${g}|${c}" ${catGc===g + '|' + c ? 'selected' : ''}>${esc(ITEM_CATALOG[g].categories[c].label)}</option>`).join('') + '</optgroup>').join('');
+    return `<div class="bst-cat"><div class="bst-cat-row"><select data-cat="gc" title="Поколение / категория">${gcOpts}</select>
+        <select data-cat="item" title="Предмет">${catItemOptions()}</select>
+        <button type="button" class="bst-mini" data-act="cat-add">+ Добавить</button><button type="button" class="bst-mini" data-act="cat-close" title="Скрыть">✕</button></div>
+      <div class="bst-cat-prev" data-cat="prev">${catPreview()}</div></div>`;
+  }
+  // Навык боя существа для оружия из каталога: по строке «Навыки» (архаичное / лёгкое / тяжёлое оружие, «один навык боя»…)
+  function combatSkillOf(tpl, w){
+    const key = weaponCombatSkill({name:w.cleanName, dl:w.dl, sl:w.sl});
+    const want = key==='arhaichnoe_oruzhie' ? /архаичн|холодн/i : key==='tyazheloe_oruzhie' ? /тяж[её]л/i : /л[её]гк/i;
+    let best = null, generic = null, m; STAT_RE.lastIndex = 0; const str = String(tpl.skills||'');
+    while((m = STAT_RE.exec(str))){ const v = parseInt(m[2].replace('−','-'), 10);
+      if(want.test(m[1])) best = Math.max(best==null ? -99 : best, v); else if(/навык\S* боя/i.test(m[1])) generic = Math.max(generic==null ? -99 : generic, v); }
+    return best!=null ? best : generic!=null ? generic : 0;
+  }
+  function catalogLine(tpl, it){
+    let desc = String(it.desc||'').replace(/\[/g, '(').replace(/\]/g, ')');
+    const w = parseWeaponStats(it.name + ' — ' + desc);
+    if(w){ const sk = combatSkillOf(tpl, w), sign = (v)=>(v>=0 ? '+' : '−') + Math.abs(v);
+      desc = desc.replace(/Ат\s*[+−-]\s*\d+/, `Ат ${sign(w.at)} (${10 + sk + w.at})`);
+      if(w.pr!=null) desc = desc.replace(/Пр\s*[+−-]\s*\d+/, `Пр ${sign(w.pr)} (${10 + sk + w.pr})`); }
+    return `${it.name} [${desc}]`;
+  }
+  function onCatChange(e){
+    const box = e.target.closest('.bst-cat'); if(!box) return;
+    if(e.target.dataset.cat==='gc'){ catGc = e.target.value; catItem = 0; box.querySelector('[data-cat=item]').innerHTML = catItemOptions(); }
+    if(e.target.dataset.cat==='item') catItem = +e.target.value;
+    box.querySelector('[data-cat=prev]').innerHTML = catPreview();
+  }
+  document.addEventListener('change', (e)=>{ if(e.target.matches && e.target.matches('.bst-cat select')) onCatChange(e); });
+  // Шаблон в справочнике: встроенное существо при первой правке копируется в «свои» (как «Изменить»)
+  function updateTpl(id, mutate){
+    let t = userList.find(u=>u.id===id);
+    if(!t){ const b = byId(id); if(!b) return; t = clone(b); userList.push(t); }
+    mutate(t); const i = userList.findIndex(u=>u.id===id); userList[i] = sanitizeTpl(t) || t;
+    if(saveUser()){ render(); renderDock(); renderFloat(); }
   }
   function tableHtml(tpl, tb, i, inst, ctx){
     const sel = inst && inst.tbl[i], lastMove = tb.kind==='move' ? (inst ? inst.lastMove : viewMove) : null;
@@ -22957,6 +23016,18 @@ const Bestiary = (function(){
       const row = tb.rows[mv.idx];
       note(`🎲 к${tb.die} = ${r} → ${row ? row[1].split(':')[0] : 'нет строки для этого результата'}`);
       if(t) patchCreature(t, (c, inst)=>{ inst.lastMove = mv; }); else { viewMove = mv; renderMain(); }
+      return;
+    }
+    if(act==='cat-open' || act==='cat-close'){ catOpen = act==='cat-open'; if(t) renderFloat(); else { render(); renderFloat(); } return; }
+    if(act==='cat-add' || act==='extra-del'){
+      const base = t ? t.creature : byId(card.dataset.tpl || prefs.sel); if(!base) return;
+      let line = null;
+      if(act==='cat-add'){ const it = catItems(catGc)[catItem]; if(!it) return; line = catalogLine(base, it); }
+      const mutate = (c)=>{ c.extra = (c.extra || []).slice(); if(line) c.extra.push(line); else c.extra.splice(+b.dataset.i, 1); };
+      if(t){ const keep = t.weaponText;
+        patchCreature(t, (c)=>mutate(c), (c, inst)=>{ const f = combatFields(c, inst, keep); delete f.attackMod; return f; }); }
+      else updateTpl(base.id, mutate);
+      if(line) note(`Добавлено: ${line.split(' [')[0]}`);
       return;
     }
     if(!t) return;
