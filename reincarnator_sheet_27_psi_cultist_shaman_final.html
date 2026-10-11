@@ -1181,6 +1181,38 @@
   .gt-off{ color:var(--vellum-muted); font-size:10px; }
 
   .gt-ui{ position:absolute; z-index:10; }
+  /* Трекер боя */
+  .gt-combat{ display:none; left:10px; bottom:10px; width:min(600px, calc(100% - 20px)); max-height:46%; overflow:auto; box-sizing:border-box; padding:6px 9px;
+    background:var(--card); color:var(--ink); border:2px solid var(--ink); border-radius:12px; box-shadow:0 14px 26px -10px rgba(0,0,0,.65); font-size:12px; }
+  .gt-cb-head{ display:flex; flex-wrap:wrap; align-items:center; gap:6px; justify-content:space-between; }
+  .gt-cb-btns{ display:flex; flex-wrap:wrap; gap:4px; }
+  .gt-cb-btns button, .gt-cb-fold, .gt-cb-hints button{ padding:2px 9px; font-size:10.5px; box-shadow:none; }
+  .gt-cb-side{ margin-top:6px; padding:4px 6px; border-radius:8px; border:1.5px dashed rgba(28,23,18,.25); }
+  .gt-cb-side.on{ border:2px solid var(--stamp); background:rgba(156,47,28,.08); }
+  .gt-cb-sname{ font-size:10px; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-soft); font-weight:700; margin-bottom:3px; }
+  .gt-cb-side.on .gt-cb-sname{ color:var(--stamp); }
+  .gt-cb-chips{ display:flex; flex-wrap:wrap; gap:4px; }
+  .gt-cb-chip{ display:inline-flex; align-items:center; gap:4px; padding:2px 6px; border-radius:999px; background:rgba(28,23,18,.07); border:1px solid rgba(28,23,18,.2); }
+  .gt-cb-chip.done{ opacity:.55; }
+  .gt-cb-chip.noact{ border-color:var(--stamp); }
+  .gt-cb-chip .dot{ width:10px; height:10px; border-radius:50%; border:1.5px solid #1c1712; }
+  .gt-cb-chip .nm{ font-weight:700; cursor:pointer; max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .gt-cb-chip .ini{ font-size:10px; padding:0 5px; border-radius:6px; background:#3f6b4a; color:#fff6e4; }
+  .gt-cb-chip .ini.bad{ background:var(--stamp); }
+  .gt-cb-chip .ini[data-cb]{ cursor:pointer; }
+  .gt-cb-chip .lost{ font-size:10px; color:var(--stamp); font-weight:700; }
+  .gt-cb-chip .eff{ font-size:10px; padding:0 5px; border-radius:6px; background:#2f4f7a; color:#fff6e4; }
+  .gt-cb-chip .eff[data-cb]{ cursor:pointer; }
+  .gt-cb-chip button{ padding:0 6px; min-width:20px; font-size:10px; line-height:16px; border-radius:6px; box-shadow:none; }
+  .gt-cb-chip button.on{ background:var(--ink); color:var(--card); }
+  .gt-cb-hints{ margin-top:6px; padding:5px 8px; border-radius:8px; background:rgba(176,122,31,.15); border:1px solid rgba(176,122,31,.5); }
+  .gt-cb-hints ul{ margin:3px 0 0 16px; padding:0; }
+  .gt-cb-setup{ max-height:240px; overflow:auto; margin:4px 0 6px; }
+  .gt-cb-setrow{ display:flex; align-items:center; justify-content:space-between; gap:8px; padding:2px 0; font-size:12px; }
+  .gt-cb-setrow select{ font-size:11.5px; max-width:170px; }
+  .gt-token.cb-on .gt-token-disc{ box-shadow:0 0 0 3px var(--stamp), 0 0 14px 3px rgba(156,47,28,.6); }
+  .gt-token.cb-done{ filter:saturate(.45) brightness(.9); }
+  .gt-token.cb-noact .gt-token-disc{ outline:2px dashed var(--stamp); outline-offset:2px; }
   /* ---------- Бестиарий: вкладка, карточка существа (как в книге), панель и карточка на игровом столе ---------- */
   .bst-page{ display:grid; grid-template-columns:300px minmax(0,1fr); gap:16px; align-items:start; }
   @media (max-width:820px){ .bst-page{ grid-template-columns:1fr; } }
@@ -11309,6 +11341,11 @@ function sanitizeRollEntry(e){
       return out;
     }
     if(e.mapAttackUndo){ Object.assign(out, { mapAttackUndo:true, attackId:str(e.attackId, 64), text:str(e.text, 200) }); return out; }
+    if(e.initiative){ // проверки инициативы трекера боя (GameTable.rollInitiative)
+      Object.assign(out, { initiative:true, title:str(e.title, 120), list:(Array.isArray(e.list) ? e.list : []).slice(0, 80).map(x=>({ name:str(x && x.name, 60),
+        roll:int(x && x.roll, 0), rolls:ints(x && x.rolls, 2), max:int(x && x.max, 0), mode:rollMode(x && x.mode), success:!!(x && x.success), auto:!!(x && x.auto), notes:str(x && x.notes, 160) })) });
+      return out;
+    }
     if(e.loot){ Object.assign(out, { loot:true, target:str(e.target, 60), text:str(e.text, 700) }); return out; } // находка (см. lootGive)
     if(e.weaponJam){ out.weaponJam = true; out.weaponName = str(e.weaponName, 120); return out; }
     if(e.weaponHits){
@@ -11484,6 +11521,15 @@ function formatQuickRollEntry(e, undoneAttacks){
   }
   if(e.loot){
     return {cls:'', html:`<span class="who">${who}</span><span class="rest">${LOOT_SHOVEL_SVG} Находка → ${escapeHtml(e.target)}: ${escapeHtml(e.text)}</span>`};
+  }
+  if(e.initiative){
+    const items = (e.list||[]).map(x=>{
+      if(x.auto) return `${escapeHtml(x.name)}: ⚡ сюрприз — успех`;
+      const md = x.mode==='advantage' ? ', Упрощена' : x.mode==='disadvantage' ? ', Осложнена' : '';
+      const rl = x.rolls && x.rolls.length>1 ? ` [${x.rolls.join(', ')}]` : '';
+      return `${escapeHtml(x.name)}: к20=${x.roll}${rl} / Макс.${x.max}${md} — ${x.success ? 'успех' : '<b>провал: без действия в этом круге</b>'}${x.notes ? ` <span class="muted">(${escapeHtml(x.notes)})</span>` : ''}`;
+    });
+    return {cls:'', html:`<span class="who">${who}</span><span class="rest">⚔ ${escapeHtml(e.title||'Инициатива')}${items.length ? ': ' + items.join('; ') : ''}</span>`};
   }
   if(e.mapAttackUndo){
     return {cls:'', html:`<span class="who">${who}</span><span class="rest">↶ Отменил атаку: ${escapeHtml(e.text)}</span>`};
@@ -19667,7 +19713,7 @@ const GameTable = (function(){
   function newId(p){ return (p||'')+Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
   function blankState(tableId){
     return {schema:1, tableId: tableId===undefined ? newId('tbl') : tableId, version:0,
-            map:{metersPerCell:METERS_PER_CELL, background:null, scene:null}, tokens:{}, drawings:[], zones:[]};
+            map:{metersPerCell:METERS_PER_CELL, background:null, scene:null}, tokens:{}, drawings:[], zones:[], combat:null};
   }
   function num(v, d){ v = Number(v); return isFinite(v) ? v : d; }
   function clamp(v, a, b){ return v<a ? a : v>b ? b : v; }
@@ -19759,7 +19805,42 @@ const GameTable = (function(){
     Object.keys(raw.tokens||{}).forEach(k=>{ const t = sanitizeToken(raw.tokens[k]); s.tokens[t.id] = t; });
     (Array.isArray(raw.drawings) ? raw.drawings : []).forEach(d=>{ const c = sanitizeDrawing(d); if(c) s.drawings.push(c); });
     s.zones = Array.isArray(raw.zones) ? raw.zones : []; // задел под зоны/AoE — пока только хранятся
+    s.combat = sanitizeCombat(raw.combat);
     return s;
+  }
+  /* Трекер боя (правила «Бой»): стороны ходят по очереди целиком — сначала начавшая конфликт, затем вторая (третья);
+     круг закончен, когда сходили все стороны. Проверка инициативы — Бросок рефлексов (−6) в начале боя и при смене
+     сцены: проваливший теряет действие в этом круге (реакция остаётся); при ходе сюрприза начавшая сторона
+     преуспевает автоматически. У каждого участника — отметки «действие», «реакция», «действие обменяно на реакцию»
+     и эффекты «на N кругов». */
+  function sanitizeCombat(c){
+    if(!c || typeof c!=='object' || !c.active) return null;
+    const int = (v, d, a, b)=>Math.round(clamp(num(v, d), a, b));
+    const sides = (Array.isArray(c.sides) ? c.sides : []).slice(0, 4).map(x=>({id:String(x && x.id || '').slice(0, 16), name:String(x && x.name || 'Сторона').slice(0, 40)})).filter(x=>x.id);
+    if(!sides.length) return null;
+    const ids = new Set(sides.map(x=>x.id));
+    const order = (Array.isArray(c.order) ? c.order : []).map(String).filter((x, i, a)=>ids.has(x) && a.indexOf(x)===i);
+    sides.forEach(x=>{ if(order.indexOf(x.id)<0) order.push(x.id); });
+    const mode = (v)=>v==='advantage' || v==='disadvantage' ? v : 'plain';
+    const parts = {};
+    Object.keys(c.parts && typeof c.parts==='object' ? c.parts : {}).slice(0, 200).forEach(id=>{
+      const q = c.parts[id] || {}; if(!ids.has(q.side)) return;
+      const i0 = q.init && typeof q.init==='object' ? q.init : null;
+      parts[String(id).slice(0, 64)] = { side:q.side,
+        init: i0 ? {roll:int(i0.roll, 0, 0, 20), rolls:(Array.isArray(i0.rolls) ? i0.rolls : []).slice(0, 2).map(x=>int(x, 0, 0, 20)), max:int(i0.max, 0, -50, 99),
+                    mode:mode(i0.mode), success:!!i0.success, auto:!!i0.auto} : null,
+        noAct:!!q.noAct, act:!!q.act, react:!!q.react, swap:!!q.swap,
+        effects:(Array.isArray(q.effects) ? q.effects : []).slice(0, 12).map(e=>({n:String(e && e.n || '').slice(0, 60), r:int(e && e.r, 1, 0, 99)})).filter(e=>e.n) };
+    });
+    return {active:true, round:int(c.round, 1, 1, 9999), turn:int(c.turn, 0, 0, order.length - 1), scene:int(c.scene, 1, 1, 999),
+            surprise:ids.has(c.surprise) ? c.surprise : '', sides, order, parts};
+  }
+  // Игрокам — без скрытых жетонов (их для игроков не существует вовсе)
+  function publicCombat(c){
+    if(!c) return null;
+    const o = clone(c);
+    Object.keys(o.parts).forEach(id=>{ const t = authState.tokens[id]; if(!t || t.hidden) delete o.parts[id]; });
+    return o;
   }
   function loadJson(key){ try{ return JSON.parse(localStorage.getItem(key)||'null'); }catch(e){ return null; } }
   function saveJson(key, val){ try{ localStorage.setItem(key, JSON.stringify(val)); }catch(e){ console.warn('[Игровой стол] не удалось сохранить', key, e); } }
@@ -19881,6 +19962,7 @@ const GameTable = (function(){
       case 'drawing-remove': { const ids = new Set(op.ids||[]); s.drawings = s.drawings.filter(d=>!ids.has(d.id)); break; }
       case 'drawings-set': s.drawings = op.drawings; break;
       case 'map-set': s.map = op.map; break;
+      case 'combat-set': s.combat = op.combat; break;
     }
   }
   function sanitizeOp(op){
@@ -19892,12 +19974,14 @@ const GameTable = (function(){
       case 'drawing-remove': return {op:op.op, ids:(op.ids||[]).map(String)};
       case 'drawings-set': return {op:op.op, drawings:(op.drawings||[]).map(sanitizeDrawing).filter(Boolean)};
       case 'map-set': return {op:op.op, map:sanitizeMap(op.map)};
+      case 'combat-set': return {op:op.op, combat:sanitizeCombat(op.combat)};
     }
     return null;
   }
   // Скрытый жетон для игроков не существует вовсе: его upsert уходит им как remove, в снимок не попадает
   function playerOps(ops){
     return ops.map(op=>{
+      if(op.op==='combat-set') return {op:'combat-set', combat:publicCombat(op.combat)};
       if(op.op!=='token-upsert') return op;
       return op.token.hidden ? {op:'token-remove', id:op.token.id} : {op:'token-upsert', token:publicToken(op.token)}; // без секретных боевых полей
     });
@@ -19905,7 +19989,7 @@ const GameTable = (function(){
   function playerSnapshot(){
     const s = authState, tokens = {};
     Object.values(s.tokens).forEach(t=>{ if(!t.hidden) tokens[t.id] = publicToken(t); });
-    return {schema:1, tableId:s.tableId, version:s.version, map:s.map, tokens, drawings:s.drawings, zones:s.zones};
+    return {schema:1, tableId:s.tableId, version:s.version, map:s.map, tokens, drawings:s.drawings, zones:s.zones, combat:publicCombat(s.combat)};
   }
   function sendSnapshot(toId){ if(role()==='gm') sendMsg({type:'gt-snapshot', state:playerSnapshot()}, toId); }
 
@@ -19956,6 +20040,20 @@ const GameTable = (function(){
         (cmd.ids||[]).forEach(id=>{ if(s.tokens[id]) ops.push({op:'token-remove', id}); });
         break;
       }
+      case 'combat-set': {
+        if(remote) return deny('Вести бой может только Мастер');
+        ops.push({op:'combat-set', combat:sanitizeCombat(cmd.combat)});
+        break;
+      }
+      case 'combat-mark': { // игрок отмечает своё действие/реакцию
+        const c0 = s.combat, t = s.tokens[cmd.id];
+        if(!c0 || !t || !c0.parts[cmd.id]) return deny('Этот жетон не участвует в бою');
+        if(remote && !(t.kind==='player' && t.ownerId===from)) return deny('Отмечать можно только себя');
+        if(['act','react','swap'].indexOf(cmd.field)<0) return deny('Неизвестная отметка');
+        const c1 = clone(c0); c1.parts[cmd.id][cmd.field] = !!cmd.value;
+        ops.push({op:'combat-set', combat:sanitizeCombat(c1)});
+        break;
+      }
       case 'drawing-add': case 'drawing-remove': case 'drawings-set': case 'map-set': {
         if(remote) return deny('Рисовать может только Мастер');
         const op = sanitizeOp(Object.assign({}, cmd, {op:cmd.c}));
@@ -19986,6 +20084,7 @@ const GameTable = (function(){
     if(bg) checkSceneChange();
     renderTokens();
     requestRender({draw, bg, fx:true});
+    if(ops.some(op=>op.op==='combat-set')) renderCombat();
     if(typeof Bestiary!=='undefined') Bestiary.onTableChanged(); // открытая карточка существа — свежие ОЗ, травмы, оружие
   }
   // Своё действие: авторитет применяет сразу, игрок отправляет Мастеру
@@ -20221,6 +20320,7 @@ const GameTable = (function(){
     tokenEls.forEach((el, id)=>{ if(!seen.has(id)){ el.remove(); tokenEls.delete(id); selected.delete(id); } });
     emptyHint.style.display = seen.size || st().drawings.length || (st().map && (st().map.scene || st().map.background)) ? 'none' : '';
     renderInfoCard();
+    renderCombat();
   }
   function positionTokenEl(el, t){
     const pos = displayPos(t), sz = SIZE_CELLS[t.size]*CELL;
@@ -20233,6 +20333,10 @@ const GameTable = (function(){
     el.classList.toggle('movable', canControl(t));
     el.classList.toggle('hidden-tok', !!t.hidden);
     el.classList.toggle('dragging', !!dragPos[t.id]);
+    { const cbs = st().combat, cbp = cbs && cbs.parts[t.id];
+      el.classList.toggle('cb-on', !!cbp && cbs.order[cbs.turn]===cbp.side);
+      el.classList.toggle('cb-done', !!cbp && (cbp.act || cbp.swap || cbp.noAct));
+      el.classList.toggle('cb-noact', !!cbp && cbp.noAct); }
     const v = vitalsFor(t);
     const key = JSON.stringify([t.name, t.color, t.avatar, t.hp, t.kind, t.hidden, t.size, t.rotation, t.trauma, t.traumaRed, t.slowReaction, t.burning, v && [v.name, v.hp, v.hpMax, v.psi, v.psiMax]]);
     if(el._gtKey===key) return;
@@ -21009,6 +21113,7 @@ const GameTable = (function(){
     h.push('<span class="gt-sep"></span>');
     if(r==='gm') h.push(actBtn('pointer','Указка','pointer', pointerBroadcast ? ' active' : ''));
     if(r!=='gm') h.push(actBtn('me','Мой жетон','my-token'));
+    if(auth) h.push(`<button type="button" class="gt-tool${st().combat ? ' active' : ''}" data-act="combat" title="${st().combat ? 'Бой идёт — свернуть/развернуть трекер' : 'Начать бой: стороны, инициатива, круги'}"><span style="font-size:14px;line-height:1">⚔</span><span class="gt-lbl">Бой</span></button>`);
     if(auth && typeof Bestiary!=='undefined') h.push(`<button type="button" class="gt-tool${Bestiary.dockOpen ? ' active' : ''}" data-act="bestiary" title="Бестиарий — перетащите существо на поле"><span style="font-size:14px;line-height:1">📖</span><span class="gt-lbl">Бестиарий</span></button>`);
     if(auth) h.push(`<button type="button" class="gt-tool" data-act="more" title="Ещё">${icon('more')}</button>`);
     toolbar.innerHTML = h.join('');
@@ -21093,6 +21198,7 @@ const GameTable = (function(){
       case 'my-token': myTokenAction(); break;
       case 'more': openMoreMenu(b); break;
       case 'bestiary': if(typeof Bestiary!=='undefined') Bestiary.toggleDock(); break;
+      case 'combat': if(st().combat){ combatCollapsed = !combatCollapsed; renderCombat(); } else openCombatSetup(b); break;
       case 'undo': undo(); break;
       case 'redo': redo(); break;
       case 'clear-drawings': clearDrawings(); break;
@@ -21148,6 +21254,7 @@ const GameTable = (function(){
         {id:'hp', label:'Изменить HP…', run:()=>openVitalForm(t, 'hp', p)}
       ]);
       if(t.creature && typeof Bestiary!=='undefined') items.unshift({id:'card', label:'📖 Карточка существа', run:()=>Bestiary.openFloat(t.id)});
+      items.push(...combatMenuItems(t, p));
       if(t.kind==='player') items.push({id:'psi', label:'Изменить Psi…', run:()=>openVitalForm(t, 'psi', p)});
       items.push({id:'size', run:(size)=>act({c:'token-update', id:t.id, patch:{size}}),
         html:`<div class="gt-menu-sizes">${Object.keys(SIZE_CELLS).map(s=>`<button type="button" data-size="${s}" class="${t.size===s?'active':''}">${SIZE_LABELS[s].split(' ')[0]}</button>`).join('')}</div>`});
@@ -21500,6 +21607,9 @@ const GameTable = (function(){
     statusEl = document.getElementById('gtStatus'); infoCard = document.getElementById('gtInfoCard'); hintEl = document.getElementById('gtHint');
     toastEl = document.getElementById('gtToast'); menuEl = document.getElementById('gtMenu'); popEl = document.getElementById('gtPopover');
     emptyHint = document.getElementById('gtEmptyHint');
+    combatEl = document.createElement('div'); combatEl.className = 'gt-ui gt-combat'; combatEl.id = 'gtCombat'; viewport.appendChild(combatEl);
+    combatEl.addEventListener('click', onCombatClick);
+    combatEl.addEventListener('wheel', (e)=>e.stopPropagation(), {passive:true});
     viewport.addEventListener('pointerdown', onPointerDown);
     viewport.addEventListener('pointermove', onPointerMove);
     viewport.addEventListener('pointerup', onPointerUp);
@@ -21540,6 +21650,200 @@ const GameTable = (function(){
     refreshRole();
     renderToolbar(); renderZoombar(); renderStatus();
   }
+
+  /* ---------- трекер боя ---------- */
+  let combatEl = null, combatCollapsed = false, combatHints = null, lastTurnKey = '';
+  const SIDE_NAMES = {s1:'Игроки и союзники', s2:'Противники', s3:'Третья сторона'};
+  function combatSides(){ return Object.keys(SIDE_NAMES).map(id=>({id, name:SIDE_NAMES[id]})); }
+  function setCombat(c){ act({c:'combat-set', combat:c}); }
+  function abilityTextsOf(t){
+    if(t.kind==='player'){ const c = attackerSheet(t); return c && Array.isArray(c.abilities) ? c.abilities.map(a=>({n:a.name || '', x:a.text || ''})) : []; }
+    if(t.creature) return (t.creature.abil || []).map(a=>({n:a[0] || '', x:a[1] || ''}));
+    return [];
+  }
+  // Максимум проверки инициативы: рефлексы + 10 − 6; «проверка инициативы +3 / Упрощена / Осложнена» из способностей —
+  // сразу; условные («может…», «если…», «союзников…») — только подсказкой Мастеру
+  function initiativeSetup(t){
+    let refl = 3;
+    if(t.kind==='player'){ const c = attackerSheet(t); if(c && c.stats && isFinite(Number(c.stats.refleksy))) refl = Number(c.stats.refleksy); }
+    else if(t.reflexes!=null) refl = t.reflexes;
+    let mod = 0, adv = 0, dis = 0; const notes = [], hints = [];
+    abilityTextsOf(t).forEach(a=>{
+      const sent = String(a.x).split(/(?<=[.!?])\s+/).filter(x=>/инициатив/i.test(x)).join(' ');
+      if(!sent) return;
+      if(/союзник|может|если|когда|вместо/i.test(sent)){ hints.push(a.n || sent.slice(0, 40)); return; }
+      const m = sent.match(/инициатив[^.]*?\+\s*(\d+)/i); if(m){ mod += +m[1]; notes.push(`${a.n} +${m[1]}`); }
+      if(/Упрощ/i.test(sent)){ adv++; notes.push(`${a.n}: Упрощена`); }
+      if(/Осложн/i.test(sent)){ dis++; notes.push(`${a.n}: Осложнена`); }
+    });
+    return {max:refl + 10 - 6 + mod, mode:adv>dis ? 'advantage' : dis>adv ? 'disadvantage' : 'plain', notes, hints};
+  }
+  function rollInitiative(c, ids, title){
+    const list = []; let hiddenN = 0;
+    ids.forEach(id=>{
+      const t = authState.tokens[id], q = c.parts[id]; if(!t || !q) return;
+      const name = tokenName(t, vitalsFor(t));
+      let e;
+      if(c.surprise && q.side===c.surprise){ q.init = {roll:0, rolls:[], max:0, mode:'plain', success:true, auto:true}; q.noAct = false; e = {name, auto:true, success:true}; }
+      else {
+        const su = initiativeSetup(t), rolls = su.mode==='plain' ? [randInt(20)] : [randInt(20), randInt(20)];
+        const roll = pickD20ForMode(rolls[0], rolls[1], su.max, su.mode), ev = evaluateD20Check(roll, su.max);
+        q.init = {roll, rolls, max:su.max, mode:su.mode, success:ev.success, auto:false}; q.noAct = !ev.success;
+        e = {name, roll, rolls, max:su.max, mode:su.mode, success:ev.success, notes:su.notes.join('; ')};
+      }
+      if(t.hidden) hiddenN++; else list.push(e);
+    });
+    if(list.length || hiddenN) recordAndShareQuickRoll({initiative:true, title:title + (hiddenN ? ` (+ скрытых участников: ${hiddenN})` : ''), list});
+  }
+  function openCombatSetup(btn){
+    const r = btn.getBoundingClientRect(), vr = viewport.getBoundingClientRect(), p = {x:r.left - vr.left, y:r.bottom - vr.top + 2};
+    const all = Object.values(authState.tokens), pick = selected.size>1 ? all.filter(t=>selected.has(t.id)) : all;
+    if(!pick.length){ toast('На поле нет жетонов'); return; }
+    const rows = pick.map(t=>{ const def = t.kind==='player' ? 's1' : 's2';
+      return `<div class="gt-cb-setrow"><span>${escapeHtml(tokenName(t, vitalsFor(t)))}${t.hidden ? ' <i class="muted">(скрыт)</i>' : ''}</span><select name="side_${escapeHtml(t.id)}">${combatSides().map(x=>`<option value="${x.id}" ${x.id===def ? 'selected' : ''}>${x.name}</option>`).join('')}<option value="">— не участвует</option></select></div>`; }).join('');
+    const html = `<div class="gt-pop-title">⚔ Начать бой</div>
+      <div class="gt-pop-note">${selected.size>1 ? 'Участники — выбранные жетоны.' : 'Участники — все жетоны на поле (выделите несколько, чтобы взять только их).'} Сторона каждого:</div>
+      <div class="gt-cb-setup">${rows}</div>
+      <label class="gt-f">Конфликт начала сторона<select name="first">${combatSides().map(x=>`<option value="${x.id}" ${x.id==='s2' ? 'selected' : ''}>${x.name}</option>`).join('')}</select></label>
+      <label class="gt-check"><input type="checkbox" name="surprise"> Ход сюрприза — начавшая сторона застала другую врасплох (её участники автоматически преуспевают в проверке инициативы)</label>
+      <div class="gt-pop-note">Проверка инициативы — Бросок рефлексов (−6) за всех: провал — без действия в этом круге, реакция остаётся.</div>
+      <div class="gt-pop-actions"><button type="button" class="small" data-cancel>Отмена</button><button type="submit" class="small primary">🎲 Инициатива и в бой</button></div>`;
+    openPopover(p, html, (f)=>{
+      const fd = new FormData(f), parts = {};
+      pick.forEach(t=>{ const sd = fd.get('side_' + t.id); if(sd) parts[t.id] = {side:sd, init:null, noAct:false, act:false, react:false, swap:false, effects:[]}; });
+      const used = [...new Set(Object.values(parts).map(x=>x.side))];
+      if(!used.length){ toast('Никто не участвует'); return false; }
+      let first = String(fd.get('first')); if(used.indexOf(first)<0) first = used[0];
+      const order = [first].concat(combatSides().map(x=>x.id).filter(id=>id!==first && used.indexOf(id)>=0));
+      const c = {active:true, round:1, turn:0, scene:1, surprise:fd.get('surprise')==='on' ? first : '', sides:combatSides().filter(x=>used.indexOf(x.id)>=0), order, parts};
+      rollInitiative(c, Object.keys(parts), 'Инициатива — начало боя');
+      combatCollapsed = false; combatHints = roundHints(c, 'start');
+      setCombat(c); renderToolbar();
+    });
+  }
+  // Подсказки Мастеру: способности участников, которые срабатывают «в начале/в конце круга»
+  function roundHints(c, when){
+    const re = when==='start' ? /в начал\S* (?:каждого |нового |своего )?(?:круга|хода)/i : /в конц\S* (?:каждого |своего )?(?:круга|хода)/i, items = [];
+    Object.keys(c.parts).forEach(id=>{ const t = authState.tokens[id]; if(!t) return;
+      abilityTextsOf(t).forEach(a=>{ if(re.test(a.x)) items.push(`${tokenName(t, vitalsFor(t))} — ${a.n || 'способность'}`); }); });
+    return items.length ? {title:when==='start' ? `Начало круга ${c.round}` : `Конец круга ${c.round}`, items} : null;
+  }
+  function combatNext(){
+    const c = clone(st().combat); if(!c) return;
+    if(c.turn + 1 < c.order.length){ c.turn++; setCombat(c); return; }
+    const endHints = roundHints(c, 'end'), ended = [], burns = [];
+    c.round++; c.turn = 0;
+    Object.keys(c.parts).forEach(id=>{
+      const q = c.parts[id], t = authState.tokens[id];
+      if(!t){ delete c.parts[id]; return; }
+      q.act = q.react = q.swap = false; q.noAct = false;
+      q.effects = q.effects.map(e=>({n:e.n, r:e.r - 1})).filter(e=>{ if(e.r<=0){ ended.push(`${tokenName(t, vitalsFor(t))}: «${e.n}»`); return false; } return true; });
+      if(t.burning) burns.push(t);
+    });
+    burns.forEach(t=>act({c:'token-update', id:t.id, patch:{burning:t.burning - 1}}));
+    const startHints = roundHints(c, 'start'), items = [];
+    if(endHints) items.push(...endHints.items.map(x=>'конец круга: ' + x));
+    if(burns.length) items.push(...burns.map(t=>`🔥 ${tokenName(t, vitalsFor(t))} горит — осталось ${t.burning - 1}`));
+    if(ended.length) items.push(...ended.map(x=>'⏳ закончился эффект ' + x));
+    if(startHints) items.push(...startHints.items);
+    combatHints = items.length ? {title:`Круг ${c.round}`, items} : null;
+    setCombat(c);
+    if(ended.length) toast('Закончились эффекты: ' + ended.join(', '));
+  }
+  function combatScene(){
+    const c = clone(st().combat); if(!c) return;
+    if(!confirm('Сменилась сцена боя? Все участники заново пройдут проверку инициативы (провал — без действия в этом круге).')) return;
+    c.scene++; c.surprise = '';
+    Object.values(c.parts).forEach(q=>{ q.act = q.swap = false; });
+    rollInitiative(c, Object.keys(c.parts), `Инициатива — смена сцены (круг ${c.round})`);
+    setCombat(c);
+  }
+  function combatEnd(){
+    const c = st().combat; if(!c) return;
+    if(!confirm(`Завершить бой (круг ${c.round})?`)) return;
+    recordAndShareQuickRoll({initiative:true, title:`Бой завершён на круге ${c.round}`, list:[]});
+    combatHints = null; setCombat(null); renderToolbar();
+  }
+  function combatMenuItems(t, p){
+    const c = st().combat; if(!c) return [];
+    const q = c.parts[t.id];
+    if(!q) return combatSides().map(x=>({id:'cb_join_' + x.id, label:`⚔ Вступить в бой: ${x.name}`, run:()=>{
+      const c1 = clone(st().combat); c1.parts[t.id] = {side:x.id, init:null, noAct:false, act:false, react:false, swap:false, effects:[]};
+      if(!c1.sides.some(s0=>s0.id===x.id)){ c1.sides.push({id:x.id, name:x.name}); c1.order.push(x.id); }
+      rollInitiative(c1, [t.id], `Инициатива — вступает в бой (круг ${c1.round})`); setCombat(c1); }}));
+    return [{id:'cb_eff', label:'⏳ Эффект на N кругов…', run:()=>openEffectForm(t, p)},
+            {id:'cb_out', label:'⚔ Выйти из боя', run:()=>{ const c1 = clone(st().combat); delete c1.parts[t.id]; setCombat(c1); }}];
+  }
+  function openEffectForm(t, p){
+    const html = `<div class="gt-pop-title">⏳ Эффект: ${escapeHtml(tokenName(t, vitalsFor(t)))}</div>
+      <label class="gt-f">Что за эффект<input type="text" name="n" maxlength="60" placeholder="Например, испуг, неистовство, щит"></label>
+      <label class="gt-f">Кругов<input type="number" name="r" min="1" max="99" value="3"></label>
+      <div class="gt-pop-note">В начале каждого нового круга счётчик уменьшается; когда дойдёт до нуля — эффект снимется с уведомлением.</div>
+      <div class="gt-pop-actions"><button type="button" class="small" data-cancel>Отмена</button><button type="submit" class="small primary">Добавить</button></div>`;
+    openPopover(p, html, (f)=>{
+      const fd = new FormData(f), n = String(fd.get('n') || '').trim(), r = parseInt(fd.get('r'), 10);
+      if(!n || !(r>0)){ toast('Нужно название и число кругов'); return false; }
+      const c1 = clone(st().combat); if(!c1 || !c1.parts[t.id]) return;
+      c1.parts[t.id].effects.push({n, r}); setCombat(c1);
+    });
+  }
+  function beep(){
+    try{ const A = window.AudioContext || window.webkitAudioContext; if(!A) return; const ac = beep.ac || (beep.ac = new A());
+      [0, 0.18].forEach(dt=>{ const o = ac.createOscillator(), g = ac.createGain(); o.frequency.value = 880; o.connect(g); g.connect(ac.destination);
+        g.gain.setValueAtTime(0.0001, ac.currentTime + dt); g.gain.exponentialRampToValueAtTime(0.18, ac.currentTime + dt + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + dt + 0.15);
+        o.start(ac.currentTime + dt); o.stop(ac.currentTime + dt + 0.16); }); }catch(e){}
+  }
+  function renderCombat(){
+    if(!combatEl) return;
+    const c = st().combat, auth = isAuthority();
+    if(!c){ combatEl.style.display = 'none'; if(infoCard) infoCard.style.bottom = ''; lastTurnKey = ''; return; }
+    const activeSide = c.order[c.turn], sideName = (id)=>(c.sides.find(x=>x.id===id) || {}).name || id;
+    // «Ваш ход» — игроку, когда наступает ход его стороны
+    const key = c.round + ':' + c.turn, mine = ownToken();
+    if(key!==lastTurnKey){ const was = lastTurnKey; lastTurnKey = key;
+      if(was && role()==='player' && mine && c.parts[mine.id] && c.parts[mine.id].side===activeSide){ toast(`⚔ Ваш ход — круг ${c.round}`); beep(); } }
+    const chips = (sid)=>Object.keys(c.parts).filter(id=>c.parts[id].side===sid && st().tokens[id]).map(id=>{
+      const q = c.parts[id], t = st().tokens[id], name = tokenName(t, vitalsFor(t)), mineTok = t.kind==='player' && mine && mine.id===id;
+      const can = auth || mineTok, dis = can ? '' : ' disabled';
+      const ini = q.init ? (q.init.auto ? `<span class="ini ok" title="Ход сюрприза — автоматический успех">⚡</span>`
+        : `<span class="ini ${q.init.success ? 'ok' : 'bad'}" ${auth ? 'data-cb="ini"' : ''} title="Инициатива: к20=${q.init.roll}${q.init.rolls.length>1 ? ' [' + q.init.rolls.join(', ') + ']' : ''} / Макс. ${q.init.max}${q.init.mode==='advantage' ? ', Упрощена' : q.init.mode==='disadvantage' ? ', Осложнена' : ''}${auth ? ' · клик — переключить успех/провал' : ''}">${q.init.roll}/${q.init.max}</span>`) : '';
+      const eff = q.effects.map((e, i)=>`<span class="eff" ${auth ? `data-cb="eff" data-i="${i}"` : ''} title="${escapeHtml(e.n)}: осталось кругов ${e.r}${auth ? ' · клик — убрать' : ''}">⏳${escapeHtml(e.n)} ${e.r}</span>`).join('');
+      return `<div class="gt-cb-chip${q.act || q.swap || q.noAct ? ' done' : ''}${q.noAct ? ' noact' : ''}" data-id="${escapeHtml(id)}">
+        <span class="dot" style="background:${t.color}"></span><span class="nm" data-cb="focus" title="Показать на поле">${escapeHtml(name)}</span>${ini}
+        ${q.noAct ? '<span class="lost" title="Провалил проверку инициативы — без действия в этом круге (реакция есть)">без действия</span>'
+          : `<button type="button" data-cb="act" class="${q.act ? 'on' : ''}"${dis} title="Действие потрачено">Д</button>`}
+        <button type="button" data-cb="react" class="${q.react ? 'on' : ''}"${dis} title="Реакция потрачена (1 за круг)">Р</button>
+        ${q.noAct ? '' : `<button type="button" data-cb="swap" class="${q.swap ? 'on' : ''}"${dis} title="Действие обменяно на дополнительную реакцию">⇄</button>`}${eff}</div>`; }).join('');
+    const head = `<div class="gt-cb-head"><span><b>⚔ Круг ${c.round}</b>${c.scene>1 ? ` · сцена ${c.scene}` : ''} · ходит: <b>${escapeHtml(sideName(activeSide))}</b></span>`+
+      (auth ? `<span class="gt-cb-btns"><button type="button" class="small primary" data-cbh="next" title="Сторона сходила — передать ход следующей (после последней — новый круг)">▶ ${c.turn + 1 < c.order.length ? 'Ход: ' + escapeHtml(sideName(c.order[c.turn + 1])) : 'Новый круг'}</button><button type="button" class="small" data-cbh="scene" title="Смена сцены — заново проверка инициативы">🔄 Сцена</button><button type="button" class="small" data-cbh="end">⏹ Завершить</button></span>` : '') +
+      `<button type="button" class="small gt-cb-fold" data-cbh="fold" title="${combatCollapsed ? 'Развернуть' : 'Свернуть'}">${combatCollapsed ? '▴' : '▾'}</button></div>`;
+    const body = combatCollapsed ? '' : c.order.map((sid, i)=>`<div class="gt-cb-side${sid===activeSide ? ' on' : ''}"><div class="gt-cb-sname">${i + 1}. ${escapeHtml(sideName(sid))}${sid===c.surprise ? ' · ⚡ сюрприз' : ''}</div><div class="gt-cb-chips">${chips(sid) || '<span class="muted">—</span>'}</div></div>`).join('') +
+      (auth && combatHints ? `<div class="gt-cb-hints"><b>📌 ${escapeHtml(combatHints.title)}</b> <button type="button" class="small" data-cbh="hints" title="Скрыть">✕</button><ul>${combatHints.items.map(x=>`<li>${escapeHtml(x)}</li>`).join('')}</ul></div>` : '');
+    combatEl.innerHTML = head + body;
+    combatEl.style.display = 'block';
+    if(infoCard) infoCard.style.bottom = (combatEl.offsetHeight + 18) + 'px';
+  }
+  function onCombatClick(e){
+    const c = st().combat; if(!c) return;
+    const h = e.target.closest('[data-cbh]');
+    if(h){ const k = h.dataset.cbh;
+      if(k==='fold'){ combatCollapsed = !combatCollapsed; renderCombat(); return; }
+      if(k==='hints'){ combatHints = null; renderCombat(); return; }
+      if(!isAuthority()) return;
+      if(k==='next') combatNext(); else if(k==='scene') combatScene(); else if(k==='end') combatEnd();
+      return; }
+    const b = e.target.closest('[data-cb]'), chip = e.target.closest('[data-id]'); if(!b || !chip) return;
+    const id = chip.dataset.id, q = c.parts[id], k = b.dataset.cb; if(!q) return;
+    if(k==='focus'){ setSelection([id]); const t = tok(id); if(t) centerOn(t); return; }
+    if(k==='act' || k==='react' || k==='swap'){
+      if(isAuthority()){ const c1 = clone(c); c1.parts[id][k] = !q[k]; setCombat(c1); }
+      else act({c:'combat-mark', id, field:k, value:!q[k]});
+      return; }
+    if(!isAuthority()) return;
+    if(k==='ini'){ const c1 = clone(c); const q1 = c1.parts[id]; q1.init.success = !q1.init.success; q1.noAct = !q1.init.success; setCombat(c1); return; }
+    if(k==='eff'){ const c1 = clone(c); c1.parts[id].effects.splice(+b.dataset.i, 1); setCombat(c1); }
+  }
+  function centerOn(t){ if(!viewport) return; cam.x = viewport.clientWidth/2 - t.x*CELL*cam.z; cam.y = viewport.clientHeight/2 - t.y*CELL*cam.z; applyCamera(); requestRender({bg:true, draw:true, fx:true}); }
 
   /* ---------- атака с карты ----------
      Атакующий (свой жетон игрока или жетон Мастера) → «Атаковать» в меню → клик по цели → окно атаки → жест
