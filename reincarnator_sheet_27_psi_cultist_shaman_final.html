@@ -223,6 +223,12 @@
   .ab-card-src{ border-left:3px solid currentColor; padding-left:8px; }
   .ab-src{ font-size:10.5px; text-transform:uppercase; letter-spacing:.03em; color:var(--ink-soft); margin-bottom:2px; }
   .ab-src b{ color:var(--ink); }
+  .gen-mode-menu{ position:absolute; z-index:9500; display:flex; flex-direction:column; gap:4px; padding:6px; min-width:280px; max-width:360px;
+    background:var(--card); border:2px solid var(--ink); border-radius:10px; box-shadow:0 14px 26px -10px rgba(0,0,0,.65); }
+  .gen-mode-menu button{ display:flex; flex-direction:column; align-items:flex-start; gap:2px; text-align:left; text-transform:none; letter-spacing:0; padding:6px 10px; box-shadow:none; }
+  .gen-mode-menu button span{ font-size:11px; font-weight:400; opacity:.8; }
+  .gen-mode-menu button.on{ background:var(--ink); color:var(--card); }
+  .pending-progress{ padding:8px 12px; }
   .sheet-controls{ margin:4px 0 18px; }
   .topbar .sheet-controls{ margin:0; }
   .sheet-flow{ display:flex; gap:16px; align-items:flex-start; }
@@ -5594,6 +5600,8 @@ let pendingItemRolls = []; // [{id, title, options:[{label, apply(c)}]}] — man
 // Режим «Случайный⚡»: всё, как в «случайном», и вдобавок выборы «в зависимости от отыгрыша» тоже делаются случайно
 // (с учётом оговорки «к не самому высокому…»), а не ждут игрока.
 let roleplayRandom = false;
+let lostPendingNotice = 0; // сколько несделанных выборов генерации пропало при загрузке (см. applyLoadedPayload)
+const GEN_MODE_KEY = 'reincarnator_gen_mode_v1';
 let randomMode = true; // toggled by the "случайный/ручной" button — governs choice/distribute/reduceDistinct/choiceMixed/weaponChoice/abilityChoice
 
 function randInt(n){ return 1 + Math.floor(Math.random()*n); }
@@ -6449,7 +6457,10 @@ function removeBonusesBySource(c, sourcePrefix){
 // once that's resolved — see the hook at the top of renderAll().
 function processNextLevelIfReady(c, fullHealEachStep){
   if(!c || !c._levelUpTarget) return;
-  if(pendingChoices.length || pendingRoleplayChoices.length || pendingItemRolls.length) return; // still waiting on the current level
+  // Ждём только выборов, от которых зависят следующие уровни. Выбор предметов по таблице (стартовое снаряжение
+  // и т.п.) живёт в «Инвентаре» и на характеристики не влияет — раньше он молча блокировал повышение уровня.
+  if(pendingChoices.length || pendingRoleplayChoices.length) return; // still waiting on the current level
+  delete c._lvlCheckpoint; delete c._genCheckpoint; // выборы разобраны — точки восстановления больше не нужны
   if(c.level >= c._levelUpTarget){
     // Target reached. This can happen either on the very first call or, more often, partway through
     // the recursion below — so this is the ONLY reliable place to fire what's supposed to happen once
@@ -6469,6 +6480,10 @@ function processNextLevelIfReady(c, fullHealEachStep){
   // needs to see the level the character is AT, not the one they're leaving — otherwise a threshold
   // that first becomes true exactly at this level (e.g. reaching level 15 for Катарсис) gets missed on
   // this pass and only fires on some later level's reconcile call instead.
+  // Точка восстановления: несделанные выборы ручного режима — функции в памяти, в сохранение они не попадают.
+  // Если страницу обновят (или персонажа загрузят) посреди выборов этого уровня, лист вернётся к состоянию
+  // до него и предложит выборы уровня заново (см. restoreLevelCheckpoint), а не перескочит через них.
+  c._lvlCheckpoint = levelCheckpointOf(c);
   c.level = nextLevel;
   if(arch.baseLevels[nextLevel]){
     const mods = arch.baseLevels[nextLevel];
@@ -6527,14 +6542,32 @@ function offerSizeBonusIfEligible(c){
 // change here, so this tracks its own separate progress counter instead of reusing c.level. Same
 // one-level-at-a-time reasoning applies: without it, a later level's pick could evaluate against an
 // earlier level's bonus that was only queued, not actually resolved yet, during the backfill.
+function levelCheckpointOf(c){ const o = JSON.parse(JSON.stringify(c)); delete o._lvlCheckpoint; delete o._genCheckpoint; return o; }
+// После загрузки (автосохранение при обновлении страницы, слот, файл): если выборы уровня не были доделаны —
+// вернуться к состоянию до этого уровня; renderAll() сам применит уровень заново и предложит выборы.
+function restoreLevelCheckpoint(c){
+  if(!c) return c;
+  if(c._genCheckpoint && c._levelUpTarget){ // посреди выборов самой генерации — повторить бонусы карьеры/происхождения/архетипа
+    const cp = c._genCheckpoint;
+    applyGenerationMods(cp);
+    logEvent(cp, 'Страница была обновлена посреди выборов создания персонажа — эти выборы предложены заново.');
+    return cp;
+  }
+  if(!c._lvlCheckpoint || !(c._levelUpTarget || c._backfillTarget)) return c;
+  const cp = c._lvlCheckpoint;
+  logEvent(cp, `Страница была обновлена посреди выборов уровня ${c.level} — выборы этого уровня предложены заново.`);
+  return cp;
+}
 function processNextBackfillLevelIfReady(c){
   if(!c || !c._backfillTarget) return;
-  if(pendingChoices.length || pendingRoleplayChoices.length || pendingItemRolls.length) return;
+  if(pendingChoices.length || pendingRoleplayChoices.length) return;
+  delete c._lvlCheckpoint;
   if(c._backfillProgress >= c._backfillTarget){
     delete c._backfillTarget; delete c._backfillProgress; delete c._backfillArchetype; delete c._backfillSubtype;
     return;
   }
   const nextLevel = c._backfillProgress + 1;
+  c._lvlCheckpoint = levelCheckpointOf(c);
   const arch = currentArchetype(c);
   const fixedSummary = [];
   if(c._backfillArchetype && arch.baseLevels[nextLevel]){
@@ -6591,7 +6624,6 @@ function generateCharacter(){
     c.careerKey = pick(careerPool);
   }
   const career = CAREERS[c.careerKey];
-  applyModifierList(c, career.mods, 'Карьера: '+career.name, randomMode);
 
   // 2) origin — locked: use the "Происхождение" select as-is; unlocked: random among origins
   //    compatible with the chosen career.
@@ -6604,7 +6636,6 @@ function generateCharacter(){
     c.originKey = pick(career.origins);
   }
   const origin = ORIGINS[c.originKey];
-  applyModifierList(c, origin.mods, 'Происхождение: '+origin.name, randomMode);
 
   // 3) subtype — locked: use the "Подтип" select as-is (if it's a subtype of the CURRENT archetype);
   //    unlocked: random among the current archetype's subtypes. Bonuses apply once level reaches the threshold.
@@ -6613,9 +6644,6 @@ function generateCharacter(){
   } else {
     c.subtypeKey = pick(Object.keys(arch.subtypes));
   }
-
-  // 4) archetype level 1 bonuses (character starts play at level 1 per rules p.86)
-  applyModifierList(c, arch.baseLevels[1], `Архетип: ${arch.name} (ур.1)`, randomMode);
 
   // 5) alignment — locked: use the "Мировоззрение" field as typed/selected (free text, not restricted
   //    to the 8 named options — see wireSuggestDropdown); unlocked: random pick from the fixed list.
@@ -6635,8 +6663,30 @@ function generateCharacter(){
     c.flaws.push({id:uid(), text: rollTable(FLAW_TABLE,12).text, source:'Случайно (возраст)', forced:false});
   }
 
+  // Generate directly at a chosen starting level — locked: use "Уровень при генерации" as-is;
+  // unlocked: always start fresh at level 1 (there's no book convention for a "random" starting level).
+  c._levelUpTarget = isLocked('fLevelLock') ? parseInt(selVal('fLevel'),10) : 1;
+  c._levelUpFullHeal = true; // fresh character, hasn't taken any damage yet — see processNextLevelIfReady
+  // Стартовое снаряжение зависит от ИТОГОВОГО уровня — выдаётся, когда повышение дойдёт до цели (processNextLevelIfReady)
+  c._pendingStartingGear = true;
+  c._genCheckpoint = levelCheckpointOf(c); // см. restoreLevelCheckpoint
+  applyGenerationMods(c);
+  // One level at a time (see processNextLevelIfReady) rather than applying every level in one batch —
+  // this call advances as far as it can immediately (e.g. all the way, in pure random mode with no
+  // roleplay-only choices along the way) and stops the moment a level leaves something pending; the
+  // renderAll() hook resumes it automatically once the player clears that.
+  processNextLevelIfReady(c, true);
+  return c;
+}
+// Бонусы карьеры, происхождения и 1 уровня архетипа (4 — стр. 86) + стартовые ОЗ/пси и запись в журнал.
+// Отдельно от generateCharacter, чтобы повторить их по точке восстановления (restoreLevelCheckpoint).
+function applyGenerationMods(c){
+  const arch = currentArchetype(c), career = CAREERS[c.careerKey], origin = ORIGINS[c.originKey], bracket = AGE_BRACKETS[c.ageKey];
+  applyModifierList(c, career.mods, 'Карьера: '+career.name, randomMode);
+  applyModifierList(c, origin.mods, 'Происхождение: '+origin.name, randomMode);
+  applyModifierList(c, arch.baseLevels[1], `Архетип: ${arch.name} (ур.1)`, randomMode);
   // 7) health / psi start at full max (3 + выносливость + размер / 3 + дух); recomputed once more
-  //    below after any pre-generation level-up, so a character generated straight at a high level
+  //    after any pre-generation level-up, so a character generated straight at a high level
   //    starts at ITS max, not the level-1 max frozen in place. During play these track current
   //    damage/expenditure and can go negative down to -max — see hpMax()/psiMax() below.
   c.hpCurrent = hpMax(c);
@@ -6653,25 +6703,6 @@ function generateCharacter(){
     logEvent(c, `Персонаж сгенерирован — архетип «${arch.name}», карьера «${career.name}», происхождение «${origin.name}», подтип «${arch.subtypes[c.subtypeKey].name}», возраст: ${bracket.label}.`
       + (parts.length ? ` Фиксированные бонусы: ${parts.join('; ')}.` : ' Фиксированных бонусов нет.'));
   }
-
-  // Generate directly at a chosen starting level — locked: use "Уровень при генерации" as-is;
-  // unlocked: always start fresh at level 1 (there's no book convention for a "random" starting level).
-  const genLevel = isLocked('fLevelLock') ? parseInt(selVal('fLevel'),10) : 1;
-  c._levelUpTarget = genLevel;
-  c._levelUpFullHeal = true; // fresh character, hasn't taken any damage yet — see processNextLevelIfReady
-  // One level at a time (see processNextLevelIfReady) rather than applying every level in one batch —
-  // this call advances as far as it can immediately (e.g. all the way, in pure random mode with no
-  // roleplay-only choices along the way) and stops the moment a level leaves something pending; the
-  // renderAll() hook resumes it automatically once the player clears that.
-  processNextLevelIfReady(c, true);
-
-  // Starting gear depends on the FINAL level (its bracket decides which table applies), so it can only
-  // run once levelling has actually finished — if the level-by-level advance above stopped partway
-  // through (something's pending), defer it; the renderAll() hook runs it the moment levelling completes.
-  if(c.level >= c._levelUpTarget) applyStartingGear(c);
-  else c._pendingStartingGear = true;
-
-  return c;
 }
 
 // General starting equipment (pages 82-84), independent of career — bracket depends on final level.
@@ -9718,8 +9749,19 @@ function renderPending(){
   // actually resolved by the player now correctly sees that discipline as no longer "new".
   pendingChoices = pendingChoices.filter(p=> !p.rebuildOptions || !character || p.rebuildOptions(character).length>0 );
   const box = document.getElementById('pendingBox');
-  if(!pendingRoleplayChoices.length && !pendingChoices.length){ box.innerHTML=''; return; }
   let html = '';
+  if(character && (character._levelUpTarget || character._backfillTarget)){
+    html += character._levelUpTarget
+      ? `<div class="pending pending-progress"><b>⏫ Повышение уровня: ${character.level} → ${character._levelUpTarget}.</b> <span class="muted">Сделайте выборы ниже — уровни будут повышаться по одному автоматически.</span></div>`
+      : `<div class="pending pending-progress"><b>⏫ Восполнение уровней нового архетипа/подтипа: ${character._backfillProgress||0} → ${character._backfillTarget}.</b> <span class="muted">Сделайте выборы ниже.</span></div>`;
+  }
+  if(pendingItemRolls.length){
+    html += `<div class="pending pending-progress">🎒 Ждёт выбора предметов по таблице: <b>${pendingItemRolls.length}</b> — <a href="#pendingItemRollsBox" onclick="event.preventDefault();document.getElementById('pendingItemRollsBox').scrollIntoView({behavior:'smooth',block:'center'})">в разделе «Инвентарь»</a>. Повышению уровня это не мешает.</div>`;
+  }
+  if(lostPendingNotice){
+    html += `<div class="pending pending-progress">⚠ До обновления страницы оставались несделанные выборы (${lostPendingNotice}) при создании персонажа — их нельзя восстановить из сохранения. Если они важны, сгенерируйте персонажа заново. <button class="small" onclick="lostPendingNotice=0;renderAll()">Понятно</button></div>`;
+  }
+  if(!pendingRoleplayChoices.length && !pendingChoices.length){ box.innerHTML = html; return; }
   if(pendingRoleplayChoices.length){
     html += `<div class="pending"><h3>⚠ Требуется решение игрока (зависит от отыгрыша)</h3>
       <div class="muted">Эти поля правила прямо запрещают выбирать случайно — система их не решает за вас.</div>
@@ -9862,14 +9904,14 @@ function renderAll(){
   // — covers both mid-generation and a post-generation level-up. processNextLevelIfReady itself now
   // fires the starting-gear roll generateCharacter() deferred, once levelling actually reaches target
   // (that check used to live here too, redundantly and unreliably — see its own comment).
-  if(character && character._levelUpTarget && !pendingChoices.length && !pendingRoleplayChoices.length && !pendingItemRolls.length){
+  if(character && character._levelUpTarget && !pendingChoices.length && !pendingRoleplayChoices.length){
     processNextLevelIfReady(character, character._levelUpFullHeal);
     renderAll();
     return;
   }
   // Same, for backfilling a switched archetype's/subtype's past-level bonuses (see
   // processNextBackfillLevelIfReady) — character.level doesn't move here, only _backfillProgress does.
-  if(character && character._backfillTarget && !pendingChoices.length && !pendingRoleplayChoices.length && !pendingItemRolls.length){
+  if(character && character._backfillTarget && !pendingChoices.length && !pendingRoleplayChoices.length){
     processNextBackfillLevelIfReady(character);
     renderAll();
     return;
@@ -10569,14 +10611,34 @@ document.getElementById('btnGenerate').onclick = ()=>{
   character = generateCharacter();
   renderAll();
 };
-// Режимы по кругу: случайный → случайный⚡ (и отыгрыш случайно) → ручной → случайный
-document.getElementById('btnMode').onclick = (e)=>{
-  if(randomMode && !roleplayRandom){ roleplayRandom = true; }
-  else if(randomMode && roleplayRandom){ randomMode = false; roleplayRandom = false; }
-  else { randomMode = true; roleplayRandom = false; }
-  e.target.textContent = !randomMode ? '✋ Режим: ручной' : roleplayRandom ? '🎲 Режим: случайный⚡' : '🎲 Режим: случайный';
-  e.target.title = !randomMode ? 'Все выборы делает игрок' : roleplayRandom ? 'Всё случайно, включая выборы «в зависимости от отыгрыша»' : 'Всё случайно, кроме выборов «в зависимости от отыгрыша» — их делает игрок';
+// Режим генерации — выбор из меню (раньше был круг из трёх, и до «ручного» из «случайного» нужно было нажать
+// дважды), запоминается в браузере, чтобы не сбрасываться в «случайный» при обновлении страницы.
+const GEN_MODES = {
+  random:   {label:'🎲 Режим: случайный',  title:'Всё случайно, кроме выборов «в зависимости от отыгрыша» — их делает игрок', rm:true,  rr:false},
+  random2:  {label:'🎲 Режим: случайный⚡', title:'Всё случайно, включая выборы «в зависимости от отыгрыша»', rm:true,  rr:true},
+  manual:   {label:'✋ Режим: ручной',      title:'Все выборы делает игрок — при создании и при повышении уровня', rm:false, rr:false}
 };
+function currentGenMode(){ return !randomMode ? 'manual' : roleplayRandom ? 'random2' : 'random'; }
+function setGenMode(k){
+  const m = GEN_MODES[k] || GEN_MODES.random;
+  randomMode = m.rm; roleplayRandom = m.rr;
+  const b = document.getElementById('btnMode'); b.textContent = m.label + ' ▾'; b.title = m.title + ' · нажмите, чтобы выбрать режим';
+  try{ localStorage.setItem(GEN_MODE_KEY, k); }catch(e){}
+}
+document.getElementById('btnMode').onclick = (e)=>{
+  e.stopPropagation();
+  let menu = document.getElementById('genModeMenu');
+  if(menu){ menu.remove(); return; }
+  const b = e.currentTarget, r = b.getBoundingClientRect();
+  menu = document.createElement('div'); menu.id = 'genModeMenu'; menu.className = 'gen-mode-menu';
+  menu.innerHTML = Object.keys(GEN_MODES).map(k=>`<button type="button" data-k="${k}" class="${k===currentGenMode() ? 'on' : ''}"><b>${GEN_MODES[k].label.replace('Режим: ', '')}</b><span>${GEN_MODES[k].title}</span></button>`).join('');
+  document.body.appendChild(menu);
+  menu.style.left = Math.max(6, Math.min(r.left, window.innerWidth - menu.offsetWidth - 6)) + 'px';
+  menu.style.top = (r.bottom + window.scrollY + 4) + 'px';
+  menu.onclick = (ev)=>{ const x = ev.target.closest('[data-k]'); if(!x) return; setGenMode(x.dataset.k); menu.remove(); };
+  setTimeout(()=>document.addEventListener('click', function close(ev){ if(!menu.contains(ev.target)){ menu.remove(); document.removeEventListener('click', close); } }), 0);
+};
+(function(){ let k = 'random'; try{ k = localStorage.getItem(GEN_MODE_KEY) || 'random'; }catch(e){} setGenMode(k); })();
 document.getElementById('btnReset').onclick = ()=>{
   character = null; pendingRoleplayChoices=[]; pendingChoices=[]; pendingItemRolls=[];
   document.getElementById('fName').value=''; document.getElementById('fPlayer').value='';
@@ -10606,12 +10668,17 @@ function escapeHtml(s){ return String(s).replace(/[&<>"']/g, m=>({'&':'&amp;','<
 function getSavesStore(){ try{ return JSON.parse(localStorage.getItem(SAVE_STORE_KEY)||'{}'); }catch(e){ return {}; } }
 function setSavesStore(obj){ try{ localStorage.setItem(SAVE_STORE_KEY, JSON.stringify(obj)); }catch(e){ alert('Не удалось сохранить в localStorage браузера: '+e.message); } }
 function buildSavePayload(){
-  return { schema:1, character, extra:{ name:document.getElementById('fName').value, player:document.getElementById('fPlayer').value } };
+  return { schema:1, character, extra:{ name:document.getElementById('fName').value, player:document.getElementById('fPlayer').value,
+    pendingCount: pendingChoices.length + pendingRoleplayChoices.length + pendingItemRolls.length } };
 }
 function isValidPayload(p){ return !!(p && p.character && p.character.stats && p.character.abilities); }
 function applyLoadedPayload(payload){
-  character = payload.character;
+  const hadPending = !!(payload.extra && payload.extra.pendingCount);
+  const pc0 = payload.character;
+  const hadCheckpoint = !!(pc0 && ((pc0._lvlCheckpoint && (pc0._levelUpTarget || pc0._backfillTarget)) || (pc0._genCheckpoint && pc0._levelUpTarget)));
   pendingRoleplayChoices=[]; pendingChoices=[]; pendingItemRolls=[];
+  character = restoreLevelCheckpoint(pc0);
+  lostPendingNotice = hadPending && !hadCheckpoint ? payload.extra.pendingCount : 0;
   document.getElementById('fName').value = (payload.extra && payload.extra.name) || '';
   document.getElementById('fPlayer').value = (payload.extra && payload.extra.player) || '';
   document.getElementById('fLevel').value = character.level; // not auto-synced by renderAll()
