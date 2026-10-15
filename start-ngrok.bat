@@ -10,8 +10,7 @@ echo work on your network - some networks block the specific port cloudflared
 echo needs and there is no way around that. ngrok uses the same port as normal
 echo HTTPS browsing (443), which is almost never blocked.
 echo.
-echo This path needs one manual one-time step: a free ngrok account. Nothing
-echo else - the link itself still works the same way for players afterwards.
+echo The ngrok authtoken is taken from ngrok-authtoken.txt - no questions asked.
 echo.
 
 where node >nul 2>nul
@@ -48,16 +47,17 @@ if not exist ngrok.exe (
 )
 
 echo.
-echo ---------------------------------------------------------------
-echo  ONE-TIME SETUP (skip if you already did this before):
-echo   1. Sign up for a free account: https://dashboard.ngrok.com/signup
-echo   2. Copy your authtoken from:    https://dashboard.ngrok.com/get-started/your-authtoken
-echo   3. Come back here and paste it when asked below.
-echo  If you already have an authtoken configured, just press Enter.
-echo ---------------------------------------------------------------
-set /p NGROK_TOKEN="Paste your authtoken here (or press Enter to skip): "
+rem Authtoken is read from ngrok-authtoken.txt next to this file (kept out of git, see .gitignore),
+rem so the tunnel starts without any questions. Without that file ngrok uses its saved config.
+if exist ngrok-authtoken.txt (
+  set /p NGROK_TOKEN=<ngrok-authtoken.txt
+)
 if not "%NGROK_TOKEN%"=="" (
-  ngrok.exe config add-authtoken %NGROK_TOKEN%
+  ngrok.exe config add-authtoken %NGROK_TOKEN% >nul
+) else (
+  echo [i] ngrok-authtoken.txt not found - using the authtoken already saved in ngrok config.
+  echo     If ngrok says "authentication failed", put your token from
+  echo     https://dashboard.ngrok.com/get-started/your-authtoken into ngrok-authtoken.txt
 )
 
 echo.
