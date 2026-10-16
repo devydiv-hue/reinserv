@@ -31,7 +31,7 @@
 })();
 </script>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@400;700&family=Cinzel:wght@500;600;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@400;700&family=Cinzel:wght@500;600;700&family=Cormorant+Garamond:ital,wght@1,500;1,600;1,700&display=swap');
   /* ============================================================
      ЛИЧНОЕ ДЕЛО РЕИНКАРНАТА — design concept
      A soul's paperwork, filed and re-filed across every death: pale
@@ -149,6 +149,32 @@
   body #sheetControls .button-like:hover{ background:#120d0a; color:#fff6e4; -webkit-text-stroke:2.6px #0a0608; }
   body #sheetControls #btnUndo{ background:#0e0a0c; color:#fff6e4; border-color:#8a7a68; -webkit-text-stroke:2.6px #0a0608; }
   .wrap{max-width:1180px; margin:0 auto;}
+  .topbar h1{ margin-bottom:2px; }
+  .brand-sub{ font-family:'Cormorant Garamond', 'Times New Roman', serif; font-style:italic; font-weight:600; font-size:19px; line-height:1.15;
+    color:var(--vellum-muted, #d9cdb0); letter-spacing:.01em; text-shadow:0 1px 0 rgba(0,0,0,.6); display:flex; align-items:center; flex-wrap:wrap; gap:4px 10px; }
+  .boosty-link{ display:inline-flex; align-items:center; gap:5px; text-decoration:none; font-family:var(--font); font-style:normal; font-size:11px; font-weight:700;
+    letter-spacing:.04em; text-transform:uppercase; color:#ffb08f; padding:2px 8px 2px 3px; border-radius:999px; background:rgba(241,95,44,.12); border:1px solid rgba(241,95,44,.45); }
+  .boosty-link svg{ width:18px; height:18px; display:block; }
+  .boosty-link:hover{ background:rgba(241,95,44,.28); color:#fff6e4; }
+  @media (max-width:640px){ .brand-sub{ font-size:16px; } .boosty-link span{ display:none; } }
+  /* Обучение: кнопка «ЧЗХ», подсветка шага, карточка шага, подсказки */
+  button.chzh-btn{ margin-left:auto; padding:5px 11px; font-size:11px; letter-spacing:.04em; white-space:nowrap; }
+  .gt-topline button.chzh-btn, .me-topline button.chzh-btn{ margin-left:auto; font-size:10px; padding:4px 10px; }
+  .ob-ring{ display:none; position:fixed; z-index:9800; pointer-events:none; border-radius:10px; border:3px solid #ffb59f;
+    box-shadow:0 0 0 4000px rgba(10,8,6,.45), 0 0 18px 4px rgba(156,47,28,.7); transition:left .2s, top .2s, width .2s, height .2s; }
+  .ob-card, .ob-bubble{ position:fixed; z-index:9801; background:var(--card); color:var(--ink); border:2px solid var(--ink); border-radius:12px;
+    box-shadow:0 16px 30px -10px rgba(0,0,0,.7); padding:10px 12px; font-size:13px; line-height:1.4; }
+  .ob-card{ display:none; }
+  .ob-step{ font-size:10px; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-soft); }
+  .ob-title{ font-family:'Cormorant Garamond', serif; font-style:italic; font-weight:700; font-size:20px; margin:2px 0 4px; }
+  .ob-btns{ display:flex; gap:6px; justify-content:flex-end; margin-top:8px; flex-wrap:wrap; }
+  .ob-btns button{ padding:3px 10px; font-size:11px; }
+  .ob-bubble{ right:16px; bottom:16px; width:min(330px, calc(100% - 32px)); }
+  .ob-toast{ left:50%; right:auto; transform:translateX(-50%); bottom:20px; width:auto; max-width:min(520px, calc(100% - 32px)); }
+  .ob-menu{ position:fixed; z-index:9802; display:flex; flex-direction:column; gap:4px; padding:6px; width:min(320px, calc(100% - 16px));
+    background:var(--card); border:2px solid var(--ink); border-radius:10px; box-shadow:0 14px 26px -10px rgba(0,0,0,.65); }
+  .ob-menu button{ display:flex; flex-direction:column; align-items:flex-start; gap:2px; text-align:left; text-transform:none; letter-spacing:0; padding:6px 10px; box-shadow:none; }
+  .ob-menu button span{ font-size:11px; font-weight:400; opacity:.8; }
   .topbar{
     display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:12px;
     margin-bottom:26px; padding-bottom:18px; border-bottom:3px solid var(--stamp);
@@ -1701,7 +1727,10 @@
 <div class="wrap">
   <div class="topbar">
     <div>
-      <h1>Реинкарнатор // Лист персонажа</h1>
+      <h1>Реинкарнатор</h1>
+      <div class="brand-sub">Виртуальный стол для НРИ за авторством Алексея Иващенко
+        <a class="boosty-link" href="https://boosty.to/the.histori.factor" target="_blank" rel="noopener noreferrer" title="Поддержать автора книги на Boosty" aria-label="Boosty — поддержать автора"><svg viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6" fill="#f15f2c"/><path d="M8.2 4.6h3.3l-1.2 4.3c.6-.2 1.2-.3 1.9-.3 2.8 0 4.6 1.9 4.6 4.5 0 3.1-2.5 5.6-6 5.6-2.5 0-4.3-1.4-4.3-3.6 0-.5.1-1 .2-1.5zm2.6 7.1c-.7 0-1.3.2-1.8.6l-.6 2.2c-.1.2-.1.4-.1.6 0 .8.7 1.4 1.7 1.4 1.6 0 2.8-1.2 2.8-2.7 0-1.3-.8-2.1-2-2.1z" fill="#fff"/></svg><span>Boosty</span></a>
+      </div>
     </div>
   </div>
 
@@ -11354,6 +11383,7 @@ function toggleMainTab(tab){
   gtHook(g=>g.setVisible(tab==='table')); // стол рисует canvas только пока виден (размер поля известен только тогда)
   sbHook(s=>s.setVisible(tab==='sound'));
   if(typeof Bestiary!=='undefined') Bestiary.setVisible(tab==='bestiary');
+  if(typeof Onboarding!=='undefined') Onboarding.onTab(tab);
 }
 document.getElementById('tabBtnSheet').addEventListener('click', ()=>toggleMainTab('sheet'));
 document.getElementById('tabBtnXp').addEventListener('click', ()=>toggleMainTab('xp'));
@@ -25132,6 +25162,157 @@ try{ Soundboard.init(); }catch(e){ console.error('[Саундпад] не уда
   document.addEventListener('focusout', ()=>setTimeout(schedule, 0));
   window.SheetMasonry = {layout:()=>{ last = ''; schedule(); }};
 })();
+</script>
+<script>
+/* ======================================================================
+   ОБУЧЕНИЕ — короткие экскурсии по ролям (игрок / Мастер) и одноразовые подсказки «впервые здесь».
+   Ничего не блокирует: подсветка не перехватывает клики, можно сразу делать то, о чём говорит шаг
+   (шаг с «нажмите…» сам перейдёт дальше после нажатия). Кнопка «ЧЗХ❓❓❓» — в строке вкладок, а на
+   игровом столе и в редакторе карт — в их верхней строке. Прогресс — в localStorage этого браузера.
+   ====================================================================== */
+const Onboarding = (function(){
+  const KEY = 'reincarnator_onboarding_v1';
+  let st = (function(){ try{ return Object.assign({seen:false, done:{}, hints:{}, hintsOff:false}, JSON.parse(localStorage.getItem(KEY) || '{}')); }catch(e){ return {seen:false, done:{}, hints:{}, hintsOff:false}; } })();
+  function save(){ try{ localStorage.setItem(KEY, JSON.stringify(st)); }catch(e){} }
+  const $ = (s)=>typeof s==='function' ? s() : document.querySelector(s);
+
+  const TOURS = {
+    player:[
+      {tab:'sheet', sel:'#sessionSetup', title:'Подключение к столу', text:'Введите имя за столом и нажмите «Я — игрок» — вы подключитесь к столу Мастера (Мастер даст ссылку на страницу). Без сессии лист тоже работает.'},
+      {tab:'sheet', sel:'#btnMode', title:'Режим создания', text:'«Случайный» — кости решают всё, кроме выборов по отыгрышу; «ручной» — все выборы ваши. Режим запоминается.'},
+      {tab:'sheet', sel:'#btnGenerate', title:'Создайте персонажа', text:'Нажмите «Сгенерировать персонажа». Чтобы начать не с 1 уровня, отметьте 🔒 у поля «Уровень» и выберите его.', click:true},
+      {tab:'sheet', sel:'#pendingBox', title:'Ваши выборы', text:'Здесь появляются решения, которые принимаете вы: распределение очков, выборы по отыгрышу. Пока они не сделаны, уровень дальше не повышается.', optional:true, need:()=>document.getElementById('pendingBox').innerText.trim()},
+      {tab:'sheet', sel:'#fLevel', title:'Уровень', text:'Выберите больший уровень — и лист повысит его по одному. Под полем видно, что повышение идёт и ждёт ваших выборов.'},
+      {tab:'sheet', sel:'#statsBody', title:'Броски', text:'Нажмите на значение характеристики и, не отпуская, потяните к гексу модификатора — отпустите, и кость брошена. Можно и двумя касаниями: тап — гексы, тап по гексу — бросок.'},
+      {tab:'sheet', sel:'#savesPanel', title:'Сохранения', text:'«Сохранить как…» — слот в этом браузере, «Экспорт в файл» — файл персонажа. Лист также сам сохраняется при каждом изменении.'},
+      {tab:'sheet', sel:'#tabBtnTable', title:'Игровой стол', text:'Карта сессии: «Мой жетон» ставит вашего персонажа, правый клик по жетону — меню (атака с карты). В бою отмечайте «Д» и «Р» в трекере — и услышите сигнал, когда ход вашей стороны.'},
+      {sel:'.chzh-btn', title:'Если что-то забыли', text:'Эта кнопка вернёт экскурсию в любой момент. Удачной игры!'}
+    ],
+    gm:[
+      {tab:'sheet', sel:'#sessionSetup', title:'Стол Мастера', text:'Введите имя и нажмите «Я — Мастер». Чтобы игроки зашли из интернета, запустите start-ngrok.bat и дайте им ссылку из окна ngrok.'},
+      {tab:'sheet', sel:'#sessionPlayersBox', title:'Игроки', text:'Подключившиеся игроки: можно открыть и править их лист, выдать удачу и опыт.', optional:true},
+      {tab:'sheet', sel:'#tabBtnXp', title:'Начисление опыта', text:'Отмечайте пункты после встречи — опыт начисляется игрокам по правилам.'},
+      {tab:'table', sel:'#gtToolbar', title:'Игровой стол', text:'Жетоны, рисование, линейка, указка. Колесо — масштаб, «Рука» (H) или пробел+перетаскивание — сдвиг поля. Правый клик по жетону — меню.'},
+      {tab:'table', sel:'#gtToolbar [data-act=bestiary]', title:'Бестиарий на столе', text:'Откройте панель и перетащите существо на поле — получится жетон со статами, оружием и живой карточкой (двойной клик по жетону).', optional:true},
+      {tab:'table', sel:'#gtToolbar [data-act=combat]', title:'Бой', text:'Стороны, проверка инициативы за всех, передача хода и круги — эффекты и горение считаются сами.', optional:true},
+      {tab:'sheet', sel:'#tabBtnBestiary', title:'Бестиарий', text:'Справочник существ по разделам книги, конструктор своих, «🎲 Случайная пустота», импорт и экспорт.'},
+      {tab:'sheet', sel:'#tabBtnMaps', title:'Редактор карт', text:'«Генерация…» соберёт квартал, бункер или лагерь — или нарисуйте карту сами; «На игровой стол» покажет её игрокам.'},
+      {tab:'sheet', sel:'#tabBtnSound', title:'Саундпад', text:'Музыка и звуки, которые слышат все участники сессии.'},
+      {sel:'.chzh-btn', title:'Если что-то забыли', text:'Эта кнопка вернёт экскурсию в любой момент. Хорошей игры!'}
+    ]
+  };
+  const HINTS = {
+    table:'Игровой стол: правый клик по жетону — меню, колесо — масштаб, «Рука» (H) или пробел+перетаскивание — сдвиг поля.',
+    bestiary:'Бестиарий: клик по числу в скобках — бросок; «⬇ На стол» ставит существо жетоном.',
+    maps:'Редактор карт: «Генерация…» соберёт местность за вас, «На игровой стол» покажет карту всем игрокам.',
+    sound:'Саундпад: звуки и музыку слышат все участники сессии.',
+    xp:'Начисление опыта: отметки ставит Мастер, у игрока опыт обновится сам.'
+  };
+
+  /* ---------- оформление ---------- */
+  let ring = null, card = null, tour = null, idx = 0, target = null, raf = 0, clickHook = null;
+  function els(){
+    if(ring) return;
+    ring = document.createElement('div'); ring.className = 'ob-ring'; document.body.appendChild(ring);
+    card = document.createElement('div'); card.className = 'ob-card'; document.body.appendChild(card);
+    card.addEventListener('click', (e)=>{ const b = e.target.closest('[data-ob]'); if(!b) return;
+      const a = b.dataset.ob; if(a==='next') go(idx + 1, 1); else if(a==='prev') go(idx - 1, -1); else if(a==='close') stop(); });
+    window.addEventListener('resize', ()=>schedule()); window.addEventListener('scroll', ()=>schedule(), true);
+    document.addEventListener('keydown', (e)=>{ if(e.key==='Escape' && tour) stop(); });
+  }
+  function currentTab(){ return typeof MAIN_TABS==='undefined' ? 'sheet' : (Object.keys(MAIN_TABS).find(k=>{ const v = document.getElementById(MAIN_TABS[k][0]); return v && v.style.display!=='none'; }) || 'sheet'); }
+  function shown(el){ if(!el) return false; const r = el.getBoundingClientRect(); return r.width>0 && r.height>0 && getComputedStyle(el).visibility!=='hidden'; }
+  function start(k){ els(); closeMenu(); hideHint(); tour = k; go(0); }
+  function go(i, dir){
+    const steps = TOURS[tour]; if(!steps) return;
+    dir = dir || 1;
+    if(i<0){ i = 0; dir = 1; }
+    if(i>=steps.length){ st.done[tour] = true; save(); stop(); toastLine('Экскурсия пройдена. Кнопка «ЧЗХ❓❓❓» вернёт её в любой момент.'); return; }
+    idx = i; const s = steps[i];
+    if(s.tab && currentTab()!==s.tab && typeof toggleMainTab==='function') toggleMainTab(s.tab);
+    setTimeout(()=>{
+      const el = $(s.sel);
+      if(!shown(el) || (s.need && !s.need())) return go(i + dir, dir); // шаг сейчас не к месту (нет элемента) — дальше
+      target = el;
+      el.scrollIntoView({block:'center', inline:'nearest'});
+      if(clickHook){ clickHook.el.removeEventListener('click', clickHook.fn, true); clickHook = null; }
+      if(s.click){ const fn = ()=>setTimeout(()=>{ if(tour && idx===i) go(i + 1, 1); }, 450); el.addEventListener('click', fn, true); clickHook = {el, fn}; }
+      card.innerHTML = `<div class="ob-step">${i + 1} / ${steps.length} · ${tour==='gm' ? 'Мастер' : 'Игрок'}</div><div class="ob-title">${s.title}</div><div class="ob-text">${s.text}</div>
+        <div class="ob-btns"><button type="button" data-ob="close" class="small">✕</button>${i>0 ? '<button type="button" data-ob="prev" class="small">← Назад</button>' : ''}<button type="button" data-ob="next" class="small primary">${i + 1<steps.length ? (s.click ? 'Пропустить →' : 'Далее →') : 'Готово'}</button></div>`;
+      ring.style.display = card.style.display = 'block';
+      schedule();
+    }, s.tab ? 380 : 40);
+  }
+  function schedule(){ if(!raf) raf = requestAnimationFrame(place); }
+  function place(){
+    raf = 0; if(!tour || !target) return;
+    const r = target.getBoundingClientRect(), pad = 6;
+    Object.assign(ring.style, {left:(r.left - pad) + 'px', top:(r.top - pad) + 'px', width:(r.width + pad*2) + 'px', height:(r.height + pad*2) + 'px'});
+    const cw = Math.min(340, window.innerWidth - 24), ch = card.offsetHeight || 150;
+    let top = r.bottom + 14; if(top + ch > window.innerHeight - 10) top = Math.max(10, r.top - ch - 14);
+    if(top + ch > window.innerHeight - 10) top = Math.max(10, window.innerHeight - ch - 10);
+    const left = Math.max(12, Math.min(r.left, window.innerWidth - cw - 12));
+    Object.assign(card.style, {left:left + 'px', top:top + 'px', width:cw + 'px'});
+  }
+  function stop(){
+    tour = null; target = null;
+    if(clickHook){ clickHook.el.removeEventListener('click', clickHook.fn, true); clickHook = null; }
+    if(ring){ ring.style.display = 'none'; card.style.display = 'none'; }
+  }
+
+  /* ---------- первая встреча, подсказки «впервые здесь», короткие уведомления ---------- */
+  let hintEl = null;
+  function bubble(html, cls){
+    const el = document.createElement('div'); el.className = 'ob-bubble' + (cls ? ' ' + cls : ''); el.innerHTML = html; document.body.appendChild(el); return el;
+  }
+  function welcome(){
+    if(st.seen) return;
+    const el = bubble(`<div class="ob-title">Впервые здесь?</div><div class="ob-text">Короткая экскурсия по вашей части стола — минута, не больше.</div>
+      <div class="ob-btns"><button type="button" class="small primary" data-w="player">Я игрок</button><button type="button" class="small primary" data-w="gm">Я Мастер</button><button type="button" class="small" data-w="later">Позже</button></div>`, 'ob-welcome');
+    el.addEventListener('click', (e)=>{ const b = e.target.closest('[data-w]'); if(!b) return;
+      st.seen = true; save(); el.remove(); if(b.dataset.w!=='later') start(b.dataset.w); else toastLine('Экскурсия — в кнопке «ЧЗХ❓❓❓».'); });
+  }
+  function hideHint(){ if(hintEl){ hintEl.remove(); hintEl = null; } }
+  function onTab(tab){
+    if(tour || st.hintsOff || !st.seen || st.hints[tab] || !HINTS[tab]) return;
+    if(tab==='bestiary' && typeof session!=='undefined' && session.role==='player') return;
+    st.hints[tab] = true; save(); hideHint();
+    hintEl = bubble(`<div class="ob-text">💡 ${HINTS[tab]}</div><div class="ob-btns"><button type="button" class="small" data-h="ok">Понятно</button></div>`, 'ob-hint');
+    hintEl.addEventListener('click', (e)=>{ if(e.target.closest('[data-h]')) hideHint(); });
+    setTimeout(()=>{ if(hintEl) hideHint(); }, 12000);
+  }
+  function toastLine(text){ const el = bubble(`<div class="ob-text">${text}</div>`, 'ob-toast'); setTimeout(()=>el.remove(), 4500); }
+
+  /* ---------- кнопка «ЧЗХ❓❓❓» и её меню ---------- */
+  let menuEl = null;
+  function closeMenu(){ if(menuEl){ menuEl.remove(); menuEl = null; } }
+  function openMenu(btn){
+    if(menuEl){ closeMenu(); return; }
+    const r = btn.getBoundingClientRect();
+    menuEl = document.createElement('div'); menuEl.className = 'ob-menu';
+    menuEl.innerHTML = `<button type="button" data-m="player"><b>🧭 Экскурсия для игрока</b><span>создание персонажа, броски, сохранения, стол</span></button>
+      <button type="button" data-m="gm"><b>🧭 Экскурсия для Мастера</b><span>сессия, опыт, стол, бестиарий, бой, карты</span></button>
+      <button type="button" data-m="hints"><b>💡 Подсказки «впервые здесь»: ${st.hintsOff ? 'выкл' : 'вкл'}</b><span>одна строка при первом открытии вкладки</span></button>`;
+    document.body.appendChild(menuEl);
+    const w = menuEl.offsetWidth;
+    Object.assign(menuEl.style, {left:Math.max(8, Math.min(r.right - w, window.innerWidth - w - 8)) + 'px', top:(r.bottom + 6) + 'px'});
+    menuEl.addEventListener('click', (e)=>{ const b = e.target.closest('[data-m]'); if(!b) return;
+      const m = b.dataset.m; closeMenu();
+      if(m==='hints'){ st.hintsOff = !st.hintsOff; if(!st.hintsOff) st.hints = {}; save(); toastLine(st.hintsOff ? 'Подсказки выключены.' : 'Подсказки включены — появятся при открытии вкладок.'); }
+      else { st.seen = true; save(); const w0 = document.querySelector('.ob-welcome'); if(w0) w0.remove(); start(m); } });
+    setTimeout(()=>document.addEventListener('click', function close(ev){ if(menuEl && !menuEl.contains(ev.target) && !ev.target.closest('.chzh-btn')){ closeMenu(); } if(!menuEl) document.removeEventListener('click', close); }), 0);
+  }
+  function makeBtn(){ const b = document.createElement('button'); b.type = 'button'; b.className = 'chzh-btn'; b.title = 'Что здесь происходит? Экскурсия и подсказки'; b.textContent = 'ЧЗХ❓❓❓'; return b; }
+  function ensureButtons(){
+    [['#mainTabBar', 'append'], ['.gt-topline', 'append'], ['.me-topline', 'append']].forEach(([sel])=>{
+      const host = document.querySelector(sel); if(host && !host.querySelector('.chzh-btn')) host.appendChild(makeBtn()); });
+  }
+  document.addEventListener('click', (e)=>{ const b = e.target.closest && e.target.closest('.chzh-btn'); if(b){ e.preventDefault(); openMenu(b); } });
+
+  function init(){ ensureButtons(); setTimeout(welcome, 1200); }
+  return { init, start, stop, onTab:(t)=>{ ensureButtons(); onTab(t); }, ensureButtons };
+})();
+try{ Onboarding.init(); }catch(e){ console.error('[Обучение] не удалось запустить', e); }
 </script>
 </body>
 </html>
