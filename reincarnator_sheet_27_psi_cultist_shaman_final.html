@@ -229,6 +229,10 @@
   .gen-mode-menu button span{ font-size:11px; font-weight:400; opacity:.8; }
   .gen-mode-menu button.on{ background:var(--ink); color:var(--card); }
   .pending-progress{ padding:8px 12px; }
+  /* Строка «идёт повышение уровня» — в отступе под полем «Уровень», вне потока: поле и ряд не растягивает */
+  .level-progress{ position:absolute; left:0; top:100%; margin-top:1px; white-space:nowrap; font-size:11px; line-height:12px; font-weight:800;
+    color:var(--stamp); cursor:pointer; pointer-events:auto; }
+  .level-progress:empty{ display:none; }
   .sheet-controls{ margin:4px 0 18px; }
   .topbar .sheet-controls{ margin:0; }
   .sheet-flow{ display:flex; gap:16px; align-items:flex-start; }
@@ -1806,7 +1810,8 @@
           </div>
         </div>
         <div class="field-row">
-          <div class="field" style="max-width:210px;"><label>Уровень</label>
+          <div class="field" style="max-width:210px; position:relative;"><label>Уровень</label>
+            <div class="level-progress" id="levelProgress" title="Нажмите, чтобы перейти к выборам" onclick="document.getElementById('pendingBox').scrollIntoView({behavior:'smooth',block:'start'})"></div>
             <div class="lockable-field"><select id="fLevel"></select><label class="lock-toggle" title="Зафиксировать: генерация всегда использует именно это значение (иначе персонаж создаётся с уровня 1)"><input type="checkbox" id="fLevelLock"> 🔒</label></div>
           </div>
           <div class="field align-field" style="max-width:210px; position:relative;"><label>Возраст</label>
@@ -9750,11 +9755,10 @@ function renderPending(){
   pendingChoices = pendingChoices.filter(p=> !p.rebuildOptions || !character || p.rebuildOptions(character).length>0 );
   const box = document.getElementById('pendingBox');
   let html = '';
-  if(character && (character._levelUpTarget || character._backfillTarget)){
-    html += character._levelUpTarget
-      ? `<div class="pending pending-progress"><b>⏫ Повышение уровня: ${character.level} → ${character._levelUpTarget}.</b> <span class="muted">Сделайте выборы ниже — уровни будут повышаться по одному автоматически.</span></div>`
-      : `<div class="pending pending-progress"><b>⏫ Восполнение уровней нового архетипа/подтипа: ${character._backfillProgress||0} → ${character._backfillTarget}.</b> <span class="muted">Сделайте выборы ниже.</span></div>`;
-  }
+  { const lp = document.getElementById('levelProgress');
+    if(lp) lp.textContent = !character ? ''
+      : character._levelUpTarget ? `⏫ Идёт повышение: ${character.level} → ${character._levelUpTarget} — сделайте выборы выше ↑`
+      : character._backfillTarget ? `⏫ Восполнение уровней: ${character._backfillProgress||0} → ${character._backfillTarget} — выборы выше ↑` : ''; }
   if(pendingItemRolls.length){
     html += `<div class="pending pending-progress">🎒 Ждёт выбора предметов по таблице: <b>${pendingItemRolls.length}</b> — <a href="#pendingItemRollsBox" onclick="event.preventDefault();document.getElementById('pendingItemRollsBox').scrollIntoView({behavior:'smooth',block:'center'})">в разделе «Инвентарь»</a>. Повышению уровня это не мешает.</div>`;
   }
