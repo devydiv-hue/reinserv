@@ -1,5 +1,6 @@
 /* ======================================================================
-   ЭКРАН МАСТЕРА — капля слева (над каплей кубов) и выезжающая панель в стиле панели бросков. Вкладки:
+   ЭКРАН МАСТЕРА — капля (по умолчанию справа; кубы — слева) и выезжающая панель в стиле панели бросков; приближение
+   курсора открывает, ✥ — перетаскивать к любому краю, булавка — «ползание» капель (общий механизм BlobDock). Вкладки:
    «Игроки» — ОЗ, пси, удача и состояния всех подключённых игроков, 🍀+1, лист, находка, найти на столе;
    «Сцены» — сохранить стол (карта, жетоны NPC, рисунки + по желанию звук) и включить одной кнопкой во время игры;
      собрать сцену заранее можно на черновом столе — игроки его не видят, настоящий стол не трогается;
@@ -14,7 +15,9 @@ const GmScreen = (function(){
   let prefs = Object.assign({tab:'players', note:''}, load(PREF_KEY, {}));
   let notes = load(NOTES_KEY, []); if(!Array.isArray(notes)) notes = [];
   let scenes = load(SCENES_KEY, []); if(!Array.isArray(scenes)) scenes = [];
-  let fab = null, panel = null, body = null, isOpen = false, editing = false, draftOf = null, refreshTimer = 0;
+  let fab = null, panel = null, body = null, isOpen = false, editing = false, draftOf = null, refreshTimer = 0, dockCtl = null;
+  const MOVE_ICON = '<svg viewBox="0 0 24 24"><path d="M12 3.5 V20.5 M3.5 12 H20.5 M9.2 6.3 L12 3.5 L14.8 6.3 M9.2 17.7 L12 20.5 L14.8 17.7 M6.3 9.2 L3.5 12 L6.3 14.8 M17.7 9.2 L20.5 12 L17.7 14.8" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const PIN_ICON = '<svg viewBox="0 0 24 24"><path d="M9 3.5h6M10 3.5v6.2L6.8 13h10.4L14 9.7V3.5M12 13v7.5" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   const esc = (x)=>String(x==null ? '' : x).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
   const uidS = ()=>Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
   const savePrefs = ()=>store(PREF_KEY, prefs);
@@ -29,10 +32,12 @@ const GmScreen = (function(){
     fab = document.createElement('button'); fab.type = 'button'; fab.id = 'gmFab'; fab.className = 'gm-fab';
     fab.title = 'Экран Мастера: игроки, сцены, заметки';
     fab.innerHTML = `<span class="blob"><span class="blob-icon">${ICON}</span><span class="blob-sheen"></span></span>`;
-    fab.addEventListener('click', ()=>toggle());
+    fab.addEventListener('click', ()=>{ if(dockCtl && dockCtl.consumeClick()) return; holdClosed = false; toggle(); });
     document.body.appendChild(fab);
     panel = document.createElement('div'); panel.id = 'gmScreen'; panel.className = 'gm-screen'; panel.setAttribute('role', 'dialog');
     panel.innerHTML = `<button type="button" class="gs-close" title="Закрыть (Esc)">✕</button>
+      <button type="button" class="gs-dock-btn gs-move" aria-pressed="false" aria-label="Перемещать экран Мастера по краям экрана">${MOVE_ICON}</button>
+      <button type="button" class="gs-dock-btn gs-pin" aria-pressed="true" aria-label="Булавка: капли на месте или медленно ползут по краям экрана">${PIN_ICON}</button>
       <div class="gs-title">Экран Мастера</div>
       <div class="gs-tabs"><button type="button" data-tab="players">Игроки</button><button type="button" data-tab="scenes">Сцены</button><button type="button" data-tab="notes">Заметки</button></div>
       <div class="gs-body"></div>`;
@@ -44,11 +49,37 @@ const GmScreen = (function(){
     panel.addEventListener('input', onInput);
     document.addEventListener('keydown', (e)=>{ if(e.key==='Escape' && isOpen && !document.querySelector('.ui-dlg-back') && !(e.target && /INPUT|TEXTAREA|SELECT/.test(e.target.tagName))) close(); });
     syncVisible(); setInterval(syncVisible, 1500);
+    // Как у кубов: перетаскивание к любому краю (✥), булавка — «ползание» капель (общий механизм BlobDock)
+    dockCtl = BlobDock.create({ key:'reincarnator_gm_dock_v1', fab, panel, edge:'right', pos:0.4, unrotVar:'--gm-unrot',
+      isOpen:()=>isOpen, dragExclude:'button, input, textarea, select, a, .gs-body',
+      moveBtn:panel.querySelector('.gs-move'), pinBtn:panel.querySelector('.gs-pin'),
+      moveTitle:(on)=>'Перемещать экран Мастера по краям экрана: ' + (on ? 'включено — тяните панель за заголовок или саму каплю к любому краю' : 'выключено') });
+    window.addEventListener('mousemove', onProximity, {passive:true});
+  }
+  // Открытие приближением мыши (как у кубов): курсор в круге вокруг капли — панель выезжает; ушёл дальше от панели
+  // и капли — через короткую паузу уезжает. Не закрывается, пока в панели печатают, открыто окно или бросок, идёт обучение.
+  // После закрытия вручную (✕, Esc) — не открывается снова, пока курсор не отойдёт от капли.
+  const OPEN_R = 130, CLOSE_MARGIN = 60, CLOSE_DELAY = 400;
+  let closeTimer = 0, holdClosed = false;
+  const inRect = (x, y, r, m)=>x >= r.left - m && x <= r.right + m && y >= r.top - m && y <= r.bottom + m;
+  function keepOpen(){
+    const ae = document.activeElement;
+    return (panel.contains(ae) && /INPUT|TEXTAREA|SELECT/.test(ae.tagName)) || !!document.querySelector('.ui-dlg-back, .roll-overlay') ||
+      (typeof Onboarding!=='undefined' && Onboarding.busy());
+  }
+  function onProximity(e){
+    if(!fab || fab.style.display==='none' || (dockCtl && dockCtl.dragging)) return;
+    if(e.clientX >= document.documentElement.clientWidth) return; // курсор на полосе прокрутки
+    const x = e.clientX, y = e.clientY, r = fab.getBoundingClientRect(), d = Math.hypot(x - (r.left + r.width/2), y - (r.top + r.height/2));
+    if(!isOpen){ if(holdClosed){ if(d > OPEN_R*1.6) holdClosed = false; return; } if(d <= OPEN_R) open(); return; }
+    const near = inRect(x, y, panel.getBoundingClientRect(), CLOSE_MARGIN) || inRect(x, y, r, CLOSE_MARGIN);
+    if(near || keepOpen()){ clearTimeout(closeTimer); closeTimer = 0; }
+    else if(!closeTimer) closeTimer = setTimeout(()=>{ closeTimer = 0; if(isOpen && !keepOpen()) close(true); }, CLOSE_DELAY);
   }
   function syncVisible(){ if(!fab) return; const ok = isGmHere(); fab.style.display = ok ? '' : 'none'; if(!ok && isOpen) close(); }
-  function open(tab){ build(); if(tab) prefs.tab = tab; isOpen = true; panel.classList.add('open'); fab.classList.add('open'); render();
+  function open(tab){ build(); if(tab) prefs.tab = tab; isOpen = true; if(dockCtl) dockCtl.place(); panel.classList.add('open'); fab.classList.add('open'); render();
     clearInterval(refreshTimer); refreshTimer = setInterval(()=>{ if(isOpen && prefs.tab==='players') render(); }, 2500); }
-  function close(){ if(!panel) return; isOpen = false; panel.classList.remove('open'); fab.classList.remove('open'); clearInterval(refreshTimer); }
+  function close(auto){ if(!panel) return; if(auto!==true) holdClosed = true; clearTimeout(closeTimer); closeTimer = 0; isOpen = false; panel.classList.remove('open'); fab.classList.remove('open'); clearInterval(refreshTimer); }
   function toggle(){ isOpen ? close() : open(); }
   function setTab(t){ prefs.tab = t; editing = false; savePrefs(); render(); }
   function refresh(){ if(isOpen && prefs.tab==='players') render(); }

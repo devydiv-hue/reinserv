@@ -42,3 +42,43 @@
   html[data-theme="dark"] .dropzone{ background:rgba(0,0,0,.25); border-color:rgba(236,226,203,.2); }
   html[data-theme="dark"] .ob-card, html[data-theme="dark"] .ob-bubble, html[data-theme="dark"] .ob-menu, html[data-theme="dark"] .gen-mode-menu,
   html[data-theme="dark"] .align-dropdown, html[data-theme="dark"] .gma-card, html[data-theme="dark"] .gma-panel{ border-color:rgba(236,226,203,.35); }
+  /* Читаемость тёмной темы (одобрено по демо): текст светлее и плотнее (Roboto Condensed 500 — см. 00-fonts.css),
+     вторичный текст светлее, подписи и плашки крупнее, фон разделов ровный (без фактур под текстом), красный текст —
+     светло-коралловый (красные заливки остаются, чуть темнее — светлый текст на них читается лучше). */
+  html[data-theme="dark"]{ --ink:#f4ecd9; --ink-soft:#cbbfa6; --line:#f4ecd9; --stamp:#a8391f; }
+  html[data-theme="dark"] body{ font-weight:500; }
+  html[data-theme="dark"] .panel{ line-height:1.5; }
+  html[data-theme="dark"] body .panel{ background:linear-gradient(rgba(29,24,33,.975), rgba(29,24,33,.975)), var(--tx-stone) center/cover no-repeat, var(--card); }
+  html[data-theme="dark"] .panel.tex-body::after, html[data-theme="dark"] .panel.tex-mind::after, html[data-theme="dark"] .panel.tex-psi::after, html[data-theme="dark"] .panel.tex-soul::after{ opacity:0 !important; }
+  html[data-theme="dark"] .field label, html[data-theme="dark"] .ab-src{ font-size:11px; letter-spacing:.03em; }
+  html[data-theme="dark"] .tag{ font-size:11px; border-color:rgba(244,236,217,.35); }
+  html[data-theme="dark"] .roll-log-entry.success{ color:#8fd69a; }
+html[data-theme="dark"] .gma-sub,
+html[data-theme="dark"] .gma-check a,
+html[data-theme="dark"] .level-progress,
+html[data-theme="dark"] .roll-outcome.failure .verdict,
+html[data-theme="dark"] .todo,
+html[data-theme="dark"] .pending h3,
+html[data-theme="dark"] .ability-roll-ref:hover,
+html[data-theme="dark"] .worn-tag,
+html[data-theme="dark"] .figure-conflict,
+html[data-theme="dark"] .armor-stat-base,
+html[data-theme="dark"] .roll-log-entry.failure,
+html[data-theme="dark"] .gm-edit-banner button,
+html[data-theme="dark"] #dicePanel .dp-move-toggle.active,
+html[data-theme="dark"] #dicePanel .dp-crawl-pin.active,
+html[data-theme="dark"] #dicePanel .dp-pin-stage.active,
+html[data-theme="dark"] .gt-cb-side.on .gt-cb-sname,
+html[data-theme="dark"] .gt-cb-chip .lost,
+html[data-theme="dark"] .bst-roll,
+html[data-theme="dark"] .bst-hp b,
+html[data-theme="dark"] .gt-infocard .gt-ic-stats .hp,
+html[data-theme="dark"] .gt-menu button.danger,
+html[data-theme="dark"] .sb-warn,
+html[data-theme="dark"] .sb-star:hover,
+html[data-theme="dark"] .sb-row.on .sb-row-title,
+html[data-theme="dark"] .sb-pl-items li.on .sb-row-title,
+html[data-theme="dark"] .me-lock.on,
+html[data-theme="dark"] .me-maprow.on .me-mapname,
+html[data-theme="dark"] .cat-price-line .cat-short,
+html[data-theme="dark"] .gs-dock-btn.active{ color:#ff9b7f; }

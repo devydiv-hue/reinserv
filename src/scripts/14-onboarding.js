@@ -104,7 +104,7 @@ const Onboarding = (function(){
       {tab:'sheet', sel:'#btnRoomJoin', optional:true, title:'Голос и видео', text:'Комната со связью прямо в браузере — без сторонних программ.'},
       {sel:'.chzh-btn', title:'Подготовка', text:'В «ЧЗХ❓❓❓» → «Мастеру» — чек-лист подготовки к игре, памятка и советы по ситуации.'}]},
     'g-screen':{title:'Экран Мастера', steps:[
-      {tab:'table', before:()=>GmScreen.close(), sel:'#gmFab', doIt:()=>GmScreen.open('players'), click:true, title:'Экран Мастера', text:'Капля слева, над каплей кубов: игроки, сцены и заметки — на любой вкладке. Нажмите её.'},
+      {tab:'table', before:()=>GmScreen.close(), sel:'#gmFab', doIt:()=>GmScreen.open('players'), click:true, title:'Экран Мастера', text:'Капля у правого края (кубы — у левого): игроки, сцены и заметки — на любой вкладке. Поднесите к ней курсор или нажмите. ✥ в панели — перетащить к любому краю, булавка — капли ползают по краям.'},
       {before:()=>GmScreen.open('players'), sel:'#gmScreen', title:'Игроки', text:'Все подключённые игроки разом: ОЗ и пси полосками, удача, опыт, состояния. 🍀+1, ✎ лист, ⛏ находка, 📍 — найти жетон на столе.'},
       {before:()=>GmScreen.open('scenes'), sel:()=>document.querySelector('#gmScreen [data-s="save"]') || document.querySelector('#gmScreen .gs-body'), title:'Сцены', text:'Подготовили стол — «Сохранить стол как сцену»: карта, жетоны NPC, рисунки и, если отметить, звук. Во время игры «▶ Включить» — и всё на столе, жетоны игроков остаются.'},
       {before:()=>GmScreen.open('scenes'), sel:'#gmScreen [data-s="draft"]', optional:true, title:'Черновой стол', text:'Собрать следующую сцену прямо во время игры: пустой стол, который игроки не видят. Собрали — «Сохранить», и вы снова за настоящим столом.'},
@@ -160,7 +160,7 @@ const Onboarding = (function(){
       {sel:'.chzh-btn', title:'Подробнее', text:'«🎓 Полное обучение» в этом меню проведёт по всему — по шагам.'}]},
     'gm':{title:'Краткий обзор', role:'Мастер', steps:[
       {tab:'sheet', sel:'#sessionSetup', title:'Стол Мастера', text:'«Я — Мастер» и ссылка для игроков (start-ngrok.bat).'},
-      {tab:'sheet', sel:'#gmFab', title:'Экран Мастера', text:'Капля слева: игроки (ОЗ, пси, удача), готовые сцены одной кнопкой и заметки с бросками.'},
+      {tab:'sheet', sel:'#gmFab', title:'Экран Мастера', text:'Капля справа: игроки (ОЗ, пси, удача), готовые сцены одной кнопкой и заметки с бросками.'},
       {tab:'sheet', sel:'#tabBtnXp', title:'Опыт', text:'Отметки после встречи — опыт всем сразу.'},
       {tab:'sheet', sel:'#tabBtnTable', title:'Стол', text:'Жетоны, рисование, бестиарий, бой.'},
       {tab:'sheet', sel:'#tabBtnBestiary', title:'Бестиарий', text:'Существа книги, конструктор, случайная пустота.'},

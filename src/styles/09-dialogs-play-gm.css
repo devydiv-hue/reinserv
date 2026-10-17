@@ -101,11 +101,29 @@
   .gm-fab .blob-sheen::after{ content:''; position:absolute; top:-30%; left:-60%; width:40%; height:160%; background:linear-gradient(100deg, transparent, rgba(255,255,255,.35), transparent);
     transform:rotate(12deg); animation:diceBlobSheen 6.5s ease-in-out -3s infinite; }
   .gm-fab.open{ opacity:0; pointer-events:none; }
+  .gm-fab .blob-icon{ transform:rotate(var(--gm-unrot, 0deg)); } /* значок ровный, как ни повёрнута капля у края */
+  .gm-fab.dock-show{ opacity:1 !important; pointer-events:auto !important; }
   .gm-screen{ position:fixed; left:0; top:50%; transform:translate(-115%,-50%); opacity:0; pointer-events:none; z-index:132;
     width:min(390px, 94vw); height:min(660px, 88vh); display:flex; flex-direction:column; padding:14px 14px 12px; border-radius:6px 26px 26px 6px; color:var(--vellum-bright);
     background:radial-gradient(circle at 74% 12%, rgba(156,47,28,.12), transparent 46%), radial-gradient(circle at 20% 90%, rgba(0,0,0,.55), transparent 60%), linear-gradient(200deg, #241e29 0%, #120e16 60%, #060509 100%);
     box-shadow:18px 18px 50px -16px rgba(0,0,0,.85), inset 0 1px 0 rgba(255,255,255,.06); transition:transform .5s cubic-bezier(.22,1.12,.3,1), opacity .35s ease; font-family:var(--font); }
   .gm-screen.open{ transform:translate(0,-50%); opacity:1; pointer-events:auto; }
+  /* У края капли (BlobDock ставит left/top и класс края): панель выезжает от этого края, как панель кубов */
+  .gm-screen.placed{ transform:translate(var(--dp-hx, -115%), var(--dp-hy, 0%)); transform-origin:0 50%; }
+  .gm-screen.placed.open{ transform:none; }
+  .gm-screen.placed.edge-right{ --dp-hx:115%; --dp-hy:0%; border-radius:26px 6px 6px 26px; transform-origin:100% 50%; }
+  .gm-screen.placed.edge-top{ --dp-hx:0%; --dp-hy:-115%; border-radius:6px 6px 26px 26px; transform-origin:50% 0; }
+  .gm-screen.placed.edge-bottom{ --dp-hx:0%; --dp-hy:115%; border-radius:26px 26px 6px 6px; transform-origin:50% 100%; }
+  .gm-screen.dock-hidden{ opacity:0 !important; pointer-events:none !important; }
+  .gm-screen.movable{ cursor:grab; }
+  .gm-screen.movable .gs-body, .gm-screen.movable button{ cursor:auto; }
+  .gm-screen.movable button{ cursor:pointer; }
+  .gm-screen.placed.open.dock-wiggle{ animation:dpDockWiggle .7s cubic-bezier(.3,1.6,.5,1); }
+  .gs-dock-btn{ position:absolute; top:10px; width:20px; height:20px; padding:0; border:none; background:none; box-shadow:none; color:var(--vellum-muted); opacity:.6; cursor:pointer; }
+  .gs-dock-btn svg{ width:100%; height:100%; display:block; }
+  .gs-dock-btn:hover{ opacity:1; color:var(--vellum-bright); background:none; }
+  .gs-dock-btn.active{ opacity:1; color:var(--stamp); }
+  .gs-move{ left:14px; } .gs-pin{ left:40px; }
   .gs-close{ position:absolute; top:10px; right:12px; width:22px; height:22px; border:none; background:none; box-shadow:none; padding:0; color:var(--vellum-muted); font-size:15px; opacity:.7; cursor:pointer; }
   .gs-close:hover{ opacity:1; color:var(--vellum-bright); }
   .gs-title{ font-family:var(--font-display); font-size:11px; letter-spacing:.07em; text-transform:uppercase; color:var(--vellum-muted); text-align:center; margin-bottom:8px; }

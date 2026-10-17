@@ -39,7 +39,7 @@
   .tab-bar .tab-btn:hover{ background:rgba(30,22,26,.96); color:#fff; border-color:var(--vellum-bright); }
   .tab-bar .tab-btn.active, body #sheetControls button.primary{ background: linear-gradient(180deg, rgba(110,22,12,.78), rgba(48,6,3,.86)), var(--tx-meat) center/260px auto, var(--stamp);
     border-color:#2a0804; color:#fff6e4; -webkit-text-stroke:2.6px #1a0402; paint-order:stroke fill; }
-  body #sheetControls button{ font-size:12.5px; letter-spacing:.05em; padding:8px 17px; background:#f6efd9; color:#120d0a; border-color:#120d0a;
+  body #sheetControls button{ font-size:12.5px; letter-spacing:.05em; padding:8px 10px; background:#f6efd9; color:#120d0a; border-color:#120d0a;
     -webkit-text-stroke:2.6px #fbf4e2; paint-order:stroke fill; box-shadow:0 3px 0 rgba(0,0,0,.5), 0 0 0 1px rgba(246,236,212,.15); }
   body #sheetControls button:hover:not(:disabled){ background:#120d0a; color:#fff6e4; -webkit-text-stroke:2.6px #0a0608; }
   body #sheetControls button.primary:hover:not(:disabled){ filter:brightness(1.15); }
@@ -47,7 +47,7 @@
   #sheetTabView button:hover:not(:disabled), #xpTabView button:hover:not(:disabled), #sheetTabView .button-like:hover{ background:#120d0a; color:#fff6e4; -webkit-text-stroke:2.2px #0a0608; }
   #sheetTabView button.primary, #xpTabView button.primary, #sheetTabView button.active, #sheetTabView button.on{ background: linear-gradient(180deg, rgba(110,22,12,.78), rgba(48,6,3,.86)), var(--tx-meat) center/260px auto, var(--stamp);
     border-color:#2a0804; color:#fff6e4; -webkit-text-stroke:2.2px #1a0402; }
-  body #sheetControls .button-like{ font-size:12.5px; letter-spacing:.05em; padding:8px 17px; background:#f6efd9; color:#120d0a; border-color:#120d0a;
+  body #sheetControls .button-like{ font-size:12.5px; letter-spacing:.05em; padding:8px 10px; background:#f6efd9; color:#120d0a; border-color:#120d0a;
     -webkit-text-stroke:2.6px #fbf4e2; paint-order:stroke fill; box-shadow:0 3px 0 rgba(0,0,0,.5), 0 0 0 1px rgba(246,236,212,.15); }
   body #sheetControls .button-like:hover{ background:#120d0a; color:#fff6e4; -webkit-text-stroke:2.6px #0a0608; }
   body #sheetControls #btnUndo{ background:#0e0a0c; color:#fff6e4; border-color:#8a7a68; -webkit-text-stroke:2.6px #0a0608; }
@@ -220,7 +220,7 @@
   .level-progress{ position:absolute; left:0; top:100%; margin-top:1px; white-space:nowrap; font-size:11px; line-height:12px; font-weight:800;
     color:var(--stamp); cursor:pointer; pointer-events:auto; }
   .level-progress:empty{ display:none; }
-  .sheet-controls{ margin:4px 0 18px; }
+  .sheet-controls{ margin:4px 0 18px; gap:6px; } /* отступы ужаты, чтобы ряд с «случайный⚡» не переносил «Импорт из файла» */
   .topbar .sheet-controls{ margin:0; }
   .sheet-flow{ display:flex; gap:16px; align-items:flex-start; }
   .sheet-flow > .sheet-col{ flex:1 1 0; min-width:0; }
