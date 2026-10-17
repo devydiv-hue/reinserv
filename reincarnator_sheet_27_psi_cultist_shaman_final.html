@@ -2,6 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Реинкарнатор — Лист персонажа</title>
 <script>
 /* Аварийная плашка: если при загрузке страницы основной скрипт упал или не разобрался (старый браузер,
@@ -150,6 +151,12 @@
   body #sheetControls #btnUndo{ background:#0e0a0c; color:#fff6e4; border-color:#8a7a68; -webkit-text-stroke:2.6px #0a0608; }
   .wrap{max-width:1180px; margin:0 auto;}
   .topbar h1{ margin-bottom:2px; }
+  #btnCharMenu{ display:none; order:5; }
+  @media (max-width:700px){
+    .topbar.has-ctl #btnCharMenu{ display:inline-flex; }
+    .topbar.has-ctl #sheetControls{ display:none; }
+    .topbar.has-ctl.ctl-open #sheetControls{ display:flex; flex-wrap:wrap; width:100%; order:6; }
+  }
   /* Противогаз (присланный силуэт): тёмные части — мясо, светлые детали внутри (стёкла, торцы фильтров, клапан,
      заклёпки, кромка ремня) — кость. Высота — как у заглавных букв «РЕИНКАРНАТОР» (≈0.72em), стоит на линии букв. */
   .brand-mask{ position:relative; display:inline-block; height:.72em; width:calc(.72em * 105 / 128); margin:0 .2em 0 .24em; vertical-align:baseline;
@@ -170,8 +177,43 @@
   /* Обучение: кнопка «ЧЗХ», подсветка шага, карточка шага, подсказки */
   button.chzh-btn{ margin-left:auto; padding:5px 11px; font-size:11px; letter-spacing:.04em; white-space:nowrap; }
   .gt-topline button.chzh-btn, .me-topline button.chzh-btn{ margin-left:auto; font-size:10px; padding:4px 10px; }
-  .ob-ring{ display:none; position:fixed; z-index:9800; pointer-events:none; border-radius:10px; border:3px solid #ffb59f;
-    box-shadow:0 0 0 4000px rgba(10,8,6,.45), 0 0 18px 4px rgba(156,47,28,.7); transition:left .2s, top .2s, width .2s, height .2s; }
+  /* Подсветка шага: только рамка с пульсом — страница не затемняется и все кнопки остаются видны и доступны */
+  .ob-ring{ display:none; position:fixed; z-index:9800; pointer-events:none; border-radius:10px; border:3px solid #ff9b7a;
+    box-shadow:0 0 14px 3px rgba(156,47,28,.75); transition:left .2s, top .2s, width .2s, height .2s; animation:obPulse 1.6s ease-in-out infinite; }
+  @keyframes obPulse{ 0%,100%{ box-shadow:0 0 10px 2px rgba(156,47,28,.6); } 50%{ box-shadow:0 0 22px 7px rgba(255,120,80,.55); } }
+  .ob-card{ max-width:320px; }
+  .ob-card .ob-text{ font-size:12.5px; }
+  .ob-card.ob-mini .ob-text, .ob-card.ob-mini .ob-step{ display:none; }
+  /* Советы Мастеру: карточка по ситуации и панель «Подготовка / Памятка» */
+  .gma-card{ display:none; position:fixed; z-index:9790; background:var(--card); color:var(--ink); border:2px solid var(--ink); border-left:6px solid #b07a1f;
+    border-radius:12px; box-shadow:0 16px 30px -10px rgba(0,0,0,.7); padding:9px 12px; font-size:13px; line-height:1.4; }
+  .gma-h{ font-size:10px; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-soft); font-weight:700; }
+  .gma-lead{ margin-top:4px; font-size:12.5px; }
+  .gma-t{ font-family:'Cormorant Garamond', serif; font-style:italic; font-weight:700; font-size:17px; line-height:1.25; margin:4px 0 2px; }
+  .gma-btns{ display:flex; flex-wrap:wrap; gap:5px; justify-content:flex-end; margin-top:7px; }
+  .gma-btns button{ padding:2px 9px; font-size:10.5px; }
+  .gma-panel{ display:none; flex-direction:column; position:fixed; z-index:9780; top:10px; right:10px; bottom:10px; width:min(430px, calc(100% - 20px));
+    background:var(--card); color:var(--ink); border:2px solid var(--ink); border-radius:14px; box-shadow:0 20px 40px -12px rgba(0,0,0,.75); }
+  .gma-ph{ display:flex; gap:6px; align-items:center; padding:8px 10px; border-bottom:1px solid rgba(28,23,18,.2); }
+  .gma-ph .gma-x{ margin-left:auto; }
+  .gma-body{ overflow:auto; padding:8px 12px 14px; font-size:13px; line-height:1.45; }
+  .gma-sub{ margin:10px 0 4px; font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; font-weight:700; color:var(--stamp); }
+  .gma-check{ display:flex; gap:8px; align-items:flex-start; padding:4px 0; cursor:pointer; text-transform:none; letter-spacing:0; font-size:13px; color:var(--ink); }
+  .gma-check input{ margin-top:3px; accent-color:var(--stamp); }
+  .gma-check input:checked + span{ text-decoration:line-through; opacity:.6; }
+  .gma-check a{ color:var(--stamp); font-weight:700; white-space:nowrap; }
+  .gma-row{ margin-top:12px; }
+  .gma-sec{ border-bottom:1px dotted rgba(28,23,18,.3); padding:4px 0; }
+  .gma-sec summary{ cursor:pointer; font-family:'Cormorant Garamond', serif; font-style:italic; font-weight:700; font-size:19px; }
+  .gma-sec ol{ margin:4px 0 6px 18px; padding:0; }
+  .gma-sec li{ margin:3px 0; }
+  .gma-note{ margin-top:10px; font-size:11px; }
+  .ob-menu-sep{ font-size:10px; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-soft); padding:6px 10px 0; border-top:1px dotted rgba(28,23,18,.3); margin-top:2px; }
+  /* Подсказка к кнопке (модуль Tips) */
+  .ui-tip{ position:fixed; z-index:9900; pointer-events:none; max-width:300px; padding:6px 10px; border-radius:8px; font-size:12px; line-height:1.35;
+    font-family:var(--font); text-transform:none; letter-spacing:0; background:#1c1712; color:#f6ecd4; border:1px solid rgba(246,236,212,.25);
+    box-shadow:0 10px 22px -8px rgba(0,0,0,.75); animation:tipIn .14s ease-out; }
+  @keyframes tipIn{ from{ opacity:0; transform:translateY(3px); } to{ opacity:1; transform:none; } }
   .ob-card, .ob-bubble{ position:fixed; z-index:9801; background:var(--card); color:var(--ink); border:2px solid var(--ink); border-radius:12px;
     box-shadow:0 16px 30px -10px rgba(0,0,0,.7); padding:10px 12px; font-size:13px; line-height:1.4; }
   .ob-card{ display:none; }
@@ -195,7 +237,7 @@
      общий JS/состояние (character, session) было бы иначе не тривиально. Визуально — та же пилюля-
      кнопка, что и у обычных button, просто прижаты друг к другу и активная явно закрашена акцентом
      (тот же приём, что у .room-controls button.active). */
-  .tab-bar{ display:flex; gap:8px; margin-bottom:18px; }
+  .tab-bar{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:18px; }
   .tab-bar .tab-btn{ background:transparent; color:var(--vellum-muted); border-color:var(--vellum-muted); }
   .tab-bar .tab-btn:hover{ color:var(--vellum-bright); border-color:var(--vellum-bright); background:transparent; }
   .tab-bar .tab-btn.active{ background:var(--stamp); border-color:var(--stamp); color:var(--vellum-bright); }
@@ -308,6 +350,14 @@
     text-shadow:0 1px 3px rgba(0,0,0,.9); writing-mode:vertical-rl; text-orientation:mixed;
   }
   .roll-side-hint.active{ opacity:1; }
+  .roll-mode-bar{ display:flex; gap:5px; justify-content:center; margin-top:8px; }
+  .roll-src{ margin-top:6px; text-align:center; }
+  .roll-src-btn{ padding:3px 10px; font-size:10.5px; border-radius:999px; box-shadow:none; background:transparent; color:var(--vellum-muted); border-color:rgba(246,236,212,.3); }
+  .roll-src .stat-src-list{ text-align:left; margin-top:6px; max-height:140px; overflow:auto; }
+  .roll-mode-bar button{ padding:6px 10px; font-size:11px; border-radius:999px; box-shadow:none; }
+  .roll-mode-bar button.on[data-rmode="disadvantage"]{ background:#8a2a20; color:#fff6e4; border-color:#8a2a20; }
+  .roll-mode-bar button.on[data-rmode="advantage"]{ background:#2c6a41; color:#fff6e4; border-color:#2c6a41; }
+  .roll-mode-bar button.on[data-rmode="plain"]{ background:var(--ink); color:var(--card); }
   .roll-side-hint.disadvantage{ background:linear-gradient(90deg, rgba(138,42,32,.6), rgba(138,42,32,.25)); }
   .roll-side-hint.advantage{ background:linear-gradient(270deg, rgba(44,106,65,.6), rgba(44,106,65,.25)); }
   /* Чистый (сверху/снизу) — та же механика полоски, что и Помеха/Преимущество, но горизонтальная
@@ -450,6 +500,8 @@
   @media (max-width:560px){
     .hex{ width:28px; height:32px; font-size:9.5px; margin:0 1px; } /* тот же равносторонний расчёт, H=W×2/√3 */
     .hex-line + .hex-line{ margin-top:-8px; }
+    .roll-popup.touch-mode .hex{ width:35px; height:40px; font-size:11px; } /* под палец: 9 гексов в ряд ещё помещаются в 375px */
+    .roll-popup.touch-mode .hex-line + .hex-line{ margin-top:-10px; }
     .d20-scene{ width:130px; height:130px; margin:4px auto 22px; }
     .d20-face{ width:96px; height:96px; margin:-48px 0 0 -48px; font-size:18px; }
   }
@@ -1318,6 +1370,10 @@
   .bst-ditem small{ color:var(--ink-soft); white-space:nowrap; }
   .bst-dot{ width:12px; height:12px; border-radius:50%; flex-shrink:0; border:1.5px solid #1c1712; display:inline-block; }
   .bst-dock-hint{ color:var(--ink-soft); font-size:10.5px; }
+  @media (max-width:700px){ /* панель бестиария на столе — «шторкой» снизу, карточка жетона — во всю ширину */
+    .bst-dock{ top:auto !important; bottom:10px; left:8px; right:8px; width:auto; max-height:44% !important; }
+    .bst-float{ left:6px !important; right:6px; width:auto !important; }
+  }
   .bst-float{ display:none; top:56px; left:10px; width:min(440px, calc(100% - 20px)); max-height:calc(100% - 120px); overflow:auto; padding:10px 12px; box-sizing:border-box;
     background:var(--card); color:var(--ink); border:2px solid var(--ink); border-radius:12px; box-shadow:0 14px 26px -10px rgba(0,0,0,.65); }
   button.bst-float-x{ position:sticky; top:0; float:right; z-index:2; }
@@ -1627,6 +1683,8 @@
   .me-stage canvas{ position:absolute; inset:0; display:block; outline:none; touch-action:none; }
   .me-zoombar{ position:absolute; right:10px; top:10px; display:flex; align-items:center; gap:4px; padding:4px 6px; background:rgba(28,23,18,.93); border-radius:999px; color:var(--vellum-bright); font-size:11px; }
   .me-zoombar .small{ padding:1px 8px; background:transparent; color:var(--vellum-bright); border-color:transparent; box-shadow:none; }
+  .gt-wheelmode .wm-lbl, .me-wheelmode .wm-lbl{ font-size:10px; }
+  @media (max-width:820px){ .gt-wheelmode .wm-lbl, .me-wheelmode .wm-lbl{ display:none; } }
   .me-zoombar span{ min-width:40px; text-align:center; font-variant-numeric:tabular-nums; }
   .me-cursor{ position:absolute; left:10px; bottom:8px; padding:2px 10px; background:rgba(28,23,18,.85); color:var(--vellum-bright); border-radius:999px; font-size:10.5px; pointer-events:none; }
   .me-cursor:empty{ display:none; }
@@ -1694,6 +1752,18 @@
   .me-mapname{ flex:1; font-weight:700; }
   .me-genlist{ display:flex; flex-direction:column; gap:6px; }
   @media (max-width:900px){ .me-side{ flex-basis:220px; } .me-assets{ grid-template-columns:repeat(2, 1fr); } }
+  /* Телефон: всё в столбец и с прокруткой; верхняя строка и инструменты — горизонтальной лентой; холст — полэкрана */
+  @media (max-width:700px){
+    body.editor-mode #mapEditorView{ inset:4px; gap:5px; overflow-y:auto; }
+    .me-topline{ flex-wrap:nowrap; overflow-x:auto; padding-bottom:2px; }
+    .me-topline > *{ flex-shrink:0; }
+    .me-body{ flex-direction:column; flex:0 0 auto; }
+    .me-tools{ flex-direction:row; overflow-x:auto; align-self:stretch; }
+    .me-tools > *{ flex-shrink:0; }
+    .me-options{ max-height:70px; overflow:auto; }
+    .me-stage{ flex:0 0 58vh; min-height:58vh; }
+    .me-side{ flex:0 0 auto; max-height:60vh; }
+  }
   @media (max-width:640px){ .me-body{ flex-direction:column; } .me-tools{ flex-direction:row; flex-wrap:wrap; align-self:stretch; } .me-side{ flex:0 0 40%; } }
 </style>
   <!-- Совместная сессия (лог бросков + правки от ГМ + комната голоса/видео/данных) — см. секцию
@@ -1736,6 +1806,7 @@
 <div id="sbToast" role="status" aria-live="polite"></div>
 <div class="wrap">
   <div class="topbar">
+    <button type="button" id="btnCharMenu" class="small" title="Действия с персонажем: создать, режим, сохранить, экспорт…">⚙ Персонаж ▾</button>
     <div>
       <h1 class="brand-title">Реинкарнатор<span class="brand-mask" aria-hidden="true" title="НРИ инструментарий"><span class="bm-meat"></span><span class="bm-bone"></span></span><span class="brand-tool">НРИ инструментарий</span></h1>
       <div class="brand-sub">Виртуальный стол для НРИ за авторством Алексея Иващенко
@@ -7466,6 +7537,24 @@ function openRollPicker(statKey, clientX, clientY, anchorMod=-3){
   };
   ROLL_HEX_ROWS.forEach(buildRow);
   updatePreview(anchorMod);
+  // Касание: «увести палец за край окна» пальцем в режиме тапов не сделать — кнопки режима; гексы крупнее
+  const touchUi = _lastPointerType==='touch';
+  if(touchUi){
+    popup.classList.add('touch-mode');
+    const bar = document.createElement('div'); bar.className = 'roll-mode-bar';
+    bar.innerHTML = '<button type="button" data-rmode="disadvantage">Помеха</button><button type="button" data-rmode="plain" class="on">Чистый</button><button type="button" data-rmode="advantage">Преимущество</button>';
+    popup.appendChild(bar);
+    // Наведения нет — источники бонусов характеристики (на ПК — при наведении на строку) показываем по кнопке
+    if(!saveDef && character && character.log && character.log[statKey]){
+      const entries = character.log[statKey];
+      const src = document.createElement('div'); src.className = 'roll-src';
+      src.innerHTML = `<button type="button" class="roll-src-btn">ⓘ Откуда бонусы</button><div class="stat-src-list" hidden>${entries.length
+        ? entries.map(l=>`<div class="stat-src-row"><span>${escapeHtml(l.source)}</span><b>${l.delta>0?'+':''}${l.delta}</b></div>`).join('')
+        : '<div class="stat-src-row stat-src-empty"><span>Только базовое значение</span></div>'}</div>`;
+      src.querySelector('.roll-src-btn').addEventListener('click', ()=>{ const l = src.querySelector('.stat-src-list'); l.hidden = !l.hidden; });
+      popup.appendChild(src);
+    }
+  }
   overlay.appendChild(popup);
   document.body.appendChild(overlay);
   _rollOverlayEl = overlay;
@@ -7518,9 +7607,15 @@ function openRollPicker(statKey, clientX, clientY, anchorMod=-3){
     const curHex = field.querySelector('.hex.hovered') || anchorHex;
     updatePreview(parseInt(curHex.dataset.mod,10));
   };
+  const modeBar = popup.querySelector('.roll-mode-bar');
+  if(modeBar) modeBar.addEventListener('click', (e)=>{ const b = e.target.closest('[data-rmode]'); if(!b) return;
+    setMode(b.dataset.rmode); modeBar.querySelectorAll('[data-rmode]').forEach(x=>x.classList.toggle('on', x===b)); });
+  let moved = false;
   const onMove=(e)=>{
+    if(Math.hypot(e.clientX - clientX, e.clientY - clientY) > 8) moved = true;
     const hex = hexAt(e.clientX, e.clientY);
     if(hex) setHovered(hex);
+    if(touchUi) return; // на касаниях режим — кнопками (палец, уходящий за край, ещё и прокрутил бы страницу)
     if(e.clientX < popupRect.left) setMode('disadvantage');
     else if(e.clientX > popupRect.right) setMode('advantage');
     else if(e.clientY < popupRect.top || e.clientY > popupRect.bottom) setMode('plain');
@@ -7537,10 +7632,13 @@ function openRollPicker(statKey, clientX, clientY, anchorMod=-3){
     // Вооружённые Преимущество/Помеха лишь добавляются к модификатору того гекса, где произошло
     // отпускание, а не заменяют выбор точки отпускания сами по себе.
     const hex = hexAt(e.clientX, e.clientY);
+    // Касание: короткий тап открывает гексы, бросок — вторым тапом (иначе тап сразу бросал бы с гексом под пальцем)
+    if(touchUi && !moved && !clickMode){ clickMode = true; return; }
     if(hex){
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
       _rollOverlayCleanup = null; // уже сняли выше вручную — закрытию оверлея позже нечего будет чистить второй раз
+      popup.querySelectorAll('.roll-mode-bar, .roll-src').forEach(x=>x.remove()); // в окне результата — только итог
       executeRoll(statKey, base, parseInt(hex.dataset.mod,10), popup, mode);
     } else if(!clickMode){
       clickMode = true;
@@ -7807,14 +7905,22 @@ function openCultureRollQuad(clientX, clientY){
     if(!chosen) return; // ни разу не побывали ни на одном гексе — считаем жест отменённым
     openRollPicker('raspr_sluh_'+chosen.dataset.key, ex, ey, 0);
   };
+  let moved = false, tapMode = false;
   const onMove = (e)=>{
+    if(Math.hypot(e.clientX - clientX, e.clientY - clientY) > 8) moved = true;
     const cell = cellAt(e.clientX, e.clientY);
     if(cell) setHovered(cell);
+    if(tapMode) return; // в режиме тапов выход курсора за край ничего не выбирает
     const r = popup.querySelector('.quad-grid').getBoundingClientRect();
     const outside = e.clientX<r.left || e.clientX>r.right || e.clientY<r.top || e.clientY>r.bottom;
     if(outside && lastInside) finish(lastInside, e.clientX, e.clientY);
   };
-  const onUp = (e)=>{ finish(cellAt(e.clientX, e.clientY), e.clientX, e.clientY); };
+  const onUp = (e)=>{
+    if(!moved && !tapMode){ tapMode = true; popup.querySelector('.quad-title').textContent = 'Нажмите на нужное знание'; return; } // короткий тап — выбор следующим тапом
+    const cell = cellAt(e.clientX, e.clientY);
+    if(tapMode && !cell) return;
+    finish(cell, e.clientX, e.clientY);
+  };
   window.addEventListener('pointermove', onMove);
   window.addEventListener('pointerup', onUp);
   // Обычно снимается через finish() выше (closeRollOverlay ЕЁ и вызывает); назначено сюда же на
@@ -9753,6 +9859,7 @@ function executeRoll(statKey, base, mod, popup, mode){
   const rolls = mode==='plain' ? [randInt(20)] : [randInt(20), randInt(20)];
   const roll = pickD20ForMode(rolls[0], rolls[1], max, mode);
   const {success, category, natConsequences} = evaluateD20Check(roll, max);
+  if(statKey==='creature_roll' && !success) if(typeof GmAdvice!=='undefined') GmAdvice.event('miss'); // проваленный бросок существа
   if(typeof recordAndShareRoll==='function') recordAndShareRoll(statKey, mod, roll, max, success, category, mode, rolls); // общий лог сессии, см. её раздел внизу файла
 
   // Анимация полёта/приземления кости — ТА ЖЕ launchRollAnimation, что и у боковой панели бросков
@@ -9796,7 +9903,7 @@ function renderPending(){
   let html = '';
   { const lp = document.getElementById('levelProgress');
     if(lp) lp.textContent = !character ? ''
-      : character._levelUpTarget ? `⏫ Идёт повышение: ${character.level} → ${character._levelUpTarget} — сделайте выборы выше ↑`
+      : character._levelUpTarget > character.level ? `⏫ Идёт повышение: ${character.level} → ${character._levelUpTarget} — сделайте выборы выше ↑`
       : character._backfillTarget ? `⏫ Восполнение уровней: ${character._backfillProgress||0} → ${character._backfillTarget} — выборы выше ↑` : ''; }
   if(pendingItemRolls.length){
     html += `<div class="pending pending-progress">🎒 Ждёт выбора предметов по таблице: <b>${pendingItemRolls.length}</b> — <a href="#pendingItemRollsBox" onclick="event.preventDefault();document.getElementById('pendingItemRollsBox').scrollIntoView({behavior:'smooth',block:'center'})">в разделе «Инвентарь»</a>. Повышению уровня это не мешает.</div>`;
@@ -10654,6 +10761,38 @@ document.getElementById('btnGenerate').onclick = ()=>{
   character = generateCharacter();
   renderAll();
 };
+/* Ввод с тачпада и касаний. _lastPointerType — тип указателя последнего нажатия (касание / мышь / перо): окна
+   с жестом «нажми и тяни» на касаниях работают двумя тапами и показывают кнопки вместо «увести за край».
+   IS_TOUCH_UI — основной указатель сенсорный (телефон, планшет): тексты подсказок про пальцы, а не мышь.
+   wheelIntent — что делать с прокруткой на столе и в редакторе карт: щипок тачпада (браузер шлёт его как
+   Ctrl+колесо) и колесо мыши — масштаб, прокрутка двумя пальцами — сдвиг поля. Мышь от тачпада браузер
+   различает не всегда, поэтому есть переключатель «авто / мышь / тачпад» (кнопка у масштаба). */
+let _lastPointerType = 'mouse';
+document.addEventListener('pointerdown', (e)=>{ _lastPointerType = e.pointerType || 'mouse'; }, true);
+const IS_TOUCH_UI = !!(window.matchMedia && matchMedia('(pointer:coarse)').matches);
+const WHEEL_MODE_KEY = 'reincarnator_wheel_mode_v1';
+const WHEEL_MODES = {auto:{label:'авто', icon:'⇅', title:'Прокрутка: авто — колесо мыши масштабирует, два пальца тачпада двигают поле'},
+  mouse:{label:'мышь', icon:'🖱', title:'Прокрутка: мышь — любая прокрутка масштабирует'},
+  touchpad:{label:'тачпад', icon:'▭', title:'Прокрутка: тачпад — два пальца двигают поле, щипок масштабирует'}};
+function wheelMode(){ try{ const m = localStorage.getItem(WHEEL_MODE_KEY); return WHEEL_MODES[m] ? m : 'auto'; }catch(e){ return 'auto'; } }
+let _touchpadTs = 0;
+function wheelIntent(e){
+  if(e.ctrlKey || e.metaKey) return 'zoom';           // щипок тачпада и Ctrl+колесо — всегда масштаб
+  const m = wheelMode();
+  if(m==='mouse') return 'zoom';
+  if(m==='touchpad') return 'pan';
+  if(e.deltaMode!==0) return 'zoom';                  // построчная прокрутка — это колесо мыши
+  const now = Date.now();
+  if(e.deltaX!==0 || Math.abs(e.deltaY) < 20 || now - _touchpadTs < 350){ _touchpadTs = now; return 'pan'; } // два пальца: мелкие шаги и/или горизонталь
+  return 'zoom';
+}
+function wheelModeButtonHtml(cls){ const m = WHEEL_MODES[wheelMode()]; return `<button type="button" class="${cls}" data-wheelmode title="${m.title} · нажмите, чтобы сменить">${m.icon}<span class="wm-lbl"> ${m.label}</span></button>`; }
+document.addEventListener('click', (e)=>{
+  const b = e.target.closest && e.target.closest('[data-wheelmode]'); if(!b) return;
+  const ks = Object.keys(WHEEL_MODES), next = ks[(ks.indexOf(wheelMode()) + 1) % ks.length];
+  try{ localStorage.setItem(WHEEL_MODE_KEY, next); }catch(err){}
+  document.querySelectorAll('[data-wheelmode]').forEach(x=>{ const m = WHEEL_MODES[next]; x.innerHTML = `${m.icon}<span class="wm-lbl"> ${m.label}</span>`; x.title = m.title + ' · нажмите, чтобы сменить'; x.removeAttribute('data-tip'); });
+});
 // Режим генерации — выбор из меню (раньше был круг из трёх, и до «ручного» из «случайного» нужно было нажать
 // дважды), запоминается в браузере, чтобы не сбрасываться в «случайный» при обновлении страницы.
 const GEN_MODES = {
@@ -11044,9 +11183,13 @@ function openCatalogPicker(clientX, clientY){
     if(hex){ hex.classList.add('hovered'); preview.textContent = hex.dataset.full; }
   };
   setHovered(hexAt(clientX, clientY) || anchorPoint);
-  const onMove=(e)=>setHovered(hexAt(e.clientX,e.clientY));
+  let moved = false, tapMode = false;
+  const onMove=(e)=>{ if(Math.hypot(e.clientX - clientX, e.clientY - clientY) > 8) moved = true; setHovered(hexAt(e.clientX,e.clientY)); };
   const onUp=(e)=>{
-    const hex = hexAt(e.clientX,e.clientY) || hexField.querySelector('.hex.hovered');
+    // Короткий тап (тачпад, телефон): палец отпустили там же, где нажали — окно остаётся, выбор — следующим тапом
+    if(!moved && !tapMode){ tapMode = true; preview.textContent = 'Нажмите на нужную категорию'; return; }
+    const hex = hexAt(e.clientX,e.clientY) || (tapMode ? null : hexField.querySelector('.hex.hovered'));
+    if(tapMode && !hex) return; // тап мимо гексов — ждём дальше (закрыть — тап по фону или Esc)
     closeRollOverlay(); // снимает и window-обработчики жеста через _rollOverlayCleanup, см. его назначение ниже
     if(!hex) return; // released off every hex — cancelled, keep the previous selection
     const [genKey, catKey] = hex.dataset.mod.split('|');
@@ -11387,6 +11530,7 @@ function toggleMainTab(tab){
   // кнопки действий с персонажем: на листе — под «Сохранениями», на остальных вкладках — в шапке
   const ctl = document.getElementById('sheetControls');
   if(ctl){ if(tab==='sheet'){ const sp = document.getElementById('savesPanel'); if(sp && ctl.previousElementSibling!==sp) sp.after(ctl); } else { const tb = document.querySelector('.topbar'); if(tb && ctl.parentElement!==tb) tb.appendChild(ctl); } }
+  { const tb = document.querySelector('.topbar'); if(tb){ tb.classList.toggle('has-ctl', tab!=='sheet'); tb.classList.remove('ctl-open'); } } // на узком экране кнопки свёрнуты в «⚙ Персонаж ▾»
   document.body.classList.toggle('table-mode', tab==='table'); // шапка и вкладки уходят вверх, стол — на весь экран
   document.body.classList.toggle('editor-mode', tab==='maps');  // редактор карт — так же на весь экран
   if(typeof MapEditor!=='undefined'){ try{ MapEditor.setVisible(tab==='maps'); }catch(e){ console.error('[Редактор карт]', e); } }
@@ -11394,6 +11538,7 @@ function toggleMainTab(tab){
   sbHook(s=>s.setVisible(tab==='sound'));
   if(typeof Bestiary!=='undefined') Bestiary.setVisible(tab==='bestiary');
   if(typeof Onboarding!=='undefined') Onboarding.onTab(tab);
+  if(tab==='xp') if(typeof GmAdvice!=='undefined') GmAdvice.event('xp');
 }
 document.getElementById('tabBtnSheet').addEventListener('click', ()=>toggleMainTab('sheet'));
 document.getElementById('tabBtnXp').addEventListener('click', ()=>toggleMainTab('xp'));
@@ -11401,6 +11546,8 @@ document.getElementById('tabBtnTable').addEventListener('click', ()=>toggleMainT
 document.getElementById('tabBtnSound').addEventListener('click', ()=>toggleMainTab('sound'));
 document.getElementById('tabBtnMaps').addEventListener('click', ()=>toggleMainTab('maps'));
 document.getElementById('tabBtnBestiary').addEventListener('click', ()=>toggleMainTab('bestiary'));
+document.getElementById('btnCharMenu').addEventListener('click', ()=>document.querySelector('.topbar').classList.toggle('ctl-open'));
+document.getElementById('btnStartGM').addEventListener('click', ()=>setTimeout(()=>{ if(typeof GmAdvice!=='undefined') GmAdvice.event('session-gm'); }, 2500)); // перед игрой — чек-лист подготовки
 document.getElementById('gtBackToSheet').addEventListener('click', ()=>toggleMainTab('sheet'));
 document.getElementById('btnXpReset').addEventListener('click', resetXpChecklist);
 
@@ -12045,6 +12192,7 @@ function lootGive(){
   const fin = lootFinalItem();
   if(!fin) return;
   sendGrant(lootDig.playerId, {kind:'item', item:fin});
+  if(typeof GmAdvice!=='undefined') GmAdvice.event('loot');
   const short = fin.name.length>140 ? fin.name.slice(0, 140)+'…' : fin.name;
   const chain = lootDig.steps.map(s=>s.replace(/^· /,'')).join(' → ');
   recordAndShareQuickRoll({loot:true, target:(p && p.name) || xpRoster[lootDig.playerId] || 'игрок',
@@ -19108,8 +19256,16 @@ const MapEditor = (function(){
 
   /* ---------- мышь / тач ---------- */
   function evPos(e){ const r = canvas.getBoundingClientRect(); return {x:e.clientX - r.left, y:e.clientY - r.top}; }
+  // Два пальца на холсте: щипок — масштаб, перемещение — сдвиг карты (одним пальцем — обычный инструмент)
+  const mTouches = new Map(); let mPinch = null;
+  function pinchState(){ const [a, b] = [...mTouches.values()]; return {d:Math.max(10, Math.hypot(a.x - b.x, a.y - b.y)), c:{x:(a.x + b.x)/2, y:(a.y + b.y)/2}}; }
   function onDown(e){
     if(!doc) return;
+    if(e.pointerType==='touch'){
+      mTouches.set(e.pointerId, evPos(e));
+      if(mTouches.size===2){ action = null; const ps = pinchState(); mPinch = {d:ps.d, z:cam.z, w:toWorld(ps.c.x, ps.c.y)}; requestRender(); return; }
+      if(mTouches.size>2) return;
+    }
     canvas.focus({preventScroll:true});
     const p = evPos(e), w = toWorld(p.x, p.y);
     if(e.button===1 || e.button===2 && prefs.tool!=='wall' && prefs.tool!=='path' || spaceHeld || prefs.tool==='hand'){
@@ -19155,6 +19311,11 @@ const MapEditor = (function(){
     if(tool==='label'){ addLabelAt(w); return; }
   }
   function onMove(e){
+    if(e.pointerType==='touch' && mTouches.has(e.pointerId)){
+      mTouches.set(e.pointerId, evPos(e));
+      if(mPinch && mTouches.size>=2){ const ps = pinchState(), z = clamp(mPinch.z * ps.d / mPinch.d, ZOOM_MIN, ZOOM_MAX);
+        cam.z = z; cam.x = ps.c.x - mPinch.w.x*CELL*z; cam.y = ps.c.y - mPinch.w.y*CELL*z; requestRender(); renderZoom(); return; }
+    }
     if(!doc) return;
     const p = evPos(e), w = toWorld(p.x, p.y); hover = w;
     const st = $('meCursor'); if(st){ const cx = Math.floor(w.x), cy = Math.floor(w.y); st.textContent = (cx>=0 && cy>=0 && cx<doc.cols && cy<doc.rows) ? `клетка ${cx}, ${cy} · ${MapFormat.TERRAIN[doc.terrain[cy*doc.cols + cx]].name}` : ''; }
@@ -19177,6 +19338,7 @@ const MapEditor = (function(){
     requestRender();
   }
   function onUp(e){
+    if(e.pointerType==='touch'){ mTouches.delete(e.pointerId); if(mPinch){ if(mTouches.size<2) mPinch = null; return; } }
     if(!action) return;
     const a = action; action = null;
     if(a.type==='pan'){ canvas.style.cursor = prefs.tool==='hand' ? 'grab' : prefs.tool==='select' ? 'default' : 'crosshair'; return; }
@@ -19194,7 +19356,9 @@ const MapEditor = (function(){
     if(a.type==='rotate' || a.type==='scale'){ const o = findItem(a.key); if(o && a.type==='scale' && !(o.r%90)){ const c = snapCenter(o, o.x, o.y, e); o.x = c[0]; o.y = c[1]; } changed(); return; }
     if(a.type==='vertex'){ changed(); return; }
   }
-  function onWheel(e){ e.preventDefault(); if(e.altKey && (sel.size || prefs.tool==='object')){ scaleSel(e.deltaY < 0 ? 1.05 : 1/1.05); return; } const p = evPos(e); zoomAt(p.x, p.y, cam.z*Math.pow(1.0015, -e.deltaY)); }
+  function onWheel(e){ e.preventDefault(); if(e.altKey && (sel.size || prefs.tool==='object')){ scaleSel(e.deltaY < 0 ? 1.05 : 1/1.05); return; }
+    if(wheelIntent(e)==='pan'){ cam.x -= e.deltaX; cam.y -= e.deltaY; requestRender(); return; } // два пальца тачпада — сдвиг карты
+    const p = evPos(e); zoomAt(p.x, p.y, cam.z*Math.pow(e.ctrlKey ? 1.01 : 1.0015, -e.deltaY)); }
   function onKey(e){
     if(!visible) return;
     const tg = e.target; if(tg && (tg.tagName==='INPUT' || tg.tagName==='TEXTAREA' || tg.tagName==='SELECT' || tg.isContentEditable)) return;
@@ -19341,7 +19505,7 @@ const MapEditor = (function(){
   function seedOf(v){ v = String(v || '').trim(); if(!v) return 0; return /^\d+$/.test(v) ? (Number(v) >>> 0) || 1 : MapAssets.hashStr(v) || 1; }
   function runGen(id, opts){ const g = MapGen.LIST.find(x=>x.id===id); if(!g) return;
     mutate(()=>{ g.run(doc, opts); normalizeDoc(); sel.clear(); });
-    setStatus('Сгенерировано: ' + g.name + (doc.gen ? ' · зерно ' + doc.gen.seed : '')); }
+    setStatus('Сгенерировано: ' + g.name + (doc.gen ? ' · зерно ' + doc.gen.seed : '')); if(typeof GmAdvice!=='undefined') GmAdvice.event('mapgen'); }
   const GEN_LBL = [['none', 'без подписей'], ['buildings', 'здания и комнаты'], ['rooms', '+ помещения внутри зданий'], ['full', '+ мини-сцены и заголовок']], GEN_LSZ = [['small', 'мелкие'], ['normal', 'обычные'], ['large', 'крупные']];
   function generateDialog(pre){
     pre = pre || {}; const po = pre.opts || {}, cur = pre.id || (doc.gen && doc.gen.id) || MapGen.LIST[0].id;
@@ -19462,6 +19626,7 @@ const MapEditor = (function(){
         <button type="button" class="small" data-act="rotl" title="Повернуть (Q)">⟲ 90°</button><button type="button" class="small" data-act="rotr" title="Повернуть (E)">⟳ 90°</button><button type="button" class="small" data-act="flip" title="Отразить (X)">⇋</button>
         <span class="me-opt" title="Масштаб, с которым ставятся новые копии этого объекта (запоминается). Клавиши &lt; и &gt;, Alt+колесо"><span class="me-opt-label">Масштаб</span><button type="button" class="small" data-act="sdown">−</button><input type="number" min="10" max="800" step="5" value="${Math.round(defScale(a.id)*100)}" data-ghosts style="width:58px">%<button type="button" class="small" data-act="sup">+</button>${defScale(a.id)!==1 ? '<button type="button" class="small" data-act="sreset" title="Вернуть 100%">↺</button>' : ''}<span class="me-hint">${r3(a.w*defScale(a.id))}×${r3(a.h*defScale(a.id))} кл.</span></span><span class="me-hint">клик — поставить · Esc — закончить</span>` : '<span class="me-hint">Выберите объект в библиотеке справа.</span>';
     } else if(t==='select'){
+      if(IS_TOUCH_UI) h += `<span class="me-hint">тап — выбрать · перетащить — двигать · два пальца — масштаб и сдвиг карты · поворот, дубль и удаление — в «Свойствах»</span>`; else
       h += `<span class="me-hint">клик — выбрать · Shift — добавить · рамка — несколько · Ctrl+D — дубль · Del — удалить · Q/E — поворот · X — отразить · &lt; &gt; или Alt+колесо — масштаб, / — 100% · стрелки — сдвиг · Alt — без привязки</span>`;
     } else if(t==='hand'){ h += '<span class="me-hint">тяните поле · колесо — масштаб · пробел или средняя кнопка — перемещение из любого инструмента</span>'; }
     else if(t==='label'){ h += '<span class="me-hint">клик по карте — надпись</span>'; }
@@ -19607,7 +19772,7 @@ const MapEditor = (function(){
         <div class="me-stage-wrap">
           <div class="me-options" id="meOptions"></div>
           <div class="me-stage" id="meStage"><canvas id="meCanvas" tabindex="0" aria-label="Карта"></canvas>
-            <div class="me-zoombar"><button type="button" class="small" data-act="zoomout" title="Отдалить (−)">−</button><span id="meZoom">100%</span><button type="button" class="small" data-act="zoomin" title="Приблизить (+)">+</button><button type="button" class="small" data-act="fit" title="Вся карта (0)">⤢</button></div>
+            <div class="me-zoombar">${wheelModeButtonHtml('small me-wheelmode')}<button type="button" class="small" data-act="zoomout" title="Отдалить (−)">−</button><span id="meZoom">100%</span><button type="button" class="small" data-act="zoomin" title="Приблизить (+)">+</button><button type="button" class="small" data-act="fit" title="Вся карта (0)">⤢</button></div>
             <div class="me-cursor" id="meCursor"></div>
           </div>
         </div>
@@ -19617,7 +19782,7 @@ const MapEditor = (function(){
     canvas.addEventListener('pointerdown', onDown);
     canvas.addEventListener('pointermove', onMove);
     canvas.addEventListener('pointerup', onUp);
-    canvas.addEventListener('pointercancel', ()=>{ action = null; requestRender(); });
+    canvas.addEventListener('pointercancel', (e)=>{ mTouches.delete(e.pointerId); mPinch = null; action = null; requestRender(); });
     canvas.addEventListener('pointerleave', ()=>{ hover = null; ghost.at = null; requestRender(); });
     canvas.addEventListener('wheel', onWheel, {passive:false});
     canvas.addEventListener('contextmenu', (e)=>e.preventDefault());
@@ -20922,11 +21087,12 @@ const GameTable = (function(){
       case 'select': {
         if(t && canControl(t)){
           if(e.ctrlKey || e.metaKey){ const ids = new Set(selected); ids.has(t.id) ? ids.delete(t.id) : ids.add(t.id); setSelection([...ids]); return; }
-          if(!selected.has(t.id)) setSelection([t.id]);
+          const wasSel = selected.has(t.id);
+          if(!wasSel) setSelection([t.id]);
           const ids = [...selected].filter(id=>canControl(tok(id)));
           const starts = {};
           ids.forEach(id=>{ const tt = tok(id); const pp = displayPos(tt); starts[id] = {x:pp.x, y:pp.y}; });
-          interaction = {type:'drag', primary:t.id, ids, starts, startW:w, startP:p, moved:false, clicked:t.id};
+          interaction = {type:'drag', primary:t.id, ids, starts, startW:w, startP:p, moved:false, clicked:t.id, wasSel};
           return;
         }
         if(e.pointerType==='touch'){ startPan(e, p); return; }
@@ -21024,7 +21190,11 @@ const GameTable = (function(){
     viewport.classList.remove('panning');
     switch(it.type){
       case 'drag': {
-        if(!it.moved){ if(!(e.ctrlKey||e.metaKey)) setSelection([it.clicked]); break; }
+        if(!it.moved){
+          // Касание: на телефоне нет правого клика (а на iPhone и долгое нажатие его не вызывает) — второй тап по
+          // уже выделенному жетону открывает его меню: атака, карточка существа, изменить и т.д.
+          if(e.pointerType==='touch' && it.wasSel && tok(it.clicked)){ openTokenMenu(tok(it.clicked), localPt(e)); break; }
+          if(!(e.ctrlKey||e.metaKey)) setSelection([it.clicked]); break; }
         const moves = it.ids.map(id=>({id, x:dragPos[id].x, y:dragPos[id].y}));
         it.ids.forEach(id=>{ delete dragPos[id]; });
         moveTokens(moves);
@@ -21104,8 +21274,9 @@ const GameTable = (function(){
   }
   function onWheel(e){
     e.preventDefault();
+    if(wheelIntent(e)==='pan'){ cam.x -= e.deltaX; cam.y -= e.deltaY; applyCamera(); return; } // два пальца тачпада — сдвиг поля
     const p = localPt(e);
-    const k = e.deltaMode===1 ? 0.05 : e.deltaMode===2 ? 0.5 : 0.0015;
+    const k = e.deltaMode===1 ? 0.05 : e.deltaMode===2 ? 0.5 : (e.ctrlKey ? 0.01 : 0.0015); // щипок — крупнее шаг
     zoomAt(p.x, p.y, cam.z * Math.exp(-e.deltaY * k));
   }
   function onDblClick(e){
@@ -21226,6 +21397,7 @@ const GameTable = (function(){
     if(r!=='gm') h.push(actBtn('me','Мой жетон','my-token'));
     if(auth) h.push(`<button type="button" class="gt-tool${st().combat ? ' active' : ''}" data-act="combat" title="${st().combat ? 'Бой идёт — свернуть/развернуть трекер' : 'Начать бой: стороны, инициатива, круги'}"><span style="font-size:14px;line-height:1">⚔</span><span class="gt-lbl">Бой</span></button>`);
     if(auth && typeof Bestiary!=='undefined') h.push(`<button type="button" class="gt-tool${Bestiary.dockOpen ? ' active' : ''}" data-act="bestiary" title="Бестиарий — перетащите существо на поле"><span style="font-size:14px;line-height:1">📖</span><span class="gt-lbl">Бестиарий</span></button>`);
+    if(auth && typeof GmAdvice!=='undefined') h.push(`<button type="button" class="gt-tool" data-act="gm-advice" title="Советы Мастеру: чек-лист подготовки и памятка"><span style="font-size:14px;line-height:1">💡</span><span class="gt-lbl">Советы</span></button>`);
     if(auth) h.push(`<button type="button" class="gt-tool" data-act="more" title="Ещё">${icon('more')}</button>`);
     toolbar.innerHTML = h.join('');
     viewport.className = 'gt-viewport tool-' + tool + (spaceHeld ? ' space-pan' : '');
@@ -21253,7 +21425,7 @@ const GameTable = (function(){
     zoombar.innerHTML = `<button type="button" class="gt-tool" data-act="zoom-out" title="Отдалить (−)">${icon('minus')}</button>`+
       `<span class="gt-zoom-label" id="gtZoomLabel" data-act="zoom-reset" title="Масштаб 100%">${Math.round(cam.z*100)}%</span>`+
       `<button type="button" class="gt-tool" data-act="zoom-in" title="Приблизить (+)">${icon('plus')}</button>`+
-      `<button type="button" class="gt-tool" data-act="center" title="Показать все жетоны">${icon('center')}</button>`;
+      `<button type="button" class="gt-tool" data-act="center" title="Показать все жетоны">${icon('center')}</button>` + wheelModeButtonHtml('gt-tool gt-wheelmode');
   }
   function renderStatus(){
     const r = role(), connected = !!(session.ws && session.ws.readyState===WebSocket.OPEN);
@@ -21262,6 +21434,9 @@ const GameTable = (function(){
     else if(r==='gm') txt = connected ? `<b>Мастер</b> · игроков: ${Object.keys(session.players).length}` : '<b>Мастер</b> · переподключение…';
     else txt = session.gmId && session.gmName ? `<b>Игрок</b> · стол Мастера «${escapeHtml(session.gmName)}»` : '<b>Игрок</b> · ждём Мастера…';
     statusEl.innerHTML = txt;
+    if(IS_TOUCH_UI){ emptyHint.innerHTML = isAuthority()
+      ? '<b>Пустое поле</b>Жетон — поставить NPC' + (role()==='gm' ? ' или жетон игрока' : ', «Мой жетон» — своего персонажа') + '. Два пальца — масштаб и сдвиг, тап по выделенному жетону — его меню.'
+      : '<b>Стол Мастера</b>«Мой жетон» — поставить своего персонажа. Два пальца — масштаб и сдвиг, тап по выделенному жетону — его меню.'; return; }
     emptyHint.innerHTML = isAuthority()
       ? '<b>Пустое поле</b>' + (role()==='gm' ? 'Жетон — поставить NPC или жетон игрока.' : 'Жетон — поставить NPC, «Мой жетон» — своего персонажа.') + ' Колесо — масштаб, «Рука» (H), средняя кнопка или пробел+перетаскивание — сдвиг поля.'
       : '<b>Стол Мастера</b>«Мой жетон» — поставить своего персонажа. Колесо — масштаб, «Рука» (H), средняя кнопка или пробел+перетаскивание — сдвиг поля.';
@@ -21276,8 +21451,8 @@ const GameTable = (function(){
   }
   function showHint(){
     let h = '';
-    if(targeting) h = 'Выберите цель атаки · Esc или правый клик — отмена';
-    else if(placing) h = 'Клик — поставить · Shift — по сетке · Esc — отмена';
+    if(targeting) h = IS_TOUCH_UI ? 'Тап по цели атаки · тап по пустому месту — отмена' : 'Выберите цель атаки · Esc или правый клик — отмена';
+    else if(placing) h = IS_TOUCH_UI ? 'Тап — поставить жетон' : 'Клик — поставить · Shift — по сетке · Esc — отмена';
     else if(polyDraft) h = 'Клик — вершина · двойной клик, Enter или клик по первой точке — замкнуть · Esc — отмена';
     else if(ruler && ruler.mode==='waypoints') h = 'Клик — ещё точка · двойной клик, правый клик или Esc — убрать';
     else if(tool==='ruler') h = 'Протяните — измерить · клик — измерение по точкам';
@@ -21309,6 +21484,7 @@ const GameTable = (function(){
       case 'my-token': myTokenAction(); break;
       case 'more': openMoreMenu(b); break;
       case 'bestiary': if(typeof Bestiary!=='undefined') Bestiary.toggleDock(); break;
+      case 'gm-advice': if(typeof GmAdvice!=='undefined') GmAdvice.openPanel('memo'); break;
       case 'combat': if(st().combat){ combatCollapsed = !combatCollapsed; renderCombat(); } else openCombatSetup(b); break;
       case 'undo': undo(); break;
       case 'redo': redo(); break;
@@ -21609,7 +21785,9 @@ const GameTable = (function(){
   function setScene(scene){
     if(!isAuthority()){ toast('Карту на стол ставит Мастер'); return false; }
     const cur = authState.map.scene, keep = cur && cur.mapId===scene.mapId;
-    return act({c:'map-set', map:Object.assign({}, authState.map, {scene:Object.assign({}, scene, {x: keep ? cur.x : 0, y: keep ? cur.y : 0})})});
+    const ok = act({c:'map-set', map:Object.assign({}, authState.map, {scene:Object.assign({}, scene, {x: keep ? cur.x : 0, y: keep ? cur.y : 0})})});
+    if(ok && !keep) if(typeof GmAdvice!=='undefined') GmAdvice.event('scene');
+    return ok;
   }
   // Перейти к карте из редактора. Стол может быть ещё не разложен (первый показ, анимация на весь экран) —
   // тогда переход откладывается до resize(), и ещё секунду повторяется при каждом изменении размера поля.
@@ -21830,6 +22008,7 @@ const GameTable = (function(){
       rollInitiative(c, Object.keys(parts), 'Инициатива — начало боя');
       combatCollapsed = false; combatHints = roundHints(c, 'start');
       setCombat(c); renderToolbar();
+      if(typeof GmAdvice!=='undefined') GmAdvice.event('combat-start');
     });
   }
   // Подсказки Мастеру: способности участников, которые срабатывают «в начале/в конце круга»
@@ -21859,6 +22038,7 @@ const GameTable = (function(){
     if(startHints) items.push(...startHints.items);
     combatHints = items.length ? {title:`Круг ${c.round}`, items} : null;
     setCombat(c);
+    if((c.round - 1) % 3 === 0) if(typeof GmAdvice!=='undefined') GmAdvice.event('combat-round'); // каждый третий круг: 4-й, 7-й…
     if(ended.length) toast('Закончились эффекты: ' + ended.join(', '));
   }
   function combatScene(){
@@ -21868,6 +22048,7 @@ const GameTable = (function(){
     Object.values(c.parts).forEach(q=>{ q.act = q.swap = false; });
     rollInitiative(c, Object.keys(c.parts), `Инициатива — смена сцены (круг ${c.round})`);
     setCombat(c);
+    if(typeof GmAdvice!=='undefined') GmAdvice.event('combat-scene');
   }
   function combatEnd(){
     const c = st().combat; if(!c) return;
@@ -22078,6 +22259,7 @@ const GameTable = (function(){
     const att = tok(targeting.attackerId);
     if(!att){ targeting = null; showHint(); return; }
     const tgt = tokenFromEvent(e);
+    if(!tgt && e.pointerType==='touch'){ targeting = null; showHint(); requestRender({fx:true}); toast('Атака отменена'); return; } // на телефоне нет Esc и правого клика
     if(!tgt || !canTarget(att, tgt)){ toast(tgt ? 'Эту цель атаковать нельзя' : 'Выберите жетон-цель · Esc — отмена'); return; }
     const range = rangeInfo(att, tgt, targeting.w);
     if(!range.ok){ toast('Цель ' + range.label); return; }
@@ -22257,6 +22439,7 @@ const GameTable = (function(){
     attackRecords.push(rec); saveAttackRecords();
     recordAndShareQuickRoll({ mapAttack:true, attackId, attacker:attackerName, target:targetName, weaponName:w.name, fireMode, rolls, roll, mode,
                               success:ev.success, category:ev.category, jammed, unprotected, slow:!!w.slow, hits, total });
+    if(att.kind==='player' && !ev.success) if(typeof GmAdvice!=='undefined') GmAdvice.event('miss'); // промах атаки игрока
     return {ok:true, success:ev.success, jammed, speedUsed};
   }
   function undoAttack(attackId, asReroll){
@@ -22502,7 +22685,7 @@ const GameTable = (function(){
 
   return { init, setVisible, refreshRole, handleMessage, onPlayerHello, onGmHello, onPlayerSheet, onPeerLeft, onLocalCharacterChanged,
            submitMapAttack, undoAttack, canUndoAttack, setScene, focusScene, redraw:()=>requestRender({bg:true, draw:true, fx:true}),
-           placeToken, creatureAttack, getToken:(id)=>tok(id), updateToken:(id, patch)=>act({c:'token-update', id, patch}),
+           placeToken, creatureAttack, getToken:(id)=>tok(id), vitalsOf:(t)=>vitalsFor(t), updateToken:(id, patch)=>act({c:'token-update', id, patch}),
            editToken:(id)=>{ const t = tok(id); if(t) openTokenForm(t, null, {x:40, y:60}); }, refreshToolbar:()=>{ if(viewport) renderToolbar(); },
            get state(){ return st(); }, get camera(){ return cam; } };
 })();
@@ -23874,7 +24057,9 @@ const Bestiary = (function(){
   }
   function onViewClick(e){
     const s = e.target.closest('[data-sel]');
-    if(s){ prefs.sel = s.dataset.sel; viewMove = null; savePrefs(); renderSide(); renderMain(); return; }
+    if(s){ prefs.sel = s.dataset.sel; viewMove = null; savePrefs(); renderSide(); renderMain();
+      if(window.innerWidth <= 820){ const m = view.querySelector('.bst-main'); if(m) m.scrollIntoView({behavior:'smooth', block:'start'}); } // в одну колонку карточка ниже списка
+      return; }
     const b = e.target.closest('[data-m]'); if(!b || b.tagName==='INPUT') return;
     const tpl = byId(prefs.sel);
     switch(b.dataset.m){
@@ -23999,6 +24184,7 @@ const Bestiary = (function(){
     if(switchTab && typeof toggleMainTab==='function') toggleMainTab('table');
     const ok = g.placeToken(makeTokenFields(tpl, g.state.tokens), cx, cy);
     if(ok) note(`«${tpl.name}» на столе`);
+    if(ok) if(typeof GmAdvice!=='undefined') GmAdvice.event('creature', tpl);
     return ok;
   }
   function ensureDock(){
@@ -24348,6 +24534,7 @@ const Soundboard = (function(){
   function playSound(id, srcEl){
     const s = soundById(id);
     if(!s || !isAuthority()) return;
+    if(typeof GmAdvice!=='undefined') GmAdvice.event('sound');
     if(s.loop){ toggleAmbience(id); return; }
     const eventId = 'sfx:' + id + ':' + newId('');
     markSeen(eventId);
@@ -25175,6 +25362,469 @@ try{ Soundboard.init(); }catch(e){ console.error('[Саундпад] не уда
 </script>
 <script>
 /* ======================================================================
+   ПОДСКАЗКИ К КНОПКАМ: задержались курсором на кнопке ~1.5 с — появляется пояснение «зачем она».
+   Текст: собственный title элемента (переносится в data-tip, чтобы не всплывала ещё и системная
+   подсказка) → правила ниже по id / data-атрибутам / onclick / тексту кнопки → aria-label.
+   На сенсорных экранах не показываются (там нет «наведения»).
+   ====================================================================== */
+const Tips = (function(){
+  const DELAY = 1500;
+  const RULES = [
+    // вкладки и шапка
+    ['#tabBtnSheet', 'Лист персонажа: характеристики, способности, инвентарь, броски и сохранения'],
+    ['#tabBtnXp', 'Начисление опыта после игровой встречи по пунктам книги'],
+    ['#tabBtnTable', 'Общая карта сессии: жетоны, атаки с карты, трекер боя'],
+    ['#tabBtnBestiary', 'Библиотека существ Мастера: карточки по книге, конструктор, жетоны на стол'],
+    ['#tabBtnMaps', 'Редактор карт: генерация местности, рисование, отправка карты на стол'],
+    ['#tabBtnSound', 'Музыка и звуки — их слышат все участники сессии'],
+    ['.boosty-link', 'Поддержать автора книги на Boosty (откроется в новой вкладке)'],
+    // сессия и связь
+    ['#btnStartGM', 'Начать совместную сессию ведущим — игроки подключатся к вашему столу'],
+    ['#btnStartPlayer', 'Подключиться к столу Мастера как игрок'],
+    ['#btnLeaveSession', 'Отключиться от совместной сессии — лист персонажа останется у вас'],
+    ['#btnRoomJoin', 'Голосовая и видеосвязь с участниками сессии прямо в браузере'],
+    ['#btnRoomMic', 'Включить или выключить свой микрофон'],
+    ['#btnRoomCam', 'Включить или выключить свою камеру'],
+    ['#btnRoomLeave', 'Выйти из голосовой комнаты — сессия при этом продолжится'],
+    ['[data-editplayer]', 'Открыть лист этого игрока для правки — изменения уйдут ему после «Отправить игроку»'],
+    ['#btnSendEditedSheet', 'Отправить исправленный лист игроку'],
+    ['#btnCancelEditedSheet', 'Выйти из правки чужого листа без изменений'],
+    // действия с персонажем и сохранения
+    ['#btnGenerate', 'Создать нового персонажа по правилам книги (прежнего можно вернуть кнопкой «Отменить»)'],
+    ['#btnReset', 'Очистить лист и поля создания — начать с чистого листа'],
+    ['#btnSaveAs', 'Сохранить персонажа в этом браузере под своим именем'],
+    ['#btnExportFile', 'Скачать персонажа файлом .json — для другого устройства или резервной копии'],
+    ['#btnImportFileLabel', 'Загрузить персонажа из файла .json'],
+    ['#btnRefreshSaves', 'Перечитать список сохранений этого браузера'],
+    ['[data-load]', 'Загрузить этого персонажа из сохранения (текущий лист заменится)'],
+    ['[data-del]', 'Удалить это сохранение'],
+    ['#btnClearHistory', 'Стереть журнал событий персонажа — на характеристики не влияет'],
+    // способности, достоинства, недостатки
+    ['[onclick^="resetAllAbilitySpent"]', 'Снять отметки «потрачено» со всех способностей — например, после отдыха или в новый день'],
+    ['[onclick^="toggleAbilitySpent"]', 'Отметить, что способность уже использована (для «раз в день / раз во встречу»)'],
+    ['[onclick^="editAbilityNote"]', 'Своя заметка к способности — для памяти'],
+    ['[onclick^="editAdvantage"]', 'Изменить текст достоинства'],
+    ['[onclick^="rerollAdvantage"]', 'Заменить достоинство случайным по таблице книги (к20)'],
+    ['[onclick^="addAdvantageRandom"]', 'Добавить случайное достоинство по таблице книги (к20)'],
+    ['[onclick^="addAdvantageCustom"]', 'Вписать своё достоинство'],
+    ['[onclick^="editFlaw"]', 'Изменить текст недостатка'],
+    ['[onclick^="rerollFlaw"]', 'Заменить недостаток случайным по таблице книги (к12)'],
+    ['[onclick^="removeFlaw"]', 'Убрать этот недостаток'],
+    ['[onclick^="addFlawRandom"]', 'Добавить случайный недостаток по таблице книги (к12)'],
+    ['[onclick^="addFlawCustom"]', 'Вписать свой недостаток'],
+    // инвентарь и оружие
+    ['#btnAddFromCatalog', 'Положить выбранный предмет из каталога книги в инвентарь'],
+    ['[data-inv]', 'Добавить в этот раздел инвентаря свой предмет'],
+    ['[onclick^="equipWeapon"]', 'Взять оружие в свободный слот атаки — с ним появятся броски атаки'],
+    ['[onclick^="unequipWeapon"]', 'Убрать оружие из слота атаки — в инвентаре оно останется'],
+    ['[onpointerdown*="openWeaponSlotPicker"]', 'Заменить оружие в одном из слотов атаки: нажмите и потяните к нужному'],
+    ['[onclick^="toggleWeaponLoaded"]', 'Отметить, заряжено ли оружие (для однозарядного и «пальбы»)'],
+    ['[onclick^="rerollInventoryItem"]', 'Перебросить предмет по его таблице'],
+    ['[onclick^="adjustItemUses"][onclick*=",-1)"]', 'Потратить одно использование (ПР)'],
+    ['[onclick^="adjustItemUses"]', 'Добавить одно использование (ПР)'],
+    ['[onclick^="toggleWearBoots"]', 'Надеть или снять обувь'],
+    ['[onclick^="editInventoryItem"]', 'Изменить название и описание предмета'],
+    ['[onclick^="removeInventoryItem"]', 'Выбросить предмет из инвентаря'],
+    ['#zoneWearBtn', 'Надеть предмет на отмеченные зоны тела'],
+    ['#zoneRemoveBtn', 'Снять предмет с тела'],
+    // переброс
+    ['#rerollLuckBtn', 'Потратить 1 удачу и перебросить'],
+    ['#rerollBodrostBtn', 'Потратить бодрость и перебросить'],
+    ['#rerollCareerBtn', 'Перебросить за счёт возможности карьеры'],
+    ['.reroll-popup [data-ability]', 'Перебросить за счёт этой способности'],
+    ['.reroll-popup [data-advantage]', 'Перебросить за счёт этого достоинства'],
+    // выборы, ожидающие игрока
+    ['#pendingBox .choice-btns button', (el)=>`Выбрать «${txt(el)}» — бонус сразу применится к персонажу`],
+    ['#pendingItemRollsBox button', (el)=>`Взять «${txt(el).slice(0, 60)}» вместо случайного броска`],
+    ['.gen-mode-menu [data-k]', 'Выбрать режим создания персонажа (запоминается)'],
+    ['.ob-menu [data-m]', 'Запустить или настроить обучение'],
+    // находки
+    ['[data-loot-die]', 'Бросок находки этой костью'],
+    ['[data-loot-cat]', 'Выбрать категорию находок'],
+    ['[data-loot-book]', 'Бросить находку по таблицам книги'],
+    ['[data-loot-give]', 'Выдать найденное выбранному персонажу'],
+    ['[data-loot-restart]', 'Начать выбор находки заново'],
+    // игровой стол
+    ['[data-cbh="next"]', 'Сторона сходила — передать ход следующей (после последней начнётся новый круг)'],
+    ['[data-cbh="end"]', 'Завершить бой — трекер закроется, итог запишется в журнал'],
+    ['[data-cbh="fold"]', 'Свернуть или развернуть трекер боя'],
+    ['[data-cbh="hints"]', 'Скрыть напоминания этого круга'],
+    ['.gt-menu [data-mi]', (el)=>'Действие с жетоном: ' + el.textContent.trim().toLowerCase()],
+    ['.gt-menu-sizes [data-size]', 'Размер жетона на поле'],
+    ['#gtLogToggle', 'Показать общий лог бросков'],
+    ['#gtBackToSheet, .me-topline [data-act="back"]', 'Вернуться к листу — шапка и вкладки снова появятся'],
+    // бестиарий
+    ['.bst-item', 'Открыть карточку этого существа'],
+    ['[data-m="edit"]', 'Изменить существо в конструкторе (встроенное сохранится как ваша версия)'],
+    ['[data-m="dup"]', 'Сделать копию существа, чтобы переделать под себя'],
+    ['[data-m="del"]', 'Удалить своё существо из бестиария (жетоны на столе останутся)'],
+    ['[data-m="new"]', 'Создать своё существо в конструкторе'],
+    ['[data-m="quick"], [data-d="quick"]', 'Враг без характеристик: только ОЗ и помеха 3/6 на броски против него'],
+    ['[data-m="import"]', 'Загрузить существ из файла .json'],
+    ['[data-m="export"]', 'Скачать своих существ файлом .json'],
+    ['[data-place], [data-d2="place"]', 'Поставить существо жетоном в центр игрового стола'],
+    ['[data-act="cat-open"]', 'Добавить существу предмет из каталога книги'],
+    ['[data-act="cat-add"]', 'Добавить выбранный предмет'],
+    ['[data-act="extra-del"]', 'Убрать добавленный предмет'],
+    ['.bst-card [data-act="hp"]', 'Применить: число — установить ОЗ, −N или +N — изменить'],
+    ['.bst-card [data-act="tr"][data-d="1"]', 'Добавить травму'],
+    ['.bst-card [data-act="tr"]', 'Убрать травму'],
+    ['[data-act="move-roll"]', 'Бросить кость и подсветить выпавший ход'],
+    // редактор карт
+    ['.me-tab', 'Переключить боковую панель'],
+    ['.me-cat', 'Категория объектов библиотеки'],
+    ['[data-act="pngadd"]', 'Загрузить свою картинку как объект библиотеки'],
+    ['[data-act="dup"]', 'Дублировать выделенное'],
+    ['[data-act="rotr"]', 'Повернуть выделенное на 90° по часовой'],
+    ['.me-props [data-act="del"], #mapEditorView [data-act="del"]', 'Удалить выделенное'],
+    ['[data-act="resize"]', 'Изменить размер карты'],
+    ['[data-act="fit"]', 'Показать карту целиком (клавиша 0)'],
+    ['[data-act="clear"]', 'Стереть с карты всё нарисованное и расставленное'],
+    ['[data-act="sdown"]', 'Уменьшить масштаб объекта'],
+    ['[data-act="sup"]', 'Увеличить масштаб объекта'],
+    ['[data-sset]', 'Задать масштаб объекта'],
+    ['[data-c][data-r]', 'Готовый размер карты (клеток по ширине × высоте)'],
+    ['[data-open]', 'Открыть эту карту'],
+    ['[data-pfmanage]', 'Свои заготовки комнат и сцен для генератора'],
+    ['[data-pfexp]', 'Скачать свои заготовки файлом'],
+    ['[data-pfimp]', 'Загрузить заготовки из файла'],
+    // саундпад
+    ['.sb-cat', 'Категория звуков'],
+    ['.sb-sec', 'Раздел саундпада'],
+    ['#sbUnlock', 'Браузер не даёт играть звук без нажатия — разрешить звук'],
+    // обучение
+    ['.chzh-btn', 'Что здесь происходит? Экскурсия для игрока или Мастера, подсказки'],
+    // общие кнопки окон и форм — по тексту
+    [(el)=>/^(Отмена)$/i.test(txt(el)), 'Закрыть, ничего не меняя'],
+    [(el)=>/^[✕×]$/.test(txt(el)), 'Закрыть'],
+    [(el)=>/^(OK|ОК|Готово|Применить|Понятно)$/i.test(txt(el)), 'Подтвердить'],
+    [(el)=>el.getAttribute('type')==='submit', (el)=>'Подтвердить: ' + txt(el).replace(/^[^\wА-Яа-яЁё]+/, '').toLowerCase()],
+  ];
+  function txt(el){ return (el.textContent || '').replace(/\s+/g, ' ').trim(); }
+  function textFor(el){
+    if(el.dataset.tip) return el.dataset.tip;
+    const ti = el.getAttribute('title');
+    if(ti){ el.dataset.tip = ti; el.removeAttribute('title'); return ti; } // своё облачко вместо системного
+    for(const [m, x] of RULES){
+      let ok = false; try{ ok = typeof m==='function' ? m(el) : el.matches(m); }catch(e){}
+      if(ok) return typeof x==='function' ? x(el) : x;
+    }
+    return el.getAttribute('aria-label') || '';
+  }
+  const SEL = 'button, .button-like, .tab-btn, [title], [data-tip], label.lock-toggle, .boosty-link';
+  let timer = 0, cur = null, tipEl = null;
+  function hide(){ clearTimeout(timer); timer = 0; if(tipEl){ tipEl.remove(); tipEl = null; } }
+  function show(el){
+    if(!el.isConnected) return;
+    const text = textFor(el); if(!text) return;
+    tipEl = document.createElement('div'); tipEl.className = 'ui-tip'; tipEl.textContent = text; document.body.appendChild(tipEl);
+    const r = el.getBoundingClientRect(), w = tipEl.offsetWidth, h = tipEl.offsetHeight;
+    let top = r.top - h - 8; if(top < 6) top = r.bottom + 8;
+    const left = Math.max(6, Math.min(r.left + r.width/2 - w/2, window.innerWidth - w - 6));
+    tipEl.style.left = left + 'px'; tipEl.style.top = top + 'px';
+  }
+  document.addEventListener('pointerover', (e)=>{
+    if(e.pointerType==='touch') return;
+    const el = e.target.closest && e.target.closest(SEL);
+    if(el===cur) return;
+    hide(); cur = el;
+    if(el){ if(el.hasAttribute('title')) textFor(el); timer = setTimeout(()=>show(el), DELAY); } // title снимаем сразу — без системной подсказки
+  }, true);
+  document.addEventListener('pointerout', (e)=>{ if(cur && !(e.relatedTarget && cur.contains(e.relatedTarget))){ cur = null; hide(); } }, true);
+  ['pointerdown', 'keydown', 'wheel'].forEach(ev=>document.addEventListener(ev, ()=>{ hide(); }, true));
+  // Касание: наведения нет — подсказку показывает долгое нажатие (0,6 с); после него кнопка не срабатывает.
+  // Элементы, у которых нажатие само запускает жест (броски, «нажми и тяни»), не трогаем.
+  let lpTimer = 0, lpStart = null, lpShownOn = null;
+  document.addEventListener('pointerdown', (e)=>{
+    if(e.pointerType!=='touch') return;
+    const el = e.target.closest && e.target.closest(SEL);
+    if(!el || el.matches('.bst-roll, .ability-roll-ref, [onpointerdown], .stat-row, [data-drag]') || el.closest('.roll-overlay')) return;
+    lpStart = {x:e.clientX, y:e.clientY};
+    lpTimer = setTimeout(()=>{ lpTimer = 0; show(el); if(tipEl){ lpShownOn = el; setTimeout(()=>{ if(lpShownOn===el){ hide(); } }, 3000); } }, 600);
+  }, true);
+  const lpCancel = ()=>{ clearTimeout(lpTimer); lpTimer = 0; };
+  document.addEventListener('pointermove', (e)=>{ if(lpTimer && lpStart && Math.hypot(e.clientX - lpStart.x, e.clientY - lpStart.y) > 10) lpCancel(); }, true);
+  document.addEventListener('pointerup', lpCancel, true); document.addEventListener('pointercancel', lpCancel, true);
+  document.addEventListener('click', (e)=>{ if(lpShownOn && lpShownOn.contains(e.target)){ e.preventDefault(); e.stopImmediatePropagation(); lpShownOn = null; } }, true);
+  document.addEventListener('contextmenu', (e)=>{ if(lpShownOn || lpTimer){ const el = e.target.closest && e.target.closest(SEL); if(el) e.preventDefault(); } }, true);
+  window.addEventListener('scroll', hide, true);
+  return { textFor, hide };
+})();
+</script>
+<script>
+/* ======================================================================
+   СОВЕТЫ МАСТЕРУ (по мотивам глав книги «Раздел мастера игры», «Описания в игре», 13 принципов, бой, «Страх в игре»):
+   - «📋 Подготовка к игре» — чек-лист с отметками (хранится в браузере Мастера);
+   - «📖 Памятка Мастера» — все советы по разделам;
+   - «💡 Совет по ситуации» — маленькая карточка, когда случается подходящее событие (только Мастеру и на
+     локальном столе; не чаще выбранной частоты; каждый совет — один раз, потом по кругу).
+   Открывается из меню «ЧЗХ❓❓❓» и кнопкой «💡 Советы» на панели игрового стола.
+   ====================================================================== */
+const GmAdvice = (function(){
+  const KEY = 'reincarnator_gm_advice_v1';
+  const SECTIONS = {
+    role:{title:'Роль Мастера', tips:[
+      'Темп рождается из выбора: давайте варианты с понятными последствиями — «маршрут длинный, но спокойный, а короткий — опасный».',
+      'Вы модератор заявок, а не противник игроков: играете за мир, а не против стола.',
+      'Дайте свершиться потрясающей заявке: не режьте смелую идею — назначьте проверку и заранее назовите цену провала.',
+      'Будьте последовательны: правило, применённое к врагу, работает и для игроков — иначе пропадёт доверие.',
+      'Знать все правила не обязательно: решение принимаете вы, опираясь на дух правил.',
+      'Отказывайте вежливо и предлагайте компромисс.',
+      'Не давайте спору затянуться: решите в пользу игры, а к правилу вернитесь после встречи. Ошиблись — позже дайте пострадавшему поблажку.',
+      'Если игрок спорит постоянно — поговорите с ним после игры.',
+      'Объясняйте правила на примере и терпеливо.',
+      'Абстрактные правила («если игрок может доказать мастеру…») решаете вы.']},
+    desc:{title:'Описания', tips:[
+      'Атмосфера — сердце игры: в проходных моментах отложите механику и описывайте.',
+      'Показывайте, а не рассказывайте: вместо «аристократ — мерзавец» покажите его поступок.',
+      'Живые детали подсказывают игрокам, что делать дальше.',
+      'Берите образы из жизни: манеры знакомых, бытовые мелочи.',
+      'Задействуйте все органы чувств — запахи, звуки, духоту, особенно под противогазом и бронёй.',
+      'Мир не замирает, пока игроки думают: описывайте в движении.',
+      'Не забирайте внимание: одно описание — не дольше минуты.',
+      'Вкладывайте эмоции в голос, ускоряйте речь, когда торопите.',
+      'Меняйте слова и слог, избегайте вычурных метафор.',
+      'Рутина важна: бытовые сцены оттеняют действие.',
+      'Чувства и намерения персонажа решает его игрок (кроме недостатков по правилам).',
+      'Импровизируйте и не бойтесь клише.']},
+    principles:{title:'13 принципов', tips:[
+      'Персонажи игроков — главные: не давайте вашим персонажам решать за них.',
+      'Это истории обычных людей со слабостями: используйте Трудности (стр. 313).',
+      'До всего интересного нужно добраться: ценное — далеко и под охраной.',
+      'Это странствия по Равнине: пустые просторы, руины и неожиданные встречи.',
+      'Это выживание: снаряжение, вода и еда — граница между жизнью и смертью.',
+      'Удивляйте игроков, а не персонажей: открывайте загадки прошлого.',
+      'Описывайте впечатляющие сцены — крупно и ярко.',
+      'Рвите душу персонажей: моральные выборы и последствия недостатков.',
+      'Покажите тёмные закоулки человеческой натуры.',
+      'Мир правдоподобен, но сдобрен постапокалиптическим преувеличением.',
+      'Персонажи ведущего важны: у каждого свои цели.',
+      'Игра непростая, но не удручающая: давайте передышки и маленькие победы.',
+      'Незримое зло всегда рядом.']},
+    combat:{title:'Бой', tips:[
+      'Последствиям каждого действия — пара фраз: это минимум половина описания боя.',
+      'У противника есть мотивация: жить, награбить, сбежать. Не все бьются до смерти.',
+      'Деритесь коварно: ловушки, засады, приманки. Но противники не идеальны и тоже ошибаются.',
+      'Используйте окружение: укрытия рушатся, балки падают, стёкла лопаются.',
+      'Используйте манёвры: подавление, захват, оттеснение.',
+      'Накаляйте драму и торопите игроков: круг длится секунды, долгие совещания разрушают темп.',
+      'Провал с Невзгодами — повод для яркого последствия; провал атаки врага — шанс для ответного хода игрока.',
+      'Специфика регионов: в Княжествах броня с высоким СК и сканеры движения, в Землях Страха — визоры и бои на 200–600 м.']},
+    fear:{title:'Страх', tips:[
+      'Помните о комфорте и табу каждого за столом.',
+      'Ужас — малая часть истории: он держится на контрасте со спокойными сценами.',
+      'Нагнетайте через ощущения персонажа — но осторожно со штампами.',
+      'Шокируйте сменой мирного на ужасное.',
+      'Обрушивайте угрозу внезапно, после затишья.',
+      'Неведомое зло показывайте через следы и присутствие, без прямой встречи.',
+      'Добавьте необъяснимое — то, что никто не может объяснить и изменить.',
+      'Дайте почувствовать, что ситуация вне контроля.',
+      'Отвратительное — приправа, а не основное блюдо.']},
+    after:{title:'После игры', tips:[
+      'Начислите опыт, пока встреча свежа в памяти.',
+      'Проверьте спорные правила и, если ошиблись, придумайте поблажку на следующий раз.',
+      'Спросите игроков, что понравилось и что нет; запишите зацепки к следующей встрече.']},
+    prep:{title:'Подготовка', tips:[
+      'Заготовьте около 9 коротких сцен атмосферы и вставляйте их, когда игра просит паузы.',
+      'Перед игрой договоритесь о тоне и табу — это бережёт всех за столом.',
+      'Сцене нужно немного: кто чего хочет и что случится, если игроки ничего не сделают.']}
+  };
+  const CHECK = [
+    {h:'До встречи'},
+    {id:'date', t:'Договорились о дате, тоне игры и табу'},
+    {id:'chars', t:'Персонажи созданы — или на это выделена первая встреча'},
+    {id:'goal', t:'Есть цель встречи и 2–3 сцены: кто чего хочет и что случится, если игроки ничего не сделают'},
+    {id:'scenes', t:'Заготовлено около 9 коротких сцен атмосферы'},
+    {id:'foes', t:'1–2 столкновения: противники подобраны', go:'bestiary', goT:'Бестиарий'},
+    {id:'maps', t:'Карты 1–2 локаций', go:'maps', goT:'Редактор карт'},
+    {id:'sounds', t:'3–4 звука под сцены', go:'sound', goT:'Саундпад'},
+    {id:'loot', t:'2–3 находки и зацепка к следующей встрече'},
+    {h:'После'},
+    {id:'xp', t:'Опыт начислен', go:'xp', goT:'Начисление опыта'},
+    {id:'review', t:'Спорные правила проверены, обратная связь собрана, зацепки записаны'}
+  ];
+  const FREQ = {rare:{label:'редко', gap:10*60e3}, normal:{label:'обычно', gap:5*60e3}, often:{label:'часто', gap:2*60e3}};
+  let st = (function(){ try{ return Object.assign({on:true, freq:'normal', seen:{}, muted:{}, checks:{}, offerDay:''}, JSON.parse(localStorage.getItem(KEY) || '{}')); }catch(e){ return {on:true, freq:'normal', seen:{}, muted:{}, checks:{}, offerDay:''}; } })();
+  function save(){ try{ localStorage.setItem(KEY, JSON.stringify(st)); }catch(e){} }
+  const esc = (s)=>String(s).replace(/[&<>"]/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
+  function isGm(){ return typeof session==='undefined' || session.role!=='player'; }
+
+  /* ---------- выбор совета: каждый по одному разу, потом по кругу ---------- */
+  function nextTip(sec, idx){
+    const tips = SECTIONS[sec].tips;
+    if(idx!=null) return idx;
+    const seen = st.seen[sec] = st.seen[sec] || [];
+    let free = tips.map((_, i)=>i).filter(i=>seen.indexOf(i)<0);
+    if(!free.length){ st.seen[sec] = []; free = tips.map((_, i)=>i); }
+    return free[0];
+  }
+
+  /* ---------- карточка совета ---------- */
+  let card = null, hideT = 0, lastShown = 0, sessionStart = Date.now();
+  function busy(){
+    const a = document.activeElement, tag = a && a.tagName;
+    if(tag==='INPUT' || tag==='TEXTAREA' || tag==='SELECT' || (a && a.isContentEditable)) return true;
+    return typeof Onboarding!=='undefined' && Onboarding.busy && Onboarding.busy();
+  }
+  function show(sec, idx, opts){
+    opts = opts || {};
+    if(!isGm() || !SECTIONS[sec]) return false;
+    if(!opts.force){
+      if(!st.on || st.muted[sec] || busy()) return false;
+      if(Date.now() - lastShown < FREQ[st.freq].gap) return false;
+    }
+    const i = nextTip(sec, idx);
+    st.seen[sec] = st.seen[sec] || []; if(st.seen[sec].indexOf(i)<0) st.seen[sec].push(i);
+    lastShown = Date.now(); save();
+    if(!card){
+      card = document.createElement('div'); card.className = 'gma-card';
+      card.addEventListener('mouseenter', ()=>clearTimeout(hideT));
+      card.addEventListener('mouseleave', ()=>{ hideT = setTimeout(close, 8000); });
+      card.addEventListener('click', onCardClick);
+      document.body.appendChild(card);
+    }
+    card.dataset.sec = sec;
+    card.innerHTML = `<div class="gma-h">💡 Совет Мастеру · ${esc(SECTIONS[sec].title)}</div>`+
+      (opts.lead ? `<div class="gma-lead">${opts.lead}</div>` : '') +
+      `<div class="gma-t">${esc(SECTIONS[sec].tips[i])}</div>
+      <div class="gma-btns">${opts.extraBtn || ''}<button type="button" class="small" data-g="more" title="Следующий совет этого раздела">Ещё совет</button><button type="button" class="small" data-g="memo" title="Открыть все советы раздела">В памятке</button><button type="button" class="small" data-g="mute" title="Больше не показывать советы этого раздела (вернуть — в меню «ЧЗХ»)">Не показывать такие</button><button type="button" class="small" data-g="close" title="Закрыть">✕</button></div>`;
+    card.style.display = 'block'; placeCard();
+    clearTimeout(hideT); hideT = setTimeout(close, 20000);
+    return true;
+  }
+  function close(){ clearTimeout(hideT); if(card) card.style.display = 'none'; }
+  function onCardClick(e){
+    const b = e.target.closest('[data-g]'); if(!b) return;
+    const sec = card.dataset.sec;
+    if(b.dataset.g==='more') show(sec, null, {force:true});
+    else if(b.dataset.g==='memo'){ close(); openPanel('memo', sec); }
+    else if(b.dataset.g==='mute'){ st.muted[sec] = true; save(); close(); }
+    else if(b.dataset.g==='check'){ close(); openPanel('prep'); }
+    else close();
+  }
+  // Как у карточки обучения: из нескольких мест берём то, где карточка закрывает меньше всего кнопок и полей
+  function placeCard(){
+    const W = window.innerWidth, H = window.innerHeight, cw = Math.min(340, W - 24); card.style.width = cw + 'px';
+    const ch = card.offsetHeight || 140;
+    const cands = [[W - cw - 14, H - ch - 14], [14, H - ch - 14], [W - cw - 14, 70], [Math.round((W - cw)/2), H - ch - 14], [14, 70]];
+    const busyR = [...document.querySelectorAll('button, input, select, textarea, a, .button-like, .tab-btn, .gt-combat, .bst-dock, .bst-float')]
+      .filter(el=>!card.contains(el)).map(el=>el.getBoundingClientRect()).filter(b=>b.width && b.height && b.bottom>0 && b.top<H);
+    let best = cands[0], bs = Infinity;
+    cands.forEach(([x, y], k)=>{ let sc = k * 30;
+      busyR.forEach(b=>{ sc += Math.max(0, Math.min(x + cw, b.right) - Math.max(x, b.left)) * Math.max(0, Math.min(y + ch, b.bottom) - Math.max(y, b.top)); });
+      if(sc < bs){ bs = sc; best = [x, y]; } });
+    card.style.left = best[0] + 'px'; card.style.top = best[1] + 'px';
+  }
+
+  /* ---------- события ---------- */
+  const once = new Set(), counters = {};
+  function every3(key){ counters[key] = (counters[key] || 0) + 1; return counters[key] % 3 === 1; } // 1-й, 4-й, 7-й…
+  function event(name, data){
+    try{
+      switch(name){
+        case 'session-gm': {
+          const day = new Date().toISOString().slice(0, 10);
+          if(st.offerDay===day || !st.on) return;
+          st.offerDay = day; save();
+          show('fear', 0, {force:true, lead:'Перед игрой — <b>📋 чек-лист подготовки</b>: что собрать к встрече.',
+            extraBtn:'<button type="button" class="small primary" data-g="check" title="Открыть чек-лист подготовки">📋 Чек-лист</button>'});
+          return;
+        }
+        case 'scene': show('desc'); return;
+        case 'creature': {
+          const t = data || {};
+          const scary = t.group==='Пустоты' || (t.abil || []).some(a=>/пугающ|чудовищн|неописуем/i.test(a[1] || ''));
+          if(scary && show('fear')) return;
+          if(/Феодальных княжеств/.test(t.group || '') && !once.has('feudal')){ if(show('combat', 7)){ once.add('feudal'); return; } }
+          if(!once.has('creature')){ if(show('combat', [1, 2][Math.floor(Math.random()*2)])) once.add('creature'); }
+          return;
+        }
+        case 'combat-start': show('combat', 0); return;
+        case 'combat-round': show('combat', [5, 3, 4][Math.floor(Math.random()*3)]); return;
+        case 'combat-scene': show('combat', 3); return;
+        case 'miss': if(every3('miss')) show('combat', 6); return;
+        case 'enemy-low': if(every3('low')) show('combat', 1); return;
+        case 'player-down': show('principles', [11, 0][Math.floor(Math.random()*2)]); return;
+        case 'loot': show('principles', [2, 4][Math.floor(Math.random()*2)]); return;
+        case 'sound': if(!once.has('sound')){ if(show('desc', 7)) once.add('sound'); } return;
+        case 'mapgen': show('prep', 0); return;
+        case 'xp': show('after'); return;
+      }
+    }catch(e){ console.warn('[Советы Мастеру]', e); }
+  }
+  // «Принцип встречи»: раз в 40 минут совместной игры, если других советов не было
+  setInterval(()=>{
+    if(typeof session==='undefined' || session.role!=='gm') return;
+    if(Date.now() - sessionStart > 40*60e3 && Date.now() - lastShown > 40*60e3) show('principles');
+  }, 60e3);
+  // Следим за ОЗ существ и игроков на столе: «упали до трети» и «ушёл в 0 и ниже»
+  const lastHp = {};
+  function watchTable(){
+    if(typeof GameTable==='undefined' || !isGm()) return;
+    const toks = GameTable.state && GameTable.state.tokens; if(!toks) return;
+    Object.values(toks).forEach(t=>{
+      let hp = null, max = null;
+      if(t.creature && t.creature.inst){ hp = t.hp; max = t.creature.inst.hpMax; }
+      else if(t.kind==='player' && GameTable.vitalsOf){ const v = GameTable.vitalsOf(t); if(v){ hp = v.hp; max = v.hpMax; } }
+      if(hp==null || !max) return;
+      const prev = lastHp[t.id]; lastHp[t.id] = hp;
+      if(prev==null) return;
+      if(t.creature && prev > max/3 && hp <= max/3 && hp > 0) event('enemy-low');
+      if(t.kind==='player' && prev > 0 && hp <= 0) event('player-down');
+    });
+  }
+  setInterval(watchTable, 3000);
+
+  /* ---------- панель: «📋 Подготовка» и «📖 Памятка» ---------- */
+  let panel = null;
+  function openPanel(tab, sec){
+    if(!panel){
+      panel = document.createElement('div'); panel.className = 'gma-panel';
+      panel.addEventListener('click', onPanelClick);
+      panel.addEventListener('change', (e)=>{ const c = e.target.closest('[data-chk]'); if(c){ st.checks[c.dataset.chk] = c.checked; save(); } });
+      document.addEventListener('keydown', (e)=>{ if(e.key==='Escape' && panel && panel.style.display==='flex') closePanel(); });
+      document.body.appendChild(panel);
+    }
+    panel.dataset.tab = tab || 'prep';
+    renderPanel(sec);
+    panel.style.display = 'flex';
+  }
+  function closePanel(){ if(panel) panel.style.display = 'none'; }
+  function renderPanel(openSec){
+    const tab = panel.dataset.tab;
+    const head = `<div class="gma-ph"><button type="button" class="small${tab==='prep' ? ' primary' : ''}" data-p="prep" title="Чек-лист подготовки к встрече">📋 Подготовка</button><button type="button" class="small${tab==='memo' ? ' primary' : ''}" data-p="memo" title="Все советы по разделам">📖 Памятка</button><button type="button" class="small gma-x" data-p="close" title="Закрыть (Esc)">✕</button></div>`;
+    let body = '';
+    if(tab==='prep'){
+      body = CHECK.map(c=>c.h ? `<div class="gma-sub">${esc(c.h)}</div>`
+        : `<label class="gma-check"><input type="checkbox" data-chk="${c.id}" ${st.checks[c.id] ? 'checked' : ''}><span>${esc(c.t)}${c.go ? ` <a href="#" data-go="${c.go}" title="Перейти на вкладку «${esc(c.goT)}»">→ ${esc(c.goT)}</a>` : ''}</span></label>`).join('') +
+        `<div class="gma-row"><button type="button" class="small" data-p="reset" title="Снять все отметки — для подготовки к новой встрече">🔄 Новая встреча</button></div>`;
+    } else {
+      body = ['role', 'desc', 'principles', 'combat', 'fear', 'prep', 'after'].map(k=>`<details class="gma-sec" ${k===openSec ? 'open' : ''}><summary>${esc(SECTIONS[k].title)}${st.muted[k] ? ' <small>(советы скрыты)</small>' : ''}</summary><ol>${SECTIONS[k].tips.map(x=>`<li>${esc(x)}</li>`).join('')}</ol>${st.muted[k] ? `<button type="button" class="small" data-unmute="${k}" title="Снова показывать советы этого раздела по ситуации">Снова показывать</button>` : ''}</details>`).join('') +
+        `<div class="gma-note muted">По мотивам советов книги: «Раздел мастера игры», «Описания в игре», 13 принципов, бой и «Страх в игре».</div>`;
+    }
+    panel.innerHTML = head + `<div class="gma-body">${body}</div>`;
+  }
+  function onPanelClick(e){
+    const go = e.target.closest('[data-go]');
+    if(go){ e.preventDefault(); if(typeof toggleMainTab==='function') toggleMainTab(go.dataset.go); return; }
+    const um = e.target.closest('[data-unmute]'); if(um){ delete st.muted[um.dataset.unmute]; save(); renderPanel(um.dataset.unmute); return; }
+    const b = e.target.closest('[data-p]'); if(!b) return;
+    const p = b.dataset.p;
+    if(p==='close') closePanel();
+    else if(p==='reset'){ if(confirm('Снять все отметки чек-листа?')){ st.checks = {}; save(); renderPanel(); } }
+    else { panel.dataset.tab = p; renderPanel(); }
+  }
+
+  /* ---------- настройки (для меню «ЧЗХ») ---------- */
+  function toggleOn(){ st.on = !st.on; save(); return st.on; }
+  function cycleFreq(){ const ks = Object.keys(FREQ); st.freq = ks[(ks.indexOf(st.freq) + 1) % ks.length]; save(); return FREQ[st.freq].label; }
+  function settingsLabel(){ return `💡 Советы Мастеру: ${st.on ? 'вкл' : 'выкл'}`; }
+  function freqLabel(){ return `⏱ Частота советов: ${FREQ[st.freq].label}`; }
+  return { event, show, openPanel, closePanel, toggleOn, cycleFreq, settingsLabel, freqLabel, isGm };
+})();
+</script>
+<script>
+/* ======================================================================
    ОБУЧЕНИЕ — короткие экскурсии по ролям (игрок / Мастер) и одноразовые подсказки «впервые здесь».
    Ничего не блокирует: подсветка не перехватывает клики, можно сразу делать то, о чём говорит шаг
    (шаг с «нажмите…» сам перейдёт дальше после нажатия). Кнопка «ЧЗХ❓❓❓» — в строке вкладок, а на
@@ -25193,17 +25843,19 @@ const Onboarding = (function(){
       {tab:'sheet', sel:'#btnGenerate', title:'Создайте персонажа', text:'Нажмите «Сгенерировать персонажа». Чтобы начать не с 1 уровня, отметьте 🔒 у поля «Уровень» и выберите его.', click:true},
       {tab:'sheet', sel:'#pendingBox', title:'Ваши выборы', text:'Здесь появляются решения, которые принимаете вы: распределение очков, выборы по отыгрышу. Пока они не сделаны, уровень дальше не повышается.', optional:true, need:()=>document.getElementById('pendingBox').innerText.trim()},
       {tab:'sheet', sel:'#fLevel', title:'Уровень', text:'Выберите больший уровень — и лист повысит его по одному. Под полем видно, что повышение идёт и ждёт ваших выборов.'},
-      {tab:'sheet', sel:'#statsBody', title:'Броски', text:'Нажмите на значение характеристики и, не отпуская, потяните к гексу модификатора — отпустите, и кость брошена. Можно и двумя касаниями: тап — гексы, тап по гексу — бросок.'},
+      {tab:'sheet', sel:'#statsBody', title:'Броски', text: IS_TOUCH_UI ? 'Тап по характеристике — появятся гексы модификаторов; кнопки внизу — Помеха / Чистый / Преимущество; тап по гексу — бросок.'
+        : 'Нажмите на значение характеристики и, не отпуская, потяните к гексу модификатора — отпустите, и кость брошена. Увести курсор за левый/правый край — Помеха/Преимущество.'},
       {tab:'sheet', sel:'#savesPanel', title:'Сохранения', text:'«Сохранить как…» — слот в этом браузере, «Экспорт в файл» — файл персонажа. Лист также сам сохраняется при каждом изменении.'},
-      {tab:'sheet', sel:'#tabBtnTable', title:'Игровой стол', text:'Карта сессии: «Мой жетон» ставит вашего персонажа, правый клик по жетону — меню (атака с карты). В бою отмечайте «Д» и «Р» в трекере — и услышите сигнал, когда ход вашей стороны.'},
+      {tab:'sheet', sel:'#tabBtnTable', title:'Игровой стол', text:'Карта сессии: «Мой жетон» ставит вашего персонажа, ' + (IS_TOUCH_UI ? 'второй тап по выделенному жетону' : 'правый клик по жетону') + ' — меню (атака с карты). В бою отмечайте «Д» и «Р» в трекере — и услышите сигнал, когда ход вашей стороны.'},
       {sel:'.chzh-btn', title:'Если что-то забыли', text:'Эта кнопка вернёт экскурсию в любой момент. Удачной игры!'}
     ],
     gm:[
       {tab:'sheet', sel:'#sessionSetup', title:'Стол Мастера', text:'Введите имя и нажмите «Я — Мастер». Чтобы игроки зашли из интернета, запустите start-ngrok.bat и дайте им ссылку из окна ngrok.'},
       {tab:'sheet', sel:'#sessionPlayersBox', title:'Игроки', text:'Подключившиеся игроки: можно открыть и править их лист, выдать удачу и опыт.', optional:true},
       {tab:'sheet', sel:'#tabBtnXp', title:'Начисление опыта', text:'Отмечайте пункты после встречи — опыт начисляется игрокам по правилам.'},
-      {tab:'table', sel:'#gtToolbar', title:'Игровой стол', text:'Жетоны, рисование, линейка, указка. Колесо — масштаб, «Рука» (H) или пробел+перетаскивание — сдвиг поля. Правый клик по жетону — меню.'},
-      {tab:'table', sel:'#gtToolbar [data-act=bestiary]', title:'Бестиарий на столе', text:'Откройте панель и перетащите существо на поле — получится жетон со статами, оружием и живой карточкой (двойной клик по жетону).', optional:true},
+      {tab:'table', sel:'#gtToolbar', title:'Игровой стол', text: IS_TOUCH_UI ? 'Жетоны, рисование, линейка, указка. Два пальца — масштаб и сдвиг поля, второй тап по выделенному жетону — его меню.'
+        : 'Жетоны, рисование, линейка, указка. Колесо — масштаб (на тачпаде два пальца — сдвиг), «Рука» (H) или пробел+перетаскивание — сдвиг поля. Правый клик по жетону — меню.'},
+      {tab:'table', sel:'#gtToolbar [data-act=bestiary]', title:'Бестиарий на столе', text:'Откройте панель и перетащите существо на поле (или «＋» — в центр) — получится жетон со статами, оружием и живой карточкой (' + (IS_TOUCH_UI ? 'двойной тап' : 'двойной клик') + ' по жетону).', optional:true},
       {tab:'table', sel:'#gtToolbar [data-act=combat]', title:'Бой', text:'Стороны, проверка инициативы за всех, передача хода и круги — эффекты и горение считаются сами.', optional:true},
       {tab:'sheet', sel:'#tabBtnBestiary', title:'Бестиарий', text:'Справочник существ по разделам книги, конструктор своих, «🎲 Случайная пустота», импорт и экспорт.'},
       {tab:'sheet', sel:'#tabBtnMaps', title:'Редактор карт', text:'«Генерация…» соберёт квартал, бункер или лагерь — или нарисуйте карту сами; «На игровой стол» покажет её игрокам.'},
@@ -25212,7 +25864,8 @@ const Onboarding = (function(){
     ]
   };
   const HINTS = {
-    table:'Игровой стол: правый клик по жетону — меню, колесо — масштаб, «Рука» (H) или пробел+перетаскивание — сдвиг поля.',
+    table: IS_TOUCH_UI ? 'Игровой стол: тап по жетону — выделить, ещё тап — его меню; два пальца — масштаб и сдвиг поля.'
+      : 'Игровой стол: правый клик по жетону — меню, колесо — масштаб, «Рука» (H) или пробел+перетаскивание — сдвиг поля.',
     bestiary:'Бестиарий: клик по числу в скобках — бросок; «⬇ На стол» ставит существо жетоном.',
     maps:'Редактор карт: «Генерация…» соберёт местность за вас, «На игровой стол» покажет карту всем игрокам.',
     sound:'Саундпад: звуки и музыку слышат все участники сессии.',
@@ -25226,7 +25879,8 @@ const Onboarding = (function(){
     ring = document.createElement('div'); ring.className = 'ob-ring'; document.body.appendChild(ring);
     card = document.createElement('div'); card.className = 'ob-card'; document.body.appendChild(card);
     card.addEventListener('click', (e)=>{ const b = e.target.closest('[data-ob]'); if(!b) return;
-      const a = b.dataset.ob; if(a==='next') go(idx + 1, 1); else if(a==='prev') go(idx - 1, -1); else if(a==='close') stop(); });
+      const a = b.dataset.ob; if(a==='next') go(idx + 1, 1); else if(a==='prev') go(idx - 1, -1); else if(a==='close') stop();
+      else if(a==='mini'){ card.classList.toggle('ob-mini'); schedule(); } });
     window.addEventListener('resize', ()=>schedule()); window.addEventListener('scroll', ()=>schedule(), true);
     document.addEventListener('keydown', (e)=>{ if(e.key==='Escape' && tour) stop(); });
   }
@@ -25247,22 +25901,37 @@ const Onboarding = (function(){
       el.scrollIntoView({block:'center', inline:'nearest'});
       if(clickHook){ clickHook.el.removeEventListener('click', clickHook.fn, true); clickHook = null; }
       if(s.click){ const fn = ()=>setTimeout(()=>{ if(tour && idx===i) go(i + 1, 1); }, 450); el.addEventListener('click', fn, true); clickHook = {el, fn}; }
+      card.classList.remove('ob-mini');
       card.innerHTML = `<div class="ob-step">${i + 1} / ${steps.length} · ${tour==='gm' ? 'Мастер' : 'Игрок'}</div><div class="ob-title">${s.title}</div><div class="ob-text">${s.text}</div>
-        <div class="ob-btns"><button type="button" data-ob="close" class="small">✕</button>${i>0 ? '<button type="button" data-ob="prev" class="small">← Назад</button>' : ''}<button type="button" data-ob="next" class="small primary">${i + 1<steps.length ? (s.click ? 'Пропустить →' : 'Далее →') : 'Готово'}</button></div>`;
+        <div class="ob-btns"><button type="button" data-ob="close" class="small" title="Закончить экскурсию">✕</button><button type="button" data-ob="mini" class="small" title="Свернуть карточку, чтобы она ничего не закрывала">▁</button>${i>0 ? '<button type="button" data-ob="prev" class="small" title="Предыдущий шаг">← Назад</button>' : ''}<button type="button" data-ob="next" class="small primary" title="Следующий шаг">${i + 1<steps.length ? (s.click ? 'Пропустить →' : 'Далее →') : 'Готово'}</button></div>`;
       ring.style.display = card.style.display = 'block';
       schedule();
     }, s.tab ? 380 : 40);
   }
   function schedule(){ if(!raf) raf = requestAnimationFrame(place); }
+  // Карточка шага: перебираем места вокруг подсвеченного элемента и по углам экрана и берём то, где она
+  // меньше всего закрывает кнопки, поля и сам подсвеченный элемент — чтобы обучение не мешало пользоваться листом.
   function place(){
     raf = 0; if(!tour || !target) return;
-    const r = target.getBoundingClientRect(), pad = 6;
+    const r = target.getBoundingClientRect(), pad = 6, W = window.innerWidth, H = window.innerHeight;
     Object.assign(ring.style, {left:(r.left - pad) + 'px', top:(r.top - pad) + 'px', width:(r.width + pad*2) + 'px', height:(r.height + pad*2) + 'px'});
-    const cw = Math.min(340, window.innerWidth - 24), ch = card.offsetHeight || 150;
-    let top = r.bottom + 14; if(top + ch > window.innerHeight - 10) top = Math.max(10, r.top - ch - 14);
-    if(top + ch > window.innerHeight - 10) top = Math.max(10, window.innerHeight - ch - 10);
-    const left = Math.max(12, Math.min(r.left, window.innerWidth - cw - 12));
-    Object.assign(card.style, {left:left + 'px', top:top + 'px', width:cw + 'px'});
+    const cw = Math.min(320, W - 24); card.style.width = cw + 'px';
+    const ch = card.offsetHeight || 140, g = 14, clampX = (x)=>Math.max(10, Math.min(x, W - cw - 10)), clampY = (y)=>Math.max(10, Math.min(y, H - ch - 10));
+    const cands = [
+      [clampX(r.left), r.bottom + g], [clampX(r.left), r.top - ch - g],
+      [r.right + g, clampY(r.top)], [r.left - cw - g, clampY(r.top)],
+      [W - cw - 12, H - ch - 12], [12, H - ch - 12], [W - cw - 12, 12], [12, 12]
+    ].filter(([x, y])=>x>=6 && y>=6 && x + cw <= W - 6 && y + ch <= H - 6);
+    const busy = [...document.querySelectorAll('button, input, select, textarea, a, .button-like, .tab-btn')].filter(el=>!card.contains(el)).map(el=>el.getBoundingClientRect())
+      .filter(b=>b.width && b.height && b.bottom>0 && b.top<H);
+    const over = (x, y, b)=>Math.max(0, Math.min(x + cw, b.right) - Math.max(x, b.left)) * Math.max(0, Math.min(y + ch, b.bottom) - Math.max(y, b.top));
+    let best = cands[0] || [clampX(r.left), clampY(r.bottom + g)], bestScore = Infinity;
+    cands.forEach(([x, y], i)=>{
+      let sc = over(x, y, r) * 50; busy.forEach(b=>{ sc += over(x, y, b); });
+      sc += i * 40 + Math.hypot(x + cw/2 - (r.left + r.width/2), y + ch/2 - (r.top + r.height/2)) * 0.5; // при равенстве — ближе к элементу
+      if(sc < bestScore){ bestScore = sc; best = [x, y]; }
+    });
+    Object.assign(card.style, {left:best[0] + 'px', top:best[1] + 'px'});
   }
   function stop(){
     tour = null; target = null;
@@ -25302,13 +25971,21 @@ const Onboarding = (function(){
     menuEl = document.createElement('div'); menuEl.className = 'ob-menu';
     menuEl.innerHTML = `<button type="button" data-m="player"><b>🧭 Экскурсия для игрока</b><span>создание персонажа, броски, сохранения, стол</span></button>
       <button type="button" data-m="gm"><b>🧭 Экскурсия для Мастера</b><span>сессия, опыт, стол, бестиарий, бой, карты</span></button>
-      <button type="button" data-m="hints"><b>💡 Подсказки «впервые здесь»: ${st.hintsOff ? 'выкл' : 'вкл'}</b><span>одна строка при первом открытии вкладки</span></button>`;
+      <button type="button" data-m="hints"><b>💡 Подсказки «впервые здесь»: ${st.hintsOff ? 'выкл' : 'вкл'}</b><span>одна строка при первом открытии вкладки</span></button>` +
+      (typeof GmAdvice!=='undefined' && GmAdvice.isGm() ? `<div class="ob-menu-sep">Мастеру</div>
+      <button type="button" data-m="prep"><b>📋 Подготовка к игре</b><span>чек-лист: что собрать к встрече</span></button>
+      <button type="button" data-m="memo"><b>📖 Памятка Мастера</b><span>роль Мастера, описания, 13 принципов, бой, страх</span></button>
+      <button type="button" data-m="gmon"><b>${GmAdvice.settingsLabel()}</b><span>короткий совет, когда случается подходящее событие</span></button>
+      <button type="button" data-m="gmfreq"><b>${GmAdvice.freqLabel()}</b><span>редко — раз в 10 мин, обычно — 5, часто — 2</span></button>` : '');
     document.body.appendChild(menuEl);
     const w = menuEl.offsetWidth;
     Object.assign(menuEl.style, {left:Math.max(8, Math.min(r.right - w, window.innerWidth - w - 8)) + 'px', top:(r.bottom + 6) + 'px'});
     menuEl.addEventListener('click', (e)=>{ const b = e.target.closest('[data-m]'); if(!b) return;
       const m = b.dataset.m; closeMenu();
       if(m==='hints'){ st.hintsOff = !st.hintsOff; if(!st.hintsOff) st.hints = {}; save(); toastLine(st.hintsOff ? 'Подсказки выключены.' : 'Подсказки включены — появятся при открытии вкладок.'); }
+      else if(m==='prep' || m==='memo') GmAdvice.openPanel(m);
+      else if(m==='gmon') toastLine(GmAdvice.toggleOn() ? 'Советы Мастеру включены.' : 'Советы Мастеру выключены.');
+      else if(m==='gmfreq') toastLine('Частота советов: ' + GmAdvice.cycleFreq() + '.');
       else { st.seen = true; save(); const w0 = document.querySelector('.ob-welcome'); if(w0) w0.remove(); start(m); } });
     setTimeout(()=>document.addEventListener('click', function close(ev){ if(menuEl && !menuEl.contains(ev.target) && !ev.target.closest('.chzh-btn')){ closeMenu(); } if(!menuEl) document.removeEventListener('click', close); }), 0);
   }
@@ -25320,7 +25997,7 @@ const Onboarding = (function(){
   document.addEventListener('click', (e)=>{ const b = e.target.closest && e.target.closest('.chzh-btn'); if(b){ e.preventDefault(); openMenu(b); } });
 
   function init(){ ensureButtons(); setTimeout(welcome, 1200); }
-  return { init, start, stop, onTab:(t)=>{ ensureButtons(); onTab(t); }, ensureButtons };
+  return { init, start, stop, onTab:(t)=>{ ensureButtons(); onTab(t); }, ensureButtons, busy:()=>!!tour };
 })();
 try{ Onboarding.init(); }catch(e){ console.error('[Обучение] не удалось запустить', e); }
 </script>
