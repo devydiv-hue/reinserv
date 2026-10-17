@@ -183,6 +183,19 @@ function serveAsset(name, res) {
   });
 }
 
+// ---- PWA (установка на телефон/ПК как приложение, работа без сети): файлы из папки pwa/ ----
+const PWA_DIR = path.join(DIR, 'pwa');
+function servePwa(urlPath, res) {
+  const name = urlPath === '/sw.js' ? 'sw.js' : urlPath === '/manifest.webmanifest' ? 'manifest.webmanifest' : urlPath.slice('/icons/'.length);
+  const type = name.endsWith('.js') ? 'application/javascript; charset=utf-8' : name.endsWith('.webmanifest') ? 'application/manifest+json; charset=utf-8' : 'image/png';
+  fs.readFile(path.join(PWA_DIR, path.basename(name)), (err, data) => {
+    if (err) { res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }); res.end('Нет файла'); return; }
+    // Сервис-воркер и манифест — всегда свежие (иначе обновление приложения застрянет в кэше браузера); иконки — на сутки
+    res.writeHead(200, { 'Content-Type': type, 'Cache-Control': name.endsWith('.png') ? 'public, max-age=86400' : 'no-cache', 'X-Content-Type-Options': 'nosniff' });
+    res.end(data);
+  });
+}
+
 // ---- Раздача самого файла листа персонажа по обычному HTTP ----
 const httpServer = http.createServer((req, res) => {
   const urlPath = (req.url || '/').split('?')[0];
@@ -194,6 +207,8 @@ const httpServer = http.createServer((req, res) => {
   if (urlPath.indexOf('/user-assets/') === 0) { serveAsset(urlPath.slice(13), res); return; }
   if (urlPath.indexOf('/user-sounds/') === 0) { serveSound(USER_SOUND_DIR, urlPath.slice(13), res); return; }
   if (urlPath.indexOf('/assets/sounds/') === 0) { serveSound(ASSET_SOUND_DIR, urlPath.slice(15), res); return; }
+  // PWA: манифест, сервис-воркер (обязательно из корня — тогда он обслуживает всё приложение) и иконки из папки pwa/
+  if (urlPath === '/manifest.webmanifest' || urlPath === '/sw.js' || /^\/icons\/[a-z0-9-]+\.png$/.test(urlPath)) { servePwa(urlPath, res); return; }
   // Лёгкая проверка «жив ли сервер» — для хостинга (health check) и для самого листа: пока идёт сессия, он
   // раз в несколько минут обращается сюда обычным HTTP-запросом, чтобы бесплатный хостинг (Bonto и
   // подобные) не усыплял приложение «за неактивностью» посреди игры — WebSocket-трафик такие платформы
@@ -211,7 +226,7 @@ const httpServer = http.createServer((req, res) => {
   }
   fs.readFile(path.join(DIR, sheetFile), (err, data) => {
     if (err) { res.writeHead(500); res.end('Ошибка чтения файла: ' + err.message); return; }
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' }); // свежая версия при каждом открытии; без сети — копия из сервис-воркера
     res.end(data);
   });
 });

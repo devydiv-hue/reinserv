@@ -1,0 +1,360 @@
+  /* ======================================================================
+     Объёмная (CSS 3D) фигура — см. buildBodyFigureHtml/getFigureMood в скрипте. Техника "CSS-кубик":
+     .p3d — пустой узел-сустав в общем 3D-пространстве (position:absolute + preserve-3d, сам по себе
+     не виден), .b3d — то же самое + 4 видимых грани (перёд/верх/право/лево; зад и низ не нужны под
+     нашим фиксированным ракурсом). Суставы вложены по-настоящему в DOM, поэтому поворот сустава тащит
+     за собой всё, что "приделано" ниже по цепочке, как у настоящей руки/ноги.
+     Палитра — ржавый лом + тёмная кожа ремней + один акцентный красный (переиспользует var(--stamp),
+     тот же акцент, что и весь лист — не плодим новый цвет специально под фигуру), по референсу
+     "Ландскнехт" от игрока: тускло-ржавая броня, кожаные стяжки, редкий красный (флаг/подпалины). */
+  .figure-stage{
+    --fig-skin:#c9ae86; --fig-armor:#7c5a34; --fig-armor-dk:#4a3420; --fig-leather:#2b2016; --fig-accent:var(--stamp);
+    position:relative; width:100%; height:250px; flex-shrink:0;
+    perspective:640px; perspective-origin:50% 32%;
+  }
+  /* WebGL-канвас (см. блок "WEBGL ФИГУРА" в скрипте) переиспользует тот же .figure-stage контейнер и
+     размер, просто без perspective/preserve-3d — вся 3D-математика там теперь у Three.js, а не у CSS. */
+  .figure-stage-webgl{ overflow:hidden; border-radius:10px; }
+  .figure-canvas-3d{ width:100%; height:100%; display:block; }
+  .p3d{ position:absolute; top:0; left:0; width:0; height:0; transform-style:preserve-3d; }
+  .rig-tilt{
+    position:absolute; top:0; left:50%; width:0; height:0; transform-style:preserve-3d;
+    transform: translate3d(0,150px,0) rotateX(-6deg) rotateY(-20deg);
+    transition: transform .4s ease;
+  }
+  .b3d-f{
+    position:absolute; top:50%; left:50%; box-sizing:border-box;
+    background:var(--tone, var(--fig-skin)); border:1px solid rgba(0,0,0,.35);
+  }
+  .b3d-f.f-front{ width:var(--w); height:var(--h); margin:calc(var(--h)/-2) 0 0 calc(var(--w)/-2); transform:translateZ(calc(var(--d)/2)); }
+  .b3d-f.f-top{ width:var(--w); height:var(--d); margin:calc(var(--d)/-2) 0 0 calc(var(--w)/-2); transform:rotateX(90deg) translateZ(calc(var(--h)/2)); filter:brightness(1.22); }
+  .b3d-f.f-right{ width:var(--d); height:var(--h); margin:calc(var(--h)/-2) 0 0 calc(var(--d)/-2); transform:rotateY(90deg) translateZ(calc(var(--w)/2)); filter:brightness(.8); }
+  .b3d-f.f-left{ width:var(--d); height:var(--h); margin:calc(var(--h)/-2) 0 0 calc(var(--d)/-2); transform:rotateY(-90deg) translateZ(calc(var(--w)/2)); filter:brightness(.62); }
+  .figure-conflict{
+    width:100%; min-height:180px; display:flex; align-items:center; justify-content:center; text-align:center;
+    font-family:var(--font-display); font-size:14px; color:var(--stamp); line-height:1.5; padding:0 10px;
+  }
+  /* Мелкие детали силуэта, чтобы бронекуски читались как конкретные вещи, а не как прямоугольники —
+     см. buildBodyFigureHtml. Купол шлема и линзы противогаза — единственные места со скруглением. */
+  .helmet-dome .f-front{ border-radius:50% 50% 20% 20%/60% 60% 15% 15%; }
+  .helmet-brim .f-front{ border-radius:40%; }
+  .figeye{ border-radius:50%; background:var(--fig-armor-dk); border:1px solid rgba(0,0,0,.5); box-shadow:0 0 0 1.5px var(--fig-armor) inset; }
+  .figfilter .f-front, .figfilter .f-top{ border-radius:50%; }
+  .flag-banner .f-front{ border-radius:0 30% 30% 0; }
+  /* --- Настроения: бодрость+!истощение = confident, !бодрость+!истощение = neutral,
+     !бодрость+истощение = tired (bodrost+istoshenie одновременно — см. .figure-conflict выше, модель
+     вообще не строится). Confident/tired — ОДНОРАЗОВЫЕ сюжетные анимации (animation-iteration-count:1
+     + fill-mode:forwards/both), которые доигрывают до конечного кадра и дальше держат его вечно (кроме
+     дыхания — оно отдельным вечным @keyframes на том же элементе, значения покоя которого уже
+     учитывают конечный наклон позы, чтобы не конфликтовать с одноразовой анимацией того же свойства
+     transform на том же узле). Neutral — единственное настроение без сюжета, обе анимации в нём
+     вечные (голова качается туда-сюда, рука у подбородка статична).
+     Плечо у фигуры вынесено ДАЛЬШЕ от торса (см. offset 34px в JS), а жесты, которые тянут руку К
+     корпусу, заведомо ОСТАНАВЛИВАЮТСЯ у его края, а не "внутри" — проверено численно через
+     getBoundingClientRect при подборе углов (см. README): кисть на пике жеста не заходит в X/Y-
+     диапазон торса. Юбка-кусадзури (см. hipSkirtHtml) шире стойки ног при любой позе шагов ниже —
+     поэтому её никогда не загораживают собственные ноги персонажа (условие "минимум 50% видимости"
+     для будущих поз, см. README). --- */
+  .shoulder-pivot[data-side]{ transition: transform .3s ease; }
+  .elbow-pivot[data-side]{ transition: transform .3s ease; }
+  .hip-pivot[data-side]{ transition: transform .3s ease; }
+  .knee-pivot[data-side]{ transition: transform .3s ease; }
+  /* confident: лёгкое покачивание фигурой + дыхание — вечные, как и раньше. Поверх них — ОДНОРАЗОВЫЙ
+     сюжет: правая рука (несёт флаг, см. flagPropHtml) взмахивает флагом и втыкает его в землю, левая
+     рука тем временем опускается в горделивую позу (кулак у пояса), голова поднимается — все четыре
+     синхронизированы одной длительностью и заканчиваются вместе на референсном кадре. */
+  .figure-stage.mood-confident .rig-bob{ animation: figIdleBob 3.2s ease-in-out infinite; }
+  .figure-stage.mood-confident .torso-pivot{ animation: figBreatheLight 2.6s ease-in-out infinite; }
+  .figure-stage.mood-confident .head-pivot{ animation: figHeadProud 3.6s ease-out 1 forwards; }
+  .figure-stage.mood-confident .shoulder-pivot[data-side="r"]{ animation: figFlagPlantShoulder 3.6s ease-out 1 forwards; }
+  .figure-stage.mood-confident .elbow-pivot[data-side="r"]{ animation: figFlagPlantElbow 3.6s ease-out 1 forwards; }
+  .figure-stage.mood-confident .shoulder-pivot[data-side="l"]{ animation: figProudLeftShoulder 3.6s ease-out 1 forwards; }
+  .figure-stage.mood-confident .elbow-pivot[data-side="l"]{ animation: figProudLeftElbow 3.6s ease-out 1 forwards; }
+  /* neutral: единственное настроение без сюжета — просто стоит. Правая рука статично подпирает
+     подбородок (тот же безопасный "почти чистый rotateX у своего же плеча" приём, что раньше был у
+     жеста истощения — численно проверено, что торс не задевается), левая висит расслабленно, голова
+     покачивается туда-сюда (не "отворачивается и возвращается", а именно скучающее блуждание взгляда
+     в обе стороны, см. figHeadSway), лёгкое дыхание для оживления позы. */
+  .figure-stage.mood-neutral .torso-pivot{ animation: figBreatheLight 3.2s ease-in-out infinite; }
+  .figure-stage.mood-neutral .shoulder-pivot[data-side="r"]{ transform: rotateZ(14deg) rotateX(-96deg); }
+  .figure-stage.mood-neutral .elbow-pivot[data-side="r"]{ transform: rotateZ(20deg); }
+  .figure-stage.mood-neutral .shoulder-pivot[data-side="l"]{ transform: rotateZ(10deg) rotateX(6deg); }
+  .figure-stage.mood-neutral .elbow-pivot[data-side="l"]{ transform: rotateZ(8deg); }
+  .figure-stage.mood-neutral .head-pivot{ animation: figHeadSway 7s ease-in-out infinite; }
+  /* tired: сперва ОДНОРАЗОВО пара шагов (тазобедренные+коленные суставы обеих ног, см. figStep*),
+     затем (через animation-delay, пока шаги доигрывают) правая рука опускается на посох (см.
+     staffPropHtml) и голова клонится вниз — итоговая поза держится вечно после. Левая рука просто
+     висит расслабленно статично (в референсе на посох опирается одна рука, вторая свободна). Тяжёлое
+     дыхание с самого начала, и его состояние покоя уже включает наклон вперёд конечной позы (без
+     этого конфликтовало бы со статичным наклоном — вечная анимация transform и статичный transform
+     на одном узле не совместимы, см. комментарий у figBreatheHeavy). */
+  .figure-stage.mood-tired .torso-pivot{ animation: figBreatheHeavy 3.6s ease-in-out infinite; }
+  .figure-stage.mood-tired .hip-pivot[data-side="r"]{ animation: figStepHipR 2.4s ease-in-out 1 forwards; }
+  .figure-stage.mood-tired .knee-pivot[data-side="r"]{ animation: figStepKneeR 2.4s ease-in-out 1 forwards; }
+  .figure-stage.mood-tired .hip-pivot[data-side="l"]{ animation: figStepHipL 2.4s ease-in-out 1 forwards; }
+  .figure-stage.mood-tired .knee-pivot[data-side="l"]{ animation: figStepKneeL 2.4s ease-in-out 1 forwards; }
+  .figure-stage.mood-tired .shoulder-pivot[data-side="r"]{ animation: figStaffLeanShoulder 2.2s ease-out 1.8s 1 both; }
+  .figure-stage.mood-tired .elbow-pivot[data-side="r"]{ animation: figStaffLeanElbow 2.2s ease-out 1.8s 1 both; }
+  .figure-stage.mood-tired .head-pivot{ animation: figHeadDroop 2.2s ease-out 1.8s 1 both; }
+  .figure-stage.mood-tired .shoulder-pivot[data-side="l"]{ transform: rotateZ(8deg) rotateX(4deg); }
+  .figure-stage.mood-tired .elbow-pivot[data-side="l"]{ transform: rotateZ(10deg); }
+  @keyframes figIdleBob{ 0%,100%{ transform:translateY(0); } 50%{ transform:translateY(-3px); } }
+  @keyframes figBreatheLight{ 0%,100%{ transform:scaleY(1); } 50%{ transform:scaleY(1.03); } }
+  /* Состояние покоя (0%/100%) уже включает наклон вперёд итоговой "уставшей" позы (rotateX(14deg)) —
+     см. пояснение у .mood-tired .torso-pivot выше: одноразовая поза и вечное дыхание не могут быть
+     двумя отдельными transform-анимациями на одном узле одновременно, поэтому наклон "зашит" прямо
+     сюда, а не задан отдельным статичным правилом. */
+  @keyframes figBreatheHeavy{
+    0%,100%{ transform:rotateX(14deg) scaleY(1); } 50%{ transform:rotateX(14deg) scaleY(1.065); }
+  }
+  @keyframes figHeadSway{
+    0%,10%{ transform:rotateY(0deg); } 32%{ transform:rotateY(-34deg); } 50%{ transform:rotateY(-34deg); }
+    72%{ transform:rotateY(22deg); } 88%{ transform:rotateY(22deg); } 100%{ transform:rotateY(0deg); }
+  }
+  /* Голова поднимается ("гордый" вид) синхронно с концом жеста с флагом — держит финальный угол вечно
+     (fill-mode: forwards на одноразовой анимации). */
+  @keyframes figHeadProud{
+    0%,15%{ transform:rotateX(0deg); } 100%{ transform:rotateX(-14deg); }
+  }
+  @keyframes figHeadDroop{
+    0%{ transform:rotateX(0deg); } 100%{ transform:rotateX(30deg); }
+  }
+  /* Флаг: рука опущена (держит его у бедра) → взмах вверх-наружу (флаг разворачивается) → втыкается
+     вперёд-вниз — конечная поза держится вечно. Все точки подобраны так же, как раньше у "бьёт в
+     грудь"/"большой палец руку" — свежим взглядом, но по той же логике: пик движения НЕ пересекает
+     X/Y-диапазон торса (см. числовую проверку в README). */
+  @keyframes figFlagPlantShoulder{
+    0%{ transform:rotateZ(14deg) rotateX(4deg); }
+    40%{ transform:rotateZ(-72deg) rotateX(-38deg); }
+    70%{ transform:rotateZ(8deg) rotateX(-56deg); }
+    100%{ transform:rotateZ(18deg) rotateX(-58deg); }
+  }
+  @keyframes figFlagPlantElbow{
+    0%{ transform:rotateZ(6deg); }
+    40%{ transform:rotateZ(-12deg); }
+    70%{ transform:rotateZ(22deg); }
+    100%{ transform:rotateZ(16deg); }
+  }
+  @keyframes figProudLeftShoulder{
+    0%{ transform:rotateZ(10deg) rotateX(4deg); }
+    100%{ transform:rotateZ(30deg) rotateX(-14deg); }
+  }
+  @keyframes figProudLeftElbow{
+    0%{ transform:rotateZ(6deg); }
+    100%{ transform:rotateZ(76deg); }
+  }
+  /* Пара шагов — тазобедренный+коленный суставы каждой ноги качаются по очереди (правая нога — первая
+     половина цикла, левая — вторая), заканчивается ровно в исходном положении (rotateX(0)), поэтому
+     визуально это "притопнул пару раз и остановился в стойке", а не смещение по сцене (сцена — просто
+     ростовая иконка, без фона/параллакса, буквальное перемещение по X ничего бы не дало, кроме риска
+     задеть юбку/руки на пике поворота). */
+  @keyframes figStepHipR{
+    0%,100%{ transform:rotateX(0deg); } 22%{ transform:rotateX(-26deg); } 46%{ transform:rotateX(4deg); }
+  }
+  @keyframes figStepKneeR{
+    0%,100%{ transform:rotateX(0deg); } 22%{ transform:rotateX(22deg); } 46%{ transform:rotateX(0deg); }
+  }
+  @keyframes figStepHipL{
+    0%,54%,100%{ transform:rotateX(0deg); } 76%{ transform:rotateX(-26deg); } 96%{ transform:rotateX(4deg); }
+  }
+  @keyframes figStepKneeL{
+    0%,54%,100%{ transform:rotateX(0deg); } 76%{ transform:rotateX(22deg); } 96%{ transform:rotateX(0deg); }
+  }
+  /* Опора на посох — рука опускается и сгибается вниз-вперёд, к концу держит посох у бедра/земли перед
+     собой (см. staffPropHtml — древко приделано к этой же кисти). animation-delay ждёт, пока доиграют
+     шаги (см. hip/knee выше), fill-mode:both — держит стартовую позу все эти 1.8с задержки, а не
+     дёргается в 0 в момент старта. */
+  @keyframes figStaffLeanShoulder{
+    0%{ transform:rotateZ(12deg) rotateX(2deg); }
+    100%{ transform:rotateZ(20deg) rotateX(-46deg); }
+  }
+  @keyframes figStaffLeanElbow{
+    0%{ transform:rotateZ(8deg); }
+    100%{ transform:rotateZ(30deg); }
+  }
+  /* Карточки показателей защиты по надетым предметам — см. armorStatCardHtml. Чипы по типам урона
+     раскрашены через CSS-переменную --chip, заданную инлайном (см. armorSubChipHtml), чтобы не
+     плодить отдельный CSS-класс на каждое встречающееся в книге сокращение. */
+  .armor-stat-cards{ display:flex; flex-wrap:wrap; gap:10px; margin-top:10px; }
+  .armor-stat-card{
+    background:var(--paper); border:1px solid rgba(0,0,0,.12); border-radius:10px;
+    padding:8px 11px; min-width:150px; flex:1 1 150px; max-width:240px;
+    box-shadow:0 1px 3px rgba(0,0,0,.08);
+  }
+  .armor-stat-head{ display:flex; align-items:baseline; justify-content:space-between; gap:8px; }
+  .armor-stat-head b{ font-size:12.5px; line-height:1.25; }
+  .armor-stat-base{
+    font-family:var(--font-display); font-size:12px; font-weight:700; color:var(--stamp);
+    white-space:nowrap;
+  }
+  .armor-stat-zones{ font-size:10.5px; color:var(--ink-soft); margin-top:1px; }
+  .armor-stat-chips{ display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; }
+  .armor-stat-chip{
+    display:inline-block; font-size:10.5px; font-weight:600; padding:2px 7px; border-radius:999px;
+    background:var(--chip, var(--ink-soft)); color:#fff; opacity:.92; letter-spacing:.2px;
+  }
+  .armor-stat-chip--siz{ background:var(--ink-soft); }
+  .armor-stat-helmet{ font-size:10.5px; color:var(--ink-soft); margin-top:6px; padding-top:5px; border-top:1px dotted rgba(0,0,0,.15); }
+  /* Всплывающее окошко выбора зон при "Надеть" — переиспользует .reroll-popup (крупное, по центру,
+     тот же жест мыши на закрытие), просто добавляет список галочек. */
+  .zone-check-list{ display:flex; flex-direction:column; gap:6px; margin-bottom:4px; }
+  .zone-check{ display:flex; align-items:center; gap:8px; font-size:13px; cursor:pointer; }
+  .zone-check input{ width:15px; height:15px; accent-color:var(--stamp); }
+  .dropzone{ min-height:24px; border-radius:6px; transition: background-color .1s; }
+  .dropzone.drag-over{ background:var(--paper); outline:2px dashed var(--stamp); }
+  .footer-note{font-size:11px; color:var(--vellum-muted); margin-top:28px; border-top:2px solid var(--stamp); padding-top:12px;}
+  .footer-note code{ color:var(--vellum-bright); }
+  .hp-box{ display:flex; gap:18px; justify-content:center; }
+  .hp-box .metric{ display:flex; flex-direction:column; align-items:center; gap:6px; }
+  .hp-box .metric .lbl{ font-size:10px; color:var(--ink-soft); text-transform:uppercase; text-align:center; }
+  .dial{
+    width:72px; height:72px; border-radius:50%; border:2.5px solid var(--ink); background:var(--paper);
+    text-align:center; font-size:14px; line-height:66px; color:var(--ink); font-weight:bold;
+    padding:0; font-family:var(--font-display); -moz-appearance:textfield;
+    box-shadow: inset 0 2px 6px rgba(0,0,0,.22);
+  }
+  .dial:disabled{ color:var(--ink-soft); }
+  .dial:focus{ outline:none; background:var(--card); border-style:dashed; }
+  .identity-row label{ font-size:11px; text-align:left; }
+  .lockable-field{ display:flex; align-items:center; gap:4px; }
+  .lockable-field select, .lockable-field input{ flex:1; }
+  .lock-toggle{ display:flex; align-items:center; cursor:pointer; font-size:13px; flex-shrink:0; opacity:.4; }
+  .lock-toggle:has(input:checked){ opacity:1; }
+  .lock-toggle input{ width:14px; height:14px; margin-right:2px; accent-color: var(--stamp); }
+  .identity-row input{
+    border:none; border-bottom:2px solid var(--ink); border-radius:0; background:transparent;
+    padding:4px 2px; font-size:14px; font-weight:700;
+  }
+  .identity-row select{
+    border:none; border-bottom:2px solid var(--ink); border-radius:0; background:transparent;
+    padding:4px 2px; font-size:13px; font-weight:700;
+  }
+  textarea{
+    font-family: var(--font); background:var(--card); color:var(--ink);
+    border:1.5px solid var(--ink); border-radius:6px; padding:6px 8px; font-size:13px; width:100%; resize:vertical;
+  }
+  .states-row{ display:flex; gap:14px; flex-wrap:wrap; }
+  .state-toggle{ display:flex; align-items:center; gap:6px; font-size:12px; text-transform:uppercase; letter-spacing:.02em; cursor:pointer; }
+  .state-toggle input{ width:16px; height:16px; accent-color: var(--stamp); }
+  #historyBox{ max-height:260px; overflow-y:auto; }
+  #historyBox .item-line .tag{ font-family: var(--font); }
+  /* ---- Совместная сессия: общий лог бросков + правки листа от ГМ (сигналинг через WebSocket-релей server.js) ---- */
+  .session-status-dot{ display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:6px; background:var(--ink-soft); }
+  .session-status-dot.on{ background:#2c5a2c; }
+  .session-status-dot.off{ background:var(--stamp); }
+  .session-code-display{
+    font-family:var(--font-display); font-size:22px; letter-spacing:.08em; font-weight:700;
+    background:var(--paper); border:1.5px solid var(--ink); border-radius:6px; padding:6px 12px; display:inline-block;
+  }
+  .player-row{
+    display:flex; align-items:center; gap:8px; padding:5px 0; border-bottom:1px dotted var(--ink); font-size:12.5px;
+  }
+  .player-row .name{ flex:1; }
+  /* Находки — лопата у игрока и окно бросков (см. НАХОДКИ в скрипте) */
+  .loot-dig-btn{ padding:1px 5px; line-height:0; vertical-align:middle; }
+  .loot-shovel{ vertical-align:-3px; }
+  .loot-backdrop{ position:fixed; inset:0; z-index:405; background:rgba(9,7,12,.45); }
+  .loot-popup .reroll-title{ display:flex; align-items:center; gap:8px; padding-right:24px; }
+  .loot-popup .loot-shovel{ width:20px; height:20px; }
+  .loot-dice{ display:flex; gap:10px; margin:12px 0; }
+  .loot-dice button{ font-size:18px; font-weight:700; padding:10px 22px; }
+  .loot-cond{ display:flex; align-items:center; gap:6px; font-size:13px; }
+  .loot-steps{ font-size:12.5px; color:var(--ink-soft); margin-bottom:8px; border-left:3px solid var(--stamp); padding-left:8px; }
+  .loot-cats{ display:flex; flex-direction:column; gap:4px; margin:8px 0; }
+  .loot-cats button{ text-align:left; }
+  .loot-book{ display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-top:6px; font-size:13px; }
+  .loot-item{ font-size:14px; line-height:1.45; padding:10px 12px; background:var(--paper); border:1.5px solid var(--ink); border-radius:8px; margin:6px 0; }
+  .loot-meta{ font-size:12px; color:var(--ink-soft); margin-top:3px; }
+  .loot-pick{ margin-top:8px; font-size:13px; }
+  .loot-pick select, .loot-pick input{ width:100%; margin-top:4px; box-sizing:border-box; }
+  .loot-actions{ display:flex; flex-wrap:wrap; gap:6px; margin-top:12px; }
+  .roll-log-list{ max-height:260px; overflow-y:auto; }
+  .roll-log-entry{ display:flex; gap:8px; align-items:baseline; padding:3px 0; border-bottom:1px dotted var(--ink); font-size:12px; }
+  .roll-log-entry .who{ font-weight:700; min-width:90px; }
+  .roll-log-entry.success{ color:#2c5a2c; }
+  .roll-log-entry.failure{ color:var(--stamp); }
+  .roll-log-entry .rest{ color:var(--ink); font-weight:400; }
+  .gm-edit-banner{
+    background:var(--stamp); color:var(--vellum-bright); padding:8px 14px; border-radius:8px;
+    display:flex; align-items:center; gap:12px; margin-bottom:10px; font-size:13px; flex-wrap:wrap;
+  }
+  .gm-edit-banner button{ background:var(--vellum-bright); color:var(--stamp); border:none; }
+  /* ---- Комната: голос/видео/данные (WebRTC P2P поверх того же сигналинга) ---- */
+  .room-box{ margin-top:10px; }
+  .room-controls{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .room-controls button.active{ background:var(--stamp); color:var(--vellum-bright); }
+  .room-hint{ margin-top:6px; }
+  .room-tiles{ display:flex; gap:10px; flex-wrap:wrap; margin-top:10px; }
+  .room-tile{
+    position:relative; width:180px; height:135px; background:#111; border:2px solid var(--ink);
+    border-radius:10px; overflow:hidden; flex-shrink:0;
+  }
+  .room-tile video{ width:100%; height:100%; object-fit:cover; display:block; background:#111; }
+  .room-tile.no-video video{ visibility:hidden; }
+  .room-tile.no-video::before{
+    content:'🎙️'; position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    font-size:34px; opacity:.55;
+  }
+  .room-tile .tile-label{
+    position:absolute; left:0; right:0; bottom:0; padding:3px 7px; font-size:11px; color:#fff;
+    background:linear-gradient(transparent, rgba(0,0,0,.75)); display:flex; align-items:center; gap:5px;
+  }
+  .room-tile .tile-state{ font-size:9px; text-transform:uppercase; opacity:.8; }
+  .room-tile.local{ border-color:var(--stamp); }
+  .room-tile.muted .tile-label::before{ content:'🔇 '; }
+  /* Чужие плитки физически переезжают между тремя местами в зависимости от активности —
+     см. RoomFocusMode в скрипте: .room-tiles (в панели, для узких экранов), .room-sidebar (в
+     пустом поле сбоку от листа на широких экранах, пока пользователь чем-то занят) и
+     .room-focus-overlay (во весь экран, когда 8с нет никакой активности). Своя (локальная)
+     плитка всегда остаётся в .room-tiles рядом с кнопками микрофона/камеры. */
+  .room-sidebar{
+    display:none; position:fixed; top:90px; bottom:16px; left:calc(50% + 606px); width:192px;
+    flex-direction:column; align-items:center; gap:10px; overflow-y:auto; z-index:40; padding:2px;
+  }
+  /* Порог подобран под фактическую геометрию: .wrap центрирован и max-width:1180px, правый край
+     это 50vw+590px; сайдбару (192px + отступы) справа от него нужно ещё ~450px viewport'а сверху —
+     иначе он не поместится и вылезет за край экрана. На более узких окнах плитки просто остаются
+     в панели сессии, как и до этой доработки — переезд в бок работает только там, где для него
+     реально есть место. */
+  @media (min-width:1660px){ .room-sidebar{ display:flex; } }
+  /* Колонка прозрачная и стоит поверх полноэкранных режимов (z-index 40 > 30): пустое место не должно
+     ловить клики и колесо — иначе на широких экранах она «съедала» левую часть библиотеки редактора карт.
+     Клики получают только сами плитки и кнопки. */
+  .room-sidebar{ pointer-events:none; }
+  .room-sidebar > *{ pointer-events:auto; }
+  body.editor-mode .room-sidebar{ left:auto; right:334px; width:170px; }
+  /* Булавка (см. RoomFocusMode.togglePinned): камеры закреплены сбоку и не уходят на весь экран при
+     простое. На широком экране — то же место, что и обычно; на более узком, где для колонки справа от
+     листа места нет, закреплённая колонка встаёт узкой полосой у правого края поверх содержимого. */
+  body.room-pinned .room-sidebar{ display:flex; }
+  @media (max-width:1659px){ body.room-pinned .room-sidebar{ left:auto; right:10px; width:170px; } }
+  .room-sidebar .room-pin-btn{ flex-shrink:0; align-self:flex-end; padding:2px 8px; font-size:12px; }
+  .room-pin-btn.active{ background:var(--stamp); border-color:var(--stamp); color:var(--vellum-bright); }
+  /* Точный width/height каждой плитки в сайдбаре считает JS (layoutSidebar в RoomFocusMode) — при
+     большом числе участников плитки уменьшаются (миниатюризируются), чтобы уместиться по высоте
+     без прокрутки, а не остаются фиксированного размера, упираясь в overflow-y:auto. */
+  .room-sidebar .room-tile{ flex-shrink:0; }
+  /* Настоящая заливка экрана видео, не затемнённое модальное окно поверх листа: сплошной фон
+     (не полупрозрачный — иначе сквозь него просвечивает лист, и это уже не выглядит как "весь
+     экран"), минимальные отступы. Точные width/height каждой плитки считает и выставляет
+     JS (computeGrid/layoutFocusGrid в RoomFocusMode) — так, чтобы при N плитках использовать
+     максимум доступной площади экрана, ни одну не потеряв и не растянув (object-fit:cover ниже
+     только обрезает кадр по центру, без искажения пропорций). CSS здесь задаёт только сам факт
+     сетки (flex-wrap + центрирование), не конкретные размеры. */
+  .room-focus-overlay{
+    display:none; position:fixed; inset:0; z-index:150; background:#07050a;
+    padding:16px; align-items:center; justify-content:center; align-content:center;
+    flex-wrap:wrap; gap:12px; overflow-y:auto;
+    /* Плитки ничем не кликабельны — pointer-events:none пропускает клики/pointerdown насквозь, к
+       листу персонажа под оверлеем. Без этого оверлей (во весь экран, z-index:150) перехватывал
+       ВСЕ клики поверх листа, включая начало основного броска (pointerdown по строке
+       характеристики) — бросок молча не запускался всякий раз, когда полноэкранный режим был
+       активен (то есть довольно часто во время обычной игры: 8с простоя набегает, пока слушаешь
+       Мастера). Если когда-нибудь на плитках появится что-то кликабельное — включить pointer-events
+       обратно точечно на .room-tile, а не на весь оверлей. */
+    pointer-events:none;
+  }
+  .room-focus-overlay.show{ display:flex; }
+  .room-focus-overlay .room-tile{ flex-shrink:0; }
+  .room-focus-overlay .room-tile video{ object-position:center; }
+

@@ -1,0 +1,40 @@
+  /* ============================================================
+     Полноэкранная сцена броска (launchRollAnimation): сама панель для этого не годится (слишком
+     тесно, чтобы результат "чётко видно") — вместо неё крупная 3D-модель (та же геометрия/техника,
+     что у мини-иконок выше, просто крупнее и без уменьшающего scale) летит через весь экран,
+     отскакивает от нескольких границ и оседает по центру с крупным числом на ней. Отдельный слой
+     поверх всего (z-index даже выше комнаты голоса/видео) — сам бросок важнее любого другого UI
+     в этот момент.
+     ============================================================ */
+  #diceRollStage{ position:fixed; inset:0; z-index:400; pointer-events:none; display:none; }
+  #diceRollStage.show{ display:block; }
+  .dp-flying-die{ position:fixed; top:0; left:0; will-change:transform; }
+  /* Тот же display:flex-центрирующий приём, что и у .dp-hex .dp-die-icon выше (см. комментарий там):
+     .dp-die-spin — фиксированный 110×110 блок, а этот контейнер размером с саму кость (92–340px,
+     JS diceSize()) — без центрирования модель уезжает в угол вместо центра, и результат оказывается
+     "где-то сбоку" вместо того, чтобы чётко сидеть по центру летящей кости. */
+  .dp-flying-die .dp-die-icon{ width:100%; height:100%; perspective:900px; display:flex; align-items:center; justify-content:center; }
+  .dp-flying-die.dp-discarded{ opacity:.4; }
+  /* Оттенок Преимущества/Помехи — теперь на эмали (.dp-die-enamel, объявлено выше вместе с ней; тот же
+     смысл, что раньше был на самой грани, до появления ободка/эмали). */
+  .dp-flying-die.dp-settled .dp-die-face.is-result{ box-shadow:0 0 26px 6px rgba(255,255,255,.22); }
+  /* Отблеск при оседании — раньше диагональной полосой var(--stamp) пробегал по ВСЕЙ кости
+     (.dp-flying-die::after поверх всей 3D-модели), но полоса считается в плоских 2D-координатах
+     экрана, а не по реальной, повёрнутой в 3D поверхности кости — из-за этого на резких ракурсах она
+     "отклеивалась" от граней и выглядела как плоский блик поверх картинки, а не блик НА кости. Заменено
+     на прицельный блеск по самому числу результатной грани (тот же .dp-settled триггерит его
+     автоматически, playing once): background-clip:text даёт градиент, вырезанный точно по форме глифа
+     цифры, поэтому блик всегда остаётся привязан к числу, а не гуляет по экрану независимо от 3D. */
+  .dp-die-face.is-result span{ display:inline-block; }
+  .dp-flying-die.dp-settled .dp-die-face.is-result span{
+    /* золото → белое → золото — та же логика блика, что и раньше, тона подстроены под золотой цвет
+       цифр на эмали (.dp-die-enamel{color:#d9b45c}), а не под старый vellum-bright с ink-фона */
+    background-image:linear-gradient(115deg, #d9b45c 35%, #fff 50%, #d9b45c 65%);
+    background-size:280% 100%;
+    background-position:170% 0;
+    -webkit-background-clip:text; background-clip:text;
+    color:transparent; -webkit-text-fill-color:transparent;
+    animation:dieNumberShine .6s ease-out;
+  }
+  @keyframes dieNumberShine{ 0%{ background-position:170% 0; } 100%{ background-position:-70% 0; } }
+

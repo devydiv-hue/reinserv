@@ -1,0 +1,91 @@
+  /* ============================================================
+     САУНДПАД (#soundTabView, модуль Soundboard в отдельном блоке script в конце файла). Тот же «пергамент»
+     панелей и пилюли-кнопки; кнопки звуков — крупные плитки, чтобы Мастер попадал не глядя.
+     ============================================================ */
+  .sb-panel{ padding-bottom:14px; }
+  .sb-head{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:10px; }
+  .sb-title{ font-family:var(--font-display); font-size:15px; }
+  .sb-sections{ display:flex; gap:6px; flex-wrap:wrap; }
+  .sb-sec{ padding:5px 12px; font-size:10.5px; background:transparent; }
+  .sb-sec.on{ background:var(--stamp); border-color:var(--stamp); color:var(--vellum-bright); }
+  .sb-now{ display:flex; gap:14px; flex-wrap:wrap; background:var(--paper); border:2px solid var(--ink); border-radius:12px; padding:10px 12px; margin-bottom:12px; }
+  .sb-now-main{ flex:1 1 320px; min-width:0; }
+  .sb-now-label{ font-size:11px; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.05em; font-weight:700; }
+  .sb-now-title{ font-family:var(--font-display); font-weight:700; font-size:15px; margin:2px 0 6px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .sb-progress{ display:flex; align-items:center; gap:8px; font-size:11px; font-variant-numeric:tabular-nums; }
+  .sb-progress input[type=range]{ flex:1; accent-color:var(--stamp); }
+  .sb-transport{ display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin-top:8px; }
+  .sb-transport button{ padding:6px 14px; font-size:14px; text-transform:none; }
+  .sb-transport .sb-stopall{ font-size:11px; text-transform:uppercase; margin-left:auto; }
+  .sb-amb-now{ font-size:11.5px; color:var(--ink-soft); margin-top:6px; }
+  .sb-warn{ font-size:11.5px; color:var(--stamp); margin-top:6px; }
+  .sb-mixer{ flex:0 1 300px; min-width:240px; }
+  .sb-vol{ display:flex; align-items:center; gap:6px; margin-bottom:4px; font-size:11.5px; }
+  .sb-vol input[type=range]{ flex:1; accent-color:var(--stamp); min-width:60px; }
+  .sb-vol-label{ width:74px; }
+  .sb-vol-val{ width:34px; text-align:right; font-variant-numeric:tabular-nums; }
+  .sb-mute{ padding:1px 6px; font-size:12px; box-shadow:none; text-transform:none; }
+  .sb-mute.on, .sb-mute-all.on{ background:var(--stamp); border-color:var(--stamp); color:var(--vellum-bright); }
+  .sb-mixer-row{ display:flex; gap:6px; flex-wrap:wrap; margin-top:6px; }
+  .sb-mixer-row button{ padding:4px 10px; font-size:10px; }
+  .sb-filepick{ display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:700; }
+  .sb-filepick input{ font-size:11.5px; max-width:240px; }
+  .sb-note{ font-size:11px; margin-top:6px; }
+  .sb-tools{ margin-bottom:8px; }
+  .sb-tools input[type=search]{ width:100%; font-family:var(--font); background:var(--paper); color:var(--ink); border:1.5px solid var(--ink); border-radius:999px; padding:8px 14px; font-size:13px; }
+  .sb-cats{ display:flex; gap:5px; flex-wrap:wrap; margin-bottom:10px; }
+  .sb-cat{ padding:3px 10px; font-size:10px; box-shadow:none; background:transparent; }
+  .sb-cat.on{ background:var(--ink); color:var(--card); }
+  .sb-subhead{ font-family:var(--font-display); font-weight:700; font-size:12px; margin:6px 0; }
+  .sb-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(118px, 1fr)); gap:8px; margin-bottom:8px; }
+  .sb-grid-small{ grid-template-columns:repeat(auto-fill, minmax(104px, 1fr)); }
+  .sb-grid-small .sb-pad{ height:62px; }
+  .sb-pad-cell{ position:relative; }
+  .sb-pad{ width:100%; height:84px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; padding:6px;
+    border-radius:14px; text-transform:none; letter-spacing:0; font-size:12px; position:relative; overflow:hidden; }
+  .sb-pad .sb-emoji{ font-size:26px; line-height:1; }
+  .sb-grid-small .sb-emoji{ font-size:20px; }
+  .sb-pad .sb-name{ line-height:1.15; text-align:center; }
+  .sb-pad.loop{ border-style:dashed; }
+  .sb-pad.on{ background:var(--stamp); border-color:var(--stamp); border-style:solid; color:var(--vellum-bright); }
+  .sb-pad .sb-loop{ position:absolute; left:8px; top:5px; font-size:13px; opacity:.7; }
+  .sb-pad .sb-hk{ position:absolute; left:8px; bottom:5px; font-size:10px; opacity:.6; border:1px solid currentColor; border-radius:4px; padding:0 4px; }
+  .sb-pad.hit::after{ content:''; position:absolute; left:50%; top:50%; width:20px; height:20px; margin:-10px 0 0 -10px; border-radius:50%;
+    background:rgba(156,47,28,.45); animation:sbRipple .6s ease-out forwards; pointer-events:none; }
+  .sb-pad.hit{ border-color:var(--stamp); }
+  @keyframes sbRipple{ from{ transform:scale(.4); opacity:1; } to{ transform:scale(9); opacity:0; } }
+  .sb-star{ position:absolute; right:4px; top:4px; padding:0 5px; font-size:13px; line-height:1.3; border:none; background:transparent; box-shadow:none; color:var(--ink-soft); z-index:1; }
+  .sb-star:hover{ background:transparent; color:var(--stamp); }
+  .sb-star.on{ color:#b07a1f; }
+  .sb-pad.on + .sb-star{ color:var(--vellum-bright); }
+  .sb-addyt, .sb-soundform{ display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin:4px 0 8px; }
+  .sb-addyt input[type=url], .sb-addyt input[type=text]{ flex:1 1 200px; width:auto; font-family:var(--font); background:var(--paper); color:var(--ink); border:1.5px solid var(--ink); border-radius:6px; padding:6px 8px; font-size:13px; }
+  .sb-addyt select{ width:auto; flex:0 1 180px; }
+  .sb-soundform{ flex-direction:column; align-items:stretch; max-width:520px; background:var(--paper); border:1.5px solid var(--ink); border-radius:10px; padding:10px; }
+  .sb-soundform label{ display:flex; gap:8px; align-items:center; font-size:12px; }
+  .sb-soundform label > input[type=text], .sb-soundform label > select{ flex:1; }
+  .sb-check input{ width:16px; height:16px; accent-color:var(--stamp); }
+  .sb-form-actions{ display:flex; gap:6px; align-items:center; }
+  .sb-form-status{ font-size:11.5px; }
+  .sb-list{ display:flex; flex-direction:column; }
+  .sb-row, .sb-pl-items li{ display:flex; align-items:center; gap:6px; padding:5px 0; border-bottom:1px dotted var(--ink); font-size:12.5px; }
+  .sb-row.on .sb-row-title, .sb-pl-items li.on .sb-row-title{ color:var(--stamp); font-weight:700; }
+  .sb-row-title{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .sb-rowplay{ padding:2px 10px; font-size:12px; text-transform:none; box-shadow:none; }
+  .sb-mini{ padding:1px 7px; font-size:11px; text-transform:none; box-shadow:none; width:auto; }
+  select.sb-mini{ padding:2px 4px; font-size:11px; border-radius:6px; }
+  .sb-pl{ border:1.5px solid var(--ink); border-radius:10px; padding:8px 10px; margin-bottom:8px; background:var(--paper); }
+  .sb-pl.on{ border-color:var(--stamp); }
+  .sb-pl-head{ display:flex; align-items:center; gap:8px; }
+  .sb-pl-head b{ flex:1; font-family:var(--font-display); }
+  .sb-pl-items{ margin:6px 0 0; padding-left:22px; }
+  #sbMini{ position:fixed; left:50%; bottom:14px; transform:translateX(-50%); z-index:61; max-width:min(60vw, 520px); overflow:hidden; text-overflow:ellipsis;
+    white-space:nowrap; padding:5px 14px; font-size:11px; text-transform:none; background:rgba(28,23,18,.93); color:var(--vellum-bright); border-color:var(--ink); }
+  #sbUnlock{ position:fixed; left:50%; bottom:52px; transform:translateX(-50%); z-index:62; background:var(--stamp); border-color:var(--stamp); color:var(--vellum-bright);
+    text-transform:none; font-size:13px; padding:8px 18px; animation:sbPulse 1.6s ease-in-out infinite; }
+  @keyframes sbPulse{ 0%,100%{ box-shadow:0 0 0 0 rgba(156,47,28,.6); } 50%{ box-shadow:0 0 0 8px rgba(156,47,28,0); } }
+  #sbToast{ position:fixed; left:50%; bottom:96px; transform:translate(-50%, 8px); z-index:62; pointer-events:none; opacity:0; transition:opacity .2s ease, transform .2s ease;
+    background:rgba(28,23,18,.93); color:var(--vellum-bright); border-radius:999px; padding:6px 16px; font-size:13px; font-weight:700; }
+  #sbToast.show{ opacity:1; transform:translate(-50%, 0); }
+  @media (prefers-reduced-motion: reduce){ .sb-pad.hit::after, #sbUnlock{ animation:none; } #sbToast{ transition:none; } }
+  @media (max-width:560px){ .sb-grid{ grid-template-columns:repeat(auto-fill, minmax(96px, 1fr)); } .sb-pad{ height:74px; } }

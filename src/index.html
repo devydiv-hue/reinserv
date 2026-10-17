@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="ru">
+<!-- Собрано из исходников src/ командой «node build.js». Правьте файлы в src/, а не этот файл (см. README.txt, «Для разработчика»). -->
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- PWA: установка как приложение и работа без сети (файлы — папка pwa/, раздаёт server.js) -->
+<meta name="theme-color" content="#120e16">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Реинкарнатор">
+<title>Реинкарнатор — Лист персонажа</title>
+<script>
+/*@include scripts/00-boot-error-banner.js*/
+</script>
+<script>
+/*@include scripts/00-theme.js*/
+</script>
+<style>
+/*@include styles/00-fonts.css*/
+/*@include styles/01-base.css*/
+/*@include styles/02-textures-and-sheet.css*/
+/*@include styles/03-body-figure.css*/
+/*@include styles/04-dice-panel.css*/
+/*@include styles/05-roll-scene.css*/
+/*@include styles/06-game-table.css*/
+/*@include styles/07-soundboard.css*/
+/*@include styles/08-map-editor.css*/
+/*@include styles/09-dialogs-play-gm.css*/
+/*@include styles/10-theme-dark.css*/
+/*@include styles/11-phone-header.css*/
+</style>
+  <!-- Совместная сессия (лог бросков + правки от ГМ + комната голоса/видео/данных) — см. секцию
+       #sessionPanel в конце файла. Сигналинг — через WebSocket к server.js (простой релей, без
+       сторонних сервисов), сама медиа/данные — WebRTC P2P между браузерами напрямую. Работает только
+       когда лист открыт через server.js (http/https), не при открытии файла напрямую (file://) —
+       в этом случае секция сама сообщает об этом и ничего не ломает: генерация и ведение персонажа
+       по-прежнему работают полностью офлайн как раньше. -->
+</head>
+<body>
+<div id="roomSidebar" class="room-sidebar"></div>
+<div id="roomFocusOverlay" class="room-focus-overlay"></div>
+<!-- DicePanel — боковая панель быстрого броска кубов, см. её JS-раздел (DicePanel) ближе к концу
+     файла. Разметка внутри #dicePanel строится динамически (уровни выбора) — так автосброс между
+     открытиями (requirement 16) не должен ещё и чистить статический HTML вручную. -->
+<button id="diceFab" type="button" aria-label="Быстрый бросок кубов">
+  <span class="blob">
+    <span class="blob-sheen"></span>
+    <span class="blob-icon"></span>
+  </span>
+</button>
+<div id="dicePanel">
+  <button class="dp-close" type="button" aria-label="Закрыть панель бросков">✕</button>
+  <button class="dp-pin-stage" type="button" aria-label="Не закрывать панель после броска — остаться на этом шаге" title="Не закрывать панель после броска — остаться на этом шаге">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M12 7 V12 L15.5 14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </button>
+  <button class="dp-move-toggle" type="button" aria-pressed="false" aria-label="Перемещать кубы по краям экрана" title="Перемещать кубы по краям экрана: выключено">
+    <svg viewBox="0 0 24 24"><path d="M12 3.5 V20.5 M3.5 12 H20.5 M9.2 6.3 L12 3.5 L14.8 6.3 M9.2 17.7 L12 20.5 L14.8 17.7 M6.3 9.2 L3.5 12 L6.3 14.8 M17.7 9.2 L20.5 12 L17.7 14.8" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </button>
+  <div class="dp-title" id="dpTitle"></div>
+  <div class="dp-level" id="dpLevel"></div>
+  <div class="dp-feedback" id="dpFeedback"></div>
+</div>
+<!-- Полноэкранная сцена самого броска — кости "вылетают", отскакивают от границ экрана и
+     приземляются по центру, крупно и чётко видно значение. См. launchRollAnimation в DicePanel. -->
+<div id="diceRollStage"></div>
+<!-- Саундпад: индикатор музыки, «Включить звук», короткие toast — см. модуль Soundboard -->
+<button type="button" id="sbMini" style="display:none;"></button>
+<button type="button" id="sbUnlock" style="display:none;">🔊 Включить звук</button>
+<div id="sbToast" role="status" aria-live="polite"></div>
+<div class="wrap">
+  <div class="topbar">
+    <button type="button" id="btnCharMenu" class="small" title="Действия с персонажем: создать, режим, сохранить, экспорт…">⚙ Персонаж ▾</button>
+    <div>
+      <h1 class="brand-title">Реинкарнатор<span class="brand-mask" aria-hidden="true" title="НРИ инструментарий"><span class="bm-meat"></span><span class="bm-bone"></span></span><span class="brand-tool">НРИ инструментарий</span></h1>
+      <div class="brand-sub"><span class="brand-sub-text">Виртуальный стол для НРИ за авторством Алексея Иващенко</span>
+        <a class="boosty-link" href="https://boosty.to/the.histori.factor" target="_blank" rel="noopener noreferrer" title="Поддержать автора книги на Boosty" aria-label="Boosty — поддержать автора"><svg viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6" fill="#f15f2c"/><path d="M8.2 4.6h3.3l-1.2 4.3c.6-.2 1.2-.3 1.9-.3 2.8 0 4.6 1.9 4.6 4.5 0 3.1-2.5 5.6-6 5.6-2.5 0-4.3-1.4-4.3-3.6 0-.5.1-1 .2-1.5zm2.6 7.1c-.7 0-1.3.2-1.8.6l-.6 2.2c-.1.2-.1.4-.1.6 0 .8.7 1.4 1.7 1.4 1.6 0 2.8-1.2 2.8-2.7 0-1.3-.8-2.1-2-2.1z" fill="#fff"/></svg><span>Boosty</span></a>
+      </div>
+    </div>
+  </div>
+
+  <div class="tab-bar" id="mainTabBar">
+    <!-- На телефоне вкладки — лентой с короткими подписями (.tl-short), см. styles/11-phone-header.css -->
+    <button type="button" class="tab-btn active" id="tabBtnSheet"><span class="tl-long">Лист персонажа</span><span class="tl-short">Лист</span></button>
+    <button type="button" class="tab-btn" id="tabBtnXp"><span class="tl-long">Начисление опыта</span><span class="tl-short">Опыт</span></button>
+    <button type="button" class="tab-btn" id="tabBtnTable"><span class="tl-long">Игровой стол</span><span class="tl-short">Стол</span></button>
+    <button type="button" class="tab-btn" id="tabBtnBestiary"><span class="tl-long">Бестиарий</span><span class="tl-short">Бестиарий</span></button>
+    <button type="button" class="tab-btn" id="tabBtnMaps"><span class="tl-long">Редактор карт</span><span class="tl-short">Карты</span></button>
+    <button type="button" class="tab-btn" id="tabBtnSound"><span class="tl-long">Саундпад</span><span class="tl-short">Звук</span></button>
+  </div>
+
+  <div id="sheetTabView">
+  <div id="sessionPanel" class="panel" style="margin-bottom:14px;">
+    <div class="field-row identity-row" style="align-items:center;justify-content:space-between;">
+      <b><span id="sessionStatusDot" class="session-status-dot off"></span>Совместная сессия</b>
+    </div>
+    <div id="sessionSetup">
+      <div class="field-row" style="align-items:flex-end;">
+        <div class="field" style="max-width:200px;">
+          <label>Ваше имя за столом</label>
+          <input type="text" id="sessionOwnName" placeholder="Например, Пелагея" autocomplete="off">
+        </div>
+        <button class="small" id="btnStartGM">Я — Мастер</button>
+        <span class="muted" style="align-self:center;">или</span>
+        <button class="small" id="btnStartPlayer">Я — игрок</button>
+      </div>
+      <div class="muted" id="sessionSetupHint" style="margin-top:6px;"></div>
+    </div>
+    <div id="sessionActive" style="display:none; margin-top:10px;">
+      <div class="field-row" style="align-items:center;">
+        <div id="sessionRoleLabel" class="muted"></div>
+        <button class="small" id="btnLeaveSession" style="margin-left:auto;">Выйти из сессии</button>
+      </div>
+      <div class="room-box">
+        <b>Комната: голос и видео</b>
+        <div class="room-controls" style="margin-top:6px;">
+          <button class="small" id="btnRoomJoin">🎙️ Войти в комнату</button>
+          <button class="small" id="btnRoomMic" style="display:none;">🎤 Микрофон</button>
+          <button class="small" id="btnRoomCam" style="display:none;">📷 Камера</button>
+          <button class="small room-pin-btn" id="btnRoomPin" style="display:none;" title="Закрепить камеры сбоку">📌</button>
+          <button class="small" id="btnRoomLeave" style="display:none;">Покинуть комнату</button>
+          <span class="muted" id="roomFocusHotkeyHint" style="display:none;">📌 — закрепить камеры сбоку · Q — развернуть всех на весь экран</span>
+        </div>
+        <div class="muted room-hint" id="roomHint"></div>
+        <div class="room-tiles" id="roomTiles"></div>
+      </div>
+      <div id="sessionPlayersBox" style="display:none; margin-top:10px;">
+        <b>Игроки за столом</b>
+        <div id="playersList"></div>
+      </div>
+      <div style="margin-top:10px;">
+        <b>Общий лог бросков</b>
+        <div id="rollLogList" class="roll-log-list"><span class="muted">Пока пусто.</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="gmEditBanner" style="display:none;"></div>
+
+  <div id="savesPanel" class="panel" style="margin-bottom:14px;">
+    <div class="field-row identity-row" style="align-items:center;justify-content:space-between;">
+      <b>Сохранения в этом браузере</b>
+      <button class="small" id="btnRefreshSaves">🔄 Обновить список</button>
+    </div>
+    <div id="savesListBox"><span class="muted">—</span></div>
+  </div>
+
+  <!-- Действия с персонажем — под сохранениями, над листом -->
+  <div class="controls sheet-controls" id="sheetControls">
+    <button class="primary" id="btnGenerate">⚄ Сгенерировать персонажа</button>
+    <button id="btnMode">🎲 Режим: случайный</button>
+    <button id="btnReset">Сбросить</button>
+    <button id="btnUndo" title="Отменить последнее действие (Ctrl+Z)" disabled>↶ Отменить</button>
+    <button id="btnSaveAs">💾 Сохранить как…</button>
+    <button id="btnExportFile">⬇ Экспорт в файл</button>
+    <label class="button-like" id="btnImportFileLabel" style="display:inline-flex;align-items:center;cursor:pointer;">⬆ Импорт из файла
+      <input type="file" id="fileImportInput" accept="application/json,.json" style="display:none;">
+    </label>
+  </div>
+
+  <div id="pendingBox"></div>
+
+  <div class="grid">
+    <div class="col-12">
+      <div class="panel">
+        <div class="field-row identity-row">
+          <div class="field"><label>Имя персонажа</label><input type="text" id="fName" placeholder="(вписывает игрок)"></div>
+          <div class="field"><label>Имя игрока</label><input type="text" id="fPlayer" placeholder="(вписывает игрок)"></div>
+          <div class="field align-field" style="max-width:150px; position:relative;"><label>Архетип</label>
+            <div class="lockable-field"><input type="text" id="fArchetypeSelect" readonly autocomplete="off" value="Авантюрист"><label class="lock-toggle" title="Зафиксировать: генерация всегда использует именно это значение"><input type="checkbox" id="fArchetypeLock"> 🔒</label></div>
+            <div id="fArchetypeSelectDropdown" class="align-dropdown"></div>
+          </div>
+          <div class="field" style="max-width:90px;"><label>Опыт</label><input type="number" id="fXpNum" title="Опыт персонажа — правит игрок вручную; Мастер может начислить всем сразу на вкладке «Начисление опыта»"></div>
+          <div class="field align-field" style="position:relative;"><label>Подтип</label>
+            <div class="lockable-field"><input type="text" id="fSubtypeSelect" readonly autocomplete="off" value=""><label class="lock-toggle" title="Зафиксировать: генерация всегда использует именно это значение"><input type="checkbox" id="fSubtypeLock"> 🔒</label></div>
+            <div id="fSubtypeSelectDropdown" class="align-dropdown"></div>
+          </div>
+          <div class="field align-field" style="position:relative;"><label>Происхождение</label>
+            <div class="lockable-field"><input type="text" id="fOriginSelect" readonly autocomplete="off" value=""><label class="lock-toggle" title="Зафиксировать: генерация всегда использует именно это значение"><input type="checkbox" id="fOriginLock"> 🔒</label></div>
+            <div id="fOriginSelectDropdown" class="align-dropdown"></div>
+          </div>
+          <div class="field align-field" style="position:relative;"><label>Карьера</label>
+            <div class="lockable-field"><input type="text" id="fCareerSelect" readonly autocomplete="off" value=""><label class="lock-toggle" title="Зафиксировать: генерация всегда использует именно это значение"><input type="checkbox" id="fCareerLock"> 🔒</label></div>
+            <div id="fCareerSelectDropdown" class="align-dropdown"></div>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field" style="max-width:210px; position:relative;"><label>Уровень</label>
+            <div class="level-progress" id="levelProgress" title="Нажмите, чтобы перейти к выборам" onclick="document.getElementById('pendingBox').scrollIntoView({behavior:'smooth',block:'start'})"></div>
+            <div class="lockable-field"><select id="fLevel"></select><label class="lock-toggle" title="Зафиксировать: генерация всегда использует именно это значение (иначе персонаж создаётся с уровня 1)"><input type="checkbox" id="fLevelLock"> 🔒</label></div>
+          </div>
+          <div class="field align-field" style="max-width:210px; position:relative;"><label>Возраст</label>
+            <div class="lockable-field">
+              <input type="text" id="fAge" readonly autocomplete="off" value="20–29 лет">
+              <label class="lock-toggle" title="Зафиксировать: генерация всегда использует именно это значение"><input type="checkbox" id="fAgeLock"> 🔒</label>
+            </div>
+            <div id="fAgeDropdown" class="align-dropdown"></div>
+          </div>
+          <div class="field align-field" style="max-width:220px; position:relative;">
+            <label>Мировоззрение</label>
+            <div class="lockable-field">
+              <input type="text" id="fAlignment" autocomplete="off" placeholder="Впишите или выберите из списка">
+              <label class="lock-toggle" title="Зафиксировать: генерация всегда использует именно это значение"><input type="checkbox" id="fAlignmentLock"> 🔒</label>
+            </div>
+            <div id="fAlignmentDropdown" class="align-dropdown"></div>
+          </div>
+          <div class="field" style="max-width:130px;"><label>Внешний вид</label><input type="number" id="fAppearanceNum" title="Меняется автоматически при уродствах/мутациях; можно поменять вручную"></div>
+          <div class="field" style="max-width:130px;"><label>Размер</label><input type="number" id="fSizeNum" title="Меняется автоматически при уродствах/мутациях; можно поменять вручную"></div>
+          <div class="field" style="max-width:130px;"><label>Удача</label><input type="number" id="fLuckNum" title="Тратится на переброс любой проверки характеристики/способности; выдаёт Мастер (или поменяйте вручную)"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 pm-hide">
+      <div class="panel tex-psi">
+        <h2>Специализации</h2>
+        <div class="muted" style="margin-bottom:8px;">Слоты открываются на уровнях 5 / 9 / 13 / 17. Вторая ступень специализации доступна только после первой (взятой в любом из слотов).</div>
+        <div id="specializationsBox" class="grid"></div>
+      </div>
+    </div>
+
+    <!-- Разделы листа — одним потоком в 3 колонки (CSS columns): высоты выравниваются сами, без пустот -->
+    <div class="col-12 sheet-flow" id="sheetFlow">
+      <div class="panel tex-body">
+        <h2>Тело</h2>
+        <div id="statsBody" class="stat-block"></div>
+      </div>
+      <div class="panel tex-mind">
+        <h2>Личность</h2>
+        <div id="statsPersonality" class="stat-block"></div>
+      </div>
+      <div class="panel">
+        <h2>Самочувствие</h2>
+        <div class="hp-box">
+          <div class="metric">
+            <input type="text" id="hpValue" class="dial" title="Текущее здоровье — введите число" disabled>
+            <div class="lbl">Здоровье (3+вын+размер)</div>
+          </div>
+          <div class="metric">
+            <input type="text" id="psiValue" class="dial" title="Текущий пси-запас — введите число" disabled>
+            <div class="lbl">Пси-запас (3+дух)</div>
+          </div>
+        </div>
+        <h3 style="margin-top:14px;">Состояния</h3>
+        <div class="muted" style="margin-bottom:6px;">Если хоть одно активно — проверка Осложнена.</div>
+        <div class="states-row">
+          <label class="state-toggle"><input type="checkbox" id="stBodrost"> бодрость</label>
+          <label class="state-toggle"><input type="checkbox" id="stIstoshenie"> истощение</label>
+          <label class="state-toggle"><input type="checkbox" id="stIspug"> испуг</label>
+          <label class="state-toggle"><input type="checkbox" id="stStress"> стресс</label>
+        </div>
+        <div class="field" style="margin-top:10px;"><label>Состояния и травмы</label>
+          <textarea id="fConditionsNotes" rows="3" placeholder="Заметки по травмам и текущим состояниям"></textarea>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>Спасброски от вредной среды</h2>
+        <div class="field-row">
+          <div class="field" style="max-width:120px;"><label>СИЗ</label><input type="number" id="fSiz"></div>
+          <div class="field" style="max-width:160px;"><label>Пси-сопротивление</label><input type="number" id="fPsiSoprot"></div>
+        </div>
+        <div id="savesBox" class="muted"></div>
+      </div>
+      <div class="panel">
+        <h2>Отдых</h2>
+        <div id="restBox" class="muted"></div>
+        <div class="field" style="max-width:220px; margin-top:8px;"><label>Мод. снаряжения (для Равнины)</label><input type="number" id="fRestEquipMod"></div>
+      </div>
+      <div class="panel">
+        <h2>Навыки авантюриста</h2>
+        <div id="statsAdvSkills" class="stat-block"></div>
+      </div>
+      <div class="panel">
+        <h2>Навыки боя</h2>
+        <div id="statsCombatSkills" class="stat-block"></div>
+      </div>
+      <div class="panel">
+        <h2>Атака</h2>
+        <div id="weaponsBox"></div>
+      </div>
+      <div class="panel">
+        <h2>Броня</h2>
+        <div class="field-row">
+          <div class="field" style="max-width:120px;"><label>Защита (тело)</label><input type="number" id="fArmorBody"></div>
+          <div class="field" style="max-width:120px;"><label>Защита (шлем)</label><input type="number" id="fArmorHelmet"></div>
+        </div>
+        <div class="field"><label>Свойства</label><textarea id="fArmorProps" rows="2" placeholder="Название и свойства брони"></textarea></div>
+        <div id="armorZonesBox"></div>
+      </div>
+      <div class="panel tex-mind">
+        <h2>Знания культуры</h2>
+        <div id="statsCulture" class="stat-block"></div>
+      </div>
+      <div class="panel tex-mind">
+        <h2>Знания нового мира</h2>
+        <div id="statsNewWorld" class="stat-block"></div>
+      </div>
+      <div class="panel tex-mind">
+        <h2>Знания старого мира</h2>
+        <div id="statsOldWorld" class="stat-block"></div>
+      </div>
+      <div class="panel">
+        <h2>Достоинства и недостатки</h2>
+        <div id="advFlawBox"></div>
+      </div>
+      <div class="panel tex-soul">
+        <h2>Религия</h2>
+        <div id="religionBox" class="muted">—</div>
+        <div class="field align-field" style="margin-top:8px; position:relative;"><label>Религия персонажа (впишите сами или выберите)</label>
+          <textarea id="fReligionText" rows="2" placeholder="Впишите религию/веру персонажа"></textarea>
+          <div id="fReligionDropdown" class="align-dropdown"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Способности — во всю ширину, текст в несколько колонок: длинный список не тянется узкой полосой -->
+    <div class="col-12">
+      <div class="panel tex-psi abilities-panel">
+        <div class="flex-between"><h2>Способности</h2><button class="small" onclick="resetAllAbilitySpent()">↺ Сбросить все</button></div>
+        <div id="abilitiesBox"><span class="muted">—</span></div>
+      </div>
+    </div>
+
+    <div class="col-12">
+      <div class="panel">
+        <h2>Инвентарь</h2>
+        <div id="pendingItemRollsBox"></div>
+        <h3>Добавить предмет из каталога книги</h3>
+        <div class="field-row">
+          <div class="field align-field" style="position:relative;"><label>Поколение / Категория</label>
+            <div id="catGenCatField" class="cat-picker-field" tabindex="0">—</div>
+          </div>
+          <div class="field" style="flex:2;"><label>Предмет</label><select id="catItemSelect"></select></div>
+          <div class="field" style="max-width:130px;"><label>&nbsp;</label><button class="small primary" id="btnBuyFromCatalog" style="width:100%;" title="Купить: предмет — в инвентарь, цена — с кредитов (если не хватает, предупредим)">💰 Купить</button></div>
+          <div class="field" style="max-width:130px;"><label>&nbsp;</label><button class="small" id="btnAddFromCatalog" style="width:100%;" title="Добавить без оплаты — находка, подарок, трофей">+ Добавить</button></div>
+        </div>
+        <div id="catItemPreview" class="muted" style="margin-bottom:10px;"></div>
+        <div id="invCapacity" class="muted" style="margin-bottom:8px;"></div>
+        <div class="grid">
+          <div class="col-6">
+            <h3>Вещи на себе / в руках</h3>
+            <div id="invOnBody" class="dropzone" ondragover="onInvDragOver(event)" ondragleave="this.classList.remove('drag-over')" ondrop="onInvDrop(event, 'on_body')"></div>
+            <button class="small" data-inv="on_body">+ Добавить предмет</button>
+          </div>
+          <div class="col-6">
+            <h3>В карманах и подсумках (быстрый доступ)</h3>
+            <div id="invPockets" class="dropzone" ondragover="onInvDragOver(event)" ondragleave="this.classList.remove('drag-over')" ondrop="onInvDrop(event, 'pockets')"></div>
+            <button class="small" data-inv="pockets">+ Добавить предмет</button>
+          </div>
+          <div class="col-8">
+            <h3>Вещи в рюкзаке <span class="muted">(сюда автоматически попадают предметы карьеры/происхождения)</span></h3>
+            <div class="item-line" style="display:flex; align-items:center; gap:8px;">
+              <b>💰 Кредиты:</b>
+              <input type="number" id="fCredits" style="max-width:110px;" title="Сумма всех кредитов, полученных при генерации — можно быстро поменять">
+            </div>
+            <div id="invBackpack" class="dropzone" ondragover="onInvDragOver(event)" ondragleave="this.classList.remove('drag-over')" ondrop="onInvDrop(event, 'backpack')"></div>
+            <button class="small" data-inv="backpack">+ Добавить предмет</button>
+          </div>
+          <div class="col-4">
+            <h3>Крошечные вещи</h3>
+            <div id="invTiny" class="dropzone" ondragover="onInvDragOver(event)" ondragleave="this.classList.remove('drag-over')" ondrop="onInvDrop(event, 'tiny')"></div>
+            <button class="small" data-inv="tiny">+ Добавить предмет</button>
+            <div class="field" style="margin-top:12px;"><label>Огромных вещей (см. стр. 128, формулы в вычитанном тексте нет — впишите вручную)</label>
+              <input type="text" id="fHugeCapacity" placeholder="—">
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 pm-hide">
+      <div class="panel">
+        <h2>Прогрессия архетипа «Авантюрист» и выбранного подтипа</h2>
+        <div id="progressionBox" class="muted">Сгенерируйте персонажа, чтобы увидеть прогрессию.</div>
+      </div>
+    </div>
+
+    <div class="col-12 pm-hide">
+      <div class="panel">
+        <h2>Журнал изменений</h2>
+        <button class="small" id="btnClearHistory" style="float:right; margin-top:-4px;">Очистить журнал</button>
+        <div id="historyBox" class="muted" style="clear:both;">Сгенерируйте персонажа, чтобы начать журнал.</div>
+      </div>
+    </div>
+  </div>
+
+  </div><!-- /sheetTabView -->
+
+  <!-- Игровой стол — см. модуль GameTable в отдельном блоке script в конце файла. Порядок детей
+       .gt-viewport = порядок слоёв: фон/сетка → зоны+рисунки → жетоны → временное → интерфейс. -->
+  <div id="tableTabView" style="display:none;">
+    <!-- Пока открыт стол, шапка и вкладки уезжают вверх (body.table-mode), стол — на весь экран. Эта строка — вне панелей стола. -->
+    <div class="gt-topline">
+      <button type="button" class="gt-back-btn" id="gtBackToSheet" title="Вернуть шапку и вкладки">← К листу персонажа</button>
+      <button type="button" class="tab-btn gt-log-tabbtn" id="gtLogTabBtn" style="display:none;" title="Свернуть лог бросков">📜 Лог</button>
+    </div>
+    <div class="gt-layout">
+    <!-- Лог бросков слева от стола — не копия: сам список #rollLogList переезжает сюда, пока открыт стол (см. GameTable.setVisible) -->
+    <aside class="gt-logdock" id="gtLogDock">
+      <button type="button" class="gt-logdock-toggle" id="gtLogToggle" title="Общий лог бросков — развернуть">📜<span>Лог</span></button>
+      <div class="gt-logdock-body" id="gtLogDockBody"><div class="gt-logdock-title">Общий лог бросков</div></div>
+    </aside>
+    <div class="gt-viewport" id="gtViewport" tabindex="0" aria-label="Игровой стол">
+      <canvas class="gt-canvas" id="gtCanvasBg"></canvas>
+      <canvas class="gt-canvas" id="gtCanvasDraw"></canvas>
+      <div class="gt-token-layer" id="gtTokenLayer"></div>
+      <canvas class="gt-canvas" id="gtCanvasFx"></canvas>
+      <div class="gt-empty-hint" id="gtEmptyHint"></div>
+      <div class="gt-ui gt-bar gt-toolbar" id="gtToolbar"></div>
+      <div class="gt-ui gt-bar gt-subbar" id="gtSubbar"></div>
+      <div class="gt-ui gt-bar gt-zoombar" id="gtZoombar"></div>
+      <div class="gt-ui gt-status" id="gtStatus"></div>
+      <div class="gt-ui gt-infocard" id="gtInfoCard"></div>
+      <div class="gt-ui gt-hint" id="gtHint"></div>
+      <div class="gt-ui gt-toast" id="gtToast"></div>
+      <div class="gt-ui gt-menu" id="gtMenu"></div>
+      <div class="gt-ui gt-popover" id="gtPopover"></div>
+    </div>
+    </div>
+  </div>
+
+  <!-- Саундпад — содержимое рисует модуль Soundboard (отдельный блок script в конце файла) -->
+  <div id="soundTabView" style="display:none;"></div>
+  <!-- Бестиарий — содержимое рисует модуль Bestiary (блок script после игрового стола) -->
+  <div id="bestiaryTabView" style="display:none;"></div>
+  <!-- Редактор карт — содержимое строит модуль MapEditor (блок script перед игровым столом) -->
+  <div id="mapEditorView" style="display:none;"></div>
+
+  <div id="xpTabView" style="display:none;">
+    <div class="panel">
+      <div class="field-row identity-row" style="align-items:center;justify-content:space-between;">
+        <b>Начисление опыта</b>
+        <button class="small" id="btnXpReset" title="Снять все отметки — начать новую игровую встречу (сам опыт персонажей не трогает)">↺ Сбросить чек-лист</button>
+      </div>
+      <div class="muted" style="margin-bottom:10px;">
+        Отмечает Мастер — отметка сразу начисляет опыт ВСЕМ подключённым игрокам, а не только одному;
+        снятая отметка так же сразу отменяет начисление (на случай случайного клика). Игрок видит те же
+        отметки, но поставить/снять их сам не может.
+      </div>
+      <div id="xpChecklistMinor"></div>
+      <div class="field-row identity-row" style="align-items:center;gap:10px;margin-top:20px;border-top:1px dotted var(--ink-soft);padding-top:14px;">
+        <b>Большая пятёрка</b><span class="muted">+2 опыта за пункт (деяния выше — по +1)</span>
+      </div>
+      <div id="xpChecklistMajor"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/*@include scripts/01-ui-dialogs.js*/
+</script>
+<script>
+/*@include scripts/02-main/01-data-model.js*/
+/*@include scripts/02-main/02-engine.js*/
+/*@include scripts/02-main/03-rendering-and-rolls.js*/
+/*@include scripts/02-main/04-roll-links-saves-rumor-items.js*/
+/*@include scripts/02-main/05-armor-weapons-attack.js*/
+/*@include scripts/02-main/06-body-figure-3d.js*/
+/*@include scripts/02-main/07-reroll-and-render.js*/
+/*@include scripts/02-main/08-events.js*/
+/*@include scripts/02-main/09-save-load-sheet-ui.js*/
+/*@include scripts/02-main/10-session-xp.js*/
+/*@include scripts/02-main/11-loot-grants.js*/
+/*@include scripts/02-main/12-room-voice-video.js*/
+/*@include scripts/02-main/13-dice-panel.js*/
+</script>
+<script>
+/*@include scripts/03-map-kit.js*/
+</script>
+
+<script>
+/*@include scripts/04-map-editor.js*/
+</script>
+
+<script>
+/*@include scripts/05-game-table.js*/
+</script>
+<script>
+/*@include scripts/06-bestiary.js*/
+</script>
+<script>
+/*@include scripts/07-soundboard.js*/
+</script>
+
+<script>
+/*@include scripts/08-sheet-masonry.js*/
+</script>
+<script>
+/*@include scripts/09-play-mode.js*/
+</script>
+<script>
+/*@include scripts/10-gm-screen.js*/
+</script>
+<script>
+/*@include scripts/11-pwa.js*/
+</script>
+<script>
+/*@include scripts/12-tips.js*/
+</script>
+<script>
+/*@include scripts/13-gm-advice.js*/
+</script>
+<script>
+/*@include scripts/14-onboarding.js*/
+</script>
+</body>
+</html>

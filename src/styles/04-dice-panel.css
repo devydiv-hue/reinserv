@@ -1,0 +1,256 @@
+  /* ============================================================
+     DicePanel — боковая панель быстрого броска кубов (D4/D6/D12/D20).
+     Визуальный язык: тот же тёмный/вязкий регистр, что у .roll-overlay/.d20-face (var(--ink) грани,
+     var(--stamp) как единственный акцентный отклик) — see .d20-face/.hex above для сравнения. Гексы
+     здесь — ТА ЖЕ равносторонняя фигура, что и .hex, просто повёрнутая на 90° (плоские верх/низ,
+     остриём влево-вправо: 48×42/34×30 — это H×2/√3≈W, тот же расчёт, что у существующего .hex,
+     только транспонированный) — раскладка группами-колонками, а не строками, ровно тем же приёмом,
+     что и .hex-field/.hex-line (переменная длина полосы + центрирование + отрицательный нахлёст),
+     просто с колонками вместо строк, потому что фигура развёрнута.
+     ============================================================ */
+  :root{
+    --dice-hex-w: 66px; --dice-hex-h: 58px;
+    --dice-gesture-ms: 1000ms;
+    --dice-anim-ms: 320ms;
+  }
+  @media (max-width:560px){ :root{ --dice-hex-w: 46px; --dice-hex-h: 40px; } }
+
+  /* По умолчанию слева — справа живёт комната голоса/видео. Пользователь может перенести каплю к любому краю
+     (см. DiceDock в DicePanel): left/top и transform (поворот к краю + «жидкое» вытягивание) задаёт JS. */
+  #diceFab{
+    position:fixed; left:29px; right:auto; top:62%; transform:translate(-50%,-50%);
+    transition:none; /* движение и поворот — пружина в JS; общий переход transform у button здесь только мешал бы */
+    width:58px; height:66px; z-index:130; border:none; padding:0; background:none; cursor:pointer;
+    display:flex; align-items:center; justify-content:flex-start;
+    -webkit-tap-highlight-color:transparent;
+  }
+  #diceFab .blob{
+    position:relative; width:52px; height:60px; margin-left:-14px;
+    background:
+      radial-gradient(circle at 32% 26%, rgba(255,255,255,.22), transparent 42%),
+      radial-gradient(circle at 70% 78%, rgba(0,0,0,.5), transparent 60%),
+      linear-gradient(155deg, #26202c 0%, #100c14 55%, #050408 100%);
+    box-shadow: -6px 8px 22px -6px rgba(0,0,0,.85), inset 0 1px 1px rgba(255,255,255,.12), inset 0 -6px 14px rgba(0,0,0,.6);
+    border-radius: 62% 38% 55% 45% / 58% 42% 58% 42%;
+    animation: diceBlobIdle 6.5s ease-in-out infinite;
+    transition: border-radius .4s ease, transform .25s cubic-bezier(.3,1.4,.4,1);
+  }
+  #diceFab:hover .blob{ transform:scale(1.06) translateX(-2px); }
+  #diceFab:active .blob{ transform:scale(.94); }
+  @keyframes diceBlobIdle{
+    0%,100%{ border-radius: 62% 38% 55% 45% / 58% 42% 58% 42%; }
+    35%{ border-radius: 48% 52% 62% 38% / 46% 60% 40% 54%; }
+    70%{ border-radius: 58% 42% 40% 60% / 62% 38% 62% 38%; }
+  }
+  #diceFab .blob-icon{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    transform:rotate(var(--dice-unrot, 0deg)); /* значок кубика остаётся ровным, как ни повёрнута капля */
+    color:var(--vellum-muted); opacity:.85; filter:drop-shadow(0 0 3px rgba(255,255,255,.15));
+    pointer-events:none;
+  }
+  #diceFab .blob-icon svg{ width:22px; height:22px; overflow:visible; }
+  #diceFab .blob-sheen{
+    position:absolute; inset:0; border-radius:inherit; overflow:hidden; pointer-events:none;
+  }
+  #diceFab .blob-sheen::after{
+    content:''; position:absolute; top:-30%; left:-60%; width:40%; height:160%;
+    background:linear-gradient(100deg, transparent, rgba(255,255,255,.35), transparent);
+    transform:rotate(12deg); animation:diceBlobSheen 5.5s ease-in-out infinite;
+  }
+  @keyframes diceBlobSheen{ 0%,55%{ left:-60%; } 85%,100%{ left:130%; } }
+  #diceFab.open{ opacity:0; pointer-events:none; transition:opacity .2s; }
+  @media (prefers-reduced-motion: reduce){ #diceFab .blob, #diceFab .blob-sheen::after{ animation:none; } }
+
+  #dicePanel{
+    position:fixed; left:0; right:auto; top:62%; transform:translate(-115%,-50%); opacity:0;
+    width:min(320px, 88vw); max-height:min(560px, 78vh);
+    z-index:131; padding:16px 14px 14px; border-radius:6px 26px 26px 6px;
+    background:
+      radial-gradient(circle at 74% 12%, rgba(156,47,28,.10), transparent 46%),
+      radial-gradient(circle at 20% 90%, rgba(0,0,0,.55), transparent 60%),
+      linear-gradient(200deg, #241e29 0%, #120e16 60%, #060509 100%);
+    box-shadow: 18px 18px 50px -16px rgba(0,0,0,.85), inset 0 1px 0 rgba(255,255,255,.06);
+    transition: transform .5s cubic-bezier(.22,1.12,.3,1), opacity .35s ease;
+    display:flex; flex-direction:column; align-items:center; gap:10px;
+    pointer-events:none;
+  }
+  #dicePanel.open{ transform:translate(0,-50%); opacity:1; pointer-events:auto; }
+  /* У края капли (см. DiceDock в DicePanel): JS ставит left/top и класс края — панель выезжает от этого края,
+     скругления — с противоположной стороны. Пока каплю тянут, открытая панель гаснет (dock-hidden). */
+  #dicePanel.placed{ transform:translate(var(--dp-hx, -115%), var(--dp-hy, 0%)); transform-origin:0 50%; }
+  #dicePanel.placed.open{ transform:none; }
+  #dicePanel.placed.edge-right{ --dp-hx:115%; --dp-hy:0%; border-radius:26px 6px 6px 26px; transform-origin:100% 50%; }
+  #dicePanel.placed.edge-top{ --dp-hx:0%; --dp-hy:-115%; border-radius:6px 6px 26px 26px; transform-origin:50% 0; }
+  #dicePanel.placed.edge-bottom{ --dp-hx:0%; --dp-hy:115%; border-radius:26px 26px 6px 6px; transform-origin:50% 100%; }
+  #dicePanel.dock-hidden{ opacity:0 !important; pointer-events:none !important; }
+  #diceFab.dock-show{ opacity:1 !important; pointer-events:auto !important; }
+  #dicePanel.movable{ cursor:grab; }
+  #dicePanel.movable .dp-hex, #dicePanel.movable button{ cursor:pointer; }
+  body.dice-dock-dragging, body.dice-dock-dragging *{ user-select:none !important; -webkit-user-select:none !important; cursor:grabbing !important; }
+  #dicePanel.placed.open.dock-wiggle{ animation:dpDockWiggle .7s cubic-bezier(.3,1.6,.5,1); }
+  @keyframes dpDockWiggle{ 0%{ transform:scale(1,1); } 25%{ transform:scale(.97,1.05); } 50%{ transform:scale(1.02,.97); } 75%{ transform:scale(.99,1.015); } 100%{ transform:scale(1,1); } }
+  #dicePanel .dp-move-toggle{
+    position:absolute; top:10px; left:38px; width:20px; height:20px; border:none; background:none;
+    padding:0; color:var(--vellum-muted); cursor:pointer; opacity:.6;
+  }
+  #dicePanel .dp-move-toggle svg{ width:100%; height:100%; display:block; }
+  #dicePanel .dp-move-toggle:hover{ opacity:1; color:var(--vellum-bright); }
+  #dicePanel .dp-move-toggle.active{ opacity:1; color:var(--stamp); }
+  @media (prefers-reduced-motion: reduce){ #dicePanel.dock-wiggle{ animation:none; } }
+  #dicePanel .dp-title{
+    font-family:var(--font-display); font-size:11px; letter-spacing:.06em; text-transform:uppercase;
+    color:var(--vellum-muted); text-align:center; min-height:14px;
+  }
+  #dicePanel .dp-close{
+    position:absolute; top:10px; right:12px; width:20px; height:20px; border:none; background:none;
+    color:var(--vellum-muted); cursor:pointer; font-size:15px; line-height:1; opacity:.6;
+  }
+  #dicePanel .dp-close:hover{ opacity:1; color:var(--vellum-bright); }
+  /* Таймер-переключатель "остаться на этом шаге после броска" — тот же визуальный язык, что у
+     dp-close (тот же размер/позиция, зеркально слева, тот же приглушённый цвет в покое/ярче на hover),
+     плюс подсвечивается акцентным var(--stamp), когда включён — тот же цвет, что уже отмечает "активно"
+     по всей панели (жест-прогресс, hover-гексы и т.д.), не новый оттенок. */
+  #dicePanel .dp-pin-stage{
+    position:absolute; top:10px; left:12px; width:20px; height:20px; border:none; background:none;
+    padding:0; color:var(--vellum-muted); cursor:pointer; opacity:.6;
+  }
+  #dicePanel .dp-pin-stage svg{ width:100%; height:100%; display:block; }
+  #dicePanel .dp-pin-stage:hover{ opacity:1; color:var(--vellum-bright); }
+  #dicePanel .dp-pin-stage.active{ opacity:1; color:var(--stamp); }
+  #dicePanel .dp-feedback{
+    font-family:var(--font-display); font-size:13px; color:var(--vellum-bright); text-align:center;
+    min-height:18px;
+  }
+
+  .dp-hex-group{ display:flex; flex-direction:row; align-items:center; justify-content:center; }
+  .dp-hex-col{ display:flex; flex-direction:column; align-items:center; }
+  .dp-hex-col + .dp-hex-col{ margin-left:calc(var(--dice-hex-w) * -0.25); }
+  .dp-hex-col .dp-hex{ margin:0; }
+  .dp-hex-col .dp-hex + .dp-hex{ margin-top:calc(var(--dice-hex-h) * -0.115); }
+
+  .dp-hex{
+    position:relative; width:var(--dice-hex-w); height:var(--dice-hex-h); flex-shrink:0;
+    clip-path:polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+    background:linear-gradient(155deg,#2c2532,#0d0a11 75%);
+    display:flex; align-items:center; justify-content:center; cursor:pointer;
+    transition:transform .15s cubic-bezier(.3,1.4,.4,1), background .15s;
+    overflow:hidden;
+  }
+  .dp-hex:hover, .dp-hex.dp-hover{ transform:scale(1.1); z-index:2; }
+  .dp-hex.dp-chosen{ background:linear-gradient(155deg, var(--stamp), #5c150c 85%); }
+  /* Преимущество/Помеха — цветовой намёк прямо на гексе выбора и потом на бейдже результата: зелёный
+     "лучше", красный "хуже" — понятно без чтения подписи. "Чистый" остаётся нейтральным. */
+  .dp-hex.dp-tint-green{ background:linear-gradient(155deg,#1f4a2e,#0a1f13 80%); }
+  .dp-hex.dp-tint-green:hover, .dp-hex.dp-tint-green.dp-gesturing{ background:linear-gradient(155deg,#2c6a41,#0a1f13 80%); }
+  .dp-hex.dp-tint-red{ background:linear-gradient(155deg,#5c1f1a,#220a08 80%); }
+  .dp-hex.dp-tint-red:hover, .dp-hex.dp-tint-red.dp-gesturing{ background:linear-gradient(155deg,#8a2a20,#220a08 80%); }
+  /* ---- Мини-модели кубиков внутри гекса: та же техника matrix3d-граней, что у существующего D20
+     (.d20-face выше), в маленьком фиксированном ракурсе без нумерации граней — просто объёмная
+     иконка. Один локальный div на форму 110×110 (как у .d20-face), уменьшенный transform:scale()
+     в JS (buildDieIconEl) — тем самым геометрия (facesFromNormals) не пересчитывается под разные
+     размеры, что на десктопе, что на мобильном. Размер иконки увеличен, а свет граней (JS,
+     DIE_ICON_LIGHT) осветлён — на маленьком размере тёмные грани на тёмном фоне гекса сливались
+     в почти нечитаемое пятно.
+     display:flex центрирование здесь обязательно: .dp-die-spin — фиксированный блок 110×110,
+     а контейнер (82% гекса, позже — 100% крупной модели броска) почти всегда другого размера;
+     без центрирования flex-ом transform:scale() на спине сжимает/крутит модель вокруг ЕЁ
+     собственного центра (55,55 в локальных координатах), а не центра контейнера — модель уезжает
+     в угол, обрезается clip-path'ом гекса, и снаружи выглядит как «дыры»/пусто на месте кубика
+     (это и была причина невидимых иконок, а не только контраст цвета). ---- */
+  .dp-hex .dp-die-icon{ width:82%; height:82%; position:relative; z-index:1; perspective:480px; overflow:visible; pointer-events:none; display:flex; align-items:center; justify-content:center; }
+  .dp-die-spin{ width:110px; height:110px; position:relative; transform-style:preserve-3d; flex-shrink:0; }
+  /* Металлический кант по краю грани: border/box-shadow рисуются по прямоугольнику САМОГО div-а —
+     а видимая фигура (треугольник/квадрат/пятиугольник) вписана в него clip-path'ом С ОТСТУПОМ, её
+     реальные диагональные края НЕ совпадают со сторонами прямоугольника, поэтому обычная рамка их не
+     повторяла (было почти не видно нигде, кроме случайных точек касания). drop-shadow — единственный
+     CSS-фильтр, который считается по уже вырезанному (пост-clip-path) силуэту, а не по прямоугольнику
+     до вырезания, поэтому только он даёт кант точно по видимому краю грани при любой её форме. Два
+     разнонаправленных drop-shadow (тёмный + светлый) — классический приём имитации металлической фаски
+     (свет с одной стороны грани, тень с другой), направление намеренно в экранных, а не объектных
+     координатах — не физически точно при повороте кости, но не должно быть точным, это стилизация.
+     У крупной модели броска (buildRolledDieModel) inline filter на грани (яркость по свету, JS)
+     полностью перекрывает этот CSS-filter — там кант продублирован в самой JS-строке filter. */
+  .dp-die-face{ position:absolute; left:50%; top:50%; width:110px; height:110px; margin:-55px 0 0 -55px; backface-visibility:hidden;
+    filter:drop-shadow(.8px .8px .5px rgba(0,0,0,.6)) drop-shadow(-.8px -.8px .5px rgba(255,255,255,.55)); }
+  .dp-die-face.shape-tri{ clip-path:polygon(50% 0%, 93.3% 75%, 6.7% 75%); }
+  .dp-die-face.shape-square{ clip-path:polygon(10% 10%,90% 10%,90% 90%,10% 90%); }
+  .dp-die-face.shape-penta{ clip-path:polygon(50% 0%, 97.55% 34.55%, 79.4% 90.45%, 20.6% 90.45%, 2.45% 34.55%); }
+  /* Цифра X (в dX) на экране "Выберите куб" — ребёнок КОНКРЕТНОЙ грани (той, что при фиксированном
+     ракурсе иконки развёрнута к зрителю больше остальных, см. frontFacingIconFace в JS), а не отдельный
+     плоский оверлей поверх всей иконки — поэтому наследует 3D-поворот этой грани и лежит именно НА
+     ней, а не висит поверх модели независимо от её поворота. */
+  .dp-die-face-number{
+    position:absolute; inset:0; z-index:1; display:flex; align-items:center; justify-content:center;
+    font-family:var(--font-display); font-weight:700; font-size:40px; color:var(--vellum-bright);
+    text-shadow:0 1px 3px rgba(0,0,0,.9), 0 0 6px rgba(0,0,0,.7); pointer-events:none;
+  }
+  /* Крупная модель СОВЕРШИВШЕГОСЯ броска (launchRollAnimation, buildRolledDieModel) — те же грани,
+     но пронумерованные и довёрнутые результатной гранью к зрителю, тем же приёмом, что .d20-face/
+     .d20-body у броска характеристики (см. executeRoll выше): .dp-die-body сидит внутри .dp-die-spin
+     тем же inset:0-трюком, что .d20-body внутри .d20-spin, поэтому центрирование граней (left:50%/
+     margin:-55px) работает идентично уже проверенной модели. */
+  .dp-die-body{ width:100%; height:100%; position:absolute; inset:0; transform-style:preserve-3d; }
+  /* Ржавый металл — тот же ободок-палитра, что у брони фигуры персонажа (FIG3_TONE_HEX.armor/armorDk
+     в WebGL-рендере выше по файлу, #7c5a34/#4a3420) — не совпадение цвета "на глаз", а прямое
+     переиспользование той же темы для консистентности по всему листу. Теперь это только ОБОДОК
+     (.dp-die-face — внешняя, большая по площади фигура), у него больше нет ни текста, ни центрирования
+     — то и другое переехало во вложенную эмаль (.dp-die-enamel) ниже. */
+  .dp-die-face.numbered{
+    background:linear-gradient(135deg, #9a7448 0%, #6b4a2e 45%, #4a3420 75%, #7c5a34 100%);
+  }
+  /* Эмаль — вложенная фигура ВНУТРИ ободка, чуть меньше него (тот же контур, уменьшенный к центру —
+     см. .shape-tri/.shape-square/.shape-penta НИЖЕ, они одноимённые с ободковыми, но это ДРУГОЙ
+     селектор, .dp-die-enamel, конфликта нет). Толщина видимого металла между двумя контурами и даёт
+     "ободок вокруг эмали", который просили — без него, одним clip-path, эту фигуру из плоских div-ов
+     получить нельзя (border/box-shadow не повторяют вырезанный контур, см. комментарий у .dp-die-face
+     про то же самое чуть выше). Раньше здесь был винный градиент на var(--stamp) — по просьбе игрока
+     заменён на чёрный (тоже градиент, не плоская заливка — совсем плоский чёрный на затенённых гранях
+     слился бы с металлическим ободком по контрасту хуже, чем едва заметный перепад). */
+  .dp-die-enamel{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    background:linear-gradient(160deg, #1a1a1a 0%, #050505 55%, #000 100%);
+    color:#d9b45c; font-family:var(--font-display); font-weight:700; font-size:30px;
+  }
+  .dp-die-enamel.shape-tri{ clip-path:polygon(50% 10%, 84.64% 70%, 15.36% 70%); }
+  .dp-die-enamel.shape-square{ clip-path:polygon(18% 18%,82% 18%,82% 82%,18% 82%); }
+  .dp-die-enamel.shape-penta{ clip-path:polygon(50% 10%, 88.04% 37.64%, 73.52% 82.36%, 26.48% 82.36%, 11.96% 37.64%); }
+  /* Преимущество/помеха — тонирует именно эмаль (не металлический ободок: тот остаётся металлом при
+     любом исходе броска), тот же смысл, что и раньше. */
+  .dp-flying-die.dp-tint-green .dp-die-face.is-result .dp-die-enamel{ background:linear-gradient(160deg, #1f4a30 0%, #2c6a41 55%, #163723 100%); }
+  .dp-flying-die.dp-tint-red .dp-die-face.is-result .dp-die-enamel{ background:linear-gradient(160deg, #5c150c 0%, #8a2a20 55%, #3d0f09 100%); }
+  .dp-hex .dp-hex-label{
+    font-family:var(--font-display); font-weight:700; color:var(--vellum-bright); font-size:18px; position:relative; z-index:1;
+  }
+  .dp-hex .dp-hex-label.dp-hex-label-word{ font-size:14px; letter-spacing:.02em; }
+  @media (max-width:560px){
+    .dp-hex .dp-hex-label{ font-size:13px; }
+    .dp-hex .dp-hex-label.dp-hex-label-word{ font-size:11px; }
+    .dp-die-face-number{ font-size:30px; }
+  }
+  /* Блик при наведении — короткий, не зацикленный (см. requirement 5): проходит один раз при
+     добавлении класса .dp-shine (JS вешает и снимает класс после конца анимации), заново — только
+     при следующем наведении. Не постоянный CSS glow. */
+  .dp-hex::after{
+    content:''; position:absolute; inset:0; z-index:2; pointer-events:none;
+    background:linear-gradient(105deg, transparent 35%, rgba(255,255,255,.55) 48%, transparent 62%);
+    transform:translateX(-140%); opacity:0;
+  }
+  .dp-hex.dp-shine::after{ animation:dpHexShine .55s ease-out; }
+  @keyframes dpHexShine{ 0%{ transform:translateX(-140%); opacity:0; } 15%{ opacity:1; } 100%{ transform:translateX(140%); opacity:0; } }
+  /* Прогресс жестового подтверждения — заполнение по кругу через conic-gradient маску поверх гекса,
+     без отдельного countdown-текста (requirement 13). */
+  .dp-hex .dp-progress{
+    position:absolute; inset:0; z-index:3; pointer-events:none; border-radius:1px;
+    background:conic-gradient(var(--stamp) calc(var(--dp-p,0) * 360deg), transparent 0);
+    -webkit-mask:radial-gradient(circle, transparent 58%, #000 60%);
+    mask:radial-gradient(circle, transparent 58%, #000 60%);
+    opacity:0;
+  }
+  .dp-hex.dp-gesturing .dp-progress{ opacity:1; }
+  .dp-hex.dp-confirmed{ animation:dpHexConfirm .32s ease-out; }
+  @keyframes dpHexConfirm{ 0%{ transform:scale(1); } 40%{ transform:scale(1.28); } 100%{ transform:scale(1); } }
+  .dp-hex.dp-back svg{ width:46%; height:46%; opacity:.85; position:relative; z-index:1; }
+
+  .dp-level{ display:flex; flex-direction:column; align-items:center; gap:10px; }
+  #dicePanel.closing{ transition: transform .38s cubic-bezier(.5,-0.2,.6,.3), opacity .3s ease .08s; }
+

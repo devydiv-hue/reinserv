@@ -1,0 +1,63 @@
+  /* ============================================================
+     ЛИЧНОЕ ДЕЛО РЕИНКАРНАТА — design concept
+     A soul's paperwork, filed and re-filed across every death: pale
+     vellum case-pages held in the dark between lives. The void is the
+     frame; the vellum is where you read. One ritual accent (the
+     blood-oxide stamp) marks what matters — primary actions, the level
+     seal, anything pending judgement. Everything you actually read
+     keeps the same high-contrast ink-on-paper it always had.
+     ============================================================ */
+  :root{
+    --void: #120d16;         /* the dark between lives — page background */
+    --void-deep: #09070c;    /* deepest recess — scrollbar track, vignette edge */
+    --paper: #e2d3ac;        /* recessed vellum — inputs, chips, dials */
+    --card: #efe6cc;         /* case-page vellum — panel fill */
+    --ink: #1c1712;          /* primary text, on vellum */
+    --ink-soft: #5c5240;     /* secondary text, on vellum */
+    --line: #1c1712;
+    --stamp: #9c2f1c;        /* the one ritual accent — blood-oxide stamp ink */
+    --stamp-bg: #f4e1d3;
+    --vellum-bright: #f6ecd4; /* lit text on the void — topbar title, footer */
+    --vellum-muted: #b7a688;  /* dim text on the void — subtitle, footer body */
+    --font: 'Roboto Condensed', 'Arial Narrow', Arial, sans-serif;
+    --font-display: 'Cinzel', 'Roboto Condensed', serif;
+  }
+  *{box-sizing:border-box;}
+  html{ scrollbar-color: var(--ink-soft) transparent; scrollbar-width: thin; }
+  ::-webkit-scrollbar{ width:10px; height:10px; }
+  ::-webkit-scrollbar-track{ background: transparent; }
+  ::-webkit-scrollbar-thumb{ background: var(--ink-soft); border-radius:999px; }
+  ::-webkit-scrollbar-thumb:hover{ background: var(--stamp); }
+  ::selection{ background: var(--stamp); color: var(--vellum-bright); }
+  body{
+    background:
+      radial-gradient(ellipse 900px 460px at 18% 0%, rgba(156,47,28,.16), transparent 62%),
+      repeating-radial-gradient(circle at 96% 4%, transparent 0 38px, rgba(156,47,28,.05) 39px 40px, transparent 41px 74px),
+      radial-gradient(ellipse 1400px 900px at 50% 15%, #1c1420, transparent 65%),
+      var(--void);
+    color: var(--ink);
+    font-family: var(--font);
+    margin:0;
+    padding: 28px;
+    line-height:1.4;
+    position:relative;
+  }
+  body::after{ /* fine paper/static grain, purely atmospheric — never intercepts input */
+    content:''; position:fixed; inset:0; pointer-events:none; z-index:0; opacity:.05; mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  .wrap{max-width:1180px; margin:0 auto; position:relative; z-index:1;}
+  h1,h2,h3{ font-family: var(--font); font-weight:700; letter-spacing:.02em; color: var(--ink); margin:0 0 8px;}
+  h1{
+    font-family: var(--font-display); font-size:30px; font-weight:600; text-transform:uppercase;
+    letter-spacing:.07em; color: var(--vellum-bright); border-bottom:none; padding-bottom:0;
+    text-shadow: 0 0 22px rgba(156,47,28,.45), 0 2px 0 rgba(0,0,0,.5);
+  }
+  h2{
+    position:absolute; top:-15px; left:18px; margin:0;
+    background:var(--card); border:2px solid var(--ink); border-radius:999px;
+    padding:3px 16px; font-size:13px; text-transform:uppercase; letter-spacing:.03em;
+    box-shadow: 0 3px 0 rgba(0,0,0,.18);
+  }
+  h3{font-size:12.5px; color:var(--ink); text-transform:uppercase; margin:10px 0 6px; padding-bottom:3px; border-bottom:2px solid var(--ink); display:inline-block;}
+
