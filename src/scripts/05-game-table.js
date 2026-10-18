@@ -502,6 +502,7 @@ const GameTable = (function(){
       }
       case 'gt-vitals': if(fromGm(msg)){ remoteVitals = msg.vitals && typeof msg.vitals==='object' ? msg.vitals : {}; renderTokens(); } break;
       case 'gt-ping': case 'gt-pointer': case 'gt-drag': handleTransient(msg); break;
+      case 'gt-rx': case 'gt-rxcfg': case 'gt-rxreq': if(typeof Reactions!=='undefined') Reactions.handle(msg, fromGm(msg)); break; // реакции на жетонах
       case 'gt-attack': { // игрок прислал бросок атаки — считает Мастер (см. resolveAttack)
         if(role()!=='gm' || !from || !msg.req || typeof msg.req!=='object') return;
         const res = resolveAttack(msg.req, from);
@@ -1606,6 +1607,7 @@ const GameTable = (function(){
       items.push({id:'size', run:(size)=>act({c:'token-update', id:t.id, patch:{size}}),
         html:`<div class="gt-menu-sizes">${Object.keys(SIZE_CELLS).map(s=>`<button type="button" data-size="${s}" class="${t.size===s?'active':''}">${SIZE_LABELS[s].split(' ')[0]}</button>`).join('')}</div>`});
       if(t.kind==='gm') items.push({id:'hide', label:t.hidden ? 'Показать игрокам' : 'Скрыть от игроков', run:()=>act({c:'token-update', id:t.id, patch:{hidden:!t.hidden}})});
+      if(typeof Reactions!=='undefined' && Reactions.manualAllowed(t)) items.push({id:'rx', label:'🎞 Реакция…', run:()=>{ const r = viewport.getBoundingClientRect(); Reactions.pickForToken(t.id, r.left + p.x, r.top + p.y); }});
       items.push('-', {id:'del', label: ids.length>1 ? `Удалить (${ids.length})` : 'Удалить', danger:true, run:()=>deleteTokens(ids)});
       openMenu(p, name, items);
       return;
@@ -1615,7 +1617,7 @@ const GameTable = (function(){
         {id:'sel', label:'Выбрать', run:()=>setSelection([t.id])},
         {id:'move', label:'Переместить', run:()=>startPlacing([t.id])},
         {id:'sheet', label:'Открыть персонажа', run:()=>{ toggleMainTab('sheet'); const el = document.getElementById('hpValue'); if(el) el.scrollIntoView({block:'center', behavior:'smooth'}); }}
-      ]));
+      ].concat(typeof Reactions!=='undefined' && Reactions.manualAllowed(t) ? [{id:'rx', label:'🎞 Реакция…', run:()=>{ const r = viewport.getBoundingClientRect(); Reactions.pickForToken(t.id, r.left + p.x, r.top + p.y); }}] : [])));
     }
   }
   function openFieldMenu(w, p){
@@ -1937,7 +1939,7 @@ const GameTable = (function(){
     }
     if(viewport) renderStatus();
   }
-  function onPlayerHello(id){ sendSnapshot(id); sendMsg({type:'gt-vitals', vitals:computeVitals()}, id); renderStatus(); }
+  function onPlayerHello(id){ sendSnapshot(id); sendMsg({type:'gt-vitals', vitals:computeVitals()}, id); renderStatus(); if(typeof Reactions!=='undefined') Reactions.onPlayerHello(id); }
   function onGmHello(){ lastSnapshotRequest = 0; requestSnapshot(); }
   function onPlayerSheet(){ renderTokens(); broadcastVitals(); }
   function onPeerLeft(id){
@@ -2027,7 +2029,7 @@ const GameTable = (function(){
     });
     return {max:refl + 10 - 6 + mod, mode:adv>dis ? 'advantage' : dis>adv ? 'disadvantage' : 'plain', notes, hints};
   }
-  function rollInitiative(c, ids, title){
+  function rollInitiative(c, ids, title, rxDelay){
     const list = []; let hiddenN = 0;
     ids.forEach(id=>{
       const t = authState.tokens[id], q = c.parts[id]; if(!t || !q) return;
@@ -2043,6 +2045,7 @@ const GameTable = (function(){
       if(t.hidden) hiddenN++; else list.push(e);
     });
     if(list.length || hiddenN) recordAndShareQuickRoll({initiative:true, title:title + (hiddenN ? ` (+ скрытых участников: ${hiddenN})` : ''), list});
+    if(typeof Reactions!=='undefined') Reactions.trigger('init_fail', ids.filter(id=>c.parts[id] && c.parts[id].noAct), rxDelay || 0);
   }
   function openCombatSetup(btn){
     const r = btn.getBoundingClientRect(), vr = viewport.getBoundingClientRect(), p = {x:r.left - vr.left, y:r.bottom - vr.top + 2};
@@ -2065,7 +2068,8 @@ const GameTable = (function(){
       let first = String(fd.get('first')); if(used.indexOf(first)<0) first = used[0];
       const order = [first].concat(combatSides().map(x=>x.id).filter(id=>id!==first && used.indexOf(id)>=0));
       const c = {active:true, round:1, turn:0, scene:1, surprise:fd.get('surprise')==='on' ? first : '', sides:combatSides().filter(x=>used.indexOf(x.id)>=0), order, parts};
-      rollInitiative(c, Object.keys(parts), 'Инициатива — начало боя');
+      if(typeof Reactions!=='undefined') Reactions.trigger('combat_start', Object.keys(parts));
+      rollInitiative(c, Object.keys(parts), 'Инициатива — начало боя', typeof Reactions!=='undefined' ? (Reactions.config.dur*1000 + 300) : 0);
       combatCollapsed = false; combatHints = roundHints(c, 'start');
       setCombat(c); renderToolbar();
       if(typeof GmAdvice!=='undefined') GmAdvice.event('combat-start');
@@ -2080,7 +2084,8 @@ const GameTable = (function(){
   }
   function combatNext(){
     const c = clone(st().combat); if(!c) return;
-    if(c.turn + 1 < c.order.length){ c.turn++; setCombat(c); return; }
+    const rxTurn = (cc)=>{ if(typeof Reactions!=='undefined') Reactions.trigger('turn', Object.keys(cc.parts).filter(id=>cc.parts[id].side===cc.order[cc.turn])); };
+    if(c.turn + 1 < c.order.length){ c.turn++; setCombat(c); rxTurn(c); return; }
     const endHints = roundHints(c, 'end'), ended = [], burns = [];
     c.round++; c.turn = 0;
     Object.keys(c.parts).forEach(id=>{
@@ -2098,6 +2103,7 @@ const GameTable = (function(){
     if(startHints) items.push(...startHints.items);
     combatHints = items.length ? {title:`Круг ${c.round}`, items} : null;
     setCombat(c);
+    rxTurn(c);
     if((c.round - 1) % 3 === 0) if(typeof GmAdvice!=='undefined') GmAdvice.event('combat-round'); // каждый третий круг: 4-й, 7-й…
     if(ended.length) toast('Закончились эффекты: ' + ended.join(', '));
   }
@@ -2500,6 +2506,7 @@ const GameTable = (function(){
     recordAndShareQuickRoll({ mapAttack:true, attackId, attacker:attackerName, target:targetName, weaponName:w.name, fireMode, rolls, roll, mode,
                               success:ev.success, category:ev.category, jammed, unprotected, slow:!!w.slow, hits, total });
     if(att.kind==='player' && !ev.success) if(typeof GmAdvice!=='undefined') GmAdvice.event('miss'); // промах атаки игрока
+    if(typeof Reactions!=='undefined') Reactions.trigger(roll===12 ? 'crit' : (roll===13 && !ev.success) ? 'fumble' : ev.success ? 'hit' : 'miss', att.id);
     return {ok:true, success:ev.success, jammed, speedUsed};
   }
   function undoAttack(attackId, asReroll){
@@ -2831,6 +2838,8 @@ const GameTable = (function(){
   }
 
   return { init, setVisible, refreshRole, handleMessage, onPlayerHello, onGmHello, onPlayerSheet, onPeerLeft, onLocalCharacterChanged,
+           get layerEl(){ return layer || null; }, tokenWorld(id){ const t = tok(id); if(!t || !tokenVisibleHere(t) || !layer) return null; const p = displayPos(t); return {x:p.x*CELL, y:p.y*CELL, d:SIZE_CELLS[t.size]*CELL}; },
+           cellPx:CELL, netRole:()=>role(), sheetOf:(t)=>t && t.kind==='player' ? attackerSheet(t) : null, selectedIds:()=>[...selected], ownTokenId:()=>{ const t = ownToken(); return t ? t.id : null; },
            enterSandbox, exitSandbox, inSandbox:()=>sandbox ? sandbox.kind : null, sandboxDemo, sandboxCombat, captureScene, applyScene, focusOwner,
            submitMapAttack, undoAttack, canUndoAttack, setScene, focusScene, redraw:()=>requestRender({bg:true, draw:true, fx:true}),
            placeToken, creatureAttack, getToken:(id)=>tok(id), vitalsOf:(t)=>vitalsFor(t), updateToken:(id, patch)=>act({c:'token-update', id, patch}),

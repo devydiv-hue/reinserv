@@ -39,7 +39,7 @@ const GmScreen = (function(){
       <button type="button" class="gs-dock-btn gs-move" aria-pressed="false" aria-label="Перемещать экран Мастера по краям экрана">${MOVE_ICON}</button>
       <button type="button" class="gs-dock-btn gs-pin" aria-pressed="true" aria-label="Булавка: капли на месте или медленно ползут по краям экрана">${PIN_ICON}</button>
       <div class="gs-title">Экран Мастера</div>
-      <div class="gs-tabs"><button type="button" data-tab="players">Игроки</button><button type="button" data-tab="scenes">Сцены</button><button type="button" data-tab="notes">Заметки</button></div>
+      <div class="gs-tabs"><button type="button" data-tab="players">Игроки</button><button type="button" data-tab="scenes">Сцены</button><button type="button" data-tab="notes">Заметки</button><button type="button" data-tab="reactions">Реакции</button></div>
       <div class="gs-body"></div>`;
     document.body.appendChild(panel);
     body = panel.querySelector('.gs-body');
@@ -88,6 +88,7 @@ const GmScreen = (function(){
     panel.querySelectorAll('.gs-tabs [data-tab]').forEach(b=>b.classList.toggle('on', b.dataset.tab===prefs.tab));
     if(prefs.tab==='players') body.innerHTML = playersHtml();
     else if(prefs.tab==='scenes') body.innerHTML = scenesHtml();
+    else if(prefs.tab==='reactions'){ body.innerHTML = '<div class="rx-cfg"></div>'; if(typeof Reactions!=='undefined') Reactions.renderConfig(body.firstChild); }
     else renderNotes();
   }
 

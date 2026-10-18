@@ -506,6 +506,8 @@ function recordAndShareRoll(statKey, mod, roll, max, success, category, mode, ro
     mode: mode||'plain', rolls: rolls||[roll]
   };
   addRollLogEntry(entry);
+  if(statKey!=='map_attack' && (roll===12 || (roll===13 && !success)) && typeof Reactions!=='undefined') // реакция «Крит!» / «Провал!» над бросившим
+    Reactions.rollEvent(roll===12 ? 'crit' : 'fumble', statKey==='creature_roll' && _creatureRollCtx ? _creatureRollCtx.tokId : null);
   if(statKey==='creature_roll' && !(_creatureRollCtx && _creatureRollCtx.pub)) return; // бросок существа — только в своём логе Мастера
   if(typeof Onboarding!=='undefined' && Onboarding.busy()) return; // учебный бросок — другим участникам не уходит
   if(session.role){
@@ -526,6 +528,8 @@ function recordAndShareQuickRoll(entry){
   entry.player = session.ownName || document.getElementById('fName').value || 'Аноним';
   entry.kind = 'quick';
   addRollLogEntry(entry);
+  if(entry.diceType==='d20' && entry.max!=null && (entry.roll===12 || (entry.roll===13 && entry.success===false)) && typeof Reactions!=='undefined')
+    Reactions.rollEvent(entry.roll===12 ? 'crit' : 'fumble', null);
   if(typeof Onboarding!=='undefined' && Onboarding.busy()) return entry; // учебный бросок — другим участникам не уходит
   if(session.role){
     const wsOpen = !!(session.ws && session.ws.readyState===WebSocket.OPEN);

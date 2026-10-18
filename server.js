@@ -183,6 +183,55 @@ function serveAsset(name, res) {
   });
 }
 
+// ---- Реакции (гифки над жетонами): свои анимации Мастера (POST /reaction-upload, заголовок X-Reaction-Id),
+// раздаются по ссылке /user-reactions/<id>.<ext>. Имена случайные и не перезаписываются — кэш браузера на неделю.
+const USER_REACTION_DIR = path.join(DIR, 'user-reactions');
+const MAX_REACTION_BYTES = 3 * 1024 * 1024;
+const REACTION_TYPES = { 'image/gif': 'gif', 'image/webp': 'webp', 'image/png': 'png', 'video/mp4': 'mp4', 'video/webm': 'webm' };
+const REACTION_FILE_RE = /^[a-z0-9]{8,40}\.(gif|webp|png|mp4|webm)$/;
+const REACTION_MIME = { gif: 'image/gif', webp: 'image/webp', png: 'image/png', mp4: 'video/mp4', webm: 'video/webm' };
+function reactionMagicOk(ext, buf) {
+  if (ext === 'gif') return buf.slice(0, 4).toString() === 'GIF8';
+  if (ext === 'png') return buf.slice(0, 4).toString('hex') === '89504e47';
+  if (ext === 'webp') return buf.slice(0, 4).toString() === 'RIFF' && buf.slice(8, 12).toString() === 'WEBP';
+  if (ext === 'mp4') return buf.slice(4, 8).toString() === 'ftyp';
+  if (ext === 'webm') return buf.slice(0, 4).toString('hex') === '1a45dfa3';
+  return false;
+}
+function handleReactionUpload(req, res) {
+  const reply = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
+  const cid = String(req.headers['x-client-id'] || '');
+  if (!CLIENT_ID_RE.test(cid) || !isVerifiedGm(cid)) { reply(403, { error: 'Загружать реакции может только подключённый Мастер' }); req.resume(); return; }
+  const id = String(req.headers['x-reaction-id'] || ''), ext = REACTION_TYPES[String(req.headers['content-type'] || '').split(';')[0].trim()];
+  if (!/^[a-z0-9]{8,40}$/.test(id) || !ext) { reply(400, { error: 'Нужна анимация GIF, WebP, PNG или ролик MP4/WebM' }); req.resume(); return; }
+  if (Number(req.headers['content-length'] || 0) > MAX_REACTION_BYTES) { reply(413, { error: 'Файл больше 3 МБ' }); req.resume(); return; }
+  const chunks = []; let size = 0, aborted = false;
+  req.on('data', c => { if (aborted) return; size += c.length; if (size > MAX_REACTION_BYTES) { aborted = true; reply(413, { error: 'Файл больше 3 МБ' }); req.destroy(); return; } chunks.push(c); });
+  req.on('end', () => {
+    if (aborted) return;
+    const buf = Buffer.concat(chunks);
+    if (!reactionMagicOk(ext, buf)) { reply(400, { error: 'Содержимое не похоже на анимацию или ролик' }); return; }
+    const name = id + '.' + ext;
+    fs.mkdir(USER_REACTION_DIR, { recursive: true }, (e1) => {
+      if (e1) { reply(500, { error: 'Не удалось создать папку' }); return; }
+      fs.writeFile(path.join(USER_REACTION_DIR, '.gitignore'), '*\n', () => {});
+      fs.writeFile(path.join(USER_REACTION_DIR, name), buf, (e2) => {
+        if (e2) { reply(500, { error: 'Не удалось сохранить файл' }); return; }
+        console.log('[Server] Реакция загружена', name, size, 'байт от', cid);
+        reply(200, { url: '/user-reactions/' + name });
+      });
+    });
+  });
+}
+function serveReaction(name, res) {
+  if (!REACTION_FILE_RE.test(name)) { res.writeHead(404); res.end(); return; }
+  fs.readFile(path.join(USER_REACTION_DIR, name), (err, data) => {
+    if (err) { res.writeHead(404); res.end(); return; }
+    res.writeHead(200, { 'Content-Type': REACTION_MIME[name.split('.').pop()], 'Cache-Control': 'public, max-age=604800, immutable', 'X-Content-Type-Options': 'nosniff' });
+    res.end(data);
+  });
+}
+
 // ---- PWA (установка на телефон/ПК как приложение, работа без сети): файлы из папки pwa/ ----
 const PWA_DIR = path.join(DIR, 'pwa');
 function servePwa(urlPath, res) {
@@ -205,6 +254,8 @@ const httpServer = http.createServer((req, res) => {
   if (urlPath.indexOf('/user-maps/') === 0) { serveMap(urlPath.slice(11), res); return; }
   if (req.method === 'POST' && urlPath === '/asset-upload') { handleAssetUpload(req, res); return; }
   if (urlPath.indexOf('/user-assets/') === 0) { serveAsset(urlPath.slice(13), res); return; }
+  if (req.method === 'POST' && urlPath === '/reaction-upload') { handleReactionUpload(req, res); return; }
+  if (urlPath.indexOf('/user-reactions/') === 0) { serveReaction(urlPath.slice(16), res); return; }
   if (urlPath.indexOf('/user-sounds/') === 0) { serveSound(USER_SOUND_DIR, urlPath.slice(13), res); return; }
   if (urlPath.indexOf('/assets/sounds/') === 0) { serveSound(ASSET_SOUND_DIR, urlPath.slice(15), res); return; }
   // PWA: манифест, сервис-воркер (обязательно из корня — тогда он обслуживает всё приложение) и иконки из папки pwa/

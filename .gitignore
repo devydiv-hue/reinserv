@@ -17,3 +17,6 @@ user-sounds/
 
 # Личный токен ngrok — читается start-ngrok.bat, в репозиторий не попадает.
 ngrok-authtoken.txt
+
+# Свои реакции Мастера (гифки на жетонах), загруженные на сервер.
+user-reactions/

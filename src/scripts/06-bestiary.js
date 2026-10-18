@@ -1193,7 +1193,8 @@ const Bestiary = (function(){
     const s = e.target.closest && e.target.closest('.bst-roll'); if(!s) return;
     e.preventDefault(); e.stopPropagation();
     const card = s.closest('[data-who]'), who = card ? card.dataset.who : '';
-    setCreatureRollCtx({label:(who ? who + ' · ' : '') + s.dataset.label, base:+s.dataset.max, pub:!!prefs.publicRolls});
+    const tokCard = s.closest('[data-tok]');
+    setCreatureRollCtx({label:(who ? who + ' · ' : '') + s.dataset.label, base:+s.dataset.max, pub:!!prefs.publicRolls, tokId:tokCard ? tokCard.dataset.tok : null});
     openRollPicker('creature_roll', e.clientX, e.clientY, 0);
   }, true);
 
