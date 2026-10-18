@@ -99,7 +99,8 @@ const GmScreen = (function(){
       return `<div class="gs-empty">Игроки появятся здесь, когда вы начнёте сессию «Я — Мастер» и они подключатся: ОЗ, пси, удача и состояния всех сразу.
         <div class="gs-row"><button type="button" class="gs-btn" data-a="to-session">К началу сессии</button></div></div>`;
     const ids = Object.keys(session.players || {});
-    if(!ids.length) return '<div class="gs-empty">Сессия идёт, но пока никто не подключился. Дайте игрокам ссылку из окна ngrok.</div>';
+    if(!ids.length) return `<div class="gs-empty">Стол «${esc(typeof currentRoomCode!=='undefined' && currentRoomCode || 'общий')}» открыт, но пока никто не подключился. Отправьте игрокам ссылку на стол.
+        <div class="gs-row"><button type="button" class="gs-btn primary" data-a="copy-link">⧉ Ссылка для игроков</button></div></div>`;
     return `<div class="gs-sub">В сети: ${ids.length}</div>` + ids.map(id=>{
       const p = session.players[id], c = p.character;
       const pname = esc(p.name || 'игрок'), cname = esc((p.extra && p.extra.name) || '');
@@ -252,6 +253,7 @@ const GmScreen = (function(){
       else if(a.dataset.a==='edit' && typeof enterGmEditMode==='function'){ close(); if(typeof toggleMainTab==='function') toggleMainTab('sheet'); enterGmEditMode(id); }
       else if(a.dataset.a==='loot' && typeof openLootDig==='function') openLootDig(id);
       else if(a.dataset.a==='find'){ const gt = GT(); if(gt && gt.focusOwner && !gt.focusOwner(id)) uiToast('Жетона этого игрока на столе нет', {icon:'📍'}); }
+      else if(a.dataset.a==='copy-link'){ const b = document.getElementById('btnCopyRoomLink'); if(b) b.click(); }
       else if(a.dataset.a==='to-session'){ close(); if(typeof toggleMainTab==='function') toggleMainTab('sheet'); const s = document.getElementById('sessionPanel'); if(s) s.scrollIntoView({behavior:'smooth', block:'start'}); }
       setTimeout(render, 50); return; }
     const s = e.target.closest('[data-s]');

@@ -263,7 +263,7 @@ function loadAutosaveIfPresent(){
 // браузера перезаписывали общий ключ друг другу, и после перезагрузки вкладка Мастера могла подняться
 // игроком (и наоборот).
 function saveSessionState(){
-  const v = JSON.stringify({role:session.role, ownName:session.ownName});
+  const v = JSON.stringify({role:session.role, ownName:session.ownName, room:currentRoomCode || ''});
   try{ sessionStorage.setItem(SESSION_STATE_KEY, v); }catch(e){}
   try{ localStorage.setItem(SESSION_STATE_KEY, v); }catch(e){}
 }
@@ -300,6 +300,10 @@ function restoreSessionIfPresent(){
   }catch(e){ return; }
   const state = own || shared;
   if(!state || !state.role) return;
+  // Стол: адрес без кода — вернуться за свой последний стол; адрес другого стола — не подключаться самому
+  const savedRoom = typeof state.room==='string' ? state.room : '';
+  if(!currentRoomCode && savedRoom) setRoomCode(savedRoom);
+  else if(currentRoomCode !== savedRoom){ document.getElementById('sessionOwnName').value = state.ownName || ''; return; }
   document.getElementById('sessionOwnName').value = state.ownName || '';
   if(own){ connectSession(state.role); return; } // перезагрузка своей вкладки — сразу, тем же путём, что кнопки
   otherTabHoldsRole(state.role).then(busy=>{
@@ -582,6 +586,8 @@ function updateSessionStatusUI(){
     // Обрыв связи (не явный выход) — переподключение уже планируется отдельно (см. scheduleReconnect
     // в connectSession), тут только статус на экране, чтобы не выглядело зависшим молча.
     document.getElementById('sessionRoleLabel').textContent = connected ? who : who + ' — переподключение…';
+    document.getElementById('sessionRoomCode').textContent = currentRoomCode ? '«' + currentRoomCode + '»' : 'общий (без кода)';
+    document.getElementById('btnCopyRoomLink').style.display = currentRoomCode ? '' : 'none';
     document.getElementById('sessionPlayersBox').style.display = session.role==='gm' ? 'block' : 'none';
     if(session.role==='gm') renderPlayersList();
   } else {

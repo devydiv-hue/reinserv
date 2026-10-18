@@ -58,7 +58,7 @@ function soundDirSize() {
 function handleSoundUpload(req, res) {
   const reply = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
   const cid = String(req.headers['x-client-id'] || '');
-  if (!CLIENT_ID_RE.test(cid) || !cid.endsWith('-gm') || !clients.has(cid)) { reply(403, { error: 'Загружать звуки может только подключённый Мастер' }); req.resume(); return; }
+  if (!CLIENT_ID_RE.test(cid) || !isVerifiedGm(cid)) { reply(403, { error: 'Загружать звуки может только подключённый Мастер' }); req.resume(); return; }
   const ext = '.' + String(req.headers['x-file-ext'] || '').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 5);
   if (!AUDIO_TYPES[ext]) { reply(415, { error: 'Неподдерживаемый формат (mp3, ogg, wav, m4a, aac, webm, flac)' }); req.resume(); return; }
   const declared = Number(req.headers['content-length'] || 0);
@@ -91,7 +91,7 @@ function handleSoundDelete(req, res) {
   req.resume();
   const reply = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
   const cid = String(req.headers['x-client-id'] || '');
-  if (!CLIENT_ID_RE.test(cid) || !cid.endsWith('-gm') || !clients.has(cid)) { reply(403, { error: 'Удалять может только подключённый Мастер' }); return; }
+  if (!CLIENT_ID_RE.test(cid) || !isVerifiedGm(cid)) { reply(403, { error: 'Удалять может только подключённый Мастер' }); return; }
   const name = String(req.headers['x-file-name'] || '');
   if (!SOUND_NAME_RE.test(name) || !AUDIO_TYPES[path.extname(name).toLowerCase()]) { reply(400, { error: 'Неверное имя файла' }); return; }
   fs.unlink(path.join(USER_SOUND_DIR, name), (err) => {
@@ -111,7 +111,7 @@ const MAP_FILE_RE = /^[a-zA-Z0-9_-]{4,64}\.json$/;
 function handleMapUpload(req, res) {
   const reply = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
   const cid = String(req.headers['x-client-id'] || '');
-  if (!CLIENT_ID_RE.test(cid) || !cid.endsWith('-gm') || !clients.has(cid)) { reply(403, { error: 'Загружать карты может только подключённый Мастер' }); req.resume(); return; }
+  if (!CLIENT_ID_RE.test(cid) || !isVerifiedGm(cid)) { reply(403, { error: 'Загружать карты может только подключённый Мастер' }); req.resume(); return; }
   if (Number(req.headers['content-length'] || 0) > MAX_MAP_BYTES) { reply(413, { error: 'Карта больше 4 МБ' }); req.resume(); return; }
   const chunks = []; let size = 0, aborted = false;
   req.on('data', c => { if (aborted) return; size += c.length; if (size > MAX_MAP_BYTES) { aborted = true; reply(413, { error: 'Карта больше 4 МБ' }); req.destroy(); return; } chunks.push(c); });
@@ -150,7 +150,7 @@ const ASSET_FILE_RE = /^[a-z0-9]{6,40}\.(png|webp|jpg)$/;
 function handleAssetUpload(req, res) {
   const reply = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
   const cid = String(req.headers['x-client-id'] || '');
-  if (!CLIENT_ID_RE.test(cid) || !cid.endsWith('-gm') || !clients.has(cid)) { reply(403, { error: 'Загружать картинки может только подключённый Мастер' }); req.resume(); return; }
+  if (!CLIENT_ID_RE.test(cid) || !isVerifiedGm(cid)) { reply(403, { error: 'Загружать картинки может только подключённый Мастер' }); req.resume(); return; }
   const id = String(req.headers['x-asset-id'] || ''), ext = ASSET_TYPES[String(req.headers['content-type'] || '').split(';')[0].trim()];
   if (!/^[a-z0-9]{6,40}$/.test(id) || !ext) { reply(400, { error: 'Нужна картинка PNG, WebP или JPG' }); req.resume(); return; }
   if (Number(req.headers['content-length'] || 0) > MAX_ASSET_BYTES) { reply(413, { error: 'Картинка больше 8 МБ' }); req.resume(); return; }
@@ -232,7 +232,6 @@ const httpServer = http.createServer((req, res) => {
 });
 
 // ---- WebSocket-рукопожатие и разбор кадров вручную (без пакета "ws") ----
-const clients = new Map(); // id -> socket
 // id -> таймер отложенного peer-left — см. cleanup() ниже: короткий сетевой сбой (тоннель/сеть моргнули,
 // клиент почти сразу переподключается тем же cid) не должен выглядеть для ОСТАЛЬНЫХ участников комнаты
 // как настоящий уход человека — RECONNECT_GRACE_MS даёт клиенту время вернуться до того, как остальным
@@ -296,9 +295,31 @@ function unmask(payload, maskKey) {
 function send(socket, obj) {
   try { socket.write(encodeFrame(JSON.stringify(obj))); } catch (e) { /* сокет уже мог закрыться */ }
 }
-function broadcastExcept(exceptId, obj) {
-  clients.forEach((socket, id) => { if (id !== exceptId) send(socket, obj); });
+// ---- Столы (комнаты сессий): у каждой группы свой стол по ссылке вида https://адрес/k7m2qx ----
+// Сообщения ходят только внутри своего стола. Адрес без кода — «общий» стол (как было раньше).
+// Роль Мастера защищена ключом: первый Мастер стола присылает случайный ключ (хранится в его браузере),
+// сервер запоминает его отпечаток; Мастер с другим ключом получает отказ ('gm-denied'). Сообщение
+// 'gm-hello' (по нему игроки узнают Мастера) сервер пересылает только от подтверждённого Мастера — игрок
+// больше не может назваться Мастером. Пустой стол забывается через 12 часов (со всем, включая ключ).
+const ROOM_RE = /^[a-z0-9]{4,16}$/;
+const DEFAULT_ROOM = 'main';
+const ROOM_FORGET_MS = 12 * 60 * 60 * 1000;
+const rooms = new Map(); // имя стола -> { clients: Map(id -> socket), gmKeyHash, emptySince }
+function getRoom(name) {
+  let r = rooms.get(name);
+  if (!r) { r = { clients: new Map(), gmKeyHash: null, emptySince: 0 }; rooms.set(name, r); }
+  return r;
 }
+function totalClients() { let n = 0; rooms.forEach(r => { n += r.clients.size; }); return n; }
+function isVerifiedGm(cid) { for (const r of rooms.values()) { const s = r.clients.get(cid); if (s && s._isGm) return true; } return false; }
+const hashKey = (k) => crypto.createHash('sha256').update(String(k)).digest('hex');
+function broadcastExcept(room, exceptId, obj) {
+  room.clients.forEach((socket, id) => { if (id !== exceptId) send(socket, obj); });
+}
+setInterval(() => {
+  const now = Date.now();
+  rooms.forEach((r, name) => { if (!r.clients.size && r.emptySince && now - r.emptySince > ROOM_FORGET_MS) rooms.delete(name); });
+}, 10 * 60 * 1000);
 
 // ---- Keepalive: без этого простаивающее соединение (никто не бросает кубик, не двигает лист —
 // вполне обычное дело посреди игры, когда все просто разговаривают) рано или поздно молча обрывает
@@ -323,14 +344,14 @@ const PING_INTERVAL_MS = 25000;
 const STALE_AFTER_MS = 70000;
 setInterval(() => {
   const now = Date.now();
-  clients.forEach((socket, id) => {
+  rooms.forEach(room => room.clients.forEach((socket, id) => {
     if (now - (socket._lastSeen || now) > STALE_AFTER_MS) {
       console.log('[Server] Client', id, 'молчит больше', STALE_AFTER_MS / 1000, 'с — закрываем как оборванный');
       try { socket.destroy(); } catch (e) {}
       return;
     }
     try { socket.write(encodePingFrame()); } catch (e) { /* сокет уже мог закрыться */ }
-  });
+  }));
 }, PING_INTERVAL_MS);
 
 // Клиент присылает свой собственный, постоянный (в localStorage) id строкой запроса ?cid=... —
@@ -364,6 +385,25 @@ httpServer.on('upgrade', (req, socket) => {
 
   const cid = parseClientId(req.url);
   const id = cid || crypto.randomBytes(6).toString('hex');
+  const query = (() => { try { return new URL(req.url, 'http://x').searchParams; } catch (e) { return new URLSearchParams(); } })();
+  const roomName = ROOM_RE.test(query.get('room') || '') ? query.get('room') : DEFAULT_ROOM;
+  const room = getRoom(roomName);
+  // Мастер (id оканчивается на -gm) — только с ключом этого стола; первый Мастер стола задаёт ключ
+  let isGm = false;
+  if (id.endsWith('-gm')) {
+    const key = query.get('gmkey') || '';
+    if (!/^[a-zA-Z0-9]{16,64}$/.test(key)) { socket.end(encodeFrame(JSON.stringify({ type: 'gm-denied', reason: 'nokey', from: 'server' }))); return; }
+    if (!room.gmKeyHash) room.gmKeyHash = hashKey(key);
+    if (room.gmKeyHash !== hashKey(key)) {
+      console.log('[Server] Отказ: стол', roomName, 'уже занят другим Мастером —', id);
+      socket.end(encodeFrame(JSON.stringify({ type: 'gm-denied', reason: 'taken', from: 'server' })));
+      return;
+    }
+    isGm = true;
+  }
+  socket._isGm = isGm;
+  const clients = room.clients, leaveKey = roomName + '|' + id;
+  room.emptySince = 0;
   // Тот же cid уже числится живым (клиент реально переподключился, пока старый сокет ещё не был
   // распознан сервером как закрытый — TCP не сообщает об обрыве мгновенно) — старое соединение считаем
   // осиротевшим и закрываем, тот же приём, что уже используется в самом листе персонажа для защиты от
@@ -382,9 +422,9 @@ httpServer.on('upgrade', (req, socket) => {
   clients.set(id, socket);
   // Вернулся до истечения grace-периода (см. pendingLeave выше) — остальные участники так и не узнают,
   // что было кратковременное отключение, их peer-соединение к этому id ни разу не рвалось с их стороны.
-  if (pendingLeave.has(id)) { clearTimeout(pendingLeave.get(id)); pendingLeave.delete(id); }
-  send(socket, { type: 'welcome', id });
-  console.log('[Server] Client connected', id, cid ? '(постоянный cid)' : '(случайный)', '- online now:', clients.size);
+  if (pendingLeave.has(leaveKey)) { clearTimeout(pendingLeave.get(leaveKey)); pendingLeave.delete(leaveKey); }
+  send(socket, { type: 'welcome', id, room: roomName === DEFAULT_ROOM ? '' : roomName });
+  console.log('[Server] Client connected', id, isGm ? '(Мастер)' : '', 'стол', roomName, '- за столом:', clients.size, ', всего:', totalClients());
 
   let buffer = Buffer.alloc(0);
   socket.on('data', chunk => {
@@ -419,12 +459,13 @@ httpServer.on('upgrade', (req, socket) => {
       // Сигнал «я жив» от листа — только для этого сервера: отвечаем тому же клиенту (по ответу он сам
       // понимает, что сервер жив) и никому не пересылаем.
       if (msg.type === 'hb') { send(socket, { type: 'hb-ack', from: 'server' }); continue; }
+      if (msg.type === 'gm-hello' && !socket._isGm) continue; // назваться Мастером может только подтверждённый Мастер стола
       msg.from = id;
       if (typeof msg.to === 'string' && msg.to) {
         const target = clients.get(msg.to);
         if (target) send(target, msg);
       } else {
-        broadcastExcept(id, msg);
+        broadcastExcept(room, id, msg);
       }
     }
   });
@@ -436,16 +477,17 @@ httpServer.on('upgrade', (req, socket) => {
     // хотя его соединение живо.
     if (clients.get(id) !== socket) return;
     clients.delete(id);
-    console.log('[Server] Client disconnected', id, '- online now:', clients.size, '(peer-left через', RECONNECT_GRACE_MS, 'мс, если не вернётся)');
+    if (!clients.size) room.emptySince = Date.now();
+    console.log('[Server] Client disconnected', id, 'стол', roomName, '- за столом:', clients.size, '(peer-left через', RECONNECT_GRACE_MS, 'мс, если не вернётся)');
     // Не рассылаем peer-left сразу — короткий обрыв (сеть/тоннель моргнули) с последующим быстрым
     // реконнектом тем же cid не должен рвать голос/видео у всех остальных участников. Если id
     // переподключится раньше — таймер отменяется выше (см. pendingLeave.has(id) в upgrade-обработчике),
     // и остальные вообще не узнают, что было отключение.
     const timer = setTimeout(() => {
-      pendingLeave.delete(id);
-      broadcastExcept(id, { type: 'peer-left', id, from: 'server' });
+      pendingLeave.delete(leaveKey);
+      broadcastExcept(room, id, { type: 'peer-left', id, from: 'server' });
     }, RECONNECT_GRACE_MS);
-    pendingLeave.set(id, timer);
+    pendingLeave.set(leaveKey, timer);
   };
   socket.on('close', cleanup);
   socket.on('error', cleanup);

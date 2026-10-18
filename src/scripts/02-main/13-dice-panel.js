@@ -830,8 +830,69 @@ function getOrCreateClientId(){
 // вкладка вытесняла первую, а сообщения стола «самому себе» сервер не пересылает. Id игрока не меняется —
 // к нему привязаны его жетон на столе и очередь выдач Мастера.
 function sessionClientId(role){ const base = getOrCreateClientId(); return role==='gm' ? base + '-gm' : base; }
+// ---- Столы: у каждой группы свой стол по ссылке https://адрес/КОД (КОД — 6 символов). Сервер держит
+// сообщения внутри стола. «Я — Мастер» на адресе без кода создаёт новый стол (адрес в строке браузера
+// меняется на ссылку стола, без перезагрузки). Роль Мастера стола защищена ключом из этого браузера
+// (см. server.js: первый Мастер задаёт ключ, с другим ключом — отказ 'gm-denied').
+const ROOM_CODE_RE = /^[a-z0-9]{4,16}$/;
+let currentRoomCode = (function(){ const m = location.pathname.match(/^\/([a-z0-9]{4,16})\/?$/); return m ? m[1] : ''; })();
+function newRoomCode(){
+  const abc = 'abcdefghjkmnpqrstuvwxyz23456789'; let c = '';
+  const rnd = (typeof crypto!=='undefined' && crypto.getRandomValues) ? crypto.getRandomValues(new Uint8Array(6)) : Array.from({length:6}, ()=>Math.floor(Math.random()*256));
+  for(let i=0;i<6;i++) c += abc[rnd[i] % abc.length];
+  return c;
+}
+function setRoomCode(code){
+  currentRoomCode = code || '';
+  try{ history.replaceState(null, '', '/' + currentRoomCode + location.hash); }catch(e){}
+}
+function roomLink(){ return location.origin + '/' + (currentRoomCode || ''); }
+function gmKeyFor(room){
+  const KEY = 'reincarnator_gm_keys_v1', r = room || 'main';
+  let keys = {}; try{ keys = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; }catch(e){}
+  if(!/^[a-zA-Z0-9]{16,64}$/.test(keys[r] || '')){
+    keys[r] = (typeof crypto!=='undefined' && crypto.randomUUID) ? crypto.randomUUID().replace(/-/g, '') : Array.from({length:32}, ()=>Math.floor(Math.random()*16).toString(16)).join('');
+    try{ localStorage.setItem(KEY, JSON.stringify(keys)); }catch(e){}
+  }
+  return keys[r];
+}
+// Код стола из того, что ввёл игрок: сама ссылка Мастера или только код
+function parseRoomInput(t){
+  t = String(t || '').trim().toLowerCase();
+  const m = t.match(/\/([a-z0-9]{4,16})\/?(?:[?#].*)?$/) || t.match(/^([a-z0-9]{4,16})$/);
+  return m && ROOM_CODE_RE.test(m[1]) ? m[1] : '';
+}
 function wsUrl(role){
-  return (location.protocol==='https:' ? 'wss://' : 'ws://') + location.host + '/?cid=' + encodeURIComponent(sessionClientId(role));
+  return (location.protocol==='https:' ? 'wss://' : 'ws://') + location.host + '/?cid=' + encodeURIComponent(sessionClientId(role)) +
+    '&room=' + encodeURIComponent(currentRoomCode) + (role==='gm' ? '&gmkey=' + gmKeyFor(currentRoomCode) : '');
+}
+// «Я — Мастер»: без кода в адресе — новый стол со своей ссылкой
+function startAsGm(){
+  if(!currentRoomCode) setRoomCode(newRoomCode());
+  connectSession('gm');
+}
+// «Я — игрок»: без кода в адресе — спросить ссылку или код
+async function startAsPlayer(){
+  if(!currentRoomCode){
+    const t = await uiPrompt('Вставьте ссылку на стол, которую прислал Мастер, или её код — 6 символов в конце ссылки.', '', {title:'Ваш стол', ok:'Войти', placeholder:'например, k7m2qx'});
+    if(t===null) return;
+    const code = parseRoomInput(t);
+    if(!code){ uiAlert('Не похоже на ссылку стола: в конце ссылки Мастера должен быть код из латинских букв и цифр, например …/k7m2qx.', {title:'Ваш стол', icon:'?'}); return; }
+    setRoomCode(code);
+  }
+  connectSession('player');
+}
+// Сервер отказал в роли Мастера: у этого стола уже есть Мастер из другого браузера
+async function handleGmDenied(){
+  if(_reconnectTimer){ clearTimeout(_reconnectTimer); _reconnectTimer = null; }
+  stopHeartbeat();
+  session.role = null; session.ws = null; session.myId = null; session.players = {};
+  clearSessionState(); updateSessionStatusUI();
+  const r = await uiDialog({title:'У этого стола уже есть Мастер', icon:'!', danger:true,
+    text:'Мастер стола входит только из того браузера, где стол был создан. Создайте свой стол — получите новую ссылку для игроков — или войдите сюда игроком.',
+    cancelValue:null, buttons:[{label:'Отмена', value:null}, {label:'Войти игроком', value:'player'}, {label:'Создать свой стол', value:'new', primary:true}]});
+  if(r==='new'){ setRoomCode(newRoomCode()); connectSession('gm'); }
+  else if(r==='player') connectSession('player');
 }
 let _reconnectTimer = null;
 let _reconnectDelay = 2000;
@@ -930,12 +991,14 @@ function connectSession(role){
       return;
     }
     if(msg.type==='replaced' && msg.from==='server'){ ws._replaced = true; return; } // см. onclose ниже
+    if(msg.type==='gm-denied' && msg.from==='server'){ ws._gmDenied = true; return; } // см. onclose ниже
     handleIncomingMessage(msg);
   };
   ws.onclose = ()=>{
     console.warn('[Сессия] Соединение с сервером закрыто');
     if(session.ws===ws) stopHeartbeat();
     if(ws._replaced){ handleReplacedByOtherTab(); return; }
+    if(ws._gmDenied){ if(session.ws===ws) handleGmDenied(); return; }
     document.getElementById('sessionSetupHint').textContent = '';
     // leaveSession() уже обнуляет session.role синхронно ДО закрытия сокета — значит, если он всё ещё
     // задан к моменту срабатывания onclose, это не явный выход, а обрыв связи (сеть моргнула, сервер
@@ -1094,8 +1157,17 @@ function renderGmEditBanner(){
   document.getElementById('btnSendEditedSheet').onclick = sendEditedSheetToPlayer;
   document.getElementById('btnCancelEditedSheet').onclick = exitGmEditMode;
 }
-document.getElementById('btnStartGM').addEventListener('click', ()=>connectSession('gm'));
-document.getElementById('btnStartPlayer').addEventListener('click', ()=>connectSession('player'));
+document.getElementById('btnStartGM').addEventListener('click', startAsGm);
+document.getElementById('btnStartPlayer').addEventListener('click', startAsPlayer);
+document.getElementById('btnCopyRoomLink').addEventListener('click', ()=>{
+  const link = roomLink(), manual = ()=>uiPrompt('Скопируйте ссылку на стол:', link, {title:'Ссылка для игроков', ok:'Готово'});
+  try{ navigator.clipboard.writeText(link).then(()=>uiToast('Ссылка на стол скопирована — отправьте её игрокам', {icon:'⧉'}), manual); }catch(e){ manual(); }
+});
+{ // подсказка до подключения: на чьём столе мы
+  const h = document.getElementById('sessionSetupHint');
+  if(h && !h.textContent) h.textContent = currentRoomCode ? `Стол «${currentRoomCode}» — введите имя и нажмите «Я — игрок» (или «Я — Мастер», если это ваш стол).`
+    : '«Я — Мастер» создаст ваш стол со своей ссылкой для игроков. Игрокам — ссылка от Мастера.';
+}
 document.getElementById('btnLeaveSession').addEventListener('click', ()=>{ uiConfirm('Выйти из сессии?', {title:'Сессия', ok:'Выйти'}).then(ok=>{ if(ok) leaveSession(); }); });
 document.getElementById('btnRoomJoin').addEventListener('click', ()=>RoomTransport.joinRoom());
 document.getElementById('btnRoomLeave').addEventListener('click', ()=>RoomTransport.leaveRoom());
