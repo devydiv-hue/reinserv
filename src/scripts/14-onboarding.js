@@ -325,6 +325,7 @@ const Onboarding = (function(){
   }
   function welcome(){
     if(st.seen) return;
+    if(document.querySelector('.join-back')){ setTimeout(welcome, 4000); return; } // сначала — экран входа за стол
     const el = bubble(`<div class="ob-title">Впервые здесь?</div><div class="ob-text">Короткий обзор — минута; полное обучение — по шагам, в «ЧЗХ❓❓❓».</div>
       <div class="ob-btns"><button type="button" class="small primary" data-w="player">Я игрок</button><button type="button" class="small primary" data-w="gm">Я Мастер</button><button type="button" class="small" data-w="later">Позже</button></div>`, 'ob-welcome');
     el.addEventListener('click', (e)=>{ const b = e.target.closest('[data-w]'); if(!b) return;
@@ -362,6 +363,11 @@ const Onboarding = (function(){
       <div class="ob-menu-sep">Настройки</div>
       ${typeof Pwa!=='undefined' && !Pwa.installed ? '<button type="button" data-m="install"><b>📲 Установить как приложение</b><span>значок на рабочем столе или экране телефона, работает и без сети</span></button>' : ''}
       ${typeof Theme!=='undefined' ? `<button type="button" data-m="theme"><b>🌗 Тема: ${Theme.label()}</b><span>светлая (пергамент) → тёмная (обсидиан) → как в системе</span></button>` : ''}
+      <button type="button" data-m="live"><b>🔔 Броски на столе и «Ваш ход»</b><span>крупные броски поверх стола, уведомление о вашем ходе в бою</span></button>
+      <button type="button" data-m="archive"><b>📜 Раздатки и итоги встреч</b><span>всё, что присылал Мастер: раздатки, итоги встреч</span></button>
+      <button type="button" data-m="lite"><b>🪶 Облегчённый режим</b><span>без фактур и анимаций — для слабых телефонов</span></button>
+      <button type="button" data-m="problem"><b>🐞 Сообщить о проблеме</b><span>готовый отчёт: что случилось, связь, браузер, ошибки</span></button>
+      <button type="button" data-m="data"><b>💾 Данные и резервная копия</b><span>место в браузере, скачать всё одним файлом, восстановить</span></button>
       <button type="button" data-m="hints"><b>💡 Подсказки «впервые здесь»: ${st.hintsOff ? 'выкл' : 'вкл'}</b><span>одна строка при первом открытии вкладки</span></button>` +
       (typeof GmAdvice!=='undefined' && GmAdvice.isGm() ? `
       <button type="button" data-m="prep"><b>📋 Подготовка к игре</b><span>чек-лист: что собрать к встрече</span></button>
@@ -375,6 +381,11 @@ const Onboarding = (function(){
       const m = b.dataset.m; closeMenu();
       if(m==='hints'){ st.hintsOff = !st.hintsOff; if(!st.hintsOff) st.hints = {}; save(); toastLine(st.hintsOff ? 'Подсказки выключены.' : 'Подсказки включены — появятся при открытии вкладок.'); }
       else if(m==='keys') showKeys();
+      else if(m==='live'){ if(typeof TableLive!=='undefined') TableLive.openSettings(); }
+      else if(m==='archive'){ if(typeof PlayerArchive!=='undefined') PlayerArchive.openList(); }
+      else if(m==='lite'){ if(typeof LiteMode!=='undefined') LiteMode.openSettings(); }
+      else if(m==='problem'){ if(typeof ProblemReport!=='undefined') ProblemReport.open(); }
+      else if(m==='data'){ if(typeof DataBackup!=='undefined') DataBackup.openPanel(); }
       else if(m==='theme'){ Theme.cycle(); toastLine('Тема: ' + Theme.label() + '.'); }
       else if(m==='install') Pwa.install();
       else if(m==='prep' || m==='memo') GmAdvice.openPanel(m);

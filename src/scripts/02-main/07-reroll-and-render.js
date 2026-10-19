@@ -139,6 +139,11 @@ function executeRoll(statKey, base, mod, popup, mode){
   const {success, category, natConsequences} = evaluateD20Check(roll, max);
   if(statKey==='creature_roll' && !success) if(typeof GmAdvice!=='undefined') GmAdvice.event('miss'); // проваленный бросок существа
   if(typeof recordAndShareRoll==='function') recordAndShareRoll(statKey, mod, roll, max, success, category, mode, rolls); // общий лог сессии, см. её раздел внизу файла
+  if(statKey!=='creature_roll' && session.role==='player' && secretRollActive()){ // тайный бросок: результат знает только Мастер
+    popup.querySelector('.hex-field').remove(); popup.querySelector('.roll-max-preview').remove(); popup.querySelector('.roll-tags').remove();
+    const st = document.createElement('div'); st.innerHTML = '<div class="roll-outcome secret"><span class="verdict">🤫 Тайный бросок</span>ушёл Мастеру — результат знает только он</div>';
+    popup.appendChild(st); setTimeout(closeRollOverlay, 1600); return;
+  }
 
   // Анимация полёта/приземления кости — ТА ЖЕ launchRollAnimation, что и у боковой панели бросков
   // кубов (см. её определение выше, до DicePanel — вынесена специально ради этого переиспользования,
@@ -328,6 +333,7 @@ window.addEventListener('keydown', (e)=>{
 function renderAll(){
   captureUndoSnapshotIfChanged();
   if(typeof PlayMode!=='undefined') PlayMode.schedule(); // полоска режима «Игра» — после перерисовки листа
+  if(typeof SheetExtras!=='undefined') SheetExtras.schedule(); // портрет персонажа
   renderPending();
   // Resume a level-by-level advance the moment nothing's pending anymore (see processNextLevelIfReady)
   // — covers both mid-generation and a post-generation level-up. processNextLevelIfReady itself now

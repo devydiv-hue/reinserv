@@ -185,6 +185,7 @@ function sanitizeRollEntry(e){
           if(h && Array.isArray(h.rolls12)) o.rolls12 = ints(h.rolls12, 30);
           return o;
         }) });
+      if(e.sec && typeof e.sec==='object') out.sec = { max:int(e.sec.max, 0), max12: e.sec.max12==null ? null : int(e.sec.max12, 0) }; // пороги — только допущенным Мастером
       return out;
     }
     if(e.mapGrenade){ // итог броска гранаты с игрового стола (см. GameTable.resolveGrenade)
@@ -194,6 +195,7 @@ function sanitizeRollEntry(e){
         victims:(Array.isArray(e.victims) ? e.victims : []).slice(0, 40).map(v=>({ name:str(v && v.name, 60),
           bN:Math.max(0, int(v && v.bN, 0)), bP:Math.max(0, int(v && v.bP, 0)), fN:Math.max(0, int(v && v.fN, 0)), fP:Math.max(0, int(v && v.fP, 0)),
           total:Math.max(0, int(v && v.total, 0)), trauma:Math.max(0, int(v && v.trauma, 0)), burn:Math.max(0, int(v && v.burn, 0)), immune:!!(v && v.immune) })) });
+      if(e.sec && typeof e.sec==='object') out.sec = { max:int(e.sec.max, 0), max12: e.sec.max12==null ? null : int(e.sec.max12, 0) }; // пороги — только допущенным Мастером
       return out;
     }
     if(e.mapAttackUndo){ Object.assign(out, { mapAttackUndo:true, attackId:str(e.attackId, 64), text:str(e.text, 200) }); return out; }
@@ -235,6 +237,116 @@ function sanitizeRollEntry(e){
     success:bool(e.success), category:int(e.category, null), mode:rollMode(e.mode), rolls:ints(e.rolls, 2) });
   if(!out.rolls.length) out.rolls = [out.roll];
   return out;
+}
+/* ---------- ПОДРОБНЫЙ ВИД ЛОГА (опция Мастера): «к20≤14 → 10 — Успех, КУ2 · к12≤7 → [4, 7]→7 пробило · итого 7 ран» ----------
+   Мастер включает его на экране Мастера → «Игроки» и сам решает, кто из игроков видит пороги. Пороги атак с карты
+   (полный Макс. с секретными модификаторами и «МУ − Защита цели») лежат в записи в поле sec и уходят только допущенным
+   игрокам; остальным — та же запись без sec и стандартный вид. Стандартный вид не меняется. */
+const LOG_VIEW_KEY = 'reincarnator_log_view_v1';
+const logView = (function(){ try{ const v = JSON.parse(localStorage.getItem(LOG_VIEW_KEY) || '{}') || {}; return {on:!!v.on, allow:v.allow && typeof v.allow==='object' ? v.allow : {}}; }catch(e){ return {on:false, allow:{}}; } })();
+function saveLogView(){ try{ localStorage.setItem(LOG_VIEW_KEY, JSON.stringify(logView)); }catch(e){} }
+function logViewAllowed(pid){ return logView.on && !!logView.allow[pid]; }
+function logDetailed(){ return session.role==='player' ? !!session.logDetailed : logView.on; }
+function rollEntryFor(e, pid){ if(!e || !e.sec || logViewAllowed(pid)) return e; const o = Object.assign({}, e); delete o.sec; return o; }
+// Личное (шёпот, тайный бросок) — только автору и адресату; pid=null — «всем сразу», личное не уходит вовсе
+function rollVisibleTo(e, pid){ if(!e.priv) return true; if(!pid) return false; if(e.secret) return e.to===pid; return e.to===pid || e.fromId===pid; } // тайный бросок не возвращается даже автору
+function rollEntriesFor(list, pid){ return (list || []).filter(e=>rollVisibleTo(e, pid)).map(e=>rollEntryFor(e, pid)); }
+function sendLogView(pid){
+  if(session.role!=='gm') return;
+  (pid ? [pid] : Object.keys(session.players || {})).forEach(id=>{
+    const on = logViewAllowed(id);
+    sendMsg({type:'log-view', detailed:on}, id);
+    // допустили во время сессии — пороги уже прошедших атак досылаются, их записи у игрока перерисуются
+    if(on){ const sec = session.log.filter(e=>e.sec).slice(-150).map(e=>({id:e.id, sec:e.sec})); if(sec.length) sendMsg({type:'roll-sec', list:sec}, id); }
+  });
+}
+function setLogViewOn(on){ logView.on = !!on; saveLogView(); sendLogView(); renderRollLog(); }
+function setLogViewAllow(pid, on){ if(on) logView.allow[pid] = true; else delete logView.allow[pid]; saveLogView(); sendLogView(pid); }
+/* ---------- ТАЙНЫЙ БРОСОК: игрок не видит результат, его видит только Мастер; остальные — «бросил тайно» ---------- */
+let secretRollOn = false;
+function secretRollActive(){ return secretRollOn && !!session.role && (session.role==='gm' || !!session.gmId); }
+function shareSecretRoll(entry, label){
+  entry.priv = true; entry.secret = true; entry.to = 'gm'; entry.fromId = session.myId || '';
+  const stub = {id:entry.id + 's', kind:'quick', secretStub:true, player:entry.player, label:String(label || 'к20').slice(0, 60)};
+  if(session.role==='gm') addRollLogEntry(entry); // Мастер свой тайный бросок видит
+  else sendMsg({type:'roll', entry}, session.gmId);
+  addRollLogEntry(stub); sendMsg({type:'roll', entry:stub});
+}
+// Записи, которых нет в белом списке ниже: сообщения и заглушки тайных бросков; плюс поля «личного» у любых записей
+const _sanitizeRollEntryBase = sanitizeRollEntry;
+sanitizeRollEntry = function(e){
+  if(!e || typeof e!=='object' || Array.isArray(e) || typeof e.id!=='string' || !e.id || e.id.length>120) return null;
+  const str = (v, n)=> v==null ? '' : String(v).slice(0, n);
+  let out;
+  if(e.chat){ const text = str(e.text, 500).trim(); if(!text) return null; out = {id:e.id, player:str(e.player, 60), kind:'quick', chat:true, text, toName:str(e.toName, 60)}; }
+  else if(e.secretStub) out = {id:e.id, player:str(e.player, 60), kind:'quick', secretStub:true, label:str(e.label, 60)};
+  else { out = _sanitizeRollEntryBase(e); if(!out) return null; if(e.secret) out.secret = true; }
+  if(e.priv){ out.priv = true; out.to = str(e.to, 64); out.fromId = str(e.fromId, 64); }
+  return out;
+};
+function d20Part(max, rolls, roll){ return `к20≤${max} → ${rolls && rolls.length>1 ? `[${rolls.join(', ')}]→${roll}` : roll}`; }
+function detailedRegularEntry(e){
+  if(e.max==null || !e.roll || e.secret) return null;
+  const cls = e.success===true?'success':e.success===false?'failure':'';
+  const outcome = e.success===true?`Успех, КУ${e.category}`:e.success===false?'Провал':'';
+  const modeTxt = e.mode==='advantage' ? ', Преимущество' : e.mode==='disadvantage' ? ', Помеха' : '';
+  const special = e.success!=null ? natTagText(e.roll, e.success, evaluateD20Check(e.roll, e.max).natConsequences) : '';
+  return `<div class="roll-log-entry ${cls}"><span class="who">${escapeHtml(e.player||'?')}</span><span class="rest">${escapeHtml(e.statLabel)} (${(e.mod>=0?'+':'')+e.mod}${modeTxt}): ${d20Part(e.max, e.rolls, e.roll)} — ${outcome}${special}</span></div>`;
+}
+function detailedQuickEntry(e, undoneAttacks){
+  const modeTxt = e.mode==='advantage' ? ', Преимущество' : e.mode==='disadvantage' ? ', Помеха' : '';
+  if(e.mapAttack){
+    if(!e.sec) return null;
+    const undone = undoneAttacks && undoneAttacks.has(e.attackId);
+    const modeName = e.fireMode==='burst' ? 'очередь' : e.fireMode==='suppress' ? 'подавление' : 'атака';
+    let body = `→ ${escapeHtml(e.target)}: «${escapeHtml(e.weaponName)}» (${modeName}${e.unprotected?', по незащищённым':''}${modeTxt}): ${d20Part(e.sec.max, e.rolls, e.roll)} — `;
+    if(e.jammed) body += 'оружие заклинило (нат.13)';
+    else if(!e.success) body += 'промах';
+    else {
+      const many = e.hits.length > 1; // вариант «Б»: порог один раз, дальше — броски попаданий
+      const hitsTxt = e.hits.map(h=>{
+        const k = h.rolls12 ? `[${h.rolls12.join(', ')}]→${h.k12}` : String(h.k12);
+        const bone = h.trauma ? (h.red ? ' <span class="bone-red" title="Травма (черта оружия «травма»)">🦴</span>' : ' <span title="Травма">🦴</span>') : '';
+        return `${k} ${h.pen ? 'пробило' : 'не пробило'}${many && h.pen ? ` (${h.wounds} ${woundsWord(h.wounds)})` : ''}${bone}`;
+      }).join('; ');
+      body += `Успех, КУ${e.category}` + (e.hits.length ? ` · к12≤${e.sec.max12==null ? '?' : e.sec.max12} → ${hitsTxt}` : '') + ` · итого ${e.total} ${woundsWord(e.total)}`;
+    }
+    if(e.success && !e.jammed) body += natTagText(e.roll, e.success, evaluateD20Check(e.roll, e.sec.max).natConsequences);
+    if(e.slow) body += ' · ⚡ медленное — цель может отреагировать';
+    if(undone) body += ' · <b>отменено Мастером</b>';
+    return {cls:(e.success && !e.jammed ? 'success' : 'failure') + (undone ? ' undone' : ''),
+      html:`<span class="who">${escapeHtml(e.attacker||e.player||'?')}</span><span class="rest">${body}</span>`, undoable:!undone};
+  }
+  if(e.mapGrenade){
+    if(!e.sec) return null;
+    const std = null; // остальное (жертвы, осколки) — как в стандартном виде: подменяем только кусок с к20
+    const undone = undoneAttacks && undoneAttacks.has(e.attackId);
+    let body = `💣 → ${escapeHtml(e.target)}: «${escapeHtml(e.weaponName)}»${modeTxt ? ' ('+modeTxt.slice(2)+')' : ''}: ${d20Part(e.sec.max, e.rolls, e.roll)} — `;
+    body += e.outcome==='hit' ? `Успех, КУ${e.category}` : e.outcome==='frag' ? 'Провал (16+) — осколки всё равно задели' : 'Провал — урона нет, Мастер может дать Невзгоды';
+    if(e.victims.length) body += ' · ' + e.victims.map(v=>{
+      if(v.immune) return `${escapeHtml(v.name)}: защита от температуры выдержала`;
+      const parts = []; if(v.bN) parts.push(`взрыв ${v.bP}/${v.bN}`); if(v.fN) parts.push(`осколки ${v.fP}/${v.fN}`);
+      return `${escapeHtml(v.name)}: ${parts.length ? parts.join(', ')+' — ' : ''}${v.total} ${woundsWord(v.total)}${v.trauma ? ` <span title="Травмы">🦴${v.trauma>1?v.trauma:''}</span>` : ''}${v.burn ? ` 🔥${v.burn}` : ''}`;
+    }).join('; ');
+    if(e.slow) body += ' · ⚡ медленное — цель может отреагировать';
+    if(undone) body += ' · <b>отменено Мастером</b>';
+    return {cls:(e.outcome==='none' ? 'failure' : 'success') + (undone ? ' undone' : ''),
+      html:`<span class="who">${escapeHtml(e.attacker||e.player||'?')}</span><span class="rest">${body}</span>`, undoable:!undone};
+  }
+  if(e.initiative){
+    const items = (e.list||[]).map(x=>{
+      if(x.auto) return `${escapeHtml(x.name)}: ⚡ сюрприз — успех`;
+      const md = x.mode==='advantage' ? ', Упрощена' : x.mode==='disadvantage' ? ', Осложнена' : '';
+      return `${escapeHtml(x.name)}${md}: ${d20Part(x.max, x.rolls, x.roll)} — ${x.success ? 'успех' : '<b>провал: без действия в этом круге</b>'}${x.notes ? ` <span class="muted">(${escapeHtml(x.notes)})</span>` : ''}`;
+    });
+    return {cls:'', html:`<span class="who">${escapeHtml(e.player||'?')}</span><span class="rest">⚔ ${escapeHtml(e.title||'Инициатива')}${items.length ? ': ' + items.join('; ') : ''}</span>`};
+  }
+  if(e.diceType==='d20' && !e.itemCheck && e.max!=null){
+    const outcome = e.success===true?`Успех, КУ${e.category}`:'Провал';
+    const special = natTagText(e.roll, e.success, evaluateD20Check(e.roll, e.max).natConsequences);
+    return {cls: e.success?'success':'failure', html:`<span class="who">${escapeHtml(e.player||'?')}</span><span class="rest">D20${modeTxt ? ' ('+modeTxt.slice(2)+')' : ''}: ${d20Part(e.max, e.rolls, e.roll)} — ${outcome}${special}</span>`};
+  }
+  return null;
 }
 function saveRollLog(){ try{ localStorage.setItem(ROLL_LOG_KEY, JSON.stringify(session.log.slice(-500))); }catch(e){} }
 
@@ -335,6 +447,12 @@ const _rollLogSeenIds = new Set(session.log.map(e=>e.id));
 // броска характеристики (без поля kind) продолжают форматироваться старой веткой ниже без изменений.
 function woundsWord(n){ const a = n%10, b = n%100; return a===1 && b!==11 ? 'рана' : (a>=2 && a<=4 && (b<12 || b>14)) ? 'раны' : 'ран'; }
 function formatQuickRollEntry(e, undoneAttacks){
+  if(e.chat){ // сообщение в логе: всем или лично
+    const toTxt = !e.priv ? '' : e.fromId && e.fromId===session.myId ? ` → ${e.to==='gm' || e.to===session.gmId ? 'Мастеру' : escapeHtml(e.toName || 'игроку')}` : session.role==='gm' && e.to!=='gm' && e.to!==session.myId ? ` → ${escapeHtml(e.toName || 'игроку')}` : ' (лично вам)';
+    return {cls:'chat' + (e.priv ? ' whisper' : ''), html:`<span class="who">${escapeHtml(e.player||'?')}</span><span class="rest">${e.priv ? '🤫' : '💬'}${toTxt ? toTxt + ':' : ''} ${escapeHtml(e.text)}</span>`};
+  }
+  if(e.secretStub) return {cls:'secret', html:`<span class="who">${escapeHtml(e.player||'?')}</span><span class="rest">🤫 бросок тайно: ${escapeHtml(e.label || 'к20')} — результат у Мастера</span>`};
+  if(logDetailed()){ const d = detailedQuickEntry(e, undoneAttacks); if(d) return d; }
   const who = escapeHtml(e.player||'?');
   if(e.mapAttack){
     // Итог атаки с карты: без модификаторов и защиты цели (они секретны) — только вердикт, попадания и раны
@@ -440,11 +558,12 @@ function renderRollLog(){
   el.onclick = (ev)=>{ const b = ev.target.closest && ev.target.closest('[data-undo-attack]'); if(b) gtHook(g=>g.undoAttack(b.dataset.undoAttack)); };
 }
 function renderRollLogEntry(e, undoneAttacks){
+  if(e.kind!=='quick' && logDetailed()){ const d = detailedRegularEntry(e); if(d) return d; }
   if(e.kind==='quick'){
     const f = formatQuickRollEntry(e, undoneAttacks);
     const canUndo = (e.mapAttack || e.mapGrenade) && f.undoable && session.role==='gm' && typeof GameTable!=='undefined' && GameTable.canUndoAttack(e.attackId);
     const undoBtn = canUndo ? `<button type="button" class="small log-undo" data-undo-attack="${escapeHtml(e.attackId)}" title="Отменить эту атаку: вернуть раны и травмы">↶</button>` : '';
-    return `<div class="roll-log-entry ${f.cls}">${f.html}${undoBtn}</div>`;
+    return `<div class="roll-log-entry ${f.cls}${e.secret ? ' secret' : ''}">${e.secret ? f.html.replace('<span class="rest">', '<span class="rest">🤫 ') : f.html}${undoBtn}</div>`;
   }
   const cls = e.success===true?'success':e.success===false?'failure':'';
   const outcome = e.success===true?`Успех, КУ${e.category}`:e.success===false?'Провал':'';
@@ -452,7 +571,7 @@ function renderRollLogEntry(e, undoneAttacks){
   const modeTxt = e.mode==='advantage' ? ' · Преимущество' : e.mode==='disadvantage' ? ' · Помеха' : '';
   const rollsTxt = e.rolls && e.rolls.length>1 ? ` [к20: ${e.rolls.join(', ')} → взят ${e.roll}]` : '';
   const special = e.success!=null ? natTagText(e.roll, e.success, evaluateD20Check(e.roll, e.max).natConsequences) : '';
-  return `<div class="roll-log-entry ${cls}"><span class="who">${escapeHtml(e.player||'?')}</span><span class="rest">${escapeHtml(e.statLabel)} (${modTxt})${modeTxt}${rollsTxt} — к20=${e.roll} / Макс.${e.max} — ${outcome}${special}</span></div>`;
+  return `<div class="roll-log-entry ${cls}${e.secret ? ' secret' : ''}"><span class="who">${escapeHtml(e.player||'?')}</span><span class="rest">${e.secret ? '🤫 ' : ''}${escapeHtml(e.statLabel)} (${modTxt})${modeTxt}${rollsTxt} — к20=${e.roll} / Макс.${e.max} — ${outcome}${special}</span></div>`;
 }
 // Local store+render is unconditional (offline-first); relay is a separate, explicit step so a
 // received entry never bounces back out to whoever just sent it.
@@ -505,6 +624,7 @@ function recordAndShareRoll(statKey, mod, roll, max, success, category, mode, ro
     statLabel: STAT_LABELS[statKey]||statKey, mod, roll, max, success, category,
     mode: mode||'plain', rolls: rolls||[roll]
   };
+  if(secretRollActive() && statKey!=='creature_roll' && statKey!=='map_attack'){ shareSecretRoll(entry, entry.statLabel); return; }
   addRollLogEntry(entry);
   if(statKey!=='map_attack' && (roll===12 || (roll===13 && !success)) && typeof Reactions!=='undefined') // реакция «Крит!» / «Провал!» над бросившим
     Reactions.rollEvent(roll===12 ? 'crit' : 'fumble', statKey==='creature_roll' && _creatureRollCtx ? _creatureRollCtx.tokId : null);
@@ -527,10 +647,15 @@ function recordAndShareQuickRoll(entry){
   entry.id = getDeviceId()+':'+session.rollCounter;
   entry.player = session.ownName || document.getElementById('fName').value || 'Аноним';
   entry.kind = 'quick';
+  if(secretRollActive() && entry.diceType && !entry.mapAttack && !entry.mapGrenade && !entry.initiative){ shareSecretRoll(entry, entry.diceType==='d20' ? 'к20' : (entry.count || 1) + '×' + (entry.diceType || '').toUpperCase()); return entry; }
   addRollLogEntry(entry);
   if(entry.diceType==='d20' && entry.max!=null && (entry.roll===12 || (entry.roll===13 && entry.success===false)) && typeof Reactions!=='undefined')
     Reactions.rollEvent(entry.roll===12 ? 'crit' : 'fumble', null);
   if(typeof Onboarding!=='undefined' && Onboarding.busy()) return entry; // учебный бросок — другим участникам не уходит
+  if(entry.sec && session.role==='gm'){ // пороги (Макс., МУ−Защита) — секрет: каждому игроку своя копия, без DataChannel
+    Object.keys(session.players || {}).forEach(id=>sendMsg({type:'roll', entry:rollEntryFor(entry, id)}, id));
+    return entry;
+  }
   if(session.role){
     const wsOpen = !!(session.ws && session.ws.readyState===WebSocket.OPEN);
     console.log('[Бросок] отправляю', entry.id, wsOpen?'(WS открыт)':'(WS НЕ открыт — не уйдёт!)');

@@ -55,14 +55,17 @@ const PlayMode = (function(){
     let hm = 0, pm = 0; try{ hm = hpMax(c); pm = psiMax(c); }catch(e){}
     const name = (document.getElementById('fName').value || '').trim() || 'Персонаж';
     const metric = (k, lbl, val, max, title)=>`<div class="pb-metric" data-k="${k}" title="${title}"><span class="pb-lbl">${lbl}</span><button type="button" data-d="-1" title="${lbl} −1">−</button><b class="${max && val <= Math.floor(max/3) ? 'low' : ''}">${val}${max ? '/' + max : ''}</b><button type="button" data-d="1" title="${lbl} +1">+</button></div>`;
+    const canUndo = typeof undoStack!=='undefined' && undoStack.length > 0;
     bar.innerHTML = `<div class="pb-name">${esc(name)}<small>ур. ${c.level}</small></div>` +
       metric('hp', 'ОЗ', c.hpCurrent, hm, 'Здоровье: −/+ по одному, точное число — в поле «Самочувствие»') +
       metric('psi', 'Пси', c.psiCurrent, pm, 'Пси-запас') +
       metric('luck', 'Удача', c.luck, 0, 'Удача: тратится на переброс') +
-      `<div class="pb-states">${STATES.map(([id, k, lbl])=>`<button type="button" class="${c.states && c.states[k] ? 'on' : ''}" data-st="${id}" title="Состояние «${lbl}» — включить/выключить">${lbl}</button>`).join('')}</div>`;
+      `<div class="pb-states">${STATES.map(([id, k, lbl])=>`<button type="button" class="${c.states && c.states[k] ? 'on' : ''}" data-st="${id}" title="Состояние «${lbl}» — включить/выключить">${lbl}</button>`).join('')}</div>` +
+      `<button type="button" class="pb-undo" data-undo ${canUndo ? '' : 'disabled'} title="Отменить последнее действие (Ctrl+Z)">↶</button>`;
   }
   function onBar(e){
     const c = typeof character!=='undefined' ? character : null; if(!c) return;
+    if(e.target.closest('[data-undo]')){ if(typeof performUndo==='function'){ performUndo(); uiToast('Отменено последнее действие', {icon:'↶'}); } return; }
     const st = e.target.closest('[data-st]');
     if(st){ const cb = document.getElementById(st.dataset.st); if(cb && !cb.disabled){ cb.checked = !cb.checked; cb.dispatchEvent(new Event('change', {bubbles:true})); } return; }
     const b = e.target.closest('[data-d]'); if(!b) return;

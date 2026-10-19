@@ -177,6 +177,7 @@
         <div class="field-row identity-row">
           <div class="field"><label>Имя персонажа</label><input type="text" id="fName" placeholder="(вписывает игрок)"></div>
           <div class="field"><label>Имя игрока</label><input type="text" id="fPlayer" placeholder="(вписывает игрок)"></div>
+          <div class="field portrait-field"><label>Портрет</label><div class="portrait-box"><button type="button" id="btnPortrait" class="portrait-pic" title="Портрет персонажа — картинка из файла; он же на вашем жетоне на игровом столе">＋</button><button type="button" id="btnPortraitClear" class="small" title="Убрать портрет" style="display:none">✕</button></div></div>
           <div class="field align-field" style="max-width:150px; position:relative;"><label>Архетип</label>
             <div class="lockable-field"><input type="text" id="fArchetypeSelect" readonly autocomplete="off" value="Авантюрист"><label class="lock-toggle" title="Зафиксировать: генерация всегда использует именно это значение"><input type="checkbox" id="fArchetypeLock"> 🔒</label></div>
             <div id="fArchetypeSelectDropdown" class="align-dropdown"></div>
@@ -517,6 +518,21 @@
 </script>
 <script>
 /*@include scripts/14-onboarding.js*/
+</script>
+<script>
+/*@include scripts/15-join-backup.js*/
+</script>
+<script>
+/*@include scripts/16-table-live.js*/
+</script>
+<script>
+/*@include scripts/17-area-templates.js*/
+</script>
+<script>
+/*@include scripts/18-session-extras.js*/
+</script>
+<script>
+/*@include scripts/19-note-media.js*/
 </script>
 </body>
 </html>

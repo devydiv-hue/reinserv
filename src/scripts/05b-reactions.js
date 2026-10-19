@@ -101,10 +101,48 @@ const Reactions = (function(){
       title(c, 'УРОВЕНЬ', 160, 26, '#fff0c4'); }}
   };
 
+  /* ---------- короткие звуки встроенных реакций: синтез WebAudio, без файлов (по умолчанию все выключены) ---------- */
+  let actx = null;
+  function audio(){ try{ if(!actx){ const A = window.AudioContext || window.webkitAudioContext; if(!A) return null; actx = new A(); } if(actx.state==='suspended') actx.resume(); return actx; }catch(e){ return null; } }
+  function tone(a, out, {type='sine', f=440, f2=null, t=0, d=0.2, g=0.3, at=0.005}){
+    const o = a.createOscillator(), v = a.createGain(), t0 = a.currentTime + t;
+    o.type = type; o.frequency.setValueAtTime(f, t0); if(f2) o.frequency.exponentialRampToValueAtTime(f2, t0 + d);
+    v.gain.setValueAtTime(0.0001, t0); v.gain.exponentialRampToValueAtTime(g, t0 + at); v.gain.exponentialRampToValueAtTime(0.0001, t0 + d);
+    o.connect(v); v.connect(out); o.start(t0); o.stop(t0 + d + 0.05);
+  }
+  function noise(a, out, {t=0, d=0.2, g=0.3, filter='bandpass', f=1200, f2=null, q=1}){
+    const n = Math.ceil(a.sampleRate*(d + 0.05)), buf = a.createBuffer(1, n, a.sampleRate), ch = buf.getChannelData(0);
+    for(let i=0;i<n;i++) ch[i] = Math.random()*2 - 1;
+    const s = a.createBufferSource(), fl = a.createBiquadFilter(), v = a.createGain(), t0 = a.currentTime + t;
+    s.buffer = buf; fl.type = filter; fl.Q.value = q; fl.frequency.setValueAtTime(f, t0); if(f2) fl.frequency.exponentialRampToValueAtTime(f2, t0 + d);
+    v.gain.setValueAtTime(0.0001, t0); v.gain.exponentialRampToValueAtTime(g, t0 + 0.01); v.gain.exponentialRampToValueAtTime(0.0001, t0 + d);
+    s.connect(fl); fl.connect(v); v.connect(out); s.start(t0); s.stop(t0 + d + 0.05);
+  }
+  const SOUNDS = {
+    'b:crit':(a, o)=>{ [523, 659, 784, 1047].forEach((f, i)=>tone(a, o, {type:'triangle', f, t:i*0.07, d:0.5 - i*0.05, g:0.32})); tone(a, o, {f:2093, t:0.3, d:0.5, g:0.12}); },
+    'b:fumble':(a, o)=>{ [392, 370, 349, 262].forEach((f, i)=>tone(a, o, {type:'sawtooth', f, f2:i===3 ? 180 : null, t:i*0.16, d:i===3 ? 0.55 : 0.15, g:0.11})); },
+    'b:hit':(a, o)=>{ noise(a, o, {d:0.12, g:0.5, filter:'highpass', f:1800}); tone(a, o, {f:140, f2:60, d:0.22, g:0.55}); },
+    'b:miss':(a, o)=>{ noise(a, o, {d:0.38, g:0.35, f:500, f2:2600, q:3}); },
+    'b:hurt':(a, o)=>{ tone(a, o, {type:'square', f:190, f2:110, d:0.22, g:0.14}); tone(a, o, {f:90, f2:50, d:0.2, g:0.45}); },
+    'b:trauma':(a, o)=>{ noise(a, o, {d:0.09, g:0.6, filter:'highpass', f:2500}); noise(a, o, {t:0.05, d:0.3, g:0.3, filter:'lowpass', f:600}); tone(a, o, {type:'sawtooth', f:120, f2:55, t:0.04, d:0.4, g:0.12}); },
+    'b:down':(a, o)=>{ [110, 165, 220.5].forEach((f, i)=>tone(a, o, {f, d:1.4 - i*0.3, g:0.35/(i + 1), at:0.01})); },
+    'b:luck':(a, o)=>{ tone(a, o, {f:1568, d:0.35, g:0.22}); tone(a, o, {f:2093, t:0.09, d:0.5, g:0.22}); tone(a, o, {f:3136, t:0.09, d:0.25, g:0.06}); },
+    'b:init':(a, o)=>{ tone(a, o, {type:'triangle', f:520, f2:160, d:0.45, g:0.3}); tone(a, o, {type:'sine', f:7, d:0.45, g:0.0002}); },
+    'b:fight':(a, o)=>{ [[220, 0, 0.3], [220, 0.32, 0.18], [330, 0.52, 0.6]].forEach(([f, t, d])=>{ tone(a, o, {type:'sawtooth', f, t, d, g:0.12, at:0.04}); tone(a, o, {type:'square', f:f/2, t, d, g:0.05, at:0.04}); }); },
+    'b:turn':(a, o)=>{ tone(a, o, {f:880, d:0.08, g:0.25}); tone(a, o, {f:660, t:0.12, d:0.1, g:0.25}); },
+    'b:level':(a, o)=>{ [[523, 0, 0.14], [659, 0.15, 0.14], [784, 0.3, 0.14], [1047, 0.45, 0.6]].forEach(([f, t, d])=>{ tone(a, o, {type:'triangle', f, t, d, g:0.3}); tone(a, o, {type:'sine', f:f*2, t, d, g:0.06}); }); }
+  };
+  function playSound(rid, vol){
+    const fn = SOUNDS[rid]; if(!fn || !(vol > 0)) return;
+    const a = audio(); if(!a) return;
+    try{ const out = a.createGain(); out.gain.value = Math.min(1, vol); out.connect(a.destination); fn(a, out); setTimeout(()=>{ try{ out.disconnect(); }catch(e){} }, 2500); }catch(e){}
+  }
+  const sndVol = (rid)=>cfg.snd && cfg.snd.on[rid] ? cfg.snd.vol : 0; // у Мастера: громкость звука реакции или 0
+
   /* ---------- настройки Мастера ---------- */
   function defaultCfg(){
     const ev = {}; EVENTS.forEach(([k, , , on])=>{ ev[k] = {on, r:[DEFAULT_MAP[k]]}; });
-    return {on:true, manual:true, size:3, dur:3.5, ev, custom:[]};
+    return {on:true, manual:true, size:3, dur:3.5, ev, custom:[], snd:{vol:0.5, on:{}}};
   }
   let cfg = (function(){
     try{ const v = JSON.parse(localStorage.getItem(CFG_KEY) || 'null'); if(v && typeof v==='object') return normalize(v); }catch(e){}
@@ -115,6 +153,9 @@ const Reactions = (function(){
     const out = {on:v.on!==false, manual:v.manual!==false, size:[2, 3, 4, 5].indexOf(+v.size)>=0 ? +v.size : 3, dur:[2.5, 3.5, 5].indexOf(+v.dur)>=0 ? +v.dur : 3.5, ev:{}, custom:[]};
     (Array.isArray(v.custom) ? v.custom : []).forEach(x=>{ if(x && URL_RE.test(x.url || '') && /^c:[a-z0-9]{6,40}$/.test(x.id || ''))
       out.custom.push({id:x.id, name:String(x.name || 'Своя реакция').slice(0, 40), url:x.url, kind:/\.(mp4|webm)$/.test(x.url) ? 'video' : 'img', fx:clamp01(x.fx), fy:clamp01(x.fy)}); });
+    const sv = v.snd && typeof v.snd==='object' ? v.snd : {};
+    out.snd = {vol:[0.25, 0.5, 0.8].indexOf(+sv.vol)>=0 ? +sv.vol : 0.5, on:{}};
+    Object.keys(BUILTIN).forEach(id=>{ if(sv.on && sv.on[id]===true) out.snd.on[id] = true; });
     EVENTS.forEach(([k])=>{ const e = v.ev && v.ev[k]; out.ev[k] = e ? {on:e.on!==false, r:(Array.isArray(e.r) ? e.r : []).filter(id=>BUILTIN[id] || out.custom.some(c=>c.id===id))} : d.ev[k]; });
     return out;
   }
@@ -143,9 +184,10 @@ const Reactions = (function(){
     s.el.style.width = s.el.style.height = s.d + 'px'; s.el.classList.add('rx-out');
     setTimeout(()=>{ cancelAnimationFrame(s.raf); s.el.remove(); }, 420);
   }
-  function play(tokenId, r, size, dur){
+  function play(tokenId, r, size, dur, snd){
     const gt = GT(); if(!gt || !gt.layerEl || !r) return;
     const pos = gt.tokenWorld(tokenId); if(!pos) return;
+    if(snd > 0 && r.kind==='b') playSound(r.id, snd);
     stopShow(tokenId, true);
     const cell = gt.cellPx, D = Math.max(pos.d, (size || 3)*cell);
     const el = document.createElement('div'); el.className = 'rx-bubble';
@@ -173,8 +215,9 @@ const Reactions = (function(){
   function showFor(tokenId, rid){
     const gt = GT(), t = gt && gt.getToken(tokenId), r = resolve(rid), v = view(); if(!t || !r) return false;
     const now = Date.now(); if(now - (lastAt.get(tokenId) || 0) < 1200) return false; lastAt.set(tokenId, now);
-    play(tokenId, r, v.size, v.dur);
-    if(netRole()==='gm' && !t.hidden && typeof sendMsg==='function') sendMsg({type:'gt-rx', tokenId, r, size:v.size, dur:v.dur});
+    const snd = r.kind==='b' ? sndVol(r.id) : 0;
+    play(tokenId, r, v.size, v.dur, snd);
+    if(netRole()==='gm' && !t.hidden && typeof sendMsg==='function') sendMsg({type:'gt-rx', tokenId, r, size:v.size, dur:v.dur, snd});
     return true;
   }
   function fire(ev, tokenId){
@@ -208,7 +251,7 @@ const Reactions = (function(){
     return null;
   }
   function handle(msg, fromGm){
-    if(msg.type==='gt-rx'){ if(!fromGm) return; const r = sanitizeR(msg.r); if(r && typeof msg.tokenId==='string') play(msg.tokenId, r, Math.min(5, Math.max(2, +msg.size || 3)), Math.min(6, Math.max(1.5, +msg.dur || 3.5))); return; }
+    if(msg.type==='gt-rx'){ if(!fromGm) return; const r = sanitizeR(msg.r); if(r && typeof msg.tokenId==='string') play(msg.tokenId, r, Math.min(5, Math.max(2, +msg.size || 3)), Math.min(6, Math.max(1.5, +msg.dur || 3.5)), Math.min(0.8, Math.max(0, +msg.snd || 0))); return; }
     if(msg.type==='gt-rxcfg'){ if(!fromGm || !msg.cfg) return; const c = msg.cfg;
       pub = {on:c.on!==false, manual:c.manual!==false, size:+c.size || 3, dur:+c.dur || 3.5, lib:(Array.isArray(c.lib) ? c.lib : []).filter(x=>x && URL_RE.test(x.url || '')).slice(0, 80)
         .map(x=>({id:String(x.id).slice(0, 50), name:String(x.name || '').slice(0, 40), url:x.url, fx:clamp01(x.fx), fy:clamp01(x.fy)}))};
@@ -297,6 +340,11 @@ const Reactions = (function(){
         return `<div class="rx-ev${e.on ? '' : ' off'}"><label class="rx-sw"><input type="checkbox" data-ev="${k}" ${e.on ? 'checked' : ''}> <b>${esc(label)}</b></label>
           <div class="gs-muted">${esc(desc)}</div>
           <div class="rx-chips">${e.r.map(id=>`<span class="gs-chip">${esc(nameOf(id))}</span>`).join('') || '<span class="gs-muted">реакция не выбрана</span>'}<button type="button" class="gs-btn small" data-evpick="${k}" title="Выбрать реакции для этого события">✎</button></div></div>`; }).join('')}
+      <div class="gs-sub" style="margin-top:12px">Звуки</div>
+      <div class="gs-muted">Короткий звук вместе со встроенной реакцией — у всех за столом. По умолчанию все выключены.</div>
+      <div class="rx-line">Громкость: ${(()=>{ const vol = cfg.snd.vol; return `<span class="rx-seg">${[[0.25, 'тихо'], [0.5, 'средне'], [0.8, 'громко']].map(([v, l])=>`<button type="button" data-sndvol="${v}" class="${vol===v ? 'on' : ''}">${l}</button>`).join('')}</span>`; })()}</div>
+      <div class="rx-snd">${Object.keys(BUILTIN).map(id=>`<label class="rx-sw"><input type="checkbox" data-snd="${id}" ${cfg.snd.on[id] ? 'checked' : ''}> ${esc(BUILTIN[id].name)}</label><button type="button" class="gs-btn small" data-sndtest="${id}" title="Послушать (только у вас)">♪</button>`).join('')}</div>
+      <div class="gs-row"><button type="button" class="gs-btn small" data-sndall="1">Включить все</button><button type="button" class="gs-btn small" data-sndall="0">Выключить все</button></div>
       <div class="gs-sub" style="margin-top:12px">Библиотека</div>
       <div class="rx-lib">${lib.map(it=>`<div class="rx-libitem"><span class="rx-thumb">${thumbHtml(it)}</span><span class="rx-name">${esc(it.name)}</span>
         <span class="rx-libbtns"><button type="button" class="gs-btn small" data-test="${esc(it.id)}" title="Показать на выбранном жетоне (или на первом на столе)">▶</button>${it.kind==='b' ? '' : `<button type="button" class="gs-btn small" data-del="${esc(it.id)}" title="Убрать из библиотеки">✕</button>`}</span></div>`).join('')}</div>
@@ -308,18 +356,24 @@ const Reactions = (function(){
       root.addEventListener('change', (e)=>{
         const o = e.target.dataset.opt, ev = e.target.dataset.ev;
         if(o){ cfg[o] = e.target.checked; saveCfg(); renderConfig(root); }
+        else if(e.target.dataset.snd){ const id = e.target.dataset.snd; if(e.target.checked){ cfg.snd.on[id] = true; playSound(id, cfg.snd.vol); } else delete cfg.snd.on[id]; saveCfg(); }
         else if(ev){ cfg.ev[ev].on = e.target.checked; saveCfg(); renderConfig(root); }
       });
       root.addEventListener('click', (e)=>{
+        const sv = e.target.closest('[data-sndvol]'); if(sv){ cfg.snd.vol = Number(sv.dataset.sndvol); saveCfg(); renderConfig(root); playSound('b:turn', cfg.snd.vol); return; }
+        const sn = e.target.closest('[data-sndtest]'); if(sn){ playSound(sn.dataset.sndtest, cfg.snd.vol); return; }
+        const sa = e.target.closest('[data-sndall]'); if(sa){ cfg.snd.on = {}; if(sa.dataset.sndall==='1') Object.keys(BUILTIN).forEach(id=>{ cfg.snd.on[id] = true; }); saveCfg(); renderConfig(root); return; }
         const s = e.target.closest('[data-set]'); if(s){ cfg[s.dataset.set] = Number(s.dataset.v); saveCfg(); renderConfig(root); return; }
         const p = e.target.closest('[data-evpick]'); if(p){ const k = p.dataset.evpick, r = p.getBoundingClientRect();
           openPicker({title:'Реакции: ' + EVENTS.find(x=>x[0]===k)[1], multi:true, selected:cfg.ev[k].r, x:r.left - 200, y:r.top, onDone:(ids)=>{ cfg.ev[k].r = ids; saveCfg(); renderConfig(root); }}); return; }
         const t = e.target.closest('[data-test]'); if(t){ const gt = GT(), ids = gt.selectedIds ? gt.selectedIds() : [], any = Object.keys(gt.state.tokens || {});
           const id = ids[0] || any[0]; if(!id){ uiToast('Поставьте на стол хотя бы один жетон', {icon:'🎞'}); return; }
           if(typeof toggleMainTab==='function') toggleMainTab('table'); setTimeout(()=>{ lastAt.delete(id); showFor(id, t.dataset.test); }, 120); return; }
-        const d = e.target.closest('[data-del]'); if(d){ const id = d.dataset.del; cfg.custom = cfg.custom.filter(c=>c.id!==id); Object.values(cfg.ev).forEach(x=>{ x.r = x.r.filter(r=>r!==id); }); saveCfg(); renderConfig(root); return; }
+        const d = e.target.closest('[data-del]'); if(d){ const id = d.dataset.del, before = JSON.parse(JSON.stringify(cfg));
+          cfg.custom = cfg.custom.filter(c=>c.id!==id); Object.values(cfg.ev).forEach(x=>{ x.r = x.r.filter(r=>r!==id); }); saveCfg(); renderConfig(root);
+          uiToast('Реакция убрана из библиотеки', {icon:'✕', action:{label:'Отменить', run:()=>{ cfg = before; saveCfg(); if(root.isConnected) renderConfig(root); }}}); return; }
         const a = e.target.closest('[data-act]'); if(!a) return;
-        if(a.dataset.act==='reset'){ const keep = cfg.custom; cfg = defaultCfg(); cfg.custom = keep; saveCfg(); renderConfig(root); }
+        if(a.dataset.act==='reset'){ const keep = cfg.custom, snd = cfg.snd; cfg = defaultCfg(); cfg.custom = keep; cfg.snd = snd; saveCfg(); renderConfig(root); }
         else if(a.dataset.act==='upload') uploadCustom(()=>renderConfig(root));
       });
     }
@@ -355,5 +409,5 @@ const Reactions = (function(){
     inp.click();
   }
 
-  return { trigger, rollEvent, handle, onPlayerHello, manualAllowed, pickForToken, renderConfig, play, get config(){ return cfg; }, EVENTS };
+  return { trigger, rollEvent, handle, onPlayerHello, manualAllowed, pickForToken, renderConfig, play, playSound, get config(){ return cfg; }, EVENTS };
 })();

@@ -72,10 +72,13 @@
   window.uiForm = (title, fields, o)=>{ o = o || {};
     return uiDialog(Object.assign({title, fields, cancelValue:null, buttons:[{label:o.cancel || 'Отмена', value:null}, {label:o.ok || 'Готово', value:(v)=>v, primary:true}]}, o)); };
   let toastEl = null, toastTimer = 0;
+  // opts: icon, red, ms, action:{label, run} — кнопка в уведомлении (например, «Отменить» после удаления)
   window.uiToast = (text, o)=>{ o = o || {};
     if(!toastEl){ toastEl = document.createElement('div'); toastEl.className = 'ui-toast'; document.body.appendChild(toastEl); }
-    toastEl.innerHTML = `${o.icon ? `<span class="ui-dlg-hex small${o.red ? ' red' : ''}">${esc(o.icon)}</span>` : ''}<span>${esc(text)}</span><span class="ui-dlg-sheen"></span>`;
+    toastEl.innerHTML = `${o.icon ? `<span class="ui-dlg-hex small${o.red ? ' red' : ''}">${esc(o.icon)}</span>` : ''}<span>${esc(text)}</span>${o.action ? `<button type="button" class="ui-toast-act">${esc(o.action.label)}</button>` : ''}<span class="ui-dlg-sheen"></span>`;
+    toastEl.classList.toggle('has-act', !!o.action);
+    if(o.action) toastEl.querySelector('.ui-toast-act').onclick = ()=>{ clearTimeout(toastTimer); toastEl.classList.remove('show'); try{ o.action.run(); }catch(e){ console.error(e); } };
     toastEl.classList.remove('show'); void toastEl.offsetWidth; toastEl.classList.add('show');
-    clearTimeout(toastTimer); toastTimer = setTimeout(()=>toastEl.classList.remove('show'), o.ms || 3200);
+    clearTimeout(toastTimer); toastTimer = setTimeout(()=>toastEl.classList.remove('show'), o.ms || (o.action ? 8000 : 3200));
   };
 })();

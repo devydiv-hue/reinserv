@@ -458,6 +458,10 @@ const DicePanel = (function(){
       }
     }
     recordAndShareQuickRoll(entry);
+    if(session.role==='player' && secretRollActive()){ // тайный бросок: без кости и результата
+      el('dpFeedback').innerHTML = '🤫 Тайный бросок ушёл Мастеру — результат знает только он'; el('dpFeedback').className = 'dp-feedback secret'; setTitle('Тайно');
+      setTimeout(()=>{ if(myToken===rollToken) closePanel(); }, 1600); return;
+    }
     const f = formatQuickRollEntry(entry); // тот же форматтер, что и в общем логе — один источник текста
     launchRollAnimation(entry).then(()=>{
       if(myToken!==rollToken) return; // панель уже открыли/закрыли заново — этот бросок больше не хозяин UI
@@ -699,10 +703,14 @@ function handleIncomingMessage(msg){
   // Сервер сам ставит from по соединению, подделать его нельзя — раньше любой участник мог, например,
   // переписать чужой лист или начислить опыт всем.
   const fromGm = session.role==='player' && !!fromId && fromId===session.gmId;
+  if(typeof SessionExtras!=='undefined' && SessionExtras.handle(msg)) return; // встреча, раздатки, пауза, связь
   if(msg.type==='roll'){
     const entry = sanitizeRollEntry(msg.entry); // см. sanitizeRollEntry — чужие записи только через неё
     if(!entry) return;
+    if(entry.priv && session.role==='gm') entry.fromId = fromId || ''; // автор личной записи — по соединению, не по словам
+    if(entry.secretStub && session.log.some(x=>x.id + 's'===entry.id)) return; // у Мастера есть сам тайный бросок
     const isNew = addRollLogEntry(entry);
+    if(isNew && entry.priv) return; // личное (шёпот, тайный бросок) — никому не пересылается
     console.log('[Бросок] получен по WS', entry.id, 'от', fromId, isNew ? '— добавлен' : '— ОТБРОШЕН как дубликат (совпал id с уже виденным)');
     if(isNew && session.role==='gm') relayRollToAllPlayersExcept(fromId, entry);
   } else if(msg.type==='roll-sync'){
@@ -719,8 +727,9 @@ function handleIncomingMessage(msg){
     RoomTransport.handleSignal(msg);
   } else if(msg.type==='gm-hello'){
     if(session.role==='player'){
-      session.gmId = fromId; session.gmName = msg.name;
+      session.gmId = fromId; session.gmName = msg.name; session.gmNewLevel = Math.min(20, Math.max(1, Math.round(+msg.newLevel || 1)));
       updateSessionStatusUI();
+      if(typeof JoinScreen!=='undefined') setTimeout(()=>JoinScreen.onGmHello(), 400); // впервые за этим столом — выбор персонажа
       gtHook(g=>g.onGmHello()); // до sheet-snapshot: запрос стола заодно заново регистрирует игрока у перезагрузившегося Мастера
       sbHook(s=>s.onGmHello()); // снимок саундпада: что играет, где, какие звуки и плейлисты
       sendSheetSnapshotToGM();
@@ -735,8 +744,10 @@ function handleIncomingMessage(msg){
       renderPlayersList();
       // A personal reply (not just the earlier broadcast on connect) so a player who joins after the
       // GM is already up still learns who the GM is, whatever order the two of them connected in.
-      sendMsg({type:'gm-hello', name: session.ownName}, fromId);
-      sendMsg({type:'roll-sync', entries: session.log}, fromId);
+      sendMsg({type:'gm-hello', name: session.ownName, newLevel: gmNewCharLevel()}, fromId);
+      sendMsg({type:'roll-sync', entries: rollEntriesFor(session.log, fromId)}, fromId); // пороги — только допущенным
+      sendLogView(fromId); // вид лога: подробный, если Мастер допустил этого игрока
+      if(typeof SessionExtras!=='undefined') SessionExtras.onPlayerHello(fromId); // пауза, список «кому», замер связи
       sendMsg({type:'xp-checklist-sync', checklist: session.xpChecklist}, fromId); // догоняющий игрок сразу видит уже отмеченные деяния этой встречи
       gtHook(g=>g.onPlayerHello(fromId)); // game-table snapshot этому игроку
       sbHook(s=>s.onPlayerHello(fromId)); // soundboard snapshot — музыка догоняет позицию
@@ -753,6 +764,7 @@ function handleIncomingMessage(msg){
     if(session.role==='gm' && session.players[fromId] && isValidPayload(msg.payload)){
       session.players[fromId].character = msg.payload.character;
       session.players[fromId].extra = msg.payload.extra;
+      if(typeof GmCopies!=='undefined') GmCopies.remember(fromId, session.players[fromId].name, msg.payload); // копия листа у Мастера
       reapplyPendingGrants(fromId); // ещё не подтверждённые выдачи — поверх свежего листа, чтобы копия не откатывалась
       resendPendingGrants(fromId);  // лист пришёл — игрок на связи (в т.ч. после перезагрузки самого Мастера)
       renderPlayersList();
@@ -772,6 +784,18 @@ function handleIncomingMessage(msg){
       applyLoadedPayload(msg.payload);
       uiToast('Мастер обновил ваш лист персонажа.', {icon:'✎'});
     }
+  } else if(msg.type==='sheet-restore-request'){
+    // Игрок просит свой лист (новый браузер или очищенные данные) — Мастер выбирает копию
+    if(session.role==='gm' && fromId && typeof GmCopies!=='undefined') GmCopies.offer(fromId, String(msg.name || (session.players[fromId] && session.players[fromId].name) || 'Игрок').slice(0, 60));
+  } else if(msg.type==='log-view'){
+    if(fromGm){ session.logDetailed = !!msg.detailed; renderRollLog(); }
+  } else if(msg.type==='roll-sec'){
+    // Мастер допустил к порогам во время сессии — пороги уже прошедших атак
+    if(fromGm && Array.isArray(msg.list)){ let n = 0; msg.list.slice(0, 200).forEach(x=>{ const e = x && session.log.find(y=>y.id===x.id);
+      if(e && (e.mapAttack || e.mapGrenade) && x.sec && typeof x.sec==='object'){ e.sec = {max:Math.round(+x.sec.max || 0), max12:x.sec.max12==null ? null : Math.round(+x.sec.max12 || 0)}; n++; } });
+      if(n){ saveRollLog(); renderRollLog(); } }
+  } else if(msg.type==='sheet-restore-none'){
+    if(fromGm) uiAlert('У Мастера нет сохранённых копий вашего листа. Создайте персонажа заново или загрузите из файла.', {title:'Вернуть у Мастера', icon:'↩'});
   } else if(msg.type==='grant'){
     // Удача/опыт/HP от Мастера — см. раздел ВЫДАЧИ МАСТЕРА С ПОДТВЕРЖДЕНИЕМ.
     if(fromGm) receiveGrant(msg.grant, fromId);
@@ -786,7 +810,7 @@ function handleIncomingMessage(msg){
       const e = sanitizeRollEntry(raw);
       if(e && addRollLogEntry(e, true)) fresh.push(e);
     });
-    if(fresh.length){ saveRollLog(); renderRollLog(); sendMsg({type:'roll-sync', entries: fresh}); }
+    if(fresh.length){ saveRollLog(); renderRollLog(); sendMsg({type:'roll-sync', entries: rollEntriesFor(fresh, null)}); }
   } else if(msg.type==='xp-checklist-sync'){
     // Только отображение — сам опыт уже применён (или будет) отдельной выдачей; это сообщение лишь
     // синхронизирует read-only галочки чек-листа у игрока с тем, что реально отметил Мастер.
@@ -866,6 +890,8 @@ function wsUrl(role){
   return (location.protocol==='https:' ? 'wss://' : 'ws://') + location.host + '/?cid=' + encodeURIComponent(sessionClientId(role)) +
     '&room=' + encodeURIComponent(currentRoomCode) + (role==='gm' ? '&gmkey=' + gmKeyFor(currentRoomCode) : '');
 }
+// Уровень персонажа для новых игроков (экран Мастера → «Игроки») — уходит игрокам в приветствии Мастера
+function gmNewCharLevel(){ try{ const p = JSON.parse(localStorage.getItem('reincarnator_gm_screen_v1') || '{}'); return Math.min(20, Math.max(1, Math.round(+p.newLevel || 1))); }catch(e){ return 1; } }
 // «Я — Мастер»: без кода в адресе — новый стол со своей ссылкой
 function startAsGm(){
   if(!currentRoomCode) setRoomCode(newRoomCode());
@@ -965,15 +991,16 @@ function connectSession(role){
     if(msg.type==='hb-ack' && msg.from==='server'){ ws._serverHb = true; return; }
     if(msg.type==='welcome'){
       session.myId = msg.id;
+      if(typeof ServerCheck!=='undefined') ServerCheck.onWelcome(msg); // сервер старой версии — предупредить
       startHeartbeat(ws);
       console.log('[Сессия] Подключено, id=', msg.id);
       document.getElementById('sessionSetupHint').textContent = '';
       _reconnectDelay = 2000; // успешное подключение сбрасывает нарастающую паузу для следующего возможного обрыва
-      sendMsg({type: role==='gm' ? 'gm-hello' : 'player-hello', name: session.ownName});
+      sendMsg(role==='gm' ? {type:'gm-hello', name: session.ownName, newLevel: gmNewCharLevel()} : {type:'player-hello', name: session.ownName});
       // Мастер после (пере)подключения — свои последние броски всем: сделанные во время его обрыва иначе
       // не дошли бы до игроков (игроки свои досылают сами, см. sendOwnRollBackfill). Идёт следом за
       // gm-hello по тому же сокету — к этому моменту игроки уже знают, что это Мастер (roll-sync только от него).
-      if(role==='gm') sendMsg({type:'roll-sync', entries: session.log.slice(-100)});
+      if(role==='gm') sendMsg({type:'roll-sync', entries: rollEntriesFor(session.log.slice(-100), null)}); // всем сразу — без порогов
       updateSessionStatusUI();
       saveSessionState(); // remembered across refresh/reopen — see restoreSessionIfPresent()
       // Раньше здесь стояло RoomTransport.leaveRoom()+joinRoom() — потому что id раньше менялся на

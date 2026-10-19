@@ -16,7 +16,8 @@ const BlobDock = (function(){
   const CRAWL_SPEED = 11;                // пикс./с — «медленно ползут»
   const CRAWL_KEEP_AWAY = 170;           // курсор ближе — капля замирает (дальше её откроет приближение)
   const PIN_KEY = 'reincarnator_blob_pin_v1';
-  const reduceMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const reduceMotionMq = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const reduceMotion = ()=>reduceMotionMq || document.documentElement.classList.contains('lite'); // «Облегчённый режим» — тоже без движения
   const VW = ()=>document.documentElement.clientWidth || window.innerWidth; // без полосы прокрутки — капля у правого края её не закрывает
   const viewportKnown = ()=>window.innerHeight > DOCK_MARGIN*3 && VW() > DOCK_MARGIN*3; // скрытая вкладка — размер 0
   const isVertical = (edge)=>edge==='left' || edge==='right';
@@ -101,7 +102,7 @@ const BlobDock = (function(){
       p.classList.add('placed');
     }
     function wiggle(){
-      if(reduceMotion) return;
+      if(reduceMotion()) return;
       const p = o.panel; p.classList.remove('dock-wiggle'); void p.offsetWidth; p.classList.add('dock-wiggle');
       setTimeout(()=>p.classList.remove('dock-wiggle'), 750);
     }
@@ -119,13 +120,13 @@ const BlobDock = (function(){
       const dr = ((trot - rot) % 360 + 540) % 360 - 180; // кратчайший поворот к краю
       rot += dr*0.2;
       const speed = Math.hypot(vx, vy);
-      renderFab(reduceMotion ? 0 : Math.min(0.32, speed/40), Math.atan2(vy, vx)*180/Math.PI);
+      renderFab(reduceMotion() ? 0 : Math.min(0.32, speed/40), Math.atan2(vy, vx)*180/Math.PI);
       if(dragging || speed > 0.05 || Math.hypot(tx - fx, ty - fy) > 0.3 || Math.abs(dr) > 0.3){ raf = requestAnimationFrame(step); return; }
       raf = 0; fx = tx; fy = ty; rot = trot; renderFab(0, 0);
       if(pendingPanelShow) showPanelAgain();
     }
     function kick(){
-      if(reduceMotion){ fx = tx; fy = ty; rot = trot; vx = vy = 0; renderFab(0, 0); if(pendingPanelShow && !dragging) showPanelAgain(); return; }
+      if(reduceMotion()){ fx = tx; fy = ty; rot = trot; vx = vy = 0; renderFab(0, 0); if(pendingPanelShow && !dragging) showPanelAgain(); return; }
       if(!raf) raf = requestAnimationFrame(step);
     }
     function startDrag(e, handle){

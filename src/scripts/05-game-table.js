@@ -64,7 +64,14 @@ const GameTable = (function(){
       hidden: kind==='gm' && !!t.hidden
     };
     if(kind==='player') out.ownerId = String(t.ownerId||'').slice(0,64);
-    else out.hp = (t.hp===null || t.hp===undefined || t.hp==='') ? null : Math.round(clamp(num(t.hp,0), -9999, 9999));
+    else {
+      out.hp = (t.hp===null || t.hp===undefined || t.hp==='') ? null : Math.round(clamp(num(t.hp,0), -9999, 9999));
+      // Максимум ОЗ — для кольца по краю жетона. Не задан (старые жетоны) — берётся текущее значение; ОЗ выше максимума — максимум растёт
+      const mx = (t.hpMax===null || t.hpMax===undefined || t.hpMax==='') ? null : Math.round(clamp(num(t.hpMax,0), 1, 9999));
+      out.hpMax = out.hp===null ? mx : Math.max(mx || 0, out.hp, 1);
+      out.hpShown = !!t.hpShown; // число ОЗ видно игрокам — по умолчанию нет, только кольцо
+      if(out.hp===null && t.hpFrac!==null && t.hpFrac!==undefined && isFinite(Number(t.hpFrac))) out.hpFrac = clamp(Number(t.hpFrac), 0, 1); // (игрок) доля ОЗ без числа
+    }
     // Боевые характеристики (атака с карты). Защита, модификаторы, порог травмы и оружие — секрет Мастера:
     // игрокам жетоны уходят без них (см. publicToken). Счётчики травм и флажок «можно по незащищённым» видны всем.
     out.trauma = Math.round(clamp(num(t.trauma,0), 0, 99));        // 🦴 — травмы
@@ -96,7 +103,17 @@ const GameTable = (function(){
     return out;
   }
   const SECRET_TOKEN_FIELDS = ['defense','defenseSubs','armorName','attackMod','attackModEnabled','unprotectedMod','traumaThreshold','weaponText','strength','reflexes','grenade','atkSkill','creature'];
-  function publicToken(t){ const o = Object.assign({}, t); SECRET_TOKEN_FIELDS.forEach(k=>{ delete o[k]; }); return o; }
+  function publicToken(t){ const o = Object.assign({}, t); SECRET_TOKEN_FIELDS.forEach(k=>{ delete o[k]; });
+    // ОЗ жетона Мастера скрыты (по умолчанию): игрокам — только доля для кольца, без числа и максимума
+    if(t.kind==='gm' && !t.hpShown && t.hp!==null && t.hp!==undefined){ o.hpFrac = hpFraction(t.hp, t.hpMax); o.hp = null; o.hpMax = null; }
+    return o; }
+  function hpFraction(hp, max){ hp = Number(hp); max = Number(max); if(!isFinite(hp) || !(max > 0)) return null; return Math.round(clamp(hp/max, 0, 1)*100)/100; }
+  // Доля ОЗ для кольца по краю: игрок — из листа, жетон Мастера — hp/hpMax или присланная доля
+  function hpRingFrac(t, v){
+    if(t.kind==='player') return v ? hpFraction(v.hp, v.hpMax) : null;
+    if(t.hp!==null && t.hp!==undefined) return hpFraction(t.hp, t.hpMax);
+    return t.hpFrac!==null && t.hpFrac!==undefined ? t.hpFrac : null;
+  }
   function sanitizeDrawing(d){
     if(!d || DRAWING_TYPES.indexOf(d.type)<0) return null;
     const pts = (Array.isArray(d.points) ? d.points : []).slice(0,4000)
@@ -188,7 +205,8 @@ const GameTable = (function(){
   function myOwnerId(){ const r = role(); return r==='player' ? session.myId : r ? null : LOCAL_OWNER; }
   function tokenVisibleHere(t){ return isAuthority() || !t.hidden; }
   function ownToken(){ const me = myOwnerId(); return me ? Object.values(st().tokens).find(t=>t.kind==='player' && t.ownerId===me) : null; }
-  function canControl(t){ return !!t && (isAuthority() || (t.kind==='player' && t.ownerId===myOwnerId())); }
+  let paused = false; // «Стоп-кадр» Мастера: игроки не двигают жетоны
+  function canControl(t){ return !!t && (isAuthority() || (!paused && t.kind==='player' && t.ownerId===myOwnerId())); }
 
   let saveTimer = null, cacheTimer = null;
   function scheduleSave(){ if(sandbox) return; clearTimeout(saveTimer); saveTimer = setTimeout(()=>{ saveTimer=null; saveJson(STATE_KEY, authState); }, 250); }
@@ -210,6 +228,25 @@ const GameTable = (function(){
     return (f && f.value.trim()) || (session.ownName) || 'Мой персонаж';
   }
   function playerDisplayName(p){ return (p && ((p.extra && p.extra.name) || p.name)) || ''; }
+  // Портрет персонажа на жетоне игрока: свой — из своего листа, у Мастера — из присланных листов, у игрока — из рассылки Мастера
+  const PORTRAIT_RE = /^data:image\/(webp|png|jpeg);base64,[A-Za-z0-9+/=]+$/;
+  const validPortrait = (p)=>typeof p==='string' && p.length < 90000 && PORTRAIT_RE.test(p);
+  let remotePortraits = {}, portraitSig = '';
+  function portraitFor(t){
+    if(!t || t.kind!=='player') return '';
+    let c = null;
+    if(t.ownerId===myOwnerId()) c = (typeof character!=='undefined' && !session.editingPlayerId) ? character : null;
+    else if(role()==='gm'){ const p = session.players[t.ownerId]; c = p && p.character; }
+    else return remotePortraits[t.ownerId] || '';
+    return c && validPortrait(c.portrait) ? c.portrait : '';
+  }
+  function broadcastPortraits(to){
+    if(role()!=='gm') return;
+    const out = {}; Object.keys(session.players || {}).forEach(id=>{ const p = session.players[id], pr = p && p.character && p.character.portrait; if(validPortrait(pr)) out[id] = pr; });
+    const sig = Object.keys(out).sort().map(k=>k + ':' + out[k].length + out[k].slice(-12)).join('|');
+    if(!to){ if(sig===portraitSig) return; portraitSig = sig; }
+    sendMsg({type:'gt-portraits', portraits:out}, to);
+  }
   function vitalsFor(t){
     if(t.kind!=='player') return null;
     const r = role();
@@ -346,6 +383,7 @@ const GameTable = (function(){
         break;
       }
       case 'token-move': {
+        if(remote && paused) return deny('Стоп-кадр: Мастер поставил игру на паузу');
         let denied = false;
         (Array.isArray(cmd.moves) ? cmd.moves : []).slice(0,100).forEach(m=>{
           const t = m && s.tokens[m.id];
@@ -361,7 +399,7 @@ const GameTable = (function(){
         const t = s.tokens[cmd.id];
         if(!t) return deny('Жетон не найден');
         const patch = {};
-        ['name','hp','size','color','hidden','avatar','rotation',
+        ['name','hp','hpMax','hpShown','size','color','hidden','avatar','rotation',
          'defense','defenseSubs','armorName','weaponText','attackMod','attackModEnabled','unprotectedEnabled','unprotectedMod','traumaThreshold','trauma','traumaRed','strength','slowReaction','burning','reflexes','grenade','atkSkill','creature']
           .forEach(k=>{ if(cmd.patch && k in cmd.patch) patch[k] = cmd.patch[k]; });
         ops.push({op:'token-upsert', token:sanitizeToken(Object.assign({}, t, patch))});
@@ -501,6 +539,7 @@ const GameTable = (function(){
         break;
       }
       case 'gt-vitals': if(fromGm(msg)){ remoteVitals = msg.vitals && typeof msg.vitals==='object' ? msg.vitals : {}; renderTokens(); } break;
+      case 'gt-portraits': if(fromGm(msg) && msg.portraits && typeof msg.portraits==='object'){ const o = {}; Object.keys(msg.portraits).slice(0, 40).forEach(k=>{ if(validPortrait(msg.portraits[k])) o[k] = msg.portraits[k]; }); remotePortraits = o; renderTokens(); } break;
       case 'gt-ping': case 'gt-pointer': case 'gt-drag': handleTransient(msg); break;
       case 'gt-rx': case 'gt-rxcfg': case 'gt-rxreq': if(typeof Reactions!=='undefined') Reactions.handle(msg, fromGm(msg)); break; // реакции на жетонах
       case 'gt-attack': { // игрок прислал бросок атаки — считает Мастер (см. resolveAttack)
@@ -675,12 +714,14 @@ const GameTable = (function(){
       el.classList.toggle('cb-done', !!cbp && (cbp.act || cbp.swap || cbp.noAct));
       el.classList.toggle('cb-noact', !!cbp && cbp.noAct); }
     const v = vitalsFor(t);
-    const key = JSON.stringify([t.name, t.color, t.avatar, t.hp, t.kind, t.hidden, t.size, t.rotation, t.trauma, t.traumaRed, t.slowReaction, t.burning, v && [v.name, v.hp, v.hpMax, v.psi, v.psiMax]]);
+    const pf = portraitFor(t);
+    const key = JSON.stringify([t.name, t.color, t.avatar, pf ? pf.length + pf.slice(-16) : '', t.hp, t.hpMax, t.hpShown, t.hpFrac, isAuthority(), t.kind, t.hidden, t.size, t.rotation, t.trauma, t.traumaRed, t.slowReaction, t.burning, v && [v.name, v.hp, v.hpMax, v.psi, v.psiMax]]);
     if(el._gtKey===key) return;
     el._gtKey = key;
     const name = tokenName(t, v), sz = SIZE_CELLS[t.size]*CELL;
-    const face = t.avatar
-      ? `<img src="${escapeHtml(t.avatar)}" alt="" draggable="false" referrerpolicy="no-referrer">`
+    const av = t.avatar || portraitFor(t);
+    const face = av
+      ? `<img src="${escapeHtml(av)}" alt="" draggable="false" referrerpolicy="no-referrer">`
       : `<span style="font-size:${Math.round(sz*0.36)}px">${escapeHtml(initials(name))}</span>`;
     let stats = '';
     const fmt = (a)=> (a===null || a===undefined || a==='') ? '—' : escapeHtml(String(a));
@@ -688,9 +729,12 @@ const GameTable = (function(){
       stats = v ? `<span class="gt-stats"><span class="gt-hp${Number(v.hp)<=0?' down':''}">♥ ${fmt(v.hp)} / ${fmt(v.hpMax)}</span><span class="gt-psi">✦ ${fmt(v.psi)} / ${fmt(v.psiMax)}</span></span>`
                 : `<span class="gt-off">${offlineText(t)}</span>`;
     } else if(t.hp!==null && t.hp!==undefined){
-      stats = `<span class="gt-stats"><span class="gt-hp${t.hp<=0?' down':''}">♥ ${fmt(t.hp)}</span></span>`;
+      // у Мастера — число всегда (⊘ — игрокам не видно), у игроков — только если Мастер открыл
+      stats = `<span class="gt-stats"><span class="gt-hp${t.hp<=0?' down':''}" title="${t.hpShown ? 'ОЗ видны игрокам' : 'ОЗ скрыты от игроков — им видно только кольцо'}">♥ ${fmt(t.hp)}${t.hpMax ? ' / ' + fmt(t.hpMax) : ''}${t.hpShown ? '' : ' <i class="gt-hp-secret">⊘</i>'}</span></span>`;
     }
-    el.innerHTML = `<div class="gt-token-disc" style="--tok:${t.color};--rot:${t.rotation||0}deg">${face}</div>`+
+    const hf = hpRingFrac(t, v);
+    const ring = hf===null ? '' : `<i class="gt-hp-ring" style="--hpf:${hf}"></i>`;
+    el.innerHTML = `<div class="gt-token-disc${hf===null ? '' : ' has-ring'}" style="--tok:${t.color};--rot:${t.rotation||0}deg">${face}${ring}</div>`+
       (t.hidden ? '<i class="gt-hidden-badge" title="Скрыт от игроков">⊘</i>' : '')+
       `<div class="gt-token-label"><b>${escapeHtml(name)}</b>${stats}${traumaBadgesHtml(t)}</div>`;
   }
@@ -709,7 +753,8 @@ const GameTable = (function(){
     const kindTxt = t.kind==='player' ? 'Игрок' : 'Жетон Мастера';
     let stats = '';
     if(t.kind==='player') stats = v ? `<span class="hp">HP ${escapeHtml(String(v.hp))} / ${escapeHtml(String(v.hpMax))}</span><span class="psi">Psi ${escapeHtml(String(v.psi))} / ${escapeHtml(String(v.psiMax))}</span>` : '<span class="muted">лист недоступен</span>';
-    else if(t.hp!==null && t.hp!==undefined) stats = `<span class="hp">HP ${escapeHtml(String(t.hp))}</span>`;
+    else if(t.hp!==null && t.hp!==undefined) stats = `<span class="hp">HP ${escapeHtml(String(t.hp))}${t.hpMax ? ' / ' + escapeHtml(String(t.hpMax)) : ''}${t.hpShown ? '' : ' · скрыто от игроков'}</span>`;
+    else if(t.hpFrac!==null && t.hpFrac!==undefined) stats = `<span class="hp">${t.hpFrac<=0 ? 'повержен' : t.hpFrac>=1 ? 'невредим' : t.hpFrac>0.5 ? 'ранен' : t.hpFrac>0.25 ? 'тяжело ранен' : 'при смерти'}</span>`;
     // Мастеру — ещё и боевые характеристики (игрокам они не приходят вовсе, см. publicToken)
     let combat = '';
     if(isAuthority() && t.kind==='gm'){
@@ -1113,12 +1158,15 @@ const GameTable = (function(){
     awaitingOwnToken = true;
     if(!act({c:'player-token-create', x:sn.x, y:sn.y})) awaitingOwnToken = false;
   }
-  async function deleteTokens(ids){
+  function deleteTokens(ids){
     ids = ids.filter(id=>tok(id));
     if(!ids.length || !isAuthority()) return;
     const names = ids.map(id=>tokenName(tok(id), vitalsFor(tok(id))));
-    if((ids.length>1 || tok(ids[0]).kind==='player') && !(await uiConfirm(`Удалить с поля: ${names.join(', ')}?`, {title:'Удалить жетоны', ok:'Удалить', danger:true}))) return;
+    const saved = ids.map(id=>clone(tok(id)));
     act({c:'token-delete', ids});
+    // Удаление сразу, без вопроса — с «Отменить» в уведомлении (жетоны возвращаются со всем: ОЗ, карточка существа, владелец)
+    uiToast(`Удалено с поля: ${names.join(', ')}`.slice(0, 120), {icon:'✕', action:{label:'Отменить', run:()=>{
+      if(!isAuthority()) return; commit(saved.filter(t=>!tok(t.id)).map(t=>({op:'token-upsert', token:sanitizeToken(t)}))); }}});
   }
 
   /* ---------- ввод: мышь / перо / касание ---------- */
@@ -1643,13 +1691,19 @@ const GameTable = (function(){
     openMenu(p, '', items);
   }
   async function resetTable(){
-    if(!(await uiConfirm('Очистить игровой стол целиком — все жетоны, рисунки и фон? Это нельзя отменить.', {ok:'Да', danger:true}))) return;
+    const prev = clone(authState); // очистка — сразу; «Отменить» в уведомлении возвращает стол целиком
     authState = blankState();
     undoStack = []; redoStack = [];
     saveJson(STATE_KEY, authState);
     setSelection([]);
     renderTokens(); renderSubbar(); requestRender({bg:true, draw:true, fx:true});
     if(role()==='gm') sendMsg({type:'gt-snapshot', state:playerSnapshot()});
+    uiToast('Стол очищен', {icon:'✕', action:{label:'Отменить', run:()=>{
+      if(!isAuthority()) return;
+      authState = normalizeState(Object.assign(prev, {tableId:authState.tableId, version:authState.version + 1}));
+      scheduleSave(); tokenEls.forEach(el=>el.remove()); tokenEls.clear();
+      renderTokens(); renderCombat(); renderToolbar(); requestRender({bg:true, draw:true, fx:true});
+      if(role()==='gm') sendMsg({type:'gt-snapshot', state:playerSnapshot()}); }}});
   }
   function closePopover(){ if(popEl){ popEl.style.display = 'none'; popEl.innerHTML = ''; } }
   function openPopover(p, html, onSubmit){
@@ -1754,11 +1808,13 @@ const GameTable = (function(){
       whoHtml+
       (isPlayerTok ? '' : `<label class="gt-f">Имя<input type="text" name="name" maxlength="60" value="${escapeHtml(cur.name||'')}" placeholder="Например, Болотный упырь"></label>`)+
       `<div class="gt-f-row">`+
-      (isPlayerTok ? '' : `<label class="gt-f">HP<input type="number" name="hp" step="1" value="${cur.hp===null||cur.hp===undefined?'':cur.hp}" placeholder="—"></label>`)+
+      (isPlayerTok ? '' : `<label class="gt-f">HP<input type="number" name="hp" step="1" value="${cur.hp===null||cur.hp===undefined?'':cur.hp}" placeholder="—"></label>`+
+        `<label class="gt-f" title="Полное кольцо по краю жетона; пусто — равно текущим HP">Макс. HP<input type="number" name="hpMax" step="1" min="1" value="${cur.hpMax||''}" placeholder="="></label>`)+
       `<label class="gt-f">Размер<select name="size">${sizeOptions(cur.size)}</select></label></div>`+
       `<label class="gt-f" style="margin-bottom:2px">Цвет</label>${swatchesHtml(cur.color)}`+
       `<label class="gt-f">Картинка (ссылка, необязательно)<input type="url" name="avatar" maxlength="2000" value="${escapeHtml(cur.avatar||'')}" placeholder="https://…"></label>`+
-      (isPlayerTok ? '' : `<label class="gt-check"><input type="checkbox" name="hidden" ${cur.hidden?'checked':''}> Скрыт от игроков</label>`)+
+      (isPlayerTok ? '' : `<label class="gt-check"><input type="checkbox" name="hidden" ${cur.hidden?'checked':''}> Скрыт от игроков</label>`+
+        `<label class="gt-check" title="По умолчанию игроки видят только кольцо по краю жетона, без числа"><input type="checkbox" name="hpShown" ${cur.hpShown?'checked':''}> Показывать игрокам число HP</label>`)+
       combatFieldsHtml(cur, isPlayerTok)+
       `<div class="gt-pop-actions"><button type="button" class="small" data-cancel>Отмена</button><button type="submit" class="small primary">${editing?'Сохранить':'Создать'}</button></div>`;
     const form = openPopover(p, html, (f)=>{
@@ -1779,6 +1835,9 @@ const GameTable = (function(){
         base.name = String(fd.get('name')||'').trim() || 'Жетон';
         const hpRaw = String(fd.get('hp')||'').trim();
         base.hp = hpRaw==='' ? null : parseInt(hpRaw, 10);
+        const mxRaw = String(fd.get('hpMax')||'').trim();
+        base.hpMax = mxRaw==='' ? (base.hp!==null && base.hp!==cur.hp ? Math.max(1, base.hp) : (cur.hpMax || null)) : parseInt(mxRaw, 10);
+        base.hpShown = fd.get('hpShown')==='on';
         base.hidden = fd.get('hidden')==='on';
       }
       Object.assign(base, readCombatFields(fd, cur, isPlayerTok, subsState));
@@ -1789,7 +1848,7 @@ const GameTable = (function(){
     const whoSel = form.querySelector('select[name=who]');
     if(whoSel) whoSel.onchange = ()=>{
       const npc = !whoSel.value;
-      ['name','hp','hidden'].forEach(n=>{ const el = form.querySelector(`[name=${n}]`); if(el){ el.disabled = !npc; const lab = el.closest('label'); if(lab) lab.style.opacity = npc ? '' : '.4'; } });
+      ['name','hp','hpMax','hidden','hpShown'].forEach(n=>{ const el = form.querySelector(`[name=${n}]`); if(el){ el.disabled = !npc; const lab = el.closest('label'); if(lab) lab.style.opacity = npc ? '' : '.4'; } });
       const combat = form.querySelector('.gt-combat'); if(combat) combat.style.display = npc ? '' : 'none';
     };
     // Броня из каталога — сразу проставляет защиту и защиту по типам урона (поле «Защита» потом можно поправить)
@@ -1939,9 +1998,9 @@ const GameTable = (function(){
     }
     if(viewport) renderStatus();
   }
-  function onPlayerHello(id){ sendSnapshot(id); sendMsg({type:'gt-vitals', vitals:computeVitals()}, id); renderStatus(); if(typeof Reactions!=='undefined') Reactions.onPlayerHello(id); }
+  function onPlayerHello(id){ sendSnapshot(id); sendMsg({type:'gt-vitals', vitals:computeVitals()}, id); broadcastPortraits(id); renderStatus(); if(typeof Reactions!=='undefined') Reactions.onPlayerHello(id); }
   function onGmHello(){ lastSnapshotRequest = 0; requestSnapshot(); }
-  function onPlayerSheet(){ renderTokens(); broadcastVitals(); }
+  function onPlayerSheet(){ renderTokens(); broadcastVitals(); broadcastPortraits(); }
   function onPeerLeft(id){
     if(role()==='gm'){ renderTokens(); broadcastVitals(); renderStatus(); }
     if(isPlayer() && id===session.gmId){ gmPointer = null; requestRender({fx:true}); }
@@ -2457,6 +2516,7 @@ const GameTable = (function(){
       if(prev && prev.attackerOwner===(from||null)) undoAttack(prev.attackId, true);
     }
     const fullMax = attackKnownPart(c, w, fireMode, range, !!req.optikaOn, att.kind==='gm').base + chosenMod + secretPart(tgt, !!req.unprotected).v;
+    let max12Shown = null; // для подробного вида лога (пороги видят только допущенные Мастером)
     const roll = pickD20ForMode(rolls[0], rolls[1], fullMax, mode);
     const ev = evaluateD20Check(roll, fullMax);
     const jammed = !!(w.klinit && roll===13);
@@ -2468,7 +2528,7 @@ const GameTable = (function(){
       const targetHp = tgt.kind==='gm' ? tgt.hp : (tSheet ? tSheet.hpCurrent : null); // для «раны 6, если у цели 10+ ОЗ»
       const plan = weaponHitPlan(Object.assign({}, w, {speedBonusAvailable:!!req.speedAvailable}), fireMode, roll, ev.category, {targetHp});
       speedUsed = plan.speedUsed;
-      const max12 = (w.mu||0) - (unprotected ? 0 : targetDefense(tgt, w.muType));
+      const max12 = (w.mu||0) - (unprotected ? 0 : targetDefense(tgt, w.muType)); max12Shown = max12;
       const thr = tgt.kind==='player' ? 5 : (tgt.traumaThreshold || 5);
       for(let i=0;i<plan.hits;i++){
         const rolls12 = Array.from({length:plan.rollsPerHit}, ()=>randInt(12));
@@ -2504,7 +2564,7 @@ const GameTable = (function(){
     if(Object.keys(patch).length) execCommand({c:'token-update', id:tgt.id, patch});
     attackRecords.push(rec); saveAttackRecords();
     recordAndShareQuickRoll({ mapAttack:true, attackId, attacker:attackerName, target:targetName, weaponName:w.name, fireMode, rolls, roll, mode,
-                              success:ev.success, category:ev.category, jammed, unprotected, slow:!!w.slow, hits, total });
+                              success:ev.success, category:ev.category, jammed, unprotected, slow:!!w.slow, hits, total, sec:{max:fullMax, max12:max12Shown} });
     if(att.kind==='player' && !ev.success) if(typeof GmAdvice!=='undefined') GmAdvice.event('miss'); // промах атаки игрока
     if(typeof Reactions!=='undefined') Reactions.trigger(roll===12 ? 'crit' : (roll===13 && !ev.success) ? 'fumble' : ev.success ? 'hit' : 'miss', att.id);
     return {ok:true, success:ev.success, jammed, speedUsed};
@@ -2715,7 +2775,7 @@ const GameTable = (function(){
                   label:`${attackerName} → ${targetName}, «${w.name}»: ${grand} ${woundsWord(grand)}`, undone:false };
     attackRecords.push(rec); saveAttackRecords();
     recordAndShareQuickRoll({ mapGrenade:true, attackId, attacker:attackerName, target:targetName, weaponName:w.name, rolls, roll, mode,
-                              success:ev.success, category:ev.category, outcome, slow:!!w.slow, victims:logVictims });
+                              success:ev.success, category:ev.category, outcome, slow:!!w.slow, victims:logVictims, sec:{max:fullMax, max12:null} });
     return {ok:true, success:ev.success, jammed:false, speedUsed:false};
   }
   // Пункты «Атаковать» для меню жетона
@@ -2844,6 +2904,7 @@ const GameTable = (function(){
            submitMapAttack, undoAttack, canUndoAttack, setScene, focusScene, redraw:()=>requestRender({bg:true, draw:true, fx:true}),
            placeToken, creatureAttack, getToken:(id)=>tok(id), vitalsOf:(t)=>vitalsFor(t), updateToken:(id, patch)=>act({c:'token-update', id, patch}),
            editToken:(id)=>{ const t = tok(id); if(t) openTokenForm(t, null, {x:40, y:60}); }, refreshToolbar:()=>{ if(viewport) renderToolbar(); },
-           get state(){ return st(); }, get camera(){ return cam; } };
+           get state(){ return st(); }, get camera(){ return cam; },
+           setPaused(on){ paused = !!on; if(viewport) renderTokens(); }, get paused(){ return paused; } };
 })();
 try{ GameTable.init(); }catch(e){ console.error('[Игровой стол] не удалось запустить', e); }

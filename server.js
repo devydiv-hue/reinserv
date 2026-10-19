@@ -20,6 +20,9 @@ const WS_MAGIC = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11'; // фиксирован
 // листа персонажа, sheet-snapshot/sheet-push) — но не безгранично, чтобы одно испорченное или
 // злонамеренное сообщение не заставило сервер копить в памяти сколько угодно байт.
 const MAX_FRAME_PAYLOAD = 4 * 1024 * 1024; // 4MB
+// Версия протокола сервера — страница сравнивает её со своей и предупреждает, если server.js не перезапущен после обновления.
+// 2 — комнаты столов, ключ Мастера, загрузка реакций.
+const SERVER_PROTOCOL = 2;
 
 function findSheetFile() {
   const files = fs.readdirSync(DIR).filter(f => f.toLowerCase().endsWith('.html'));
@@ -232,6 +235,68 @@ function serveReaction(name, res) {
   });
 }
 
+// ---- Медиа заметок Мастера (картинки, гифки, короткие ролики для раздаток): POST /media-upload (заголовок X-Media-Id),
+// раздаются по ссылке /user-media/<id>.<ext> с поддержкой Range — без неё Safari на iPhone не играет видео.
+// Загружает только подтверждённый Мастер; до 20 МБ файл, до 1 ГБ папка. Имена случайные, не перезаписываются.
+const USER_MEDIA_DIR = path.join(DIR, 'user-media');
+const MAX_MEDIA_BYTES = 20 * 1024 * 1024, MAX_MEDIA_DIR_BYTES = 1024 * 1024 * 1024;
+const MEDIA_TYPES = { 'image/gif': 'gif', 'image/webp': 'webp', 'image/png': 'png', 'image/jpeg': 'jpg', 'video/mp4': 'mp4', 'video/webm': 'webm' };
+const MEDIA_FILE_RE = /^[a-z0-9]{8,40}\.(gif|webp|png|jpg|mp4|webm)$/;
+const MEDIA_MIME = { gif: 'image/gif', webp: 'image/webp', png: 'image/png', jpg: 'image/jpeg', mp4: 'video/mp4', webm: 'video/webm' };
+function mediaMagicOk(ext, buf) {
+  if (ext === 'jpg') return buf.slice(0, 3).toString('hex') === 'ffd8ff';
+  return reactionMagicOk(ext, buf);
+}
+function mediaDirBytes() {
+  try { return fs.readdirSync(USER_MEDIA_DIR).reduce((n, f) => { try { return n + fs.statSync(path.join(USER_MEDIA_DIR, f)).size; } catch (e) { return n; } }, 0); }
+  catch (e) { return 0; }
+}
+function handleMediaUpload(req, res) {
+  const reply = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
+  const cid = String(req.headers['x-client-id'] || '');
+  if (!CLIENT_ID_RE.test(cid) || !isVerifiedGm(cid)) { reply(403, { error: 'Загружать медиа может только подключённый Мастер' }); req.resume(); return; }
+  const id = String(req.headers['x-media-id'] || ''), ext = MEDIA_TYPES[String(req.headers['content-type'] || '').split(';')[0].trim()];
+  if (!/^[a-z0-9]{8,40}$/.test(id) || !ext) { reply(400, { error: 'Нужна картинка (PNG, JPEG, WebP, GIF) или ролик MP4/WebM' }); req.resume(); return; }
+  if (Number(req.headers['content-length'] || 0) > MAX_MEDIA_BYTES) { reply(413, { error: 'Файл больше 20 МБ' }); req.resume(); return; }
+  const name = id + '.' + ext;
+  if (fs.existsSync(path.join(USER_MEDIA_DIR, name))) { req.resume(); reply(200, { url: '/user-media/' + name }); return; } // уже загружен (повторная отправка)
+  if (mediaDirBytes() > MAX_MEDIA_DIR_BYTES) { reply(507, { error: 'Папка медиа на сервере заполнена (1 ГБ) — удалите старое из user-media/' }); req.resume(); return; }
+  const chunks = []; let size = 0, aborted = false;
+  req.on('data', c => { if (aborted) return; size += c.length; if (size > MAX_MEDIA_BYTES) { aborted = true; reply(413, { error: 'Файл больше 20 МБ' }); req.destroy(); return; } chunks.push(c); });
+  req.on('end', () => {
+    if (aborted) return;
+    const buf = Buffer.concat(chunks);
+    if (!mediaMagicOk(ext, buf)) { reply(400, { error: 'Содержимое не похоже на картинку или ролик' }); return; }
+    fs.mkdir(USER_MEDIA_DIR, { recursive: true }, (e1) => {
+      if (e1) { reply(500, { error: 'Не удалось создать папку' }); return; }
+      fs.writeFile(path.join(USER_MEDIA_DIR, '.gitignore'), '*\n', () => {});
+      fs.writeFile(path.join(USER_MEDIA_DIR, name), buf, (e2) => {
+        if (e2) { reply(500, { error: 'Не удалось сохранить файл' }); return; }
+        console.log('[Server] Медиа загружено', name, size, 'байт от', cid);
+        reply(200, { url: '/user-media/' + name });
+      });
+    });
+  });
+}
+function serveMedia(name, req, res) {
+  if (!MEDIA_FILE_RE.test(name)) { res.writeHead(404); res.end(); return; }
+  const file = path.join(USER_MEDIA_DIR, name);
+  fs.stat(file, (err, st) => {
+    if (err || !st.isFile()) { res.writeHead(404); res.end(); return; }
+    const head = { 'Content-Type': MEDIA_MIME[name.split('.').pop()], 'Cache-Control': 'public, max-age=604800, immutable', 'X-Content-Type-Options': 'nosniff', 'Accept-Ranges': 'bytes' };
+    const m = /^bytes=(\d*)-(\d*)$/.exec(String(req.headers.range || ''));
+    if (m && (m[1] || m[2])) {
+      let start = m[1] ? parseInt(m[1], 10) : st.size - parseInt(m[2], 10), end = m[1] && m[2] ? parseInt(m[2], 10) : st.size - 1;
+      if (!(start >= 0) || start >= st.size || end < start) { res.writeHead(416, { 'Content-Range': 'bytes */' + st.size }); res.end(); return; }
+      end = Math.min(end, st.size - 1);
+      res.writeHead(206, Object.assign(head, { 'Content-Range': `bytes ${start}-${end}/${st.size}`, 'Content-Length': end - start + 1 }));
+      fs.createReadStream(file, { start, end }).pipe(res); return;
+    }
+    res.writeHead(200, Object.assign(head, { 'Content-Length': st.size }));
+    fs.createReadStream(file).pipe(res);
+  });
+}
+
 // ---- PWA (установка на телефон/ПК как приложение, работа без сети): файлы из папки pwa/ ----
 const PWA_DIR = path.join(DIR, 'pwa');
 function servePwa(urlPath, res) {
@@ -256,6 +321,8 @@ const httpServer = http.createServer((req, res) => {
   if (urlPath.indexOf('/user-assets/') === 0) { serveAsset(urlPath.slice(13), res); return; }
   if (req.method === 'POST' && urlPath === '/reaction-upload') { handleReactionUpload(req, res); return; }
   if (urlPath.indexOf('/user-reactions/') === 0) { serveReaction(urlPath.slice(16), res); return; }
+  if (req.method === 'POST' && urlPath === '/media-upload') { handleMediaUpload(req, res); return; }
+  if (urlPath.indexOf('/user-media/') === 0) { serveMedia(urlPath.slice(12), req, res); return; }
   if (urlPath.indexOf('/user-sounds/') === 0) { serveSound(USER_SOUND_DIR, urlPath.slice(13), res); return; }
   if (urlPath.indexOf('/assets/sounds/') === 0) { serveSound(ASSET_SOUND_DIR, urlPath.slice(15), res); return; }
   // PWA: манифест, сервис-воркер (обязательно из корня — тогда он обслуживает всё приложение) и иконки из папки pwa/
@@ -474,7 +541,7 @@ httpServer.on('upgrade', (req, socket) => {
   // Вернулся до истечения grace-периода (см. pendingLeave выше) — остальные участники так и не узнают,
   // что было кратковременное отключение, их peer-соединение к этому id ни разу не рвалось с их стороны.
   if (pendingLeave.has(leaveKey)) { clearTimeout(pendingLeave.get(leaveKey)); pendingLeave.delete(leaveKey); }
-  send(socket, { type: 'welcome', id, room: roomName === DEFAULT_ROOM ? '' : roomName });
+  send(socket, { type: 'welcome', id, room: roomName === DEFAULT_ROOM ? '' : roomName, ver: SERVER_PROTOCOL });
   console.log('[Server] Client connected', id, isGm ? '(Мастер)' : '', 'стол', roomName, '- за столом:', clients.size, ', всего:', totalClients());
 
   let buffer = Buffer.alloc(0);

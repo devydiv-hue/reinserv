@@ -993,7 +993,7 @@ const Bestiary = (function(){
     const inst = makeInstance(tpl);
     const c = Object.assign(clone(tpl), {inst});
     const num = /\d$/.test(tpl.name) ? ` (${n + 1})` : ' ' + (n + 1); // «Пустота №5 (1)», а не «№5 1»
-    return Object.assign({name:(tpl.name + num).slice(0, 60), hp:inst.hpMax, size:rzSize(tpl.rz), color:tpl.color || COLORS[0],
+    return Object.assign({name:(tpl.name + num).slice(0, 60), hp:inst.hpMax, hpMax:inst.hpMax, size:rzSize(tpl.rz), color:tpl.color || COLORS[0],
       hidden:!!prefs.spawnHidden, traumaThreshold:5, creature:c}, combatFields(tpl, inst));
   }
 
@@ -1375,7 +1375,9 @@ const Bestiary = (function(){
       case 'edit': if(tpl) openEditor(tpl, tpl.quick); break;
       case 'dup': if(tpl){ const c = Object.assign(clone(tpl), {id:newTplId(), name:(tpl.name + ' (копия)').slice(0, 60)}); userList.push(c); saveUser(); prefs.sel = c.id; savePrefs(); render(); openEditor(c, c.quick); } break;
       case 'revert': if(tpl) uiConfirm(`Вернуть «${tpl.name}» к тексту встроенного бестиария? Ваши правки пропадут.`, {title:'Бестиарий', ok:'Вернуть'}).then(ok=>{ if(ok){ userList = userList.filter(u=>u.id!==tpl.id); saveUser(); render(); } }); break;
-      case 'del': if(tpl) uiConfirm(`Удалить «${tpl.name}» из бестиария? Жетоны на столе останутся.`, {title:'Бестиарий', ok:'Удалить', danger:true}).then(ok=>{ if(ok){ userList = userList.filter(u=>u.id!==tpl.id); saveUser(); prefs.sel = ''; savePrefs(); render(); } }); break;
+      case 'del': if(tpl){ const own = userList.find(u=>u.id===tpl.id); if(!own) break; const at = userList.indexOf(own);
+        userList = userList.filter(u=>u.id!==tpl.id); saveUser(); prefs.sel = ''; savePrefs(); render();
+        uiToast(`«${tpl.name}» удалено из бестиария`, {icon:'✕', action:{label:'Отменить', run:()=>{ userList.splice(Math.min(at, userList.length), 0, own); saveUser(); prefs.sel = own.id; savePrefs(); render(); }}}); } break;
       case 'place': if(tpl) placeOnTable(tpl, null, null, true); break;
       case 'import': view.querySelector('[data-f=file]').click(); break;
       case 'export': exportJson(); break;

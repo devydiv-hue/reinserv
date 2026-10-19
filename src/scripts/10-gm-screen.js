@@ -39,7 +39,7 @@ const GmScreen = (function(){
       <button type="button" class="gs-dock-btn gs-move" aria-pressed="false" aria-label="Перемещать экран Мастера по краям экрана">${MOVE_ICON}</button>
       <button type="button" class="gs-dock-btn gs-pin" aria-pressed="true" aria-label="Булавка: капли на месте или медленно ползут по краям экрана">${PIN_ICON}</button>
       <div class="gs-title">Экран Мастера</div>
-      <div class="gs-tabs"><button type="button" data-tab="players">Игроки</button><button type="button" data-tab="scenes">Сцены</button><button type="button" data-tab="notes">Заметки</button><button type="button" data-tab="reactions">Реакции</button></div>
+      <div class="gs-tabs"><button type="button" data-tab="players">Игроки</button><button type="button" data-tab="scenes">Сцены</button><button type="button" data-tab="notes">Заметки</button><button type="button" data-tab="reactions">Реакции</button><button type="button" data-tab="chron" title="Летопись сессии: броски, бои, «повержен», выдачи, ваши записи">Летопись</button></div>
       <div class="gs-body"></div>`;
     document.body.appendChild(panel);
     body = panel.querySelector('.gs-body');
@@ -89,7 +89,9 @@ const GmScreen = (function(){
     if(prefs.tab==='players') body.innerHTML = playersHtml();
     else if(prefs.tab==='scenes') body.innerHTML = scenesHtml();
     else if(prefs.tab==='reactions'){ body.innerHTML = '<div class="rx-cfg"></div>'; if(typeof Reactions!=='undefined') Reactions.renderConfig(body.firstChild); }
+    else if(prefs.tab==='chron'){ body.innerHTML = '<div class="ch-root"></div>'; if(typeof Chronicle!=='undefined') Chronicle.render(body.firstChild); }
     else renderNotes();
+    if(typeof NoteMedia!=='undefined') NoteMedia.hydrate(body); // картинки и ролики заметок — из хранилища браузера
   }
 
   /* ---------- игроки ---------- */
@@ -100,9 +102,13 @@ const GmScreen = (function(){
       return `<div class="gs-empty">Игроки появятся здесь, когда вы начнёте сессию «Я — Мастер» и они подключатся: ОЗ, пси, удача и состояния всех сразу.
         <div class="gs-row"><button type="button" class="gs-btn" data-a="to-session">К началу сессии</button></div></div>`;
     const ids = Object.keys(session.players || {});
-    if(!ids.length) return `<div class="gs-empty">Стол «${esc(typeof currentRoomCode!=='undefined' && currentRoomCode || 'общий')}» открыт, но пока никто не подключился. Отправьте игрокам ссылку на стол.
+    const lvlRow = `<div class="gs-row gs-newlvl">Новые игроки: персонаж <select data-a="newlvl" title="Какого уровня персонажа предлагать игрокам при входе за стол («Сгенерировать за меня»)">${Array.from({length:20}, (_, i)=>i + 1).map(n=>`<option value="${n}" ${n===(+prefs.newLevel || 1) ? 'selected' : ''}>${n}</option>`).join('')}</select> уровня
+      <button type="button" class="gs-btn small" data-a="copies" title="Копии листов игроков, которые хранятся у вас — их можно вернуть игроку">Копии листов</button></div>
+      <div class="gs-row gs-logview"><label title="«к20≤14 → 10 — Успех, КУ2 · к12≤7 → [4, 7]→7 пробило · итого 7 ран». Пороги атак (Макс. и МУ − Защита) — секрет: игрокам только по галочке «пороги» у каждого"><input type="checkbox" data-lv="on" ${typeof logView!=='undefined' && logView.on ? 'checked' : ''}> Подробный вид лога: к20≤Макс., к12≤порог</label></div>`;
+    const meetRow = typeof SessionExtras!=='undefined' ? SessionExtras.meetingRowHtml() : '';
+    if(!ids.length) return meetRow + lvlRow + (typeof SessionExtras!=='undefined' ? SessionExtras.goneHtml() : '') + `<div class="gs-empty">Стол «${esc(typeof currentRoomCode!=='undefined' && currentRoomCode || 'общий')}» открыт, но пока никто не подключился. Отправьте игрокам ссылку на стол.
         <div class="gs-row"><button type="button" class="gs-btn primary" data-a="copy-link">⧉ Ссылка для игроков</button></div></div>`;
-    return `<div class="gs-sub">В сети: ${ids.length}</div>` + ids.map(id=>{
+    return meetRow + lvlRow + `<div class="gs-sub">В сети: ${ids.length}</div>` + (typeof SessionExtras!=='undefined' ? SessionExtras.goneHtml() : '') + ids.map(id=>{
       const p = session.players[id], c = p.character;
       const pname = esc(p.name || 'игрок'), cname = esc((p.extra && p.extra.name) || '');
       if(!c) return `<div class="gs-pc"><div class="gs-pc-head"><span class="gs-dot"></span><b>${pname}</b><span class="gs-muted">ждём лист…</span></div></div>`;
@@ -110,10 +116,10 @@ const GmScreen = (function(){
       const arch = (typeof ARCHETYPES!=='undefined' && ARCHETYPES[c.archetypeKey]) ? ARCHETYPES[c.archetypeKey].name : '';
       const st = c.states || {}, states = [['bodrost', 'бодрость'], ['ispug', 'испуг'], ['istoshenie', 'истощение'], ['stress', 'стресс']].filter(x=>st[x[0]]).map(x=>`<span class="gs-chip on">${x[1]}</span>`).join('');
       const down = c.hpCurrent <= 0 ? '<span class="gs-chip red">⚠ ОЗ ≤ 0</span>' : '';
-      return `<div class="gs-pc"><div class="gs-pc-head"><span class="gs-dot on"></span><b>${cname || pname}</b><span class="gs-muted">${cname ? pname + ' · ' : ''}ур. ${c.level}${arch ? ' · ' + esc(arch) : ''}</span></div>
+      return `<div class="gs-pc"><div class="gs-pc-head">${typeof SessionExtras!=='undefined' ? SessionExtras.connDot(id) : '<span class="gs-dot on"></span>'}<b>${cname || pname}</b><span class="gs-muted">${cname ? pname + ' · ' : ''}ур. ${c.level}${arch ? ' · ' + esc(arch) : ''}</span></div>
         <div class="gs-bars"><span class="gs-lbl">ОЗ</span>${bar('hp', c.hpCurrent, hm)}<span class="gs-lbl">Пси</span>${bar('psi', c.psiCurrent, pm)}</div>
         <div class="gs-chips"><span class="gs-chip">🍀 ${c.luck==null ? 1 : c.luck}</span><span class="gs-chip">опыт ${c.xp || 0}</span>${down}${states}</div>
-        <div class="gs-row"><button type="button" class="gs-btn" data-a="luck" data-id="${esc(id)}" title="Выдать 1 удачу">🍀+1</button><button type="button" class="gs-btn" data-a="edit" data-id="${esc(id)}" title="Открыть лист игрока у себя и править">✎ Лист</button><button type="button" class="gs-btn" data-a="loot" data-id="${esc(id)}" title="Находка: бросок по таблицам книги и выдача игроку">⛏ Находка</button><button type="button" class="gs-btn" data-a="find" data-id="${esc(id)}" title="Показать жетон игрока на игровом столе">📍</button></div></div>`;
+        <div class="gs-row"><button type="button" class="gs-btn" data-a="luck" data-id="${esc(id)}" title="Выдать 1 удачу">🍀+1</button><button type="button" class="gs-btn" data-a="edit" data-id="${esc(id)}" title="Открыть лист игрока у себя и править">✎ Лист</button><button type="button" class="gs-btn" data-a="loot" data-id="${esc(id)}" title="Находка: бросок по таблицам книги и выдача игроку">⛏ Находка</button><button type="button" class="gs-btn" data-a="find" data-id="${esc(id)}" title="Показать жетон игрока на игровом столе">📍</button>${typeof logView!=='undefined' && logView.on ? `<label class="gs-lvp" title="Этот игрок видит подробный лог с порогами (Макс. и МУ − Защита цели)"><input type="checkbox" data-lv="p" data-id="${esc(id)}" ${logView.allow[id] ? 'checked' : ''}> пороги</label>` : ''}</div></div>`;
     }).join('');
   }
 
@@ -142,7 +148,7 @@ const GmScreen = (function(){
           <button type="button" class="gs-btn" data-s="del" title="Удалить сцену">🗑</button></div></div>`).join('')
       : '<div class="gs-empty">Сцен пока нет. Расставьте стол и нажмите «Сохранить стол как сцену» — или соберите сцену на черновом столе.</div>';
     return head + `<div class="gs-list">${list}</div>
-      <div class="gs-foot"><button type="button" class="gs-btn small" data-s="export" title="Сцены и заметки — в файл, чтобы перенести на другое устройство">⬇ Подготовка в файл</button><button type="button" class="gs-btn small" data-s="import" title="Загрузить сцены и заметки из файла">⬆ Из файла</button></div>`;
+      <div class="gs-foot"><button type="button" class="gs-btn small" data-s="export" title="Сцены, заметки и предметы к встрече — в файл, чтобы перенести на другое устройство">⬇ Подготовка в файл</button><button type="button" class="gs-btn small" data-s="import" title="Загрузить сцены и заметки из файла">⬆ Из файла</button></div>`;
   }
   async function saveScene(existing){
     const gt = GT(); if(!gt || !gt.captureScene) return;
@@ -207,6 +213,8 @@ const GmScreen = (function(){
   function renderRich(text){
     const lines = String(text || '').split('\n'); let html = '', inList = false;
     lines.forEach(l=>{
+      const media = typeof NoteMedia!=='undefined' ? NoteMedia.lineHtml(l) : null;
+      if(media){ if(inList){ html += '</ul>'; inList = false; } html += media; return; }
       const li = l.match(/^\s*[-•*]\s+(.*)$/);
       if(li){ if(!inList){ html += '<ul>'; inList = true; } html += '<li>' + inline(li[1]) + '</li>'; return; }
       if(inList){ html += '</ul>'; inList = false; }
@@ -224,17 +232,34 @@ const GmScreen = (function(){
   }
   function curNote(){ return notes.find(n=>n.id===prefs.note) || notes[0] || null; }
   function renderNotes(){
+    const sub = `<div class="rx-seg gs-notes-sub"><button type="button" data-nsub="notes" class="${prefs.nsub!=='items' ? 'on' : ''}">Заметки</button><button type="button" data-nsub="items" class="${prefs.nsub==='items' ? 'on' : ''}" title="Предметы к встрече: из каталога, по таблицам Находок, свои — выдать игроку одной кнопкой">Предметы к встрече</button></div>`;
+    if(prefs.nsub==='items'){ body.innerHTML = sub + '<div class="pi-root"></div>'; if(typeof PrepItems!=='undefined') PrepItems.render(body.querySelector('.pi-root')); return; }
     const n = curNote();
     const sel = `<select class="gs-note-sel" title="Выбрать заметку">${notes.map(x=>`<option value="${esc(x.id)}" ${n && x.id===n.id ? 'selected' : ''}>${esc(x.title || 'Без названия')}</option>`).join('') || '<option value="">— заметок нет —</option>'}</select>`;
-    const head = `<div class="gs-row gs-notes-head">${sel}<button type="button" class="gs-btn" data-n="new" title="Новая заметка">＋</button>${n ? `<button type="button" class="gs-btn${editing ? ' primary' : ''}" data-n="edit" title="${editing ? 'Готово — показать с бросками' : 'Править'}">${editing ? '✓' : '✎'}</button><button type="button" class="gs-btn" data-n="del" title="Удалить заметку">🗑</button>` : ''}</div>`;
+    const head = `<div class="gs-row gs-notes-head">${sel}<button type="button" class="gs-btn" data-n="new" title="Новая заметка">＋</button>${n ? `<button type="button" class="gs-btn${editing ? ' primary' : ''}" data-n="edit" title="${editing ? 'Готово — показать с бросками' : 'Править'}">${editing ? '✓' : '✎'}</button><button type="button" class="gs-btn" data-n="media" title="Картинка, гифка или короткий ролик (MP4/WebM) в заметку — можно и вставить Ctrl+V или перетащить файл в текст">🖼</button><button type="button" class="gs-btn" data-n="del" title="Удалить заметку">🗑</button><button type="button" class="gs-btn" data-n="handout" title="Раздатка: показать игрокам заметку (или выделенный в ней кусок) и картинку">📜 Игрокам</button>` : ''}</div>`;
     let main;
     if(!n) main = '<div class="gs-empty">Заметок пока нет. «＋» — новая: план встречи, описания, NPC, ловушки. «Взлом замка 4(14)» станет броском.</div>';
     else if(editing) main = `<input class="gs-note-title" value="${esc(n.title)}" placeholder="Название" maxlength="80">
       <textarea class="gs-note-text" placeholder="# Заголовок\n- пункт списка\nВзлом замка 4(14) — бросок\nУрон 2к6+1 — кости">${esc(n.text)}</textarea>`;
     else main = `<div class="gs-note-view" data-who="${esc(n.title || 'Заметка')}">${n.text.trim() ? renderRich(n.text) : '<div class="gs-muted">Пустая заметка — «✎», чтобы написать.</div>'}</div>`;
-    body.innerHTML = head + main + `<div class="gs-hint">«Навык 3(13)» — нажмите и протяните (бросок как в бестиарии), «2к6+1» — нажмите. Броски видны только вам, пока в бестиарии не включено «броски видны игрокам». <b>**жирный**</b>, «# заголовок», «- список».</div>`;
+    body.innerHTML = sub + head + main + `<div class="gs-hint">«Навык 3(13)» — нажмите и протяните (бросок как в бестиарии), «2к6+1» — нажмите. Броски видны только вам, пока в бестиарии не включено «броски видны игрокам». <b>**жирный**</b>, «# заголовок», «- список». 🖼 — картинка, гифка, ролик; «📜» у медиа — показать игрокам только его.</div>`;
     if(editing){ const t = body.querySelector('.gs-note-text'); if(t) t.focus(); }
   }
+  // Медиа в заметку: в правке — в место курсора, в просмотре — в конец заметки
+  async function insertMedia(n, files){
+    const refs = await NoteMedia.addFiles(files); if(!refs.length) return;
+    const ta = body.querySelector('.gs-note-text'), block = '\n' + refs.join('\n') + '\n';
+    if(editing && ta){ const a = ta.selectionStart, b = ta.selectionEnd; ta.value = ta.value.slice(0, a) + block + ta.value.slice(b); n.text = ta.value.slice(0, 20000); }
+    else n.text = (n.text.replace(/\s+$/, '') + '\n' + block).slice(0, 20000);
+    n.updated = Date.now(); store(NOTES_KEY, notes);
+    if(!editing) render(); else { const pos = ta.selectionStart; ta.focus(); }
+    uiToast(refs.length===1 ? 'Медиа добавлено в заметку' : `Медиа добавлено: ${refs.length}`, {icon:'🖼'});
+  }
+  document.addEventListener('paste', (e)=>{ if(!e.target.matches || !e.target.matches('.gs-note-text') || typeof NoteMedia==='undefined') return;
+    const files = [...(e.clipboardData && e.clipboardData.files || [])]; if(!files.length) return; e.preventDefault(); const n = curNote(); if(n) insertMedia(n, files); });
+  document.addEventListener('dragover', (e)=>{ if(e.target.closest && e.target.closest('.gs-note-text, .gs-note-view')) e.preventDefault(); });
+  document.addEventListener('drop', (e)=>{ if(!e.target.closest || !e.target.closest('.gs-note-text, .gs-note-view') || typeof NoteMedia==='undefined') return;
+    const files = [...(e.dataTransfer && e.dataTransfer.files || [])]; if(!files.length) return; e.preventDefault(); const n = curNote(); if(n) insertMedia(n, files); });
   let noteSaveTimer = 0;
   function onInput(e){
     const n = curNote(); if(!n) return;
@@ -254,6 +279,7 @@ const GmScreen = (function(){
       else if(a.dataset.a==='edit' && typeof enterGmEditMode==='function'){ close(); if(typeof toggleMainTab==='function') toggleMainTab('sheet'); enterGmEditMode(id); }
       else if(a.dataset.a==='loot' && typeof openLootDig==='function') openLootDig(id);
       else if(a.dataset.a==='find'){ const gt = GT(); if(gt && gt.focusOwner && !gt.focusOwner(id)) uiToast('Жетона этого игрока на столе нет', {icon:'📍'}); }
+      else if(a.dataset.a==='copies'){ showCopies(); return; }
       else if(a.dataset.a==='copy-link'){ const b = document.getElementById('btnCopyRoomLink'); if(b) b.click(); }
       else if(a.dataset.a==='to-session'){ close(); if(typeof toggleMainTab==='function') toggleMainTab('sheet'); const s = document.getElementById('sessionPanel'); if(s) s.scrollIntoView({behavior:'smooth', block:'start'}); }
       setTimeout(render, 50); return; }
@@ -270,24 +296,46 @@ const GmScreen = (function(){
         case 'meta': if(sc){ const r = await uiForm('Сцена', [{name:'name', label:'Название', value:sc.name}, {name:'note', label:'Заметка к сцене', value:sc.note || '', multiline:true, rows:4}], {ok:'Сохранить'});
           if(r){ sc.name = (r.name || '').trim().slice(0, 80) || sc.name; sc.note = (r.note || '').slice(0, 5000); store(SCENES_KEY, scenes); } } break;
         case 'up': if(sc){ const i = scenes.indexOf(sc); if(i>0){ scenes.splice(i, 1); scenes.splice(i - 1, 0, sc); store(SCENES_KEY, scenes); } } break;
-        case 'del': if(sc && await uiConfirm(`Удалить сцену «${sc.name}»?`, {title:'Сцены', ok:'Удалить', danger:true})){ scenes = scenes.filter(x=>x!==sc); store(SCENES_KEY, scenes); } break;
+        case 'del': if(sc){ const at = scenes.indexOf(sc); scenes = scenes.filter(x=>x!==sc); store(SCENES_KEY, scenes);
+          uiToast(`Сцена «${sc.name}» удалена`, {icon:'✕', action:{label:'Отменить', run:()=>{ scenes.splice(Math.min(at, scenes.length), 0, sc); store(SCENES_KEY, scenes); render(); }}}); } break;
         case 'export': exportPrep(); break;
         case 'import': importPrep(); break;
       }
       render(); return; }
+    const ns = e.target.closest('[data-nsub]'); if(ns){ prefs.nsub = ns.dataset.nsub; savePrefs(); render(); return; }
     const n = e.target.closest('[data-n]');
+    if(n && n.dataset.n==='media'){ const x = curNote(); if(x && typeof NoteMedia!=='undefined'){ const files = await NoteMedia.pickFiles(); if(files.length) insertMedia(x, files); } return; }
+    const ns2 = e.target.closest('[data-nm-send]'); if(ns2){ const x = curNote(); if(x && typeof SessionExtras!=='undefined') SessionExtras.sendHandout(x, '', [ns2.dataset.nmSend], true); return; }
+    if(n && n.dataset.n==='handout'){ const x = curNote(); if(x && typeof SessionExtras!=='undefined'){ const v = body.querySelector('.gs-note-view'), sel = window.getSelection();
+      const part = v && sel && !sel.isCollapsed && v.contains(sel.anchorNode) ? sel.toString() : '';
+      const figs = part ? [...v.querySelectorAll('figure.nm[data-mid]')].filter(f=>sel.containsNode(f, true)).map(f=>f.dataset.mid) : null;
+      SessionExtras.sendHandout(x, part, figs); } return; }
     if(n){
       if(n.dataset.n==='new'){ const x = {id:'n' + uidS(), title:'Заметка ' + (notes.length + 1), text:'', updated:Date.now()}; notes.unshift(x); prefs.note = x.id; editing = true; store(NOTES_KEY, notes); savePrefs(); }
       else if(n.dataset.n==='edit'){ editing = !editing; store(NOTES_KEY, notes); }
-      else if(n.dataset.n==='del'){ const x = curNote(); if(x && await uiConfirm(`Удалить заметку «${x.title || 'Без названия'}»?`, {title:'Заметки', ok:'Удалить', danger:true})){ notes = notes.filter(y=>y!==x); prefs.note = notes[0] ? notes[0].id : ''; editing = false; store(NOTES_KEY, notes); savePrefs(); } }
+      else if(n.dataset.n==='del'){ const x = curNote(); if(x){ const at = notes.indexOf(x); notes = notes.filter(y=>y!==x); prefs.note = notes[0] ? notes[0].id : ''; editing = false; store(NOTES_KEY, notes); savePrefs();
+        uiToast(`Заметка «${x.title || 'Без названия'}» удалена`, {icon:'✕', action:{label:'Отменить', run:()=>{ notes.splice(Math.min(at, notes.length), 0, x); prefs.note = x.id; store(NOTES_KEY, notes); savePrefs(); render(); }}}); } }
       render(); }
+  }
+  document.addEventListener('change', (e)=>{ const lv = e.target.dataset && e.target.dataset.lv; if(!lv || typeof setLogViewOn!=='function') return;
+    if(lv==='on'){ setLogViewOn(e.target.checked); uiToast(e.target.checked ? 'Подробный лог включён — отметьте игроков, которым видны пороги' : 'Стандартный вид лога', {icon:'⚄'}); }
+    else setLogViewAllow(e.target.dataset.id, e.target.checked);
+    render(); });
+  document.addEventListener('change', (e)=>{ if(e.target.matches && e.target.matches('.gs-newlvl select')){ prefs.newLevel = +e.target.value; savePrefs(); uiToast(`Новым игрокам — персонаж ${prefs.newLevel} уровня`, {icon:'☺'}); return; } });
+  async function showCopies(){
+    const all = typeof GmCopies!=='undefined' ? await GmCopies.list() : [];
+    const when = (t)=>new Date(t).toLocaleString('ru-RU', {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'});
+    uiDialog({title:'Копии листов игроков', icon:'↩', text:all.length ? 'Каждый присланный игроком лист сохраняется здесь (до 60 последних). Игрок может попросить свой лист: «Вернуть у Мастера» на экране входа — вы выберете копию.' : 'Пока копий нет: они появятся, когда игроки подключатся к вашему столу.',
+      html:all.length ? `<div class="join-opts">${all.slice(0, 30).map(r=>`<div class="join-opt"><b>${esc(r.charName || 'Без имени')}${r.arch ? ' · ' + esc(r.arch) : ''} · ур. ${r.level}</b><span>игрок «${esc(r.player)}», ${when(r.savedAt)}</span></div>`).join('')}</div>` : '',
+      cancelValue:null, buttons:[{label:'Закрыть', value:null, primary:true}]});
   }
   document.addEventListener('change', (e)=>{ if(e.target.matches && e.target.matches('.gs-note-sel')){ prefs.note = e.target.value; editing = false; savePrefs(); render(); } });
   document.addEventListener('click', (e)=>{ const d = e.target.closest && e.target.closest('.gs-dice'); if(d && !panel.contains(d)) rollDice(d); }); // кости в заметке сцены вне панели — на будущее
 
   /* ---------- перенос подготовки файлом ---------- */
-  function exportPrep(){
-    const blob = new Blob([JSON.stringify({format:'reincarnator-gm-prep', version:1, scenes, notes}, null, 1)], {type:'application/json'});
+  async function exportPrep(){
+    const media = typeof NoteMedia!=='undefined' ? await NoteMedia.exportFor(notes.map(n=>n.text).concat(scenes.map(s=>s.note || ''))) : [];
+    const blob = new Blob([JSON.stringify({format:'reincarnator-gm-prep', version:1, scenes, notes, items:typeof PrepItems!=='undefined' ? PrepItems.list : [], media}, null, 1)], {type:'application/json'});
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'podgotovka-mastera.json'; document.body.appendChild(a); a.click();
     setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 1000);
   }
@@ -298,7 +346,9 @@ const GmScreen = (function(){
       const ids = new Set(scenes.map(x=>x.id)), nids = new Set(notes.map(x=>x.id)); let sN = 0, nN = 0;
       (Array.isArray(j.scenes) ? j.scenes : []).forEach(x=>{ if(!x || !x.table || typeof x.name!=='string') return; if(ids.has(x.id)) x.id = 'sc' + uidS(); scenes.push(x); sN++; });
       (Array.isArray(j.notes) ? j.notes : []).forEach(x=>{ if(!x || typeof x.text!=='string') return; if(nids.has(x.id)) x.id = 'n' + uidS(); notes.push(x); nN++; });
-      store(SCENES_KEY, scenes); store(NOTES_KEY, notes); render(); uiToast(`Загружено: сцен ${sN}, заметок ${nN}`, {icon:'⬆'});
+      const iN = Array.isArray(j.items) ? j.items.length : 0; if(iN && typeof PrepItems!=='undefined') PrepItems.importList(j.items);
+      if(Array.isArray(j.media) && j.media.length && typeof NoteMedia!=='undefined') NoteMedia.importList(j.media).then(()=>render());
+      store(SCENES_KEY, scenes); store(NOTES_KEY, notes); render(); uiToast(`Загружено: сцен ${sN}, заметок ${nN}${iN ? ', предметов ' + iN : ''}`, {icon:'⬆'});
     }).catch(e=>uiAlert('Не удалось загрузить файл: ' + e.message, {icon:'⚠'})); };
     inp.click();
   }
