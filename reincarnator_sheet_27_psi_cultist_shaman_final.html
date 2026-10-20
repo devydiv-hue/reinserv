@@ -2189,6 +2189,46 @@ var Theme = (function(){
   .pc-side{ display:flex; flex-direction:column; align-items:center; gap:6px; }
   .pc-prev{ width:72px; height:72px; border-radius:50%; border:3px solid var(--ink); background:#0c0907; }
   .pc-zoom{ display:flex; align-items:center; gap:8px; margin:10px 0 4px; font-weight:700; } .pc-zoom input{ flex:1; }
+  /* Бросок цели: форма Мастера, панель результатов, запрос у игрока, отметки на жетоне */
+  .tr-form{ width:min(620px, 100%); max-height:92vh; overflow:auto; }
+  .tr-form .tr-row{ display:flex; flex-wrap:wrap; gap:6px 12px; align-items:center; margin:6px 0; font-size:13px; }
+  .tr-form input[type=number]{ width:64px; } .tr-form select{ max-width:100%; }
+  .tr-form .tr-mode{ margin:8px 0; }
+  .tr-targets{ display:flex; flex-wrap:wrap; gap:4px 12px; max-height:22vh; overflow:auto; margin:4px 0 6px; font-size:13px; }
+  .tr-tg{ cursor:pointer; }
+  .tr-panel{ position:fixed; right:12px; bottom:12px; z-index:880; width:min(420px, calc(100vw - 24px)); max-height:60vh; overflow:auto; padding:10px 12px; border-radius:16px; color:#f6ecd4;
+    background:rgba(24,18,14,.97); border:1px solid rgba(246,236,212,.2); box-shadow:0 12px 34px rgba(0,0,0,.5); font-size:13px; }
+  .tr-head{ display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:4px; }
+  .tr-x{ border:0; background:transparent; color:#f6ecd4; cursor:pointer; box-shadow:none; padding:0 6px; }
+  .tr-rows{ margin:8px 0; display:flex; flex-direction:column; gap:4px; }
+  .tr-r{ display:flex; flex-wrap:wrap; gap:4px 10px; align-items:center; padding:5px 8px; border-radius:10px; background:rgba(255,255,255,.05); }
+  .tr-res.bad{ color:#ff9b7f; font-weight:700; } .tr-res.ok{ color:#9fe0a8; font-weight:700; }
+  .tr-chip{ position:fixed; left:50%; bottom:58px; transform:translateX(-50%); z-index:890; padding:7px 16px; border-radius:999px; cursor:pointer; color:#fff; font-weight:700;
+    background:linear-gradient(155deg, #b8402a, #4a1109); border:1px solid rgba(255,170,140,.5); box-shadow:0 8px 24px rgba(0,0,0,.45); }
+  .tr-ask-check{ font-size:17px; font-weight:700; margin:6px 0; }
+  .gt-mark-badge{ display:inline-block; padding:0 5px; border-radius:6px; background:#5a3f8c; color:#fff; font-size:.85em; margin-right:2px; }
+  .roll-log-entry.ability .rest{ font-weight:600; }
+  /* Способности: плашки разбора, ▶, счётчики, предпросмотр в конструкторе */
+  .ak-row{ display:inline-flex; flex-wrap:wrap; gap:3px 4px; align-items:center; margin-left:6px; vertical-align:middle; }
+  .ak-chips{ display:inline-flex; flex-wrap:wrap; gap:3px; }
+  .ak-chip{ text-transform:none; letter-spacing:0; font-size:10.5px; line-height:1.5; padding:0 6px; border-radius:999px; border:1px solid rgba(0,0,0,.18); background:rgba(0,0,0,.05); white-space:nowrap; font-weight:600; }
+  .ak-chip.ak-save{ background:#e6f1fb; color:#0c447c; border-color:#85b7eb; } .ak-chip.ak-bad{ background:#fcebeb; color:#791f1f; border-color:#f09595; }
+  .ak-chip.ak-area{ background:#eeedfe; color:#3c3489; border-color:#afa9ec; } .ak-chip.ak-uses, .ak-chip.ak-act{ background:#f1efe8; color:#444441; }
+  .ak-chip.ak-re{ background:#faeeda; color:#633806; border-color:#ef9f27; } .ak-chip.ak-pas, .ak-chip.ak-self{ background:#e1f5ee; color:#085041; border-color:#5dcaa5; }
+  html[data-theme="dark"] .ak-chip{ filter:brightness(.92) saturate(.9); }
+  .ak-go{ padding:0 8px !important; font-weight:700; }
+  .ak-count{ font-size:11px; font-weight:700; padding:0 4px 0 6px; border-radius:999px; background:#f1efe8; color:#444441; display:inline-flex; align-items:center; gap:2px; }
+  .ak-count.out{ background:#fcebeb; color:#791f1f; }
+  .ak-mini{ border:0; background:transparent; box-shadow:none; padding:0 3px; cursor:pointer; font-size:11px; color:inherit; }
+  .ak-preview{ margin-top:6px; display:flex; flex-direction:column; gap:3px; font-size:12px; max-height:22vh; overflow:auto; }
+  .ak-pv b{ margin-right:4px; }
+  /* Области: выбор целей шаблоном */
+  .tr-area{ padding:6px 8px; border-radius:10px; background:rgba(255,255,255,.04); }
+  .tr-area.hl{ outline:1px solid rgba(175,169,236,.6); }
+  .at-info.at-pick{ right:auto; left:50%; top:104px; bottom:auto; transform:translateX(-50%); z-index:960; max-width:min(560px, calc(100% - 24px)); padding:10px 14px; font-size:13px; }
+  .at-hint{ font-size:12px; opacity:.75; margin-top:4px; }
+  .at-btns{ display:flex; gap:6px; justify-content:flex-end; margin-top:8px; }
+  .at-shape > rect{ fill:rgba(224,69,43,.2); stroke:#e0452b; stroke-width:calc(2px * var(--gt-inv, 1)); stroke-dasharray:calc(8px * var(--gt-inv, 1)) calc(5px * var(--gt-inv, 1)); }
   /* ============================================================
      ТЁМНАЯ ТЕМА (scripts/00-theme.js ставит html[data-theme="dark"]): пергамент → «обсидиан». Почти всё
      переключается переменными (--card, --paper, --ink…); ниже — места, где цвета пергамента заданы напрямую.
@@ -12384,6 +12424,7 @@ sanitizeRollEntry = function(e){
   let out;
   if(e.chat){ const text = str(e.text, 500).trim(); if(!text) return null; out = {id:e.id, player:str(e.player, 60), kind:'quick', chat:true, text, toName:str(e.toName, 60)}; }
   else if(e.secretStub) out = {id:e.id, player:str(e.player, 60), kind:'quick', secretStub:true, label:str(e.label, 60)};
+  else if(e.abilityUse){ const text = str(e.text, 900).trim(); if(!text) return null; out = {id:e.id, player:str(e.player, 60), kind:'quick', abilityUse:true, text}; }
   else { out = _sanitizeRollEntryBase(e); if(!out) return null; if(e.secret) out.secret = true; }
   if(e.priv){ out.priv = true; out.to = str(e.to, 64); out.fromId = str(e.fromId, 64); }
   return out;
@@ -12555,6 +12596,7 @@ function formatQuickRollEntry(e, undoneAttacks){
     const toTxt = !e.priv ? '' : e.fromId && e.fromId===session.myId ? ` → ${e.to==='gm' || e.to===session.gmId ? 'Мастеру' : escapeHtml(e.toName || 'игроку')}` : session.role==='gm' && e.to!=='gm' && e.to!==session.myId ? ` → ${escapeHtml(e.toName || 'игроку')}` : ' (лично вам)';
     return {cls:'chat' + (e.priv ? ' whisper' : ''), html:`<span class="who">${escapeHtml(e.player||'?')}</span><span class="rest">${e.priv ? '🤫' : '💬'}${toTxt ? toTxt + ':' : ''} ${escapeHtml(e.text)}</span>`};
   }
+  if(e.abilityUse) return {cls:'ability', html:`<span class="who">${escapeHtml(e.player||'?')}</span><span class="rest">🎯 ${escapeHtml(e.text)}</span>`};
   if(e.secretStub) return {cls:'secret', html:`<span class="who">${escapeHtml(e.player||'?')}</span><span class="rest">🤫 бросок тайно: ${escapeHtml(e.label || 'к20')} — результат у Мастера</span>`};
   if(logDetailed()){ const d = detailedQuickEntry(e, undoneAttacks); if(d) return d; }
   const who = escapeHtml(e.player||'?');
@@ -13128,6 +13170,9 @@ function sanitizeGrant(g){
     if(value===null) return null;
     return {gid:g.gid, kind:'vitals', which: g.which==='psi' ? 'psi' : 'hp', mode: g.mode==='delta' ? 'delta' : 'set', value};
   }
+  if(g.kind==='state'){ // состояние листа от способности существа (Бросок цели)
+    return ['ispug', 'istoshenie', 'stress', 'bodrost'].indexOf(g.key) >= 0 ? {gid:g.gid, kind:'state', key:g.key, on:g.on!==false} : null;
+  }
   if(g.kind==='item'){ // находка (см. НАХОДКИ)
     const it = g.item;
     if(!it || typeof it!=='object' || typeof it.name!=='string' || !it.name.trim()) return null;
@@ -13155,6 +13200,12 @@ function applyGrant(c, g){
     if(after===before) return '';
     c[key] = after;
     return `Мастер изменил ${g.which==='psi'?'пси-запас':'здоровье'} на игровом столе: ${before} → ${after}.`;
+  }
+  if(g.kind==='state'){
+    const st = c.states || (c.states = {}), names = {ispug:'испуг', istoshenie:'истощение', stress:'стресс', bodrost:'бодрость'};
+    if(!!st[g.key]===!!g.on) return '';
+    st[g.key] = !!g.on;
+    return `Мастер: состояние «${names[g.key]}» ${g.on ? 'наложено' : 'снято'}.`;
   }
   if(g.kind==='item'){
     // id предмета выводится из gid — копия Мастера и лист игрока получают одну и ту же запись, а повторное
@@ -14738,6 +14789,7 @@ function handleIncomingMessage(msg){
   // переписать чужой лист или начислить опыт всем.
   const fromGm = session.role==='player' && !!fromId && fromId===session.gmId;
   if(typeof SessionExtras!=='undefined' && SessionExtras.handle(msg)) return; // встреча, раздатки, пауза, связь
+  if(typeof TargetRolls!=='undefined' && TargetRolls.handle(msg)) return; // бросок цели: запрос Мастера и ответ игрока
   if(msg.type==='roll'){
     const entry = sanitizeRollEntry(msg.entry); // см. sanitizeRollEntry — чужие записи только через неё
     if(!entry) return;
@@ -21022,6 +21074,8 @@ const GameTable = (function(){
   function safeUrl(u){ u = String(u||'').trim(); return /^https?:\/\/[^\s"'<>]+$/i.test(u) && u.length<2048 ? u : ''; }
   function safeColor(c, d){ return /^#[0-9a-f]{6}$/i.test(c||'') ? c.toLowerCase() : d; }
 
+  // Отметки состояний на жетоне (способности существ, «Бросок цели»): r — осталось кругов, 0 — пока не снимут
+  const MARKS = {shock:'Шок', prone:'Сбит с ног', grabbed:'Схвачен', stunned:'Оглушён', blind:'Ослеплён', fear:'Испуган'};
   function sanitizeToken(t){
     t = t || {};
     const kind = t.kind==='player' ? 'player' : 'gm';
@@ -21054,6 +21108,7 @@ const GameTable = (function(){
     out.unprotectedEnabled = kind==='gm' && !!t.unprotectedEnabled;    // «атака по незащищённым частям» разрешена
     out.slowReaction = !!t.slowReaction; // ⚡ по жетону ударили медленным оружием — может отреагировать (снимает Мастер)
     out.burning = Math.round(clamp(num(t.burning,0), 0, 99)); // 🔥 горит N кругов (термическая граната; уменьшает/снимает Мастер)
+    out.marks = (Array.isArray(t.marks) ? t.marks : []).slice(0, 12).filter(m=>m && MARKS[m.k]).map(m=>({k:m.k, r:Math.round(clamp(num(m.r,0), 0, 99))})); // отметки (Бросок цели)
     if(kind==='gm'){
       out.reflexes = Math.round(clamp(num(t.reflexes,3), 0, 20)); // рефлексы NPC — против них мечут гранаты
       out.grenade = GRENADE_SPECS[t.grenade] ? t.grenade : '';     // граната NPC (без учёта количества)
@@ -21371,7 +21426,7 @@ const GameTable = (function(){
         const t = s.tokens[cmd.id];
         if(!t) return deny('Жетон не найден');
         const patch = {};
-        ['name','hp','hpMax','hpShown','size','color','hidden','avatar','rotation',
+        ['name','hp','hpMax','hpShown','size','color','hidden','avatar','rotation','marks',
          'defense','defenseSubs','armorName','weaponText','attackMod','attackModEnabled','unprotectedEnabled','unprotectedMod','traumaThreshold','trauma','traumaRed','strength','slowReaction','burning','reflexes','grenade','atkSkill','creature']
           .forEach(k=>{ if(cmd.patch && k in cmd.patch) patch[k] = cmd.patch[k]; });
         ops.push({op:'token-upsert', token:sanitizeToken(Object.assign({}, t, patch))});
@@ -21687,7 +21742,7 @@ const GameTable = (function(){
       el.classList.toggle('cb-noact', !!cbp && cbp.noAct); }
     const v = vitalsFor(t);
     const pf = portraitFor(t);
-    const key = JSON.stringify([t.name, t.color, t.avatar, pf ? pf.length + pf.slice(-16) : '', t.hp, t.hpMax, t.hpShown, t.hpFrac, isAuthority(), t.kind, t.hidden, t.size, t.rotation, t.trauma, t.traumaRed, t.slowReaction, t.burning, v && [v.name, v.hp, v.hpMax, v.psi, v.psiMax]]);
+    const key = JSON.stringify([t.name, t.color, t.avatar, pf ? pf.length + pf.slice(-16) : '', t.hp, t.hpMax, t.hpShown, t.hpFrac, isAuthority(), t.kind, t.hidden, t.size, t.rotation, t.trauma, t.traumaRed, t.slowReaction, t.burning, JSON.stringify(t.marks || []), v && [v.name, v.hp, v.hpMax, v.psi, v.psiMax]]);
     if(el._gtKey===key) return;
     el._gtKey = key;
     const name = tokenName(t, v), sz = SIZE_CELLS[t.size]*CELL;
@@ -21712,8 +21767,9 @@ const GameTable = (function(){
   }
   // Травмы под жетоном: 🦴N — обычные, красная 🦴M — от оружия с чертой «травма» (см. resolveAttack)
   function traumaBadgesHtml(t){
-    if(!t.trauma && !t.traumaRed && !t.slowReaction && !t.burning) return '';
-    return `<span class="gt-trauma-row">${t.burning?`<span class="gt-burn-badge" title="Горит (термическая граната): кругов">🔥${t.burning}</span>`:""}${t.slowReaction?'<span class="gt-slow-badge" title="Атакован медленным оружием — может отреагировать">⚡ реакция</span>':''}${t.trauma?`<span title="Травмы">🦴${t.trauma}</span>`:''}${t.traumaRed?`<span class="bone-red" title="Травмы от оружия с чертой «травма»">🦴</span><span class="gt-trauma-red-n">${t.traumaRed}</span>`:''}</span>`;
+    if(!t.trauma && !t.traumaRed && !t.slowReaction && !t.burning && !(t.marks && t.marks.length)) return '';
+    const marks = (t.marks || []).map(m=>`<span class="gt-mark-badge" title="${MARKS[m.k]}${m.r ? ': ещё ' + m.r + ' кр.' : ' — пока не снимут'}">${MARKS[m.k]}${m.r ? ' ' + m.r : ''}</span>`).join('');
+    return `<span class="gt-trauma-row">${marks}${t.burning?`<span class="gt-burn-badge" title="Горит (термическая граната): кругов">🔥${t.burning}</span>`:""}${t.slowReaction?'<span class="gt-slow-badge" title="Атакован медленным оружием — может отреагировать">⚡ реакция</span>':''}${t.trauma?`<span title="Травмы">🦴${t.trauma}</span>`:''}${t.traumaRed?`<span class="bone-red" title="Травмы от оружия с чертой «травма»">🦴</span><span class="gt-trauma-red-n">${t.traumaRed}</span>`:''}</span>`;
   }
   function refreshTokenPos(id){ const el = tokenEls.get(id), t = tok(id); if(el && t){ positionTokenEl(el, t); el.classList.toggle('dragging', !!dragPos[id]); } }
   function setSelection(ids){ selected.clear(); ids.forEach(id=>selected.add(id)); tokenEls.forEach((el,id)=>el.classList.toggle('selected', selected.has(id))); renderInfoCard(); }
@@ -22628,6 +22684,8 @@ const GameTable = (function(){
         html:`<div class="gt-menu-sizes">${Object.keys(SIZE_CELLS).map(s=>`<button type="button" data-size="${s}" class="${t.size===s?'active':''}">${SIZE_LABELS[s].split(' ')[0]}</button>`).join('')}</div>`});
       if(t.kind==='gm') items.push({id:'hide', label:t.hidden ? 'Показать игрокам' : 'Скрыть от игроков', run:()=>act({c:'token-update', id:t.id, patch:{hidden:!t.hidden}})});
       if(typeof Reactions!=='undefined' && Reactions.manualAllowed(t)) items.push({id:'rx', label:'🎞 Реакция…', run:()=>{ const r = viewport.getBoundingClientRect(); Reactions.pickForToken(t.id, r.left + p.x, r.top + p.y); }});
+      if(typeof TargetRolls!=='undefined') items.push({id:'tr', label:t.kind==='gm' ? '🎯 Бросок цели…' : '🎯 Потребовать бросок…', run:()=>TargetRolls.open(t.kind==='gm' ? {src:t.id, targets:ids.filter(x=>x!==t.id)} : {targets:ids})});
+      if((t.marks || []).length) items.push({id:'unmark', label:'✕ Снять отметки: ' + t.marks.map(m=>MARKS[m.k].toLowerCase()).join(', '), run:()=>act({c:'token-update', id:t.id, patch:{marks:[]}})});
       items.push('-', {id:'del', label: ids.length>1 ? `Удалить (${ids.length})` : 'Удалить', danger:true, run:()=>deleteTokens(ids)});
       openMenu(p, name, items);
       return;
@@ -23127,6 +23185,8 @@ const GameTable = (function(){
       if(t.burning) burns.push(t);
     });
     burns.forEach(t=>act({c:'token-update', id:t.id, patch:{burning:t.burning - 1}}));
+    Object.values(authState.tokens).forEach(t=>{ if(!(t.marks || []).some(m=>m.r)) return; // отметки на N кругов — новый круг, на 1 меньше
+      act({c:'token-update', id:t.id, patch:{marks:t.marks.filter(m=>m.r!==1).map(m=>m.r ? {k:m.k, r:m.r - 1} : m)}}); }); // r=1 — истекает
     const startHints = roundHints(c, 'start'), items = [];
     if(endHints) items.push(...endHints.items.map(x=>'конец круга: ' + x));
     if(burns.length) items.push(...burns.map(t=>`🔥 ${tokenName(t, vitalsFor(t))} горит — осталось ${t.burning - 1}`));
@@ -23436,6 +23496,24 @@ const GameTable = (function(){
       showRerollPopup('map_attack', ctx.chosenMod||0, ctx.mode);
     }
   }
+  // Попадания по профилю способности существа («2 попадания с МУ 12 удар, раны 3, травма»): как у атаки с карты —
+  // к12 на попадание против (МУ − защита цели), пробившие наносят раны; к12 выше порога травмы — травма
+  function rollWoundsExpr(v){ const s = String(v==null ? '' : v).trim().replace(/[−–]/g, '-'), m = /^(\d*)[кkdд](\d+)\s*([+-]\s*\d+)?$/i.exec(s);
+    if(m){ let t = 0; for(let i=0;i<(+m[1] || 1);i++) t += 1 + Math.floor(Math.random()*(+m[2])); return t + (m[3] ? +m[3].replace(/\s/g, '') : 0); }
+    const n = parseInt(s, 10); return isFinite(n) ? n : 0; }
+  function applyHitsTo(id, h){
+    const tgt = tok(id); if(!tgt || !isAuthority() || !(h && h.n > 0)) return null;
+    const max12 = (h.mu || 0) - targetDefense(tgt, h.muType), thr = tgt.kind==='player' ? 5 : (tgt.traumaThreshold || 5), hits = [];
+    for(let i=0;i<Math.min(30, h.n);i++){ const k12 = randInt(12), pen = max12 >= 1 && k12 <= max12; hits.push({k12, pen, wounds:pen ? Math.max(1, rollWoundsExpr(h.wounds || 1)) : 0, trauma:pen && k12 > thr}); }
+    const total = hits.reduce((a, x)=>a + x.wounds, 0), trN = hits.filter(x=>x.trauma).length, patch = {};
+    if(trN){ if(h.travma) patch.traumaRed = (tgt.traumaRed || 0) + trN; else patch.trauma = (tgt.trauma || 0) + trN; }
+    if(total){ if(tgt.kind==='gm'){ if(tgt.hp!==null && tgt.hp!==undefined) patch.hp = tgt.hp - total; } else changeCharacterHp(tgt.ownerId, -total); }
+    if(Object.keys(patch).length) execCommand({c:'token-update', id, patch});
+    const txt = `к12≤${max12} → ${hits.map(x=>`${x.k12} ${x.pen ? 'пробило' : 'не пробило'}${x.trauma ? ' 🦴' : ''}`).join('; ')} · ${total} ${woundsWord(total)}`;
+    return {hits, total, max12, text:txt};
+  }
+  function addMarkTo(id, k, r){ const t = tok(id); if(!t || !isAuthority() || !MARKS[k]) return;
+    const marks = (t.marks || []).filter(m=>m.k!==k).concat([{k, r:Math.max(0, Math.round(+r || 0))}]); execCommand({c:'token-update', id, patch:{marks}}); }
   function changeCharacterHp(ownerId, delta){
     if(ownerId===myOwnerId()){
       if(typeof character!=='undefined' && character){
@@ -23877,7 +23955,8 @@ const GameTable = (function(){
            placeToken, creatureAttack, getToken:(id)=>tok(id), vitalsOf:(t)=>vitalsFor(t), updateToken:(id, patch)=>act({c:'token-update', id, patch}),
            editToken:(id)=>{ const t = tok(id); if(t) openTokenForm(t, null, {x:40, y:60}); }, refreshToolbar:()=>{ if(viewport) renderToolbar(); },
            get state(){ return st(); }, get camera(){ return cam; },
-           setPaused(on){ paused = !!on; if(viewport) renderTokens(); }, get paused(){ return paused; } };
+           setPaused(on){ paused = !!on; if(viewport) renderTokens(); }, get paused(){ return paused; },
+           applyHitsTo, addMarkTo, rollWoundsExpr, MARKS, ownerIdHere:()=>myOwnerId(), sheetOfToken:(t)=>attackerSheet(t), defenseOf:(t, muType)=>targetDefense(t, muType) };
 })();
 try{ GameTable.init(); }catch(e){ console.error('[Игровой стол] не удалось запустить', e); }
 </script>
@@ -25382,7 +25461,7 @@ const Bestiary = (function(){
     h.push(groupHtml('Тело', tpl.body), groupHtml('Личность', tpl.mind));
     if(tpl.skills) h.push(`<p><b>Навыки:</b> ${statsHtml(tpl.skills)}</p>`);
     if(tpl.know) h.push(`<p><b>Знания:</b> ${statsHtml(tpl.know)}</p>`);
-    tpl.abil.forEach(a=>h.push(`<p class="bst-ab"><b>${esc(a[0])}${a[0] ? ':' : ''}</b> ${plainHtml(a[1], a[0])}</p>`));
+    tpl.abil.forEach((a, ai)=>h.push(`<p class="bst-ab"><b>${esc(a[0])}${a[0] ? ':' : ''}</b> ${plainHtml(a[1], a[0])}${typeof AbilityKit!=='undefined' ? AbilityKit.rowHtml(tok, 'a' + ai, a[0], a[1]) : ''}</p>`));
     const tables = tpl.tables.map((tb, i)=>({tb, i})), moves = tables.filter(x=>x.tb.kind==='move'), eqTables = tables.filter(x=>x.tb.kind!=='move');
     moves.forEach(x=>h.push(tableHtml(tpl, x.tb, x.i, inst, ctx)));
     {
@@ -25457,7 +25536,8 @@ const Bestiary = (function(){
       if(tb.kind==='move'){ const ci = body.indexOf(':'), head = body.slice(0, ci); body = ci>0 && ci<40 && !/[()\[]/.test(head) ? `<b>${esc(head)}:</b>${plainHtml(body.slice(ci + 1))}` : plainHtml(body); }
       else body = richHtml(body, ri===hl ? ctx : null);
       const pick = inst && tb.kind!=='move' ? ` <button type="button" class="bst-mini" data-act="tbl-pick" data-i="${i}" data-r="${ri}" title="Выбрать эту строку">✓</button>` : '';
-      return `<div class="bst-row${ri===hl ? ' on' : ''}"><span class="bst-r">${esc(r[0])}.</span><span>${body}${pick}</span></div>`;
+      const ak = tb.kind==='move' && typeof AbilityKit!=='undefined' ? AbilityKit.rowHtml(ctx && ctx.tok, 'm' + i + '-' + ri, 'Ход ' + r[0], r[1]) : '';
+      return `<div class="bst-row${ri===hl ? ' on' : ''}"><span class="bst-r">${esc(r[0])}.</span><span>${body}${pick}${ak}</span></div>`;
     }).join('');
     return `<div class="bst-tbl"><div class="bst-tbl-h"><span>${esc(tb.title || KINDS[tb.kind])} <small>(${KINDS[tb.kind]}, к${tb.die})</small>${info}</span>${btn}</div>${rows}</div>`;
   }
@@ -25908,7 +25988,7 @@ const Bestiary = (function(){
   function init(){ view = document.getElementById('bestiaryTabView'); refreshRole(); }
   return { init, setVisible, refreshRole, onTableShown, onTableChanged, toggleDock, openFloat, closeFloat,
            tokenWeapons:(t)=>t && t.creature ? instWeapons(t.creature, t.creature.inst) : [], get dockOpen(){ return !!prefs.dock; },
-           list:all, byId, makeTokenFields, sanitizeTpl, parseDef, itemsIn };
+           list:all, byId, makeTokenFields, sanitizeTpl, parseDef, itemsIn, selId:()=>prefs.sel, refreshFloat:()=>{ renderFloat(); try{ render(); }catch(e){} } };
 })();
 try{ Bestiary.init(); }catch(e){ console.error('[Бестиарий] не удалось запустить', e); }
 </script>
@@ -28947,32 +29027,40 @@ const Chronicle = (function(){
 </script>
 <script>
 /* ======================================================================
-   ШАБЛОНЫ ОБЛАСТЕЙ НА ИГРОВОМ СТОЛЕ (ГОТОВО, НО ПОКА ВЫКЛЮЧЕНО).
-   Круг (взрыв, граната), конус (огнемёт, дробовик, крик) и линия (луч, очередь) поверх поля: нажать в точке начала,
-   протянуть — размер и направление по клеткам; шаблон показывает, кого задевает (жетон считается задетым, если
-   область накрывает хотя бы половину его радиуса), и список имён. Шаблон локальный: у других не появляется.
-   Включение — только вручную, пока функцию не решили выпустить:
-     localStorage.setItem('reincarnator_area_templates_v1', 'on'); location.reload();
-   или AreaTemplates.enable(true) в консоли. Тогда на столе появляется кнопка «◬ Область».
+   ШАБЛОНЫ ОБЛАСТЕЙ НА ИГРОВОМ СТОЛЕ.
+   Круг (взрыв, визг), конус, линия (луч, полоса, поток, рывок) и квадрат поверх поля; шаблон показывает, кого
+   задевает (жетон задет, если область накрывает хотя бы половину его радиуса). Шаблон локальный: у других не появляется.
+   - Выбор целей для «Бросок цели» (AreaTemplates.pick): размеры — в метрах из текста способности («в радиусе 15 м от
+     точки», «полоса шириной 3 м, до 24 м», «луч шириной 1 м и длиной до 30 м», «квадрат со стороной 3 м»), начало —
+     от жетона существа или в точке. Круг вокруг существа ставится сразу; круг или квадрат в точке — следует за курсором,
+     нажатие фиксирует; линия и конус от существа — направление за курсором, нажатие фиксирует. Без размеров — нажать
+     и протянуть. Внизу поля — «Задето: N … Готово / Заново / Отмена». Сам источник в цели не попадает.
+   - Свободные шаблоны (кнопка «◬ Область» на столе) — по-прежнему только при включённом флаге
+     (localStorage reincarnator_area_templates_v1 = on или AreaTemplates.enable(true)).
    ====================================================================== */
 const AreaTemplates = (function(){
   const FLAG = 'reincarnator_area_templates_v1';
   const GT = ()=>typeof GameTable!=='undefined' ? GameTable : null;
   const esc = (s)=>escapeHtml(s==null ? '' : String(s));
   let enabled = false; try{ enabled = localStorage.getItem(FLAG)==='on'; }catch(e){}
-  let shape = 'circle', coneDeg = 60, tpl = null, svg = null, tools = null, catcher = null, info = null, drag = null;
+  let shape = 'circle', coneDeg = 60, tpl = null, svg = null, tools = null, catcher = null, info = null, drag = null, pickCtx = null;
 
-  const SHAPES = {circle:'Круг', cone:'Конус', line:'Линия'};
+  const SHAPES = {circle:'Круг', cone:'Конус', line:'Линия', rect:'Квадрат'};
   const cell = ()=>GT().cellPx;
+  const mpc = ()=>{ const gt = GT(), m = gt && gt.state && gt.state.map && +gt.state.map.metersPerCell; return m > 0 ? m : 3; };
+  const toCellsM = (m)=>Math.max(0.2, (+m || 0)/mpc());
+  const fmtM = (cells)=>{ const m = Math.round(cells*mpc()*10)/10; return String(m).replace('.', ',') + ' м'; };
   function vp(){ const gt = GT(), l = gt && gt.layerEl; return l ? l.parentElement : null; }
   // экран → мир (в клетках): камера стола — translate(cam.x, cam.y) scale(cam.z) у слоя
   function toCells(ev){ const v = vp(), r = v.getBoundingClientRect(), cam = GT().camera; return {x:(ev.clientX - r.left - cam.x)/(cell()*cam.z), y:(ev.clientY - r.top - cam.y)/(cell()*cam.z)}; }
   const snapHalf = (v)=>Math.round(v*2)/2;
+  function tokCenter(id){ const gt = GT(), p = gt && gt.tokenWorld(id); return p ? {x:p.x/cell(), y:p.y/cell()} : null; }
 
   /* ---------- геометрия: попадает ли круг жетона (центр c, радиус rt) в шаблон ---------- */
   function hits(t, cx, cy, rt){
     const k = rt*0.5; // половина радиуса жетона должна оказаться внутри
     if(t.shape==='circle') return Math.hypot(cx - t.x, cy - t.y) <= t.r + k;
+    if(t.shape==='rect') return Math.abs(cx - t.x) <= t.side/2 + k && Math.abs(cy - t.y) <= t.side/2 + k;
     const dx = cx - t.x, dy = cy - t.y, len = t.len, a = t.ang, ux = Math.cos(a), uy = Math.sin(a);
     if(Math.hypot(dx, dy) < rt*0.9) return false; // жетон в начале конуса/линии — это сам стреляющий
     const along = dx*ux + dy*uy, across = -dx*uy + dy*ux;
@@ -28982,17 +29070,20 @@ const AreaTemplates = (function(){
     const half = t.deg/2*Math.PI/180, off = Math.abs(Math.atan2(across, along));
     return off <= half || d*Math.sin(Math.min(Math.PI/2, off - half)) <= k;
   }
-  function affected(t){
+  function affectedTokens(t){
     const gt = GT(), out = []; if(!gt || !t) return out;
     Object.values(gt.state.tokens || {}).forEach(tk=>{
+      if(t.exclude && t.exclude.indexOf(tk.id) >= 0) return;
       const p = gt.tokenWorld(tk.id); if(!p) return; // невидимые здесь жетоны не считаем
       const C = cell(), cx = p.x/C, cy = p.y/C, rt = p.d/C/2;
-      if(hits(t, cx, cy, rt)){ const v = gt.vitalsOf(tk) || {}; out.push(v.name || tk.name || 'Жетон'); }
+      if(hits(t, cx, cy, rt)){ const v = gt.vitalsOf(tk) || {}; out.push({id:tk.id, name:v.name || tk.name || 'Жетон'}); }
     });
     return out;
   }
+  const affected = (t)=>affectedTokens(t).map(x=>x.name);
 
   /* ---------- рисование ---------- */
+  function sizeText(t){ return t.shape==='circle' ? `радиус ${fmtM(t.r)}` : t.shape==='rect' ? `сторона ${fmtM(t.side)}` : t.shape==='line' ? `${fmtM(t.len)} × ${fmtM(t.w)}` : `${fmtM(t.len)}, ${t.deg}°`; }
   function draw(){
     const gt = GT(); if(!gt || !gt.layerEl) return;
     if(!tpl){ if(svg){ svg.remove(); svg = null; } if(info){ info.remove(); info = null; } return; }
@@ -29001,40 +29092,87 @@ const AreaTemplates = (function(){
     const C = cell(), X = (v)=>(v*C).toFixed(1);
     let path = '';
     if(tpl.shape==='circle') path = `<circle cx="${X(tpl.x)}" cy="${X(tpl.y)}" r="${X(tpl.r)}"/>`;
+    else if(tpl.shape==='rect') path = `<rect x="${X(tpl.x - tpl.side/2)}" y="${X(tpl.y - tpl.side/2)}" width="${X(tpl.side)}" height="${X(tpl.side)}"/>`;
     else if(tpl.shape==='line'){ const ux = Math.cos(tpl.ang), uy = Math.sin(tpl.ang), nx = -uy*tpl.w/2, ny = ux*tpl.w/2, ex = tpl.x + ux*tpl.len, ey = tpl.y + uy*tpl.len;
       path = `<polygon points="${X(tpl.x + nx)},${X(tpl.y + ny)} ${X(ex + nx)},${X(ey + ny)} ${X(ex - nx)},${X(ey - ny)} ${X(tpl.x - nx)},${X(tpl.y - ny)}"/>`; }
     else { const h = tpl.deg/2*Math.PI/180, a1 = tpl.ang - h, a2 = tpl.ang + h, R = tpl.len;
       path = `<path d="M${X(tpl.x)},${X(tpl.y)} L${X(tpl.x + Math.cos(a1)*R)},${X(tpl.y + Math.sin(a1)*R)} A${X(R)},${X(R)} 0 0 1 ${X(tpl.x + Math.cos(a2)*R)},${X(tpl.y + Math.sin(a2)*R)} Z"/>`; }
-    const size = tpl.shape==='circle' ? `радиус ${tpl.r} кл.` : `${tpl.len} кл.${tpl.shape==='cone' ? `, ${tpl.deg}°` : ''}`;
-    const who = affected(tpl);
+    const who = affectedTokens(tpl);
     svg.innerHTML = `<g class="at-shape">${path}</g><circle class="at-origin" cx="${X(tpl.x)}" cy="${X(tpl.y)}" r="${(C*0.12).toFixed(1)}"/>`;
     const v = vp(); if(!info){ info = document.createElement('div'); info.className = 'at-info'; }
     if(info.parentNode!==v) v.appendChild(info);
-    info.innerHTML = `<b>${SHAPES[tpl.shape]}</b> · ${size} · задето: <b>${who.length}</b>${who.length ? `<div class="at-names">${who.map(esc).join(', ')}</div>` : ''}<button type="button" class="at-x" title="Убрать шаблон (Esc)">✕</button>`;
+    info.classList.toggle('at-pick', !!pickCtx);
+    info.innerHTML = pickCtx
+      ? `<b>📐 ${esc(pickCtx.title || 'Область')}</b> · ${SHAPES[tpl.shape].toLowerCase()}, ${sizeText(tpl)} · задето: <b>${who.length}</b>${who.length ? `<div class="at-names">${who.map(x=>esc(x.name)).join(', ')}</div>` : ''}
+         <div class="at-hint">${esc(pickCtx.hint || '')}</div>
+         <div class="at-btns"><button type="button" class="small" data-atp="cancel">Отмена</button><button type="button" class="small" data-atp="again">Заново</button><button type="button" class="small primary" data-atp="done">Готово — ${who.length}</button></div>`
+      : `<b>${SHAPES[tpl.shape]}</b> · ${sizeText(tpl)} · задето: <b>${who.length}</b>${who.length ? `<div class="at-names">${who.map(x=>esc(x.name)).join(', ')}</div>` : ''}<button type="button" class="at-x" title="Убрать шаблон (Esc)">✕</button>`;
   }
 
-  /* ---------- ввод ---------- */
-  function startPlacing(s){
-    shape = s || shape; clear(); const v = vp(); if(!v) return;
-    catcher = document.createElement('div'); catcher.className = 'at-catch'; catcher.title = 'Нажмите в точке начала и протяните — размер и направление';
-    v.appendChild(catcher);
-    catcher.addEventListener('pointerdown', (e)=>{
-      e.preventDefault(); catcher.setPointerCapture(e.pointerId);
-      const p = toCells(e), o = shape==='circle' ? {x:Math.round(p.x), y:Math.round(p.y)} : {x:snapHalf(p.x), y:snapHalf(p.y)};
-      drag = o; tpl = {shape, x:o.x, y:o.y, r:1, len:1, ang:0, w:1, deg:coneDeg}; draw();
+  /* ---------- свободный ввод: нажать и протянуть ---------- */
+  function newCatcher(title){ const v = vp(); if(!v) return null; if(catcher) catcher.remove(); catcher = document.createElement('div'); catcher.className = 'at-catch'; catcher.title = title || ''; v.appendChild(catcher); return catcher; }
+  function startPlacing(s, opts){
+    opts = opts || {};
+    shape = s || shape; tpl = null; drag = null; draw();
+    const c = newCatcher('Нажмите в точке начала и протяните — размер и направление'); if(!c) return;
+    c.addEventListener('pointerdown', (e)=>{
+      e.preventDefault(); c.setPointerCapture(e.pointerId);
+      const p = toCells(e), o = shape==='circle' || shape==='rect' ? {x:Math.round(p.x*2)/2, y:Math.round(p.y*2)/2} : {x:snapHalf(p.x), y:snapHalf(p.y)};
+      drag = o; tpl = {shape, x:o.x, y:o.y, r:1, side:1, len:1, ang:0, w:opts.w || 1, deg:opts.deg || coneDeg, exclude:opts.exclude || []}; draw();
     });
-    catcher.addEventListener('pointermove', (e)=>{
+    c.addEventListener('pointermove', (e)=>{
       if(!drag) return; const p = toCells(e), dx = p.x - drag.x, dy = p.y - drag.y, d = Math.hypot(dx, dy);
-      if(shape==='circle') tpl.r = Math.max(1, Math.round(d));
+      if(shape==='circle') tpl.r = Math.max(0.5, Math.round(d*2)/2);
+      else if(shape==='rect') tpl.side = Math.max(1, Math.round(Math.max(Math.abs(dx), Math.abs(dy))*2));
       else { tpl.len = Math.max(1, Math.round(d)); tpl.ang = Math.atan2(dy, dx); if(!e.shiftKey) tpl.ang = Math.round(tpl.ang/(Math.PI/8))*(Math.PI/8); } // Shift — свободный угол
       draw();
     });
-    const end = ()=>{ if(!drag) return; drag = null; if(catcher){ catcher.remove(); catcher = null; } renderTools(); };
-    catcher.addEventListener('pointerup', end); catcher.addEventListener('pointercancel', end);
+    const end = ()=>{ if(!drag) return; drag = null; if(catcher && !pickCtx){ catcher.remove(); catcher = null; } renderTools(); };
+    c.addEventListener('pointerup', end); c.addEventListener('pointercancel', end);
     renderTools();
   }
   function clear(){ tpl = null; drag = null; if(catcher){ catcher.remove(); catcher = null; } draw(); renderTools(); }
-  document.addEventListener('keydown', (e)=>{ if(e.key==='Escape' && (tpl || catcher)){ clear(); } });
+
+  /* ---------- выбор целей для способности ---------- */
+  // spec: {shape:'circle'|'line'|'cone'|'rect', r, len, w, side, deg — в метрах; at:'self'|'point'}; src — жетон существа
+  function pick(spec, src, title, done){
+    const gt = GT(); if(!gt || !vp()){ done(null); return; }
+    spec = Object.assign({shape:'circle'}, spec || {});
+    const origin = src ? tokCenter(src) : null, at = spec.at==='self' && origin ? 'self' : 'point';
+    const sized = spec.shape==='circle' ? spec.r > 0 : spec.shape==='rect' ? spec.side > 0 : spec.len > 0;
+    pickCtx = {title, done, spec, src};
+    const exclude = src ? [src] : [];
+    const finish = (ids)=>{ const cb = pickCtx && pickCtx.done; pickCtx = null; clear(); if(cb) cb(ids); };
+    pickCtx.finish = finish;
+    if(!sized){ pickCtx.hint = 'Нажмите в точке начала и протяните — размер и направление.'; startPlacing(spec.shape, {w:spec.w ? toCellsM(spec.w) : 1, deg:spec.deg || coneDeg, exclude}); draw(); return; }
+    const base = {shape:spec.shape, r:toCellsM(spec.r), side:toCellsM(spec.side), len:toCellsM(spec.len), w:toCellsM(spec.w || 1), deg:spec.deg || coneDeg, ang:0, exclude};
+    if(spec.shape==='circle' && at==='self'){ tpl = Object.assign(base, origin); pickCtx.hint = 'Круг вокруг существа. «Заново» — поставить в другую точку.'; draw(); return; }
+    const c = newCatcher(''); let fixed = false;
+    if(spec.shape==='line' || spec.shape==='cone'){
+      const o = at==='self' ? origin : null;
+      pickCtx.hint = o ? 'Наведите направление и нажмите. Shift — свободный угол.' : 'Нажмите в точке начала, затем — в направлении.';
+      let start = o;
+      const aim = (e)=>{ if(!start) return; const p = toCells(e); let a = Math.atan2(p.y - start.y, p.x - start.x); if(!e.shiftKey) a = Math.round(a/(Math.PI/16))*(Math.PI/16); tpl = Object.assign({}, base, start, {ang:a}); draw(); };
+      c.addEventListener('pointermove', (e)=>{ if(!fixed) aim(e); });
+      c.addEventListener('pointerdown', (e)=>{ e.preventDefault(); if(!start){ const p = toCells(e); start = {x:snapHalf(p.x), y:snapHalf(p.y)}; tpl = Object.assign({}, base, start); draw(); return; } fixed = !fixed; if(fixed) aim(e); });
+      if(o){ tpl = Object.assign({}, base, o); }
+    } else {
+      pickCtx.hint = 'Ведите курсор — область следует за ним; нажатие фиксирует (ещё нажатие — двигать снова).';
+      const follow = (e)=>{ const p = toCells(e); tpl = Object.assign({}, base, {x:snapHalf(p.x), y:snapHalf(p.y)}); draw(); };
+      c.addEventListener('pointermove', (e)=>{ if(!fixed) follow(e); });
+      c.addEventListener('pointerdown', (e)=>{ e.preventDefault(); follow(e); fixed = !fixed; });
+      if(origin) tpl = Object.assign({}, base, origin);
+    }
+    draw();
+  }
+  document.addEventListener('click', (e)=>{
+    const b = e.target.closest && e.target.closest('[data-atp]'); if(!b || !pickCtx) return;
+    e.stopPropagation();
+    if(b.dataset.atp==='cancel') pickCtx.finish(null);
+    else if(b.dataset.atp==='done') pickCtx.finish(tpl ? affectedTokens(tpl).map(x=>x.id) : []);
+    else if(b.dataset.atp==='again'){ const p = pickCtx, sp = Object.assign({}, p.spec, {at:'point'}); pickCtx = null; tpl = null; if(catcher){ catcher.remove(); catcher = null; } pick(sp, p.src, p.title, p.done); }
+  });
+  document.addEventListener('keydown', (e)=>{ if(e.key==='Escape' && (tpl || catcher)){ if(pickCtx) pickCtx.finish(null); else clear(); } });
   document.addEventListener('click', (e)=>{ if(e.target.closest && e.target.closest('.at-x')) clear(); });
   // жетоны двигаются — пересчитать задетых
   setInterval(()=>{ if(tpl && !drag) draw(); }, 1000);
@@ -29048,14 +29186,14 @@ const AreaTemplates = (function(){
         else if(SHAPES[a]) startPlacing(a); }); }
     if(tools.parentNode!==v) v.appendChild(tools);
     const open = tools.classList.contains('open');
-    tools.innerHTML = `<button type="button" data-at="open" class="gt-tool${open ? ' active' : ''}" title="Шаблоны областей: круг, конус, линия — кого задевает">◬ Область</button>` +
+    tools.innerHTML = `<button type="button" data-at="open" class="gt-tool${open ? ' active' : ''}" title="Шаблоны областей: круг, конус, линия, квадрат — кого задевает">◬ Область</button>` +
       (open ? Object.keys(SHAPES).map(k=>`<button type="button" class="gt-tool${catcher && shape===k ? ' active' : ''}" data-at="${k}">${SHAPES[k]}</button>`).join('') +
         `<button type="button" class="gt-tool" data-at="deg" title="Угол конуса">${coneDeg}°</button>` : '');
   }
   setInterval(renderTools, 2000); // стол перерисовывается и меняет вид — кнопка возвращается на место
   function enable(on){ enabled = !!on; try{ localStorage.setItem(FLAG, enabled ? 'on' : 'off'); }catch(e){} if(!enabled) clear(); renderTools(); return enabled; }
 
-  return { get enabled(){ return enabled; }, enable, start:startPlacing, clear, affected, hits };
+  return { get enabled(){ return enabled; }, enable, start:startPlacing, clear, affected, affectedTokens, hits, pick, metersPerCell:mpc };
 })();
 </script>
 <script>
@@ -29719,6 +29857,512 @@ const NoteMedia = (function(){
     });
   }
   return { REF_RE, addFiles, pickFiles, lineHtml, hydrate, idsIn, captionOf, stripRefs, upload, exportFor, importList, sanitize, showHtml, autoplay };
+})();
+</script>
+<script>
+/* ======================================================================
+   БРОСОК ЦЕЛИ: способности существ, где бросает цель («Бросок рефлексов (−6)», «спасбросок от пси-поля (+3)»),
+   и встречные проверки существа против характеристики цели («Бросок мистики (19) против воли цели» — из Максимума
+   существа вычитается характеристика цели).
+   - Мастер: меню жетона → «🎯 Бросок цели…» (у существа) или «🎯 Потребовать бросок…» (у игрока). Форма: проверка
+     и модификатор (или Максимум существа и против чего), цели, последствия провала: попадания по профилю (к12 против
+     МУ − защиты, как у атаки с карты), потеря ОЗ и пси, состояния листа (испуг, истощение, стресс), отметки на
+     жетоне (шок, сбит с ног, схвачен, оглушён, ослеплён) на N кругов.
+   - Игрок получает окно «Бросок по требованию Мастера» → «🎲 Бросить» открывает его обычное окно броска с нужной
+     характеристикой и модификатором; результат сам уходит Мастеру. За NPC и встречные проверки бросает приложение.
+   - Панель результатов у Мастера: кто прошёл и кто провалил; последствия — только после «Применить провалы».
+   Сообщения: tr-req (Мастер → игрок), tr-res (игрок → Мастер).
+   ====================================================================== */
+const TargetRolls = (function(){
+  const esc = (s)=>escapeHtml(s==null ? '' : String(s));
+  const GT = ()=>typeof GameTable!=='undefined' ? GameTable : null;
+  const CHECKS = [['volya', 'Бросок воли'], ['refleksy', 'Бросок рефлексов'], ['vynoslivost', 'Бросок выносливости'], ['sila', 'Бросок силы'],
+    ['duh', 'Бросок духа'], ['smekalka', 'Бросок смекалки'], ['legkaya_atletika', 'Бросок лёгкой атлетики'], ['lovkost_ruk', 'Бросок ловкости рук'],
+    ['vospriyatie', 'Бросок восприятия'], ['hladnokrovie', 'Проверка хладнокровия (воля)'], ['save_psi_pole', 'Спасбросок от пси-поля'],
+    ['save_vrednaya_sreda', 'Спасбросок от вредной среды (химия, радиация, болезни)'], ['save_pryamoy_kontakt', 'Спасбросок: прямой контакт'],
+    ['save_kislotnost', 'Спасбросок от кислотности'], ['psi_plus', 'Проверка с Максимумом [N + пси-сопротивление]']];
+  const VS = [['', '— (обычная атака, без вычета)'], ['volya', 'воли'], ['refleksy', 'рефлексов'], ['sila', 'силы'], ['smekalka', 'смекалки'], ['duh', 'духа'], ['vynoslivost', 'выносливости'], ['legkaya_atletika', 'лёгкой атлетики']];
+  const LABEL = Object.fromEntries(CHECKS);
+  const RU = {vynoslivost:'выносливость', legkaya_atletika:'л[её]гкая атлетика', refleksy:'рефлексы', sila:'сила', volya:'воля', duh:'дух', smekalka:'смекалка', lovkost_ruk:'ловкость рук', vospriyatie:'восприятие'};
+  const BODY = ['vynoslivost', 'legkaya_atletika', 'refleksy', 'sila', 'lovkost_ruk'];
+  const SHEET_STATES = [['ispug', 'испуг'], ['istoshenie', 'истощение'], ['stress', 'стресс']];
+  const MU_TYPES = ['удар', 'патрон', 'энергия', 'температура', 'взрыв'];
+  const sgn = (n)=>(n >= 0 ? '+' : '−') + Math.abs(n);
+  const realKey = (k)=>k==='hladnokrovie' ? 'volya' : k;
+
+  /* ---------- значения характеристик целей ---------- */
+  function npcStat(t, key){
+    const cr = t.creature || {}, txt = [cr.body, cr.mind, cr.skills, cr.know].filter(Boolean).join(' ; ');
+    if(key==='psi'){ const m = /пси-сопротивлени\S*\s*\+?\s*(\d+)/i.exec((cr.abil || []).map(a=>a[1]).join(' ')); return m ? +m[1] : 0; }
+    if(RU[key]){ const m = new RegExp(RU[key] + '\\s+([−-]?\\d+)', 'i').exec(txt); if(m) return +m[1].replace('−', '-'); }
+    if(key==='refleksy' && t.reflexes!=null && !cr.body) return +t.reflexes;
+    const m = /^\s*([−-]?\d+)/.exec(BODY.indexOf(key) >= 0 ? (cr.body || '') : (cr.mind || ''));
+    return m ? +m[1].replace('−', '-') : (key==='refleksy' && t.reflexes!=null ? +t.reflexes : 2);
+  }
+  function sheetStat(c, key){ return c && c.stats && isFinite(+c.stats[key]) ? +c.stats[key] : 2; }
+  // Максимум проверки цели: Бросок = значение + 10; спасбросок пси-поля = пси-сопротивление; вредная среда = 10 + выносливость
+  function baseFor(t, key, n){
+    const gt = GT(), c = t.kind==='player' && gt ? gt.sheetOfToken(t) : null, k = realKey(key);
+    const st = (s)=>t.kind==='player' ? sheetStat(c, s) : npcStat(t, s), psi = t.kind==='player' ? (c ? +c.psiSoprot || 0 : 0) : npcStat(t, 'psi');
+    if(k==='psi_plus') return (+n || 0) + psi;
+    if(k==='save_psi_pole') return psi;
+    if(k.indexOf('save_')===0) return 10 + st('vynoslivost') + (c ? +c.siz || 0 : 0);
+    return 10 + st(k);
+  }
+  const statValue = (t, key)=>{ if(!key) return 0; const gt = GT(), c = t.kind==='player' && gt ? gt.sheetOfToken(t) : null; return t.kind==='player' ? sheetStat(c, key) : npcStat(t, key); };
+  const tokName = (t)=>{ const gt = GT(), v = gt && gt.vitalsOf(t); return (v && v.name) || t.name || (t.kind==='player' ? 'Игрок' : 'Жетон'); };
+
+  /* ---------- текст последствий ---------- */
+  function consText(c, cat){
+    const out = [];
+    if(c.hits && c.hits.n) out.push(`${c.hits.byCat ? '[категория успеха]' : c.hits.n} ${c.hits.byCat ? 'попаданий' : c.hits.n===1 ? 'попадание' : c.hits.n < 5 ? 'попадания' : 'попаданий'} с МУ ${c.hits.mu} ${c.hits.muType}, раны ${c.hits.wounds}${c.hits.travma ? ', травма' : ''}`);
+    if(c.hp) out.push(`−${c.hp} ОЗ`);
+    if(c.psi) out.push(`−${c.psi} пси`);
+    (c.states || []).forEach(k=>out.push((SHEET_STATES.find(s=>s[0]===k) || [, k])[1]));
+    (c.marks || []).forEach(m=>out.push((GT() ? GT().MARKS[m.k] : m.k).toLowerCase() + (m.r ? ` (${m.r} кр.)` : '')));
+    if(c.note) out.push(c.note);
+    return out.join(' · ') || 'на усмотрение Мастера';
+  }
+
+  /* ---------- форма Мастера ---------- */
+  let formEl = null;
+  function closeForm(){ if(formEl){ formEl.remove(); formEl = null; } }
+  function open(opts){
+    opts = opts || {}; const gt = GT(); if(!gt) return;
+    if(typeof session!=='undefined' && session.role==='player') return;
+    closeForm();
+    const toks = Object.values(gt.state.tokens || {}), src = opts.src ? gt.getToken(opts.src) : null;
+    const pre = new Set((opts.targets || []).filter(id=>id!==opts.src));
+    const tRow = (t)=>`<label class="tr-tg"><input type="checkbox" data-t="${esc(t.id)}" ${pre.has(t.id) ? 'checked' : ''}> ${esc(tokName(t))}${t.kind==='player' ? ' <span class="gs-muted">игрок</span>' : t.hidden ? ' <span class="gs-muted">скрыт</span>' : ''}</label>`;
+    formEl = document.createElement('div'); formEl.className = 'ui-dlg-back tr-back show';
+    formEl.innerHTML = `<div class="ui-dlg tr-form" role="dialog" aria-modal="true">
+      <div class="ui-dlg-title">🎯 ${src ? esc(tokName(src)) + ': ' : ''}бросок цели</div>
+      <label class="ui-dlg-field"><span>Способность</span><input data-f="title" type="text" maxlength="80" value="${esc(opts.title || '')}" placeholder="например, Угнетение"></label>
+      <div class="rx-seg tr-mode"><button type="button" data-mode="target" class="on">Бросает цель</button><button type="button" data-mode="creature">Бросает существо против цели</button></div>
+      <div class="tr-sec" data-sec="target"><div class="tr-row"><select data-f="stat">${CHECKS.map(([k, l])=>`<option value="${k}">${l}</option>`).join('')}</select>
+        <label>модификатор <input data-f="mod" type="number" min="-21" max="21" step="1" value="0"></label><label class="tr-n" style="display:none">N <input data-f="n" type="number" min="0" max="40" value="12"></label></div></div>
+      <div class="tr-sec" data-sec="creature" style="display:none"><div class="tr-row"><label>Максимум существа <input data-f="max" type="number" min="-10" max="60" value="16"></label>
+        <label>против <select data-f="vs">${VS.map(([k, l])=>`<option value="${k}">${l}</option>`).join('')}</select> цели</label></div>
+        <div class="gs-muted">Из Максимума вычитается характеристика каждой цели. Успех существа — цель поражена.</div></div>
+      <div class="gs-sub">Цели</div>
+      <div class="tr-row tr-area"><button type="button" class="gs-btn small" data-ar="pick" title="Шаблон области на столе: размеры из текста способности (или задайте ниже); задетые жетоны станут целями">📐 Область на столе</button>
+        <select data-f="ashape"><option value="circle">круг</option><option value="line">полоса / луч</option><option value="cone">конус</option><option value="rect">квадрат</option></select>
+        <label><input data-f="asize" type="number" min="0" max="999" step="0.5" style="width:60px" placeholder="м" title="Радиус круга, длина полосы/конуса или сторона квадрата, м; пусто — протянуть на столе"> м</label>
+        <label class="tr-aw"><input data-f="aw" type="number" min="0" max="99" step="0.5" style="width:52px" value="1"> ширина, м</label>
+        <select data-f="aat"><option value="self">от существа</option><option value="point">в точке</option></select>
+        <button type="button" class="gs-btn small" data-ar="all" title="Все жетоны на поле, кроме существа">Все на поле</button><button type="button" class="gs-btn small" data-ar="none">Снять все</button></div>
+      <div class="tr-targets">${toks.filter(t=>t.id!==opts.src).map(tRow).join('') || '<span class="gs-muted">На столе нет жетонов</span>'}</div>
+      <div class="gs-sub">При провале цели</div>
+      <div class="tr-row"><label>попаданий <input data-f="hn" type="number" min="0" max="30" value="0"></label><label class="tr-bycat" style="display:none"><input type="checkbox" data-f="bycat"> = категория успеха</label>
+        <label>МУ <input data-f="mu" type="number" min="0" max="40" value="12"></label><select data-f="mut">${MU_TYPES.map(m=>`<option>${m}</option>`).join('')}</select>
+        <label>раны <input data-f="wounds" type="text" value="2" size="4" title="число или кубы: 3, к6, 1к6+3"></label><label><input type="checkbox" data-f="travma"> травма</label></div>
+      <div class="tr-row"><label>−ОЗ <input data-f="hp" type="text" size="5" placeholder="2к6" title="число или кубы"></label><label>−пси <input data-f="psi" type="number" min="0" max="20" value="0"></label>
+        ${SHEET_STATES.map(([k, l])=>`<label><input type="checkbox" data-st="${k}"> ${l}</label>`).join('')}</div>
+      <div class="tr-row">${Object.keys(gt.MARKS).filter(k=>k!=='fear').map(k=>`<label><input type="checkbox" data-mk="${k}"> ${gt.MARKS[k].toLowerCase()}</label>`).join('')}
+        <label>на <input data-f="mr" type="number" min="0" max="20" value="1" title="0 — пока не снимут"> кр.</label></div>
+      <label class="ui-dlg-field"><span>Ещё при провале (текстом — игрок увидит)</span><input data-f="note" type="text" maxlength="200" placeholder="например, отброшена на к6 м"></label>
+      <div class="ui-dlg-btns"><button type="button" class="ui-dlg-btn" data-x="cancel">Отмена</button><button type="button" class="ui-dlg-btn primary" data-x="go">Бросок</button></div></div>`;
+    document.body.appendChild(formEl);
+    let mode = 'target';
+    const q = (s)=>formEl.querySelector(s);
+    formEl.querySelector('.tr-mode').onclick = (e)=>{ const b = e.target.closest('[data-mode]'); if(!b) return; mode = b.dataset.mode;
+      formEl.querySelectorAll('.tr-mode button').forEach(x=>x.classList.toggle('on', x===b));
+      formEl.querySelectorAll('.tr-sec').forEach(s=>{ s.style.display = s.dataset.sec===mode ? '' : 'none'; }); q('.tr-bycat').style.display = mode==='creature' ? '' : 'none'; };
+    q('[data-f="stat"]').onchange = (e)=>{ q('.tr-n').style.display = e.target.value==='psi_plus' ? '' : 'none'; };
+    const syncArea = ()=>{ const sh = q('[data-f="ashape"]').value; q('.tr-aw').style.display = sh==='line' ? '' : 'none'; };
+    q('[data-f="ashape"]').onchange = syncArea; syncArea();
+    if(!src){ q('[data-f="aat"]').value = 'point'; q('[data-f="aat"]').disabled = true; }
+    formEl.querySelector('.tr-area').addEventListener('click', (e)=>{
+      const b = e.target.closest('[data-ar]'); if(!b) return;
+      const boxes = [...formEl.querySelectorAll('[data-t]')];
+      if(b.dataset.ar==='all'){ boxes.forEach(c=>{ c.checked = true; }); return; }
+      if(b.dataset.ar==='none'){ boxes.forEach(c=>{ c.checked = false; }); return; }
+      if(typeof AreaTemplates==='undefined') return;
+      const sh = q('[data-f="ashape"]').value, size = +q('[data-f="asize"]').value || 0;
+      const spec = {shape:sh, at:q('[data-f="aat"]').value, r:sh==='circle' ? size : 0, len:sh==='line' || sh==='cone' ? size : 0, side:sh==='rect' ? size : 0, w:+q('[data-f="aw"]').value || 1};
+      formEl.style.display = 'none';
+      const hidden = [...document.querySelectorAll('.bst-float, .tr-panel, #gmScreen.open')].filter(el=>el.style.visibility!=='hidden'); // карточка и панели не закрывают стол
+      hidden.forEach(el=>{ el.style.visibility = 'hidden'; });
+      if(typeof toggleMainTab==='function') toggleMainTab('table');
+      setTimeout(()=>AreaTemplates.pick(spec, src ? src.id : null, q('[data-f="title"]').value || 'Область', (ids)=>{
+        formEl.style.display = ''; hidden.forEach(el=>{ el.style.visibility = ''; });
+        if(ids){ boxes.forEach(c=>{ c.checked = ids.indexOf(c.dataset.t) >= 0; }); uiToast(`Целей в области: ${ids.length}`, {icon:'📐'}); }
+      }), 120);
+    });
+    formEl.addEventListener('click', (e)=>{ const x = e.target.closest('[data-x]'); if(!x) return;
+      if(x.dataset.x==='cancel'){ closeForm(); return; }
+      const val = (f)=>q(`[data-f="${f}"]`).value, num = (f)=>Math.round(+val(f) || 0);
+      const targets = [...formEl.querySelectorAll('[data-t]:checked')].map(c=>c.dataset.t);
+      if(!targets.length){ uiToast('Отметьте хотя бы одну цель', {icon:'🎯'}); return; }
+      const marks = [...formEl.querySelectorAll('[data-mk]:checked')].map(c=>({k:c.dataset.mk, r:Math.max(0, num('mr'))}));
+      const cons = {hits:num('hn') > 0 || q('[data-f="bycat"]').checked ? {n:num('hn'), byCat:mode==='creature' && q('[data-f="bycat"]').checked, mu:num('mu'), muType:val('mut'), wounds:val('wounds').trim() || '1', travma:q('[data-f="travma"]').checked} : null,
+        hp:val('hp').trim(), psi:Math.max(0, num('psi')), states:[...formEl.querySelectorAll('[data-st]:checked')].map(c=>c.dataset.st), marks, note:val('note').trim()};
+      const req = {id:'tr' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), title:val('title').trim() || 'Способность', src:src ? tokName(src) : 'Мастер', mode,
+        stat:val('stat'), mod:Math.max(-21, Math.min(21, num('mod'))), n:num('n'), max:num('max'), vs:val('vs'), cons, rows:[]};
+      const fired = formEl._onFired; closeForm(); start(req, targets); if(fired) try{ fired(); }catch(err){}
+    });
+    formEl.addEventListener('keydown', (e)=>{ if(e.key==='Escape'){ e.stopPropagation(); closeForm(); } });
+    if(opts.prefill) prefill(opts.prefill, q, (m)=>{ formEl.querySelector(`.tr-mode [data-mode="${m}"]`).click(); });
+    formEl._onFired = opts.onFired || null;
+    setTimeout(()=>{ const i = q('[data-f="title"]'); if(i) i.focus(); }, 30);
+  }
+  // Заполнить форму из разобранной способности (AbilityKit.parse)
+  function prefill(s, q, setMode){
+    const set = (f, v)=>{ const el = q(`[data-f="${f}"]`); if(el && v!=null){ el.value = v; el.dispatchEvent(new Event('change', {bubbles:true})); } };
+    if(s.opp || s.atk){ setMode('creature'); set('max', (s.opp || s.atk).max); set('vs', s.opp ? s.opp.vs : ''); }
+    else if(s.check){ set('stat', s.check.stat); set('mod', s.check.mod || 0); if(s.check.n) set('n', s.check.n); }
+    const c = s.cons || {};
+    if(c.hits){ set('hn', c.hits.n || 1); const bc = q('[data-f="bycat"]'); if(bc) bc.checked = !!c.hits.byCat && !!(s.opp || s.atk); set('mu', c.hits.mu); set('mut', c.hits.muType); set('wounds', c.hits.wounds); q('[data-f="travma"]').checked = !!c.hits.travma; }
+    if(c.hp) set('hp', c.hp);
+    if(c.psi) set('psi', c.psi);
+    (c.states || []).forEach(k=>{ const el = formEl.querySelector(`[data-st="${k}"]`); if(el) el.checked = true; });
+    (c.marks || []).forEach(m=>{ const el = formEl.querySelector(`[data-mk="${m.k}"]`); if(el){ el.checked = true; set('mr', m.r); } });
+    const a = s.areaSpec;
+    if(a && a.shape==='all') formEl.querySelectorAll('[data-t]').forEach(cb=>{ cb.checked = true; });
+    else if(a){ set('ashape', a.shape); set('asize', a.shape==='circle' ? a.r : a.shape==='rect' ? a.side : a.len); if(a.w) set('aw', a.w); const at = q('[data-f="aat"]'); if(!at.disabled) at.value = a.at || 'self';
+      q('[data-f="ashape"]').dispatchEvent(new Event('change')); q('.tr-area').classList.add('hl'); }
+    const notes = [c.hits && c.hits.nExpr ? `попаданий ${c.hits.nExpr}` : '', s.area && !a ? 'область: ' + s.area : '', c.note || ''].filter(Boolean).join('; ');
+    if(notes) set('note', notes.slice(0, 200));
+  }
+
+  /* ---------- запуск: запросы игрокам, автоброски ---------- */
+  let cur = null; // текущий запрос Мастера
+  function rollD20(max){ const r = 1 + Math.floor(Math.random()*20), ev = evaluateD20Check(r, max); return {roll:r, max, success:ev.success, cat:ev.category}; }
+  const checkLabel = (r)=>r.mode==='creature' ? (r.vs ? `${r.src}: Максимум ${r.max} против ${(VS.find(v=>v[0]===r.vs) || [, r.vs])[1]} цели` : `${r.src}: атака, Максимум ${r.max}`) :
+    (r.stat==='psi_plus' ? `Проверка с Максимумом [${r.n} + пси-сопротивление]` : `${LABEL[r.stat]} (${sgn(r.mod)})`);
+  function start(req, ids){
+    const gt = GT(); cur = req;
+    ids.forEach(id=>{ const t = gt.getToken(id); if(!t) return;
+      const row = {id, name:tokName(t), kind:t.kind, ownerId:t.ownerId || '', status:'wait', apply:false};
+      req.rows.push(row);
+      if(req.mode==='creature'){ const sv = statValue(t, req.vs), r = rollD20(req.max - sv); Object.assign(row, r, {status:'done', stat:sv, affected:r.success}); row.apply = row.affected; return; }
+      if(t.kind==='player'){
+        const online = typeof session!=='undefined' && session.role==='gm' && session.players[t.ownerId];
+        if(online){ sendMsg({type:'tr-req', req:{id:req.id, title:req.title, src:req.src, stat:req.stat, mod:req.mod, n:req.n, cons:consText(req.cons)}}, t.ownerId); return; }
+        row.status = 'offline'; return; // не на связи (или свой жетон на столе без сессии) — «🎲 за игрока»
+      }
+      const r = rollD20(baseFor(t, req.stat, req.n) + (req.stat==='psi_plus' ? 0 : req.mod));
+      Object.assign(row, r, {status:'done', affected:!r.success}); row.apply = row.affected;
+    });
+    render();
+  }
+  // за игрока (не на связи или не отвечает): по копии его листа у Мастера
+  function rollFor(row){
+    const gt = GT(), t = gt.getToken(row.id); if(!t || !cur) return;
+    const base = baseFor(t, cur.stat, cur.n), r = rollD20(base + (cur.stat==='psi_plus' ? 0 : cur.mod));
+    Object.assign(row, r, {status:'done', affected:!r.success, byGm:true}); row.apply = row.affected; render();
+  }
+
+  /* ---------- панель результатов ---------- */
+  let panel = null;
+  function render(){
+    if(!cur){ if(panel){ panel.remove(); panel = null; } return; }
+    if(!panel){ panel = document.createElement('div'); panel.className = 'tr-panel'; document.body.appendChild(panel); panel.addEventListener('click', onPanel); panel.addEventListener('change', onPanel); }
+    const r = cur, done = r.rows.filter(x=>x.status==='done'), failed = done.filter(x=>x.affected);
+    const rowHtml = (x)=>{
+      const res = x.status==='done' ? `<span class="tr-res ${x.affected ? 'bad' : 'ok'}">${x.affected ? (r.mode==='creature' ? 'поражён' : 'провал') : (r.mode==='creature' ? 'устоял' : 'успех')}${x.affected && r.mode==='creature' && x.cat ? ', кат. ' + x.cat : !x.affected && r.mode!=='creature' ? ', КУ' + x.cat : ''}</span><span class="gs-muted">к20=${x.roll} / Макс.${x.max}${r.mode==='creature' && r.vs ? ` (${r.max} − ${x.stat})` : ''}${x.byGm ? ' · бросил Мастер' : ''}</span>`
+        : x.status==='wait' ? '<span class="gs-muted">ждём бросок игрока…</span>' : '<span class="gs-muted">игрок не на связи</span>';
+      return `<div class="tr-r" data-r="${esc(x.id)}"><label><input type="checkbox" data-ap ${x.apply ? 'checked' : ''} ${x.status==='done' ? '' : 'disabled'}> <b>${esc(x.name)}</b></label>${res}
+        ${x.status!=='done' && x.kind==='player' && r.mode!=='creature' ? `<button type="button" class="gs-btn small" data-rf="${esc(x.id)}" title="Бросить за игрока по копии его листа">🎲 за игрока</button>` : ''}</div>`;
+    };
+    panel.innerHTML = `<div class="tr-head"><b>🎯 ${esc(r.src)} — ${esc(r.title)}</b><button type="button" class="tr-x" data-trx="close" title="Закрыть">✕</button></div>
+      <div class="gs-muted">${esc(checkLabel(r))}</div><div class="gs-muted">Провал: ${esc(consText(r.cons))}</div>
+      <div class="tr-rows">${r.rows.map(rowHtml).join('')}</div>
+      <div class="gs-row"><button type="button" class="gs-btn primary" data-trx="apply" ${r.rows.some(x=>x.apply) ? '' : 'disabled'}>Применить провалы (${r.rows.filter(x=>x.apply).length})</button>
+        <span class="gs-muted">${done.length}/${r.rows.length} бросили · провалили ${failed.length}</span></div>`;
+  }
+  function onPanel(e){
+    const ap = e.target.closest && e.target.closest('[data-ap]');
+    if(ap && e.type==='change'){ const row = cur.rows.find(x=>x.id===ap.closest('[data-r]').dataset.r); if(row){ row.apply = ap.checked; render(); } return; }
+    if(e.type!=='click') return;
+    const rf = e.target.closest('[data-rf]'); if(rf){ const row = cur.rows.find(x=>x.id===rf.dataset.rf); if(row) rollFor(row); return; }
+    const x = e.target.closest('[data-trx]'); if(!x) return;
+    if(x.dataset.trx==='close'){ if(cur.rows.some(r=>r.status==='done' && r.apply) && !cur.applied){ uiConfirm('Закрыть без применения последствий?', {title:'Бросок цели', ok:'Закрыть'}).then(ok=>{ if(ok){ cur = null; render(); } }); return; } cur = null; render(); }
+    else if(x.dataset.trx==='apply') applyAll();
+  }
+
+  /* ---------- последствия — после подтверждения Мастера ---------- */
+  function grantTo(ownerId, g){
+    const gt = GT(); if(gt && ownerId && ownerId===gt.ownerIdHere() && typeof character!=='undefined' && character){ const t = applyGrant(character, Object.assign({gid:'local'}, g)); if(t) logEvent(character, t); renderAll(); return; }
+    sendGrant(ownerId, g);
+  }
+  function applyAll(){
+    const gt = GT(), r = cur; if(!r) return;
+    const parts = [];
+    r.rows.filter(x=>x.apply && x.status==='done').forEach(x=>{
+      const t = gt.getToken(x.id); if(!t) return;
+      const c = r.cons, done = [];
+      if(c.hits){ const n = c.hits.byCat ? (x.cat || 1) : c.hits.n; const h = gt.applyHitsTo(x.id, {n, mu:c.hits.mu, muType:c.hits.muType, wounds:c.hits.wounds, travma:c.hits.travma}); if(h) done.push(`${n}×МУ ${c.hits.mu}: ${h.text}`); }
+      if(c.hp){ const v = gt.rollWoundsExpr(c.hp); if(v){ if(t.kind==='player') grantTo(t.ownerId, {kind:'vitals', which:'hp', mode:'delta', value:-v}); else if(t.hp!=null) gt.updateToken(x.id, {hp:t.hp - v}); done.push(`−${v} ОЗ`); } }
+      if(c.psi){ if(t.kind==='player'){ grantTo(t.ownerId, {kind:'vitals', which:'psi', mode:'delta', value:-c.psi}); done.push(`−${c.psi} пси`); } }
+      (c.states || []).forEach(k=>{ if(t.kind==='player') grantTo(t.ownerId, {kind:'state', key:k, on:true}); else if(k==='ispug') gt.addMarkTo(x.id, 'fear', 0); done.push((SHEET_STATES.find(s=>s[0]===k) || [, k])[1]); });
+      (c.marks || []).forEach(m=>{ gt.addMarkTo(x.id, m.k, m.r); done.push(gt.MARKS[m.k].toLowerCase()); });
+      if(c.note) done.push(c.note);
+      parts.push(`${x.name} — ${done.join(', ') || 'без последствий'}`);
+    });
+    const ok = r.rows.filter(x=>x.status==='done' && !x.affected).map(x=>x.name);
+    const text = `${r.src} — «${r.title}» (${checkLabel(r)}): ${parts.length ? 'провал: ' + parts.join('; ') : 'никто не пострадал'}${ok.length ? '. Устояли: ' + ok.join(', ') : ''}`;
+    recordAndShareQuickRoll({abilityUse:true, text:text.slice(0, 900)});
+    r.applied = true; cur = null; render();
+    uiToast('Последствия применены', {icon:'🎯'});
+  }
+
+  /* ---------- игрок: запрос Мастера ---------- */
+  const pending = []; let chip = null, waitRoll = null;
+  function syncChip(){
+    if(!pending.length){ if(chip){ chip.remove(); chip = null; } return; }
+    if(!chip){ chip = document.createElement('button'); chip.type = 'button'; chip.className = 'tr-chip'; chip.onclick = ()=>showReq(pending[0]); document.body.appendChild(chip); }
+    chip.textContent = `🎯 Мастер ждёт бросок${pending.length > 1 ? ' (' + pending.length + ')' : ''}`;
+  }
+  async function showReq(q){
+    const r = await uiDialog({title:'Бросок по требованию Мастера', icon:'🎯', html:`<div class="tr-ask"><b>${esc(q.src)} — ${esc(q.title)}</b><div class="tr-ask-check">${esc(q.stat==='psi_plus' ? `Проверка с Максимумом [${q.n} + пси-сопротивление]` : `${LABEL[q.stat] || q.stat} (${sgn(q.mod)})`)}</div><div class="gs-muted">При провале: ${esc(q.cons)}</div></div>`,
+      cancelValue:null, buttons:[{label:'Позже', value:null}, {label:'🎲 Бросить', value:'roll', primary:true}]});
+    if(r==='roll') rollReq(q);
+  }
+  function rollReq(q){
+    if(typeof character==='undefined' || !character){ uiAlert('Нет персонажа — бросать нечем. Создайте персонажа или загрузите его.'); return; }
+    const key = realKey(q.stat);
+    if(key==='psi_plus'){
+      const max = (+q.n || 0) + (+character.psiSoprot || 0), roll = 1 + Math.floor(Math.random()*20), ev = evaluateD20Check(roll, max);
+      recordAndShareQuickRoll({diceType:'d20', mode:'plain', max, rolls:[roll], roll, success:ev.success, category:ev.category});
+      answer(q, {roll, max, success:ev.success, cat:ev.category}); return;
+    }
+    if(!(SAVE_ROLL_DEFS[key] || (character.stats && character.stats[key]!==undefined))){ uiAlert('На листе нет такой проверки — бросьте вручную и скажите Мастеру.'); return; }
+    if(typeof toggleMainTab==='function') toggleMainTab('sheet');
+    waitRoll = {q, key};
+    openRollPicker(key, innerWidth/2, innerHeight/2, Math.max(-21, Math.min(21, +q.mod || 0)));
+    uiToast(`Протяните к модификатору ${sgn(+q.mod || 0)} — он подсвечен`, {icon:'🎯', ms:5000});
+  }
+  function answer(q, res){
+    sendMsg({type:'tr-res', reqId:q.id, roll:res.roll, max:res.max, success:!!res.success, cat:res.cat || 0}, session.gmId);
+    const i = pending.indexOf(q); if(i >= 0) pending.splice(i, 1); syncChip();
+    uiToast(`Результат ушёл Мастеру: ${res.success ? 'успех' : 'провал'}`, {icon:'🎯'});
+  }
+  // бросок из окна листа по запросу — перехватываем результат
+  if(typeof recordAndShareRoll==='function'){
+    const orig = recordAndShareRoll;
+    window.recordAndShareRoll = function(statKey, mod, roll, max, success, category){
+      const out = orig.apply(this, arguments);
+      try{ if(waitRoll && statKey===waitRoll.key){ const q = waitRoll.q; waitRoll = null; answer(q, {roll, max, success, cat:category}); } }catch(e){ console.warn('[Бросок цели]', e); }
+      return out;
+    };
+  }
+  function handle(msg){
+    if(msg.type==='tr-req'){
+      if(!(session.role==='player' && msg.from && msg.from===session.gmId) || !msg.req) return true;
+      const q = msg.req, s = (v, n)=>String(v==null ? '' : v).slice(0, n);
+      const req = {id:s(q.id, 40), title:s(q.title, 80), src:s(q.src, 60), stat:CHECKS.some(c=>c[0]===q.stat) ? q.stat : 'volya', mod:Math.max(-21, Math.min(21, Math.round(+q.mod || 0))), n:Math.round(+q.n || 0), cons:s(q.cons, 300)};
+      pending.push(req); syncChip(); showReq(req); return true;
+    }
+    if(msg.type==='tr-res'){
+      if(!cur || session.role!=='gm' || msg.reqId!==cur.id) return true;
+      const row = cur.rows.find(x=>x.kind==='player' && x.ownerId===msg.from && x.status!=='done'); if(!row) return true;
+      Object.assign(row, {roll:Math.max(1, Math.min(20, Math.round(+msg.roll || 0))), max:Math.round(+msg.max || 0), success:!!msg.success, cat:Math.round(+msg.cat || 0), status:'done', affected:!msg.success});
+      row.apply = row.affected; render(); return true;
+    }
+    return false;
+  }
+  return { open, handle, render, consText, npcStat };
+})();
+</script>
+<script>
+/* ======================================================================
+   СПОСОБНОСТИ СУЩЕСТВ: разбор текста в готовые действия (этап 2).
+   - AbilityKit.parse(название, текст) → схема: бросок цели (проверка и модификатор) или встречная проверка
+     (Максимум существа против характеристики цели) или атака с Максимумом; попадания (МУ, тип, раны, травма);
+     потеря ОЗ и пси; состояния (испуг, истощение, стресс) и отметки (шок, сбит с ног, схвачен, оглушён, ослеплён);
+     область (текстом — для этапа 3); переброс; срабатывание на провал «15−»; ограничение по использованию
+     (2 раза в день, раз в сцену…); действие / реакция / свободное действие.
+   - Карточка существа (бестиарий, карточка жетона): под каждой способностью и ходом пустоты — плашки разобранного
+     и «▶» — форма «Бросок цели» уже заполнена; у жетона — счётчик использований («1/2 в день», ↺ — сбросить).
+   - Конструктор существа: под полем «Способности» по ходу набора — что распознано в каждом абзаце.
+   Опирается на формулировки книги («Бросок рефлексов (−6)», «спасбросок от пси-поля (+3)», «2 попадания с МУ 12
+   удар, раны 3, травма»); всё нераспознанное остаётся текстом, а форму перед броском можно поправить.
+   ====================================================================== */
+const AbilityKit = (function(){
+  const esc = (s)=>escapeHtml(s==null ? '' : String(s));
+  const NUM = (s)=>+String(s).replace('−', '-').replace('+', '');
+  const STAT_RE = {volya:'вол', refleksy:'рефлекс', vynoslivost:'вынослив', sila:'сил', duh:'дух', smekalka:'смекалк', legkaya_atletika:'л[её]гк\\S* атлетик', lovkost_ruk:'ловкост\\S* рук', vospriyatie:'восприяти', mistika:'мистик'};
+  const STAT_NAME = {volya:'воли', refleksy:'рефлексов', vynoslivost:'выносливости', sila:'силы', duh:'духа', smekalka:'смекалки', legkaya_atletika:'лёгкой атлетики', lovkost_ruk:'ловкости рук', vospriyatie:'восприятия', mistika:'мистики'};
+  const statOf = (w)=>{ const s = String(w || '').toLowerCase(); return Object.keys(STAT_RE).find(k=>new RegExp('^' + STAT_RE[k]).test(s)) || null; };
+  const MOD = '\\s*\\(?\\s*([−+-]\\s*\\d+)\\s*\\)?';
+  const MU_T = '(удар|патрон|энергия|температура|взрыв)';
+  const MARK_RE = [['shock', /шок/i], ['prone', /сбит\S* с ног|падает на землю|пада\S* на землю/i], ['grabbed', /схвачен|захват\S* состоял|связан\S* с херувим/i], ['stunned', /оглуш[её]н|ошеломл/i], ['blind', /слепнет|ослеп/i]];
+  const STATE_RE = [['ispug', /испуг|испуган/i], ['istoshenie', /истощени/i], ['stress', /стресс/i]];
+
+  const CHECK_LABEL = (c)=>c.stat==='psi_plus' ? `Максимум [${c.n} + пси-сопр.]` : c.stat==='hladnokrovie' ? `хладнокровие${c.mod ? ' (' + (c.mod>0 ? '+' : '−') + Math.abs(c.mod) + ')' : ''}` :
+    c.stat.indexOf('save_')===0 ? `спасбросок ${({save_psi_pole:'пси-поле', save_vrednaya_sreda:'вредная среда', save_kislotnost:'кислотность', save_pryamoy_kontakt:'контакт'})[c.stat]}${c.mod ? ' (' + (c.mod>0 ? '+' : '−') + Math.abs(c.mod) + ')' : ''}` :
+    `Бросок ${STAT_NAME[c.stat] || c.stat}${c.mod ? ' (' + (c.mod>0 ? '+' : '−') + Math.abs(c.mod) + ')' : ''}`;
+  // Область способности в метрах: форма, размеры и откуда (от существа или в точке) — для шаблона на столе
+  function areaSpec(t){
+    let m; const L = (x)=>+String(x).replace(',', '.');
+    if((m = /луч\S*\s+шириной\s+(?:в\s+)?([\d,]+)\s*м\S*\s+и\s+длиной\s+(?:до\s+)?(\d+)/i.exec(t))) return {shape:'line', w:L(m[1]), len:+m[2], at:'self'};
+    if((m = /(?:пото\S*|полос\S*)[^.]{0,40}?шириной\s+(?:в\s+)?(\d+)\s*м\S*\s+и\s+длиной\s+(?:до\s+)?(\d+)/i.exec(t))) return {shape:'line', w:+m[1], len:+m[2], at:'self'};
+    if((m = /полос\S*\s+длиной\s+(?:до\s+)?(\d+)\s*м\S*\s+и\s+шириной\s+(?:в\s+)?(\d+)/i.exec(t))) return {shape:'line', len:+m[1], w:+m[2], at:'self'};
+    if((m = /шириной\s+в\s+(\d+)\s+и\s+длиной\s+в?\s*(\d+)\s*м/i.exec(t))) return {shape:'line', w:+m[1], len:+m[2], at:'self'};
+    if((m = /полос\S*\s+шириной\s+(?:в\s+)?(\d+)\s*м/i.exec(t))){ const l = /до\s+(\d+)\s*м/i.exec(t); return {shape:'line', w:+m[1], len:l ? +l[1] : 12, at:'self'}; }
+    if((m = /кривой\s+длиной\s+до\s+(\d+)\s*м/i.exec(t))) return {shape:'line', w:3, len:+m[1], at:'self'};
+    if((m = /квадратной области со стороной в\s+(\d+)/i.exec(t)) || (m = /област\S*\s+(?:в\s+)?(\d+)\s*[×x]\s*\d+/i.exec(t))) return {shape:'rect', side:+m[1], at:'point'};
+    if((m = /в радиусе\s+(\d+)\s*(?:м|метр)/i.exec(t))) return {shape:'circle', r:+m[1], at:/точк/i.test(t.slice(m.index, m.index + 50)) ? 'point' : 'self'};
+    if((m = /цель и все[^.]{0,30}в пределах\s+(\d+)\s*м/i.exec(t))) return {shape:'circle', r:+m[1], at:'point'};
+    if((m = /(?:все|кажд\S*)[^.]{0,50}?в пределах\s+(\d+)\s*(?:м|метр)/i.exec(t)) || (m = /в пределах\s+(\d+)\s*(?:м|метр\S*)\s+от\s+(?:неё|него|себя|пустоты|херувима)/i.exec(t))) return {shape:'circle', r:+m[1], at:'self'};
+    if(/все видящ|все слышащ|кажд\S* слышащ|кажд\S*,? (?:видящ|слышащ)|все существа(?! в)|все персонажи|к6 видимых|в пределах прямого обзора/i.test(t)) return {shape:'all'};
+    return null;
+  }
+  function parse(name, text){
+    const t = String(text || ''), full = `${name || ''} ${t}`, s = {chips:[], cons:{states:[], marks:[]}};
+    // ограничение по использованию: «(2 раза в день)», «раз в день», «до 3 раз в день», «раз в сцену», «2 раза в круг»
+    const um = /\(?(?:до\s+)?(\d+)?\s*раз[а]?\s+в\s+(день|сутки|сцену|круг|ход|игровую встречу|встречу|3 круга)\)?/i.exec(full);
+    if(um){ const per = /сутки|день/.test(um[2]) ? 'день' : /встреч/.test(um[2]) ? 'встречу' : um[2]==='3 круга' ? '3 круга' : um[2]; s.uses = {n:+um[1] || 1, per}; }
+    s.act = /свободным действием/i.test(t) ? 'свободное' : /реакцией/i.test(t) ? 'реакция' : /действием|тратит действие|затратив действие/i.test(t) ? 'действие' : null;
+    // встречная проверка: «Бросок мистики (19) против воли цели», «Максимумом 19 против рефлексов», «проверку к20 с Максимумом 19 против рефлексов цели»
+    let m = /Брос\S*\s+(\S+(?:\s+рук)?)\s*(?:\([−+-]?\d+\)\s*)?\((\d+)\)\s+против\s+(\S+)/i.exec(t) || null;
+    if(m && statOf(m[3])) s.opp = {max:+m[2], vs:statOf(m[3])};
+    if(!s.opp){ m = /Максимум\S*\s+(\d+)\s+против\s+(\S+)/i.exec(t); if(m && statOf(m[2])) s.opp = {max:+m[1], vs:statOf(m[2])}; }
+    // бросок цели
+    if(!s.opp){
+      const sm = new RegExp('Брос\\S*\\s+(воли|рефлексов|выносливости|силы|духа|смекалки|л[её]гкой атлетики|ловкости рук|восприятия)(?:' + MOD + ')?(?:\\s+против\\s+\\S+\\s+(\\d+))?', 'i').exec(t);
+      const sv = /спасброс\S*\s+(?:от|против)\s+(пси-пол\S*|хими\S*|радиаци\S*|болезн\S*|вредн\S*\s+сред\S*|кислотност\S*)(?:\s*\(?\s*([−+-]\s*\d+)\s*\)?)?/i.exec(t);
+      const ss = new RegExp('спасброс\\S*\\s+(воли|духа|выносливости|смекалки)(?:' + MOD + ')?', 'i').exec(t);
+      const hk = new RegExp('проверк\\S*\\s+хладнокровия(?:' + MOD + ')?', 'i').exec(t);
+      const pp = /Максимум\S*\s+\[(\d+)\s*\+\s*пси-сопротивлени\S*\]/i.exec(t);
+      const cands = [];
+      if(sm) cands.push({at:sm.index, stat:statOf(sm[1]), mod:sm[2] ? NUM(sm[2].replace(/\s/g, '')) : sm[3] ? -(+sm[3]) : 0});
+      if(sv) cands.push({at:sv.index, stat:/пси/i.test(sv[1]) ? 'save_psi_pole' : /кислот/i.test(sv[1]) ? 'save_kislotnost' : 'save_vrednaya_sreda', mod:sv[2] ? NUM(sv[2].replace(/\s/g, '')) : 0});
+      if(ss) cands.push({at:ss.index, stat:statOf(ss[1]), mod:ss[2] ? NUM(ss[2].replace(/\s/g, '')) : 0});
+      if(hk) cands.push({at:hk.index, stat:'hladnokrovie', mod:hk[1] ? NUM(hk[1].replace(/\s/g, '')) : 0});
+      if(pp) cands.push({at:pp.index, stat:'psi_plus', mod:0, n:+pp[1]});
+      cands.sort((a, b)=>a.at - b.at);
+      // чья проверка: в той же фразе перед броском — цель («цель», «противник», «каждый», «все», «видящие»…)
+      // или само существо («персонаж … пока не преуспеет в Броске воли», «пустота должна преуспеть»)
+      if(cands.length){
+        const c0 = cands[0], before = t.slice(0, c0.at).split(/[.;]\s/).pop();
+        // ближайшее к броску подлежащее решает («группа противника действует первой, то персонаж совершает» — сам);
+        // \b в JS не работает с кириллицей — границы слова свои
+        const W = (src)=>new RegExp('(?:^|[^а-яё])(?:' + src + ')(?=[^а-яё]|$)', 'gi'), lastAt = (re)=>{ let i = -1, mm; while((mm = re.exec(before))) i = mm.index; return i; };
+        const ti = lastAt(W('цел[а-яё]*|противник[а-яё]*|жертв[а-яё]*|кажд[а-яё]*|все|всех|видящ[а-яё]*|слышащ[а-яё]*|те|тот|он|она|существа|персонажи|игрок[а-яё]*|схваченн[а-яё]*|пойманн[а-яё]*|атакуем[а-яё]*'));
+        const si = lastAt(W('персонаж|пустота|жрец|культист|херувим|щитоносец|разведчик|офицер|киновит|жнец|охотник|гигант|робот|аява|ассасин|боец|реакцией|сам'));
+        const tgt = ti > si, self = si > ti;
+        const passiveSave = /спасброски/i.test(t.slice(c0.at, c0.at + 12)) || (!tgt && /^\s*спасброс/i.test(t)) || (!tgt && !self && !/цел|противник|существ|кажд|все|видящ|слышащ/i.test(t));
+        if(passiveSave) s.bonus = c0; else if(self) s.selfCheck = c0; else s.check = c0;
+      }
+    }
+    // атака с Максимумом (без «против») — обычная атака существа; проверка после неё — «при попадании»
+    if(!s.opp){ m = /(?:атак\S*|атакует)[^.]{0,70}?с Максимумом\s+\(?(\d+)\)?|с Максимумом\s+\(?(\d+)\)?|Максимум\S*\s+\(?(\d+)\)?[^.]{0,30}(?:попадани|атак)/i.exec(t);
+      if(m && (!s.check || m.index < s.check.at)){ s.atk = {max:+(m[1] || m[2] || m[3])}; if(s.check){ s.afterHit = s.check; delete s.check; }
+        else if(s.selfCheck && m.index < s.selfCheck.at){ s.afterHit = s.selfCheck; delete s.selfCheck; } } }
+    // попадания: «2 попадания с МУ 13 удар, раны 3, травма», «[категория успеха] попаданий с МУ 13 энергия, раны 2», «(попадание: МУ 14 удар, пул, травма)»
+    m = new RegExp('(\\d+|к6|1к6|\\[[^\\]]*категори[^\\]]*\\]|\\[значение[^\\]]*\\])?\\s*(?:попадани\\S*|оружие\\S*)\\s*(?:с\\s*|:\\s*)?МУ\\s*(\\d+)\\s*' + MU_T + '?([^.;)]*)', 'i').exec(t);
+    if(m){ const tail = m[4] || '', w = /раны\s+(\d+к\d+(?:\s*\+\s*\d+)?|к\d+(?:\s*\+\s*\d+)?|\d+|\[[^\]]+\])/i.exec(tail);
+      const byCat = !!(m[1] && /категори/i.test(m[1])), n = byCat ? 1 : m[1] ? (/к6/.test(m[1]) ? 'к6' : /^\[/.test(m[1]) ? 'по выпавшему к20' : +m[1]) : 1;
+      s.cons.hits = {n:typeof n==='number' ? n : 1, nExpr:typeof n==='string' ? n : null, byCat, mu:+m[2], muType:(m[3] || 'удар').toLowerCase(), wounds:w ? w[1].replace(/\s/g, '').replace(/^\[.*\]$/, '1') : '1', travma:/травма/i.test(tail)}; }
+    // потеря ОЗ и пси
+    m = /(?:теря\S*|потеря\S*|получ\S*\s+по|получит|отбирает у цели|отнимая у неё)\s+(\d*к\d+(?:\s*\+\s*\d+)?|\d+)\s+(ОЗ|ран)/i.exec(t);
+    if(m && !(s.cons.hits && /попадани/.test(t.slice(Math.max(0, m.index - 40), m.index)))) s.cons.hp = m[1].replace(/\s/g, '');
+    m = /(?:теря\S*|потеря\S*|отнимая у неё|снимает|теряя)\s+(?:по\s+)?(\d+)\s+пси|ОЗ\s+и\s+(\d+)\s+пси/i.exec(t); if(m) s.cons.psi = +(m[1] || m[2]);
+    const tc = t.split(/(?<=[.!])\s+/).filter(x=>!/^(например|связь пропадает)/i.test(x.trim())).join(' ');
+    STATE_RE.forEach(([k, re])=>{ if(k==='stress' ? /(получ\S*|станов\S*|испыт\S*)\s+(\S+\s+)?стресс/i.test(tc) : re.test(tc)) s.cons.states.push(k); });
+    MARK_RE.forEach(([k, re])=>{ if(re.test(tc)){ const r = new RegExp(re.source + '[^.]{0,20}?на\\s+(\\d+|к6)\\s+(круг|ход)', 'i').exec(t); s.cons.marks.push({k, r:r ? (/к6/.test(r[1]) ? 1 + Math.floor(Math.random()*6) : +r[1]) : 1}); } });
+    if(s.cons.states.indexOf('ispug') >= 0 && /пугающ|чудовищн|неописуем/i.test(t) && t.length < 40) s.cons.states = []; // «Внешний вид: пугающий» — не последствие
+    // что ещё — текстом: «при провале с категорией 2…», «с итогом 15−…»
+    const extra = t.split(/(?<=[.!])\s+/).filter(x=>/категори\S* 2|итогом 15|категорией 2/i.test(x) && !/^(раз в круг|если)/i.test(x)).join(' ');
+    if(extra) s.cons.note = extra.slice(0, 200);
+    // область (для этапа 3 — пока текстом)
+    m = /(в радиусе\s+\d+\s*м|в пределах\s+\d+\s*(?:м|метр\S*)\s+от\s+(?:неё|него|себя|пустоты|херувима)|полос\S*[^.]{0,30}шириной[^.]{0,20}\d+\s*м|луч\S* шириной[^.]{0,40}|област\S*[^.]{0,30}\d+\s*[×x]\s*\d+|квадратной области[^.]{0,40}|все (?:цели|существа|живые|видящие|персонажи|находящ\S*|враждебн\S*)[^.]{0,40}|кажд\S+ (?:цель|существо|такая цель|слышащ\S*)[^.]{0,30}|к6 видимых)/i.exec(t);
+    s.areaSpec = areaSpec(t);
+    if(s.atk && s.areaSpec && s.areaSpec.shape==='circle') s.areaSpec = null; // у атаки «в пределах N м» — дальность по одной цели, не область
+    if(m) s.area = m[1].trim().replace(/\s+(должн|ощущают|проходят|совершают|получ)\S*.*$/i, '').slice(0, 48);
+    s.reroll = /перебро/i.test(t);
+    s.trig = /провалил\S* с итогом 15|промахнул\S* с итогом 15|провалива\S* свою проверку|проваливающ/i.test(t);
+    if(s.afterHit) s.cons.note = ('при попадании: ' + CHECK_LABEL(s.afterHit) + (s.cons.note ? '; ' + s.cons.note : '')).slice(0, 200);
+    s.passive = !!s.bonus || !s.check && !s.opp && !s.atk && !s.reroll && /(\+\d+ к (атаке|проверкам|проверке|Максимуму)|проверк\S* инициативы|спасброски от \S+ [+−]\d+|защита\s*\S*\s*\+\d|штраф|модификатор\s*−\d+|на \d ран\S* меньше|Упрощ|Осложн|невосприимчив)/i.test(t);
+    s.kind = s.check ? 'save' : s.opp ? 'opposed' : s.atk ? 'attack' : s.reroll ? 'reroll' : s.trig ? 'trigger' : s.passive ? 'passive' : 'text';
+    s.chips = chips(s);
+    return s;
+  }
+  function areaLabel(a){ if(!a) return ''; if(a.shape==='all') return 'все на поле';
+    return a.shape==='circle' ? `круг ${a.r} м ${a.at==='self' ? 'вокруг себя' : 'в точке'}` : a.shape==='rect' ? `квадрат ${a.side} м в точке` : a.shape==='line' ? `полоса ${a.len}×${a.w} м` : `конус ${a.len} м`; }
+  function chips(s){
+    const out = [], c = s.cons;
+    if(s.act) out.push(['act', s.act]);
+    if(s.uses) out.push(['uses', `${s.uses.n} в ${s.uses.per}`]);
+    if(s.check) out.push(['save', '🎯 цель: ' + CHECK_LABEL(s.check)]);
+    if(s.opp) out.push(['save', `🎯 Макс. ${s.opp.max} против ${STAT_NAME[s.opp.vs]} цели`]);
+    if(s.atk) out.push(['save', `⚔ атака, Макс. ${s.atk.max}`]);
+    if(s.selfCheck) out.push(['self', 'бросок существа: ' + CHECK_LABEL(s.selfCheck)]);
+    if(s.afterHit) out.push(['save', 'при попадании: ' + CHECK_LABEL(s.afterHit)]);
+    if(s.bonus) out.push(['pas', 'своё: ' + CHECK_LABEL(s.bonus).replace('спасбросок', 'спасброски')]);
+    if(c.hits) out.push(['bad', `${c.hits.byCat ? '[кат.]' : c.hits.nExpr || c.hits.n}× МУ ${c.hits.mu} ${c.hits.muType}, раны ${c.hits.wounds}${c.hits.travma ? ', травма' : ''}`]);
+    if(c.hp) out.push(['bad', `−${c.hp} ОЗ`]);
+    if(c.psi) out.push(['bad', `−${c.psi} пси`]);
+    const effects = s.kind!=='passive' && s.kind!=='reroll'; // у постоянных и перебросов «испуг», «шок» в тексте — условия, а не последствия
+    if(effects) c.states.forEach(k=>out.push(['bad', ({ispug:'испуг', istoshenie:'истощение', stress:'стресс'})[k]]));
+    if(effects) c.marks.forEach(mk=>out.push(['bad', ({shock:'шок', prone:'сбит с ног', grabbed:'схвачен', stunned:'оглушён', blind:'ослеплён'})[mk.k]]));
+    if(s.areaSpec) out.push(['area', '📐 ' + areaLabel(s.areaSpec)]); else if(s.area) out.push(['area', '📐 ' + s.area]);
+    if(s.reroll) out.push(['re', '↻ переброс']);
+    if(s.trig) out.push(['re', '⚡ на провал 15−']);
+    if(s.kind==='passive') out.push(['pas', 'постоянно']);
+    return out;
+  }
+  const chipsHtml = (s)=>s.chips.length ? `<span class="ak-chips">${s.chips.map(([k, l])=>`<span class="ak-chip ak-${k}">${esc(l)}</span>`).join('')}</span>` : '';
+
+  /* ---------- счётчики использований (у Мастера, по жетону) ---------- */
+  const USES_KEY = 'reincarnator_ability_uses_v1';
+  let uses = {}; try{ uses = JSON.parse(localStorage.getItem(USES_KEY) || '{}') || {}; }catch(e){}
+  const saveUses = ()=>{ try{ localStorage.setItem(USES_KEY, JSON.stringify(uses)); }catch(e){} };
+  const usedOf = (tokId, key)=>((uses[tokId] || {})[key] || 0);
+  function bump(tokId, key, d){ const u = uses[tokId] || (uses[tokId] = {}); u[key] = Math.max(0, (u[key] || 0) + d); saveUses(); }
+
+  /* ---------- в карточке существа ---------- */
+  // key — 'a<i>' способность или 'm<таблица>-<строка>' ход пустоты
+  function rowHtml(tok, key, name, text){
+    const s = parse(name, text), canFire = s.kind==='save' || s.kind==='opposed' || s.kind==='attack';
+    if(!s.chips.length) return '';
+    let usesHtml = '';
+    if(tok && s.uses){ const u = usedOf(tok.id, key), left = s.uses.n - u;
+      usesHtml = `<span class="ak-count${left <= 0 ? ' out' : ''}" title="Использовано ${u} из ${s.uses.n} (${s.uses.per}). ↺ — сбросить">◷ ${Math.max(0, left)}/${s.uses.n}<button type="button" class="ak-mini" data-ak-reset="${esc(key)}" data-tok="${esc(tok.id)}">↺</button></span>`; }
+    const btn = canFire ? `<button type="button" class="bst-mini ak-go" data-ak-go="${esc(key)}" ${tok ? `data-tok="${esc(tok.id)}"` : ''} title="Применить: форма «Бросок цели» уже заполнена — выберите цели">▶</button>` : '';
+    const shown = usesHtml ? Object.assign({}, s, {chips:s.chips.filter(c=>c[0]!=='uses')}) : s; // у жетона — счётчик вместо плашки «2 в день»
+    return `<span class="ak-row">${chipsHtml(shown)}${usesHtml}${btn}</span>`;
+  }
+  // клик по «▶»: найти способность по ключу в шаблоне существа жетона
+  function abilityByKey(tpl, key){
+    if(key[0]==='a'){ const a = tpl.abil[+key.slice(1)]; return a ? {name:a[0], text:a[1]} : null; }
+    const mm = /^m(\d+)-(\d+)$/.exec(key); if(!mm) return null; const tb = tpl.tables[+mm[1]], r = tb && tb.rows[+mm[2]];
+    return r ? {name:`Ход ${r[0]}`, text:r[1]} : null;
+  }
+  async function fire(tokId, tpl, key){
+    const ab = abilityByKey(tpl, key); if(!ab || typeof TargetRolls==='undefined') return;
+    const s = parse(ab.name, ab.text);
+    if(tokId && s.uses){ const left = s.uses.n - usedOf(tokId, key);
+      if(left <= 0 && !(await uiConfirm(`«${ab.name}» уже использована ${s.uses.n} раз (${s.uses.per}). Применить всё равно?`, {title:'Способность', ok:'Применить'}))) return; }
+    const gt = typeof GameTable!=='undefined' ? GameTable : null, sel = gt && gt.selectedIds ? gt.selectedIds().filter(id=>id!==tokId) : [];
+    TargetRolls.open({src:tokId || null, targets:sel, title:ab.name.replace(/\s*\([^)]*раз[^)]*\)\s*$/, ''), prefill:s, onFired:()=>{ if(tokId && s.uses){ bump(tokId, key, 1); refreshCard(); } }});
+  }
+  function refreshCard(){ if(typeof Bestiary!=='undefined' && Bestiary.refreshFloat) Bestiary.refreshFloat(); }
+  document.addEventListener('click', (e)=>{
+    const go = e.target.closest && e.target.closest('[data-ak-go]');
+    if(go){ e.preventDefault(); e.stopPropagation();
+      const tokId = go.dataset.tok || null, gt = typeof GameTable!=='undefined' ? GameTable : null, t = tokId && gt ? gt.getToken(tokId) : null, card = go.closest('.bst-card');
+      const tpl = t && t.creature ? t.creature : (typeof Bestiary!=='undefined' ? Bestiary.byId((card && card.dataset.tpl) || Bestiary.selId()) : null);
+      if(tpl) fire(t ? tokId : null, tpl, go.dataset.akGo); return; }
+    const rs = e.target.closest && e.target.closest('[data-ak-reset]');
+    if(rs){ e.preventDefault(); e.stopPropagation(); const u = uses[rs.dataset.tok]; if(u){ delete u[rs.dataset.akReset]; saveUses(); } refreshCard(); }
+  }, true);
+
+  /* ---------- конструктор: что распознано по ходу набора ---------- */
+  function editorPreview(ta){
+    let box = ta.parentNode.querySelector('.ak-preview');
+    if(!box){ box = document.createElement('div'); box.className = 'ak-preview'; ta.parentNode.appendChild(box); }
+    const paras = String(ta.value || '').split(/\n\s*\n/).map(p=>p.trim()).filter(Boolean);
+    box.innerHTML = paras.map(p=>{ const i = p.indexOf(':'), name = i>0 && i<80 ? p.slice(0, i).trim() : '', text = i>0 && i<80 ? p.slice(i + 1) : p, s = parse(name, text);
+      return `<div class="ak-pv"><b>${esc(name || 'без названия')}</b> ${s.chips.length ? chipsHtml(s) : '<span class="gs-muted">только текст — механика не распознана</span>'}</div>`; }).join('') ||
+      '<span class="gs-muted">Пишите как в книге: «Бросок рефлексов (−6)», «спасбросок от пси-поля (+3)», «2 попадания с МУ 12 удар, раны 3, травма», «(2 раза в день)» — здесь появится, что распознано.</span>';
+  }
+  document.addEventListener('input', (e)=>{ if(e.target.matches && e.target.matches('.bst-modal textarea[name="abil"]')) editorPreview(e.target); });
+  document.addEventListener('focusin', (e)=>{ if(e.target.matches && e.target.matches('.bst-modal textarea[name="abil"]')) editorPreview(e.target); });
+
+  return { parse, areaLabel, rowHtml, chipsHtml, usedOf, bump, resetToken:(id)=>{ delete uses[id]; saveUses(); refreshCard(); } };
 })();
 </script>
 </body>

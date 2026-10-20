@@ -704,6 +704,7 @@ function handleIncomingMessage(msg){
   // переписать чужой лист или начислить опыт всем.
   const fromGm = session.role==='player' && !!fromId && fromId===session.gmId;
   if(typeof SessionExtras!=='undefined' && SessionExtras.handle(msg)) return; // встреча, раздатки, пауза, связь
+  if(typeof TargetRolls!=='undefined' && TargetRolls.handle(msg)) return; // бросок цели: запрос Мастера и ответ игрока
   if(msg.type==='roll'){
     const entry = sanitizeRollEntry(msg.entry); // см. sanitizeRollEntry — чужие записи только через неё
     if(!entry) return;

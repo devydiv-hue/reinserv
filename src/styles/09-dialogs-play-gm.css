@@ -348,3 +348,43 @@
   .pc-side{ display:flex; flex-direction:column; align-items:center; gap:6px; }
   .pc-prev{ width:72px; height:72px; border-radius:50%; border:3px solid var(--ink); background:#0c0907; }
   .pc-zoom{ display:flex; align-items:center; gap:8px; margin:10px 0 4px; font-weight:700; } .pc-zoom input{ flex:1; }
+  /* Бросок цели: форма Мастера, панель результатов, запрос у игрока, отметки на жетоне */
+  .tr-form{ width:min(620px, 100%); max-height:92vh; overflow:auto; }
+  .tr-form .tr-row{ display:flex; flex-wrap:wrap; gap:6px 12px; align-items:center; margin:6px 0; font-size:13px; }
+  .tr-form input[type=number]{ width:64px; } .tr-form select{ max-width:100%; }
+  .tr-form .tr-mode{ margin:8px 0; }
+  .tr-targets{ display:flex; flex-wrap:wrap; gap:4px 12px; max-height:22vh; overflow:auto; margin:4px 0 6px; font-size:13px; }
+  .tr-tg{ cursor:pointer; }
+  .tr-panel{ position:fixed; right:12px; bottom:12px; z-index:880; width:min(420px, calc(100vw - 24px)); max-height:60vh; overflow:auto; padding:10px 12px; border-radius:16px; color:#f6ecd4;
+    background:rgba(24,18,14,.97); border:1px solid rgba(246,236,212,.2); box-shadow:0 12px 34px rgba(0,0,0,.5); font-size:13px; }
+  .tr-head{ display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:4px; }
+  .tr-x{ border:0; background:transparent; color:#f6ecd4; cursor:pointer; box-shadow:none; padding:0 6px; }
+  .tr-rows{ margin:8px 0; display:flex; flex-direction:column; gap:4px; }
+  .tr-r{ display:flex; flex-wrap:wrap; gap:4px 10px; align-items:center; padding:5px 8px; border-radius:10px; background:rgba(255,255,255,.05); }
+  .tr-res.bad{ color:#ff9b7f; font-weight:700; } .tr-res.ok{ color:#9fe0a8; font-weight:700; }
+  .tr-chip{ position:fixed; left:50%; bottom:58px; transform:translateX(-50%); z-index:890; padding:7px 16px; border-radius:999px; cursor:pointer; color:#fff; font-weight:700;
+    background:linear-gradient(155deg, #b8402a, #4a1109); border:1px solid rgba(255,170,140,.5); box-shadow:0 8px 24px rgba(0,0,0,.45); }
+  .tr-ask-check{ font-size:17px; font-weight:700; margin:6px 0; }
+  .gt-mark-badge{ display:inline-block; padding:0 5px; border-radius:6px; background:#5a3f8c; color:#fff; font-size:.85em; margin-right:2px; }
+  .roll-log-entry.ability .rest{ font-weight:600; }
+  /* Способности: плашки разбора, ▶, счётчики, предпросмотр в конструкторе */
+  .ak-row{ display:inline-flex; flex-wrap:wrap; gap:3px 4px; align-items:center; margin-left:6px; vertical-align:middle; }
+  .ak-chips{ display:inline-flex; flex-wrap:wrap; gap:3px; }
+  .ak-chip{ text-transform:none; letter-spacing:0; font-size:10.5px; line-height:1.5; padding:0 6px; border-radius:999px; border:1px solid rgba(0,0,0,.18); background:rgba(0,0,0,.05); white-space:nowrap; font-weight:600; }
+  .ak-chip.ak-save{ background:#e6f1fb; color:#0c447c; border-color:#85b7eb; } .ak-chip.ak-bad{ background:#fcebeb; color:#791f1f; border-color:#f09595; }
+  .ak-chip.ak-area{ background:#eeedfe; color:#3c3489; border-color:#afa9ec; } .ak-chip.ak-uses, .ak-chip.ak-act{ background:#f1efe8; color:#444441; }
+  .ak-chip.ak-re{ background:#faeeda; color:#633806; border-color:#ef9f27; } .ak-chip.ak-pas, .ak-chip.ak-self{ background:#e1f5ee; color:#085041; border-color:#5dcaa5; }
+  html[data-theme="dark"] .ak-chip{ filter:brightness(.92) saturate(.9); }
+  .ak-go{ padding:0 8px !important; font-weight:700; }
+  .ak-count{ font-size:11px; font-weight:700; padding:0 4px 0 6px; border-radius:999px; background:#f1efe8; color:#444441; display:inline-flex; align-items:center; gap:2px; }
+  .ak-count.out{ background:#fcebeb; color:#791f1f; }
+  .ak-mini{ border:0; background:transparent; box-shadow:none; padding:0 3px; cursor:pointer; font-size:11px; color:inherit; }
+  .ak-preview{ margin-top:6px; display:flex; flex-direction:column; gap:3px; font-size:12px; max-height:22vh; overflow:auto; }
+  .ak-pv b{ margin-right:4px; }
+  /* Области: выбор целей шаблоном */
+  .tr-area{ padding:6px 8px; border-radius:10px; background:rgba(255,255,255,.04); }
+  .tr-area.hl{ outline:1px solid rgba(175,169,236,.6); }
+  .at-info.at-pick{ right:auto; left:50%; top:104px; bottom:auto; transform:translateX(-50%); z-index:960; max-width:min(560px, calc(100% - 24px)); padding:10px 14px; font-size:13px; }
+  .at-hint{ font-size:12px; opacity:.75; margin-top:4px; }
+  .at-btns{ display:flex; gap:6px; justify-content:flex-end; margin-top:8px; }
+  .at-shape > rect{ fill:rgba(224,69,43,.2); stroke:#e0452b; stroke-width:calc(2px * var(--gt-inv, 1)); stroke-dasharray:calc(8px * var(--gt-inv, 1)) calc(5px * var(--gt-inv, 1)); }

@@ -50,6 +50,8 @@ const GameTable = (function(){
   function safeUrl(u){ u = String(u||'').trim(); return /^https?:\/\/[^\s"'<>]+$/i.test(u) && u.length<2048 ? u : ''; }
   function safeColor(c, d){ return /^#[0-9a-f]{6}$/i.test(c||'') ? c.toLowerCase() : d; }
 
+  // Отметки состояний на жетоне (способности существ, «Бросок цели»): r — осталось кругов, 0 — пока не снимут
+  const MARKS = {shock:'Шок', prone:'Сбит с ног', grabbed:'Схвачен', stunned:'Оглушён', blind:'Ослеплён', fear:'Испуган'};
   function sanitizeToken(t){
     t = t || {};
     const kind = t.kind==='player' ? 'player' : 'gm';
@@ -82,6 +84,7 @@ const GameTable = (function(){
     out.unprotectedEnabled = kind==='gm' && !!t.unprotectedEnabled;    // «атака по незащищённым частям» разрешена
     out.slowReaction = !!t.slowReaction; // ⚡ по жетону ударили медленным оружием — может отреагировать (снимает Мастер)
     out.burning = Math.round(clamp(num(t.burning,0), 0, 99)); // 🔥 горит N кругов (термическая граната; уменьшает/снимает Мастер)
+    out.marks = (Array.isArray(t.marks) ? t.marks : []).slice(0, 12).filter(m=>m && MARKS[m.k]).map(m=>({k:m.k, r:Math.round(clamp(num(m.r,0), 0, 99))})); // отметки (Бросок цели)
     if(kind==='gm'){
       out.reflexes = Math.round(clamp(num(t.reflexes,3), 0, 20)); // рефлексы NPC — против них мечут гранаты
       out.grenade = GRENADE_SPECS[t.grenade] ? t.grenade : '';     // граната NPC (без учёта количества)
@@ -399,7 +402,7 @@ const GameTable = (function(){
         const t = s.tokens[cmd.id];
         if(!t) return deny('Жетон не найден');
         const patch = {};
-        ['name','hp','hpMax','hpShown','size','color','hidden','avatar','rotation',
+        ['name','hp','hpMax','hpShown','size','color','hidden','avatar','rotation','marks',
          'defense','defenseSubs','armorName','weaponText','attackMod','attackModEnabled','unprotectedEnabled','unprotectedMod','traumaThreshold','trauma','traumaRed','strength','slowReaction','burning','reflexes','grenade','atkSkill','creature']
           .forEach(k=>{ if(cmd.patch && k in cmd.patch) patch[k] = cmd.patch[k]; });
         ops.push({op:'token-upsert', token:sanitizeToken(Object.assign({}, t, patch))});
@@ -715,7 +718,7 @@ const GameTable = (function(){
       el.classList.toggle('cb-noact', !!cbp && cbp.noAct); }
     const v = vitalsFor(t);
     const pf = portraitFor(t);
-    const key = JSON.stringify([t.name, t.color, t.avatar, pf ? pf.length + pf.slice(-16) : '', t.hp, t.hpMax, t.hpShown, t.hpFrac, isAuthority(), t.kind, t.hidden, t.size, t.rotation, t.trauma, t.traumaRed, t.slowReaction, t.burning, v && [v.name, v.hp, v.hpMax, v.psi, v.psiMax]]);
+    const key = JSON.stringify([t.name, t.color, t.avatar, pf ? pf.length + pf.slice(-16) : '', t.hp, t.hpMax, t.hpShown, t.hpFrac, isAuthority(), t.kind, t.hidden, t.size, t.rotation, t.trauma, t.traumaRed, t.slowReaction, t.burning, JSON.stringify(t.marks || []), v && [v.name, v.hp, v.hpMax, v.psi, v.psiMax]]);
     if(el._gtKey===key) return;
     el._gtKey = key;
     const name = tokenName(t, v), sz = SIZE_CELLS[t.size]*CELL;
@@ -740,8 +743,9 @@ const GameTable = (function(){
   }
   // Травмы под жетоном: 🦴N — обычные, красная 🦴M — от оружия с чертой «травма» (см. resolveAttack)
   function traumaBadgesHtml(t){
-    if(!t.trauma && !t.traumaRed && !t.slowReaction && !t.burning) return '';
-    return `<span class="gt-trauma-row">${t.burning?`<span class="gt-burn-badge" title="Горит (термическая граната): кругов">🔥${t.burning}</span>`:""}${t.slowReaction?'<span class="gt-slow-badge" title="Атакован медленным оружием — может отреагировать">⚡ реакция</span>':''}${t.trauma?`<span title="Травмы">🦴${t.trauma}</span>`:''}${t.traumaRed?`<span class="bone-red" title="Травмы от оружия с чертой «травма»">🦴</span><span class="gt-trauma-red-n">${t.traumaRed}</span>`:''}</span>`;
+    if(!t.trauma && !t.traumaRed && !t.slowReaction && !t.burning && !(t.marks && t.marks.length)) return '';
+    const marks = (t.marks || []).map(m=>`<span class="gt-mark-badge" title="${MARKS[m.k]}${m.r ? ': ещё ' + m.r + ' кр.' : ' — пока не снимут'}">${MARKS[m.k]}${m.r ? ' ' + m.r : ''}</span>`).join('');
+    return `<span class="gt-trauma-row">${marks}${t.burning?`<span class="gt-burn-badge" title="Горит (термическая граната): кругов">🔥${t.burning}</span>`:""}${t.slowReaction?'<span class="gt-slow-badge" title="Атакован медленным оружием — может отреагировать">⚡ реакция</span>':''}${t.trauma?`<span title="Травмы">🦴${t.trauma}</span>`:''}${t.traumaRed?`<span class="bone-red" title="Травмы от оружия с чертой «травма»">🦴</span><span class="gt-trauma-red-n">${t.traumaRed}</span>`:''}</span>`;
   }
   function refreshTokenPos(id){ const el = tokenEls.get(id), t = tok(id); if(el && t){ positionTokenEl(el, t); el.classList.toggle('dragging', !!dragPos[id]); } }
   function setSelection(ids){ selected.clear(); ids.forEach(id=>selected.add(id)); tokenEls.forEach((el,id)=>el.classList.toggle('selected', selected.has(id))); renderInfoCard(); }
@@ -1656,6 +1660,8 @@ const GameTable = (function(){
         html:`<div class="gt-menu-sizes">${Object.keys(SIZE_CELLS).map(s=>`<button type="button" data-size="${s}" class="${t.size===s?'active':''}">${SIZE_LABELS[s].split(' ')[0]}</button>`).join('')}</div>`});
       if(t.kind==='gm') items.push({id:'hide', label:t.hidden ? 'Показать игрокам' : 'Скрыть от игроков', run:()=>act({c:'token-update', id:t.id, patch:{hidden:!t.hidden}})});
       if(typeof Reactions!=='undefined' && Reactions.manualAllowed(t)) items.push({id:'rx', label:'🎞 Реакция…', run:()=>{ const r = viewport.getBoundingClientRect(); Reactions.pickForToken(t.id, r.left + p.x, r.top + p.y); }});
+      if(typeof TargetRolls!=='undefined') items.push({id:'tr', label:t.kind==='gm' ? '🎯 Бросок цели…' : '🎯 Потребовать бросок…', run:()=>TargetRolls.open(t.kind==='gm' ? {src:t.id, targets:ids.filter(x=>x!==t.id)} : {targets:ids})});
+      if((t.marks || []).length) items.push({id:'unmark', label:'✕ Снять отметки: ' + t.marks.map(m=>MARKS[m.k].toLowerCase()).join(', '), run:()=>act({c:'token-update', id:t.id, patch:{marks:[]}})});
       items.push('-', {id:'del', label: ids.length>1 ? `Удалить (${ids.length})` : 'Удалить', danger:true, run:()=>deleteTokens(ids)});
       openMenu(p, name, items);
       return;
@@ -2155,6 +2161,8 @@ const GameTable = (function(){
       if(t.burning) burns.push(t);
     });
     burns.forEach(t=>act({c:'token-update', id:t.id, patch:{burning:t.burning - 1}}));
+    Object.values(authState.tokens).forEach(t=>{ if(!(t.marks || []).some(m=>m.r)) return; // отметки на N кругов — новый круг, на 1 меньше
+      act({c:'token-update', id:t.id, patch:{marks:t.marks.filter(m=>m.r!==1).map(m=>m.r ? {k:m.k, r:m.r - 1} : m)}}); }); // r=1 — истекает
     const startHints = roundHints(c, 'start'), items = [];
     if(endHints) items.push(...endHints.items.map(x=>'конец круга: ' + x));
     if(burns.length) items.push(...burns.map(t=>`🔥 ${tokenName(t, vitalsFor(t))} горит — осталось ${t.burning - 1}`));
@@ -2464,6 +2472,24 @@ const GameTable = (function(){
       showRerollPopup('map_attack', ctx.chosenMod||0, ctx.mode);
     }
   }
+  // Попадания по профилю способности существа («2 попадания с МУ 12 удар, раны 3, травма»): как у атаки с карты —
+  // к12 на попадание против (МУ − защита цели), пробившие наносят раны; к12 выше порога травмы — травма
+  function rollWoundsExpr(v){ const s = String(v==null ? '' : v).trim().replace(/[−–]/g, '-'), m = /^(\d*)[кkdд](\d+)\s*([+-]\s*\d+)?$/i.exec(s);
+    if(m){ let t = 0; for(let i=0;i<(+m[1] || 1);i++) t += 1 + Math.floor(Math.random()*(+m[2])); return t + (m[3] ? +m[3].replace(/\s/g, '') : 0); }
+    const n = parseInt(s, 10); return isFinite(n) ? n : 0; }
+  function applyHitsTo(id, h){
+    const tgt = tok(id); if(!tgt || !isAuthority() || !(h && h.n > 0)) return null;
+    const max12 = (h.mu || 0) - targetDefense(tgt, h.muType), thr = tgt.kind==='player' ? 5 : (tgt.traumaThreshold || 5), hits = [];
+    for(let i=0;i<Math.min(30, h.n);i++){ const k12 = randInt(12), pen = max12 >= 1 && k12 <= max12; hits.push({k12, pen, wounds:pen ? Math.max(1, rollWoundsExpr(h.wounds || 1)) : 0, trauma:pen && k12 > thr}); }
+    const total = hits.reduce((a, x)=>a + x.wounds, 0), trN = hits.filter(x=>x.trauma).length, patch = {};
+    if(trN){ if(h.travma) patch.traumaRed = (tgt.traumaRed || 0) + trN; else patch.trauma = (tgt.trauma || 0) + trN; }
+    if(total){ if(tgt.kind==='gm'){ if(tgt.hp!==null && tgt.hp!==undefined) patch.hp = tgt.hp - total; } else changeCharacterHp(tgt.ownerId, -total); }
+    if(Object.keys(patch).length) execCommand({c:'token-update', id, patch});
+    const txt = `к12≤${max12} → ${hits.map(x=>`${x.k12} ${x.pen ? 'пробило' : 'не пробило'}${x.trauma ? ' 🦴' : ''}`).join('; ')} · ${total} ${woundsWord(total)}`;
+    return {hits, total, max12, text:txt};
+  }
+  function addMarkTo(id, k, r){ const t = tok(id); if(!t || !isAuthority() || !MARKS[k]) return;
+    const marks = (t.marks || []).filter(m=>m.k!==k).concat([{k, r:Math.max(0, Math.round(+r || 0))}]); execCommand({c:'token-update', id, patch:{marks}}); }
   function changeCharacterHp(ownerId, delta){
     if(ownerId===myOwnerId()){
       if(typeof character!=='undefined' && character){
@@ -2905,6 +2931,7 @@ const GameTable = (function(){
            placeToken, creatureAttack, getToken:(id)=>tok(id), vitalsOf:(t)=>vitalsFor(t), updateToken:(id, patch)=>act({c:'token-update', id, patch}),
            editToken:(id)=>{ const t = tok(id); if(t) openTokenForm(t, null, {x:40, y:60}); }, refreshToolbar:()=>{ if(viewport) renderToolbar(); },
            get state(){ return st(); }, get camera(){ return cam; },
-           setPaused(on){ paused = !!on; if(viewport) renderTokens(); }, get paused(){ return paused; } };
+           setPaused(on){ paused = !!on; if(viewport) renderTokens(); }, get paused(){ return paused; },
+           applyHitsTo, addMarkTo, rollWoundsExpr, MARKS, ownerIdHere:()=>myOwnerId(), sheetOfToken:(t)=>attackerSheet(t), defenseOf:(t, muType)=>targetDefense(t, muType) };
 })();
 try{ GameTable.init(); }catch(e){ console.error('[Игровой стол] не удалось запустить', e); }

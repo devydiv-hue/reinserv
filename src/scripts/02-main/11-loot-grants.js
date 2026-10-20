@@ -256,6 +256,9 @@ function sanitizeGrant(g){
     if(value===null) return null;
     return {gid:g.gid, kind:'vitals', which: g.which==='psi' ? 'psi' : 'hp', mode: g.mode==='delta' ? 'delta' : 'set', value};
   }
+  if(g.kind==='state'){ // состояние листа от способности существа (Бросок цели)
+    return ['ispug', 'istoshenie', 'stress', 'bodrost'].indexOf(g.key) >= 0 ? {gid:g.gid, kind:'state', key:g.key, on:g.on!==false} : null;
+  }
   if(g.kind==='item'){ // находка (см. НАХОДКИ)
     const it = g.item;
     if(!it || typeof it!=='object' || typeof it.name!=='string' || !it.name.trim()) return null;
@@ -283,6 +286,12 @@ function applyGrant(c, g){
     if(after===before) return '';
     c[key] = after;
     return `Мастер изменил ${g.which==='psi'?'пси-запас':'здоровье'} на игровом столе: ${before} → ${after}.`;
+  }
+  if(g.kind==='state'){
+    const st = c.states || (c.states = {}), names = {ispug:'испуг', istoshenie:'истощение', stress:'стресс', bodrost:'бодрость'};
+    if(!!st[g.key]===!!g.on) return '';
+    st[g.key] = !!g.on;
+    return `Мастер: состояние «${names[g.key]}» ${g.on ? 'наложено' : 'снято'}.`;
   }
   if(g.kind==='item'){
     // id предмета выводится из gid — копия Мастера и лист игрока получают одну и ту же запись, а повторное

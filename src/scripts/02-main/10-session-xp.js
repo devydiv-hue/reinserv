@@ -287,6 +287,7 @@ sanitizeRollEntry = function(e){
   let out;
   if(e.chat){ const text = str(e.text, 500).trim(); if(!text) return null; out = {id:e.id, player:str(e.player, 60), kind:'quick', chat:true, text, toName:str(e.toName, 60)}; }
   else if(e.secretStub) out = {id:e.id, player:str(e.player, 60), kind:'quick', secretStub:true, label:str(e.label, 60)};
+  else if(e.abilityUse){ const text = str(e.text, 900).trim(); if(!text) return null; out = {id:e.id, player:str(e.player, 60), kind:'quick', abilityUse:true, text}; }
   else { out = _sanitizeRollEntryBase(e); if(!out) return null; if(e.secret) out.secret = true; }
   if(e.priv){ out.priv = true; out.to = str(e.to, 64); out.fromId = str(e.fromId, 64); }
   return out;
@@ -458,6 +459,7 @@ function formatQuickRollEntry(e, undoneAttacks){
     const toTxt = !e.priv ? '' : e.fromId && e.fromId===session.myId ? ` → ${e.to==='gm' || e.to===session.gmId ? 'Мастеру' : escapeHtml(e.toName || 'игроку')}` : session.role==='gm' && e.to!=='gm' && e.to!==session.myId ? ` → ${escapeHtml(e.toName || 'игроку')}` : ' (лично вам)';
     return {cls:'chat' + (e.priv ? ' whisper' : ''), html:`<span class="who">${escapeHtml(e.player||'?')}</span><span class="rest">${e.priv ? '🤫' : '💬'}${toTxt ? toTxt + ':' : ''} ${escapeHtml(e.text)}</span>`};
   }
+  if(e.abilityUse) return {cls:'ability', html:`<span class="who">${escapeHtml(e.player||'?')}</span><span class="rest">🎯 ${escapeHtml(e.text)}</span>`};
   if(e.secretStub) return {cls:'secret', html:`<span class="who">${escapeHtml(e.player||'?')}</span><span class="rest">🤫 бросок тайно: ${escapeHtml(e.label || 'к20')} — результат у Мастера</span>`};
   if(logDetailed()){ const d = detailedQuickEntry(e, undoneAttacks); if(d) return d; }
   const who = escapeHtml(e.player||'?');

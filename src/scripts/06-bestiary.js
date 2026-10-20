@@ -1083,7 +1083,7 @@ const Bestiary = (function(){
     h.push(groupHtml('Тело', tpl.body), groupHtml('Личность', tpl.mind));
     if(tpl.skills) h.push(`<p><b>Навыки:</b> ${statsHtml(tpl.skills)}</p>`);
     if(tpl.know) h.push(`<p><b>Знания:</b> ${statsHtml(tpl.know)}</p>`);
-    tpl.abil.forEach(a=>h.push(`<p class="bst-ab"><b>${esc(a[0])}${a[0] ? ':' : ''}</b> ${plainHtml(a[1], a[0])}</p>`));
+    tpl.abil.forEach((a, ai)=>h.push(`<p class="bst-ab"><b>${esc(a[0])}${a[0] ? ':' : ''}</b> ${plainHtml(a[1], a[0])}${typeof AbilityKit!=='undefined' ? AbilityKit.rowHtml(tok, 'a' + ai, a[0], a[1]) : ''}</p>`));
     const tables = tpl.tables.map((tb, i)=>({tb, i})), moves = tables.filter(x=>x.tb.kind==='move'), eqTables = tables.filter(x=>x.tb.kind!=='move');
     moves.forEach(x=>h.push(tableHtml(tpl, x.tb, x.i, inst, ctx)));
     {
@@ -1158,7 +1158,8 @@ const Bestiary = (function(){
       if(tb.kind==='move'){ const ci = body.indexOf(':'), head = body.slice(0, ci); body = ci>0 && ci<40 && !/[()\[]/.test(head) ? `<b>${esc(head)}:</b>${plainHtml(body.slice(ci + 1))}` : plainHtml(body); }
       else body = richHtml(body, ri===hl ? ctx : null);
       const pick = inst && tb.kind!=='move' ? ` <button type="button" class="bst-mini" data-act="tbl-pick" data-i="${i}" data-r="${ri}" title="Выбрать эту строку">✓</button>` : '';
-      return `<div class="bst-row${ri===hl ? ' on' : ''}"><span class="bst-r">${esc(r[0])}.</span><span>${body}${pick}</span></div>`;
+      const ak = tb.kind==='move' && typeof AbilityKit!=='undefined' ? AbilityKit.rowHtml(ctx && ctx.tok, 'm' + i + '-' + ri, 'Ход ' + r[0], r[1]) : '';
+      return `<div class="bst-row${ri===hl ? ' on' : ''}"><span class="bst-r">${esc(r[0])}.</span><span>${body}${pick}${ak}</span></div>`;
     }).join('');
     return `<div class="bst-tbl"><div class="bst-tbl-h"><span>${esc(tb.title || KINDS[tb.kind])} <small>(${KINDS[tb.kind]}, к${tb.die})</small>${info}</span>${btn}</div>${rows}</div>`;
   }
@@ -1609,6 +1610,6 @@ const Bestiary = (function(){
   function init(){ view = document.getElementById('bestiaryTabView'); refreshRole(); }
   return { init, setVisible, refreshRole, onTableShown, onTableChanged, toggleDock, openFloat, closeFloat,
            tokenWeapons:(t)=>t && t.creature ? instWeapons(t.creature, t.creature.inst) : [], get dockOpen(){ return !!prefs.dock; },
-           list:all, byId, makeTokenFields, sanitizeTpl, parseDef, itemsIn };
+           list:all, byId, makeTokenFields, sanitizeTpl, parseDef, itemsIn, selId:()=>prefs.sel, refreshFloat:()=>{ renderFloat(); try{ render(); }catch(e){} } };
 })();
 try{ Bestiary.init(); }catch(e){ console.error('[Бестиарий] не удалось запустить', e); }
