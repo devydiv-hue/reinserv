@@ -2092,6 +2092,7 @@ const GameTable = (function(){
       if(/Упрощ/i.test(sent)){ adv++; notes.push(`${a.n}: Упрощена`); }
       if(/Осложн/i.test(sent)){ dis++; notes.push(`${a.n}: Осложнена`); }
     });
+    if(typeof AbilityKit!=='undefined'){ try{ const au = AbilityKit.initAura(t); mod += au.mod; notes.push(...au.notes); }catch(e){} }
     return {max:refl + 10 - 6 + mod, mode:adv>dis ? 'advantage' : dis>adv ? 'disadvantage' : 'plain', notes, hints};
   }
   function rollInitiative(c, ids, title, rxDelay){
@@ -2282,6 +2283,7 @@ const GameTable = (function(){
   let attackRecords = (function(){ const v = loadJson(ATTACK_RECORDS_KEY); return Array.isArray(v) ? v : []; })();
   function saveAttackRecords(){ attackRecords = attackRecords.slice(-100); saveJson(ATTACK_RECORDS_KEY, attackRecords); }
   let targeting = null;        // {attackerId, weaponIdx, fireMode, w, cur} — выбор цели на карте
+  const lastAttackReqs = {};   // attackId -> {req, from} — для переброса способностями существ (Малая цель, Уход техника СДК…)
   const pendingAttacks = {};   // attackId -> контекст своей атаки (для «Скорости» и переброса после ответа Мастера)
 
   function npcWeapon(t){ // оружие жетона Мастера выдано Мастером — доступно всегда; условные черты — по силе NPC
@@ -2344,6 +2346,8 @@ const GameTable = (function(){
     else tags.push(`Дистанция ${fmtNum(range.meters)} м`);
     return {base, tags};
   }
+  // Постоянные способности существ (AbilityKit): Ирреальный, Инфлятор, Владение, Муштра, Мука, Сыпучая кора, Инерционный щит…
+  function passiveAtk(att, tgt, w){ try{ return typeof AbilityKit!=='undefined' ? AbilityKit.attackPassives(att, tgt, w) : null; }catch(e){ console.warn('[Способности]', e); return null; } }
   function secretPart(tgt, unprotected){
     let v = 0; const tags = [];
     if(tgt.attackModEnabled && tgt.attackMod){ v += tgt.attackMod; tags.push(`Мод. цели: ${tgt.attackMod>0?'+':''}${tgt.attackMod}`); }
@@ -2422,7 +2426,8 @@ const GameTable = (function(){
       const optikaOn = att.kind==='player' && !!t.w.optika && checkboxOn('weaponOptika' + t.weaponIdx);
       const known = attackKnownPart(c, t.w, t.fireMode, range, optikaOn, att.kind==='gm');
       let knownBase = known.base, tags = known.tags;
-      if(auth){ const sec = secretPart(tgt, unprot); knownBase += sec.v; tags = tags.concat(sec.tags); } // Мастер видит полный Максимум
+      if(auth){ const sec = secretPart(tgt, unprot); knownBase += sec.v; tags = tags.concat(sec.tags);
+        const pa = passiveAtk(att, tgt, t.w); if(pa.mod || pa.tags.length){ knownBase += pa.mod; tags = tags.concat(pa.tags); } } // Мастер видит полный Максимум
       _mapAttackCtx = { attackerId:att.id, targetId:tgt.id, weaponIdx:t.weaponIdx, fireMode:t.fireMode, unprotected:unprot, optikaOn,
                         knownBase, tags, rerollOf:null };
       closePopover();
@@ -2541,7 +2546,8 @@ const GameTable = (function(){
       const prev = attackRecords.find(r=>r.attackId===req.rerollOf);
       if(prev && prev.attackerOwner===(from||null)) undoAttack(prev.attackId, true);
     }
-    const fullMax = attackKnownPart(c, w, fireMode, range, !!req.optikaOn, att.kind==='gm').base + chosenMod + secretPart(tgt, !!req.unprotected).v;
+    const pa = passiveAtk(att, tgt, w) || {mod:0, tags:[], adj:{}, adjAll:0, shield:false};
+    const fullMax = attackKnownPart(c, w, fireMode, range, !!req.optikaOn, att.kind==='gm').base + chosenMod + secretPart(tgt, !!req.unprotected).v + pa.mod;
     let max12Shown = null; // для подробного вида лога (пороги видят только допущенные Мастером)
     const roll = pickD20ForMode(rolls[0], rolls[1], fullMax, mode);
     const ev = evaluateD20Check(roll, fullMax);
@@ -2564,8 +2570,10 @@ const GameTable = (function(){
         const h = {k12, pen, wounds: pen ? plan.woundsFor(k12) : 0, trauma: pen && k12>thr, red:false};
         h.red = h.trauma && !!w.travma;
         if(plan.pulShot) h.rolls12 = rolls12;
+        if(h.pen){ const d = pa.adjAll + (pa.adj[String(w.muType || '').toLowerCase()] || 0); if(d) h.wounds = Math.max(0, h.wounds + d); } // раны: способности цели и атакующего
         hits.push(h);
       }
+      if(pa.shield && hits.length > 1){ const k = randInt(12), drop = Math.min(k, hits.length - 1); hits.splice(hits.length - drop, drop); pa.tags.push(`щит: к12=${k}, отменено ${drop}`); }
     }
     const total = hits.reduce((a,h)=>a+h.wounds, 0);
     const traumaN = hits.filter(h=>h.trauma && !h.red).length, traumaRedN = hits.filter(h=>h.red).length;
@@ -2590,9 +2598,11 @@ const GameTable = (function(){
     if(Object.keys(patch).length) execCommand({c:'token-update', id:tgt.id, patch});
     attackRecords.push(rec); saveAttackRecords();
     recordAndShareQuickRoll({ mapAttack:true, attackId, attacker:attackerName, target:targetName, weaponName:w.name, fireMode, rolls, roll, mode,
-                              success:ev.success, category:ev.category, jammed, unprotected, slow:!!w.slow, hits, total, sec:{max:fullMax, max12:max12Shown} });
+                              success:ev.success, category:ev.category, jammed, unprotected, slow:!!w.slow, hits, total, sec:{max:fullMax, max12:max12Shown}, pnote:pa.tags.join('; ') });
     if(att.kind==='player' && !ev.success) if(typeof GmAdvice!=='undefined') GmAdvice.event('miss'); // промах атаки игрока
     if(typeof Reactions!=='undefined') Reactions.trigger(roll===12 ? 'crit' : (roll===13 && !ev.success) ? 'fumble' : ev.success ? 'hit' : 'miss', att.id);
+    lastAttackReqs[attackId] = {req, from:from || null};
+    if(typeof AbilityKit!=='undefined') setTimeout(()=>{ try{ AbilityKit.onAttack({attackId, attackerId:att.id, targetId:tgt.id, roll, success:ev.success, jammed, fromPlayer:!!from || att.kind==='player'}); }catch(e){ console.warn('[Способности]', e); } }, 0);
     return {ok:true, success:ev.success, jammed, speedUsed};
   }
   function undoAttack(attackId, asReroll){
@@ -2932,6 +2942,10 @@ const GameTable = (function(){
            editToken:(id)=>{ const t = tok(id); if(t) openTokenForm(t, null, {x:40, y:60}); }, refreshToolbar:()=>{ if(viewport) renderToolbar(); },
            get state(){ return st(); }, get camera(){ return cam; },
            setPaused(on){ paused = !!on; if(viewport) renderTokens(); }, get paused(){ return paused; },
+           // переброс атаки с карты (способность существа): прежняя отменяется целиком (rerollOf), новый к20 — здесь
+           rerollAttack(attackId){ const r = lastAttackReqs[attackId]; if(!r || !isAuthority()) return {ok:false, reason:'Атака не найдена'};
+             const n = r.req.mode==='plain' || !r.req.mode ? 1 : 2, req = Object.assign({}, r.req, {attackId:newId('atk'), rolls:Array.from({length:n}, ()=>randInt(20)), rerollOf:attackId});
+             return resolveAttack(req, r.from); },
            applyHitsTo, addMarkTo, rollWoundsExpr, MARKS, ownerIdHere:()=>myOwnerId(), sheetOfToken:(t)=>attackerSheet(t), defenseOf:(t, muType)=>targetDefense(t, muType) };
 })();
 try{ GameTable.init(); }catch(e){ console.error('[Игровой стол] не удалось запустить', e); }

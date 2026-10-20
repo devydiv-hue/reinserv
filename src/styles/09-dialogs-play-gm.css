@@ -388,3 +388,9 @@
   .at-hint{ font-size:12px; opacity:.75; margin-top:4px; }
   .at-btns{ display:flex; gap:6px; justify-content:flex-end; margin-top:8px; }
   .at-shape > rect{ fill:rgba(224,69,43,.2); stroke:#e0452b; stroke-width:calc(2px * var(--gt-inv, 1)); stroke-dasharray:calc(8px * var(--gt-inv, 1)) calc(5px * var(--gt-inv, 1)); }
+  /* Перебросы и срабатывания: подсказки Мастеру */
+  .ak-alerts{ position:fixed; right:12px; top:110px; z-index:905; width:min(380px, calc(100vw - 24px)); display:flex; flex-direction:column; gap:6px; }
+  .ak-alert{ padding:9px 12px; border-radius:14px; color:#f6ecd4; font-size:12.5px; background:rgba(24,18,14,.97); border:1px solid rgba(246,236,212,.2); box-shadow:0 10px 28px rgba(0,0,0,.45); }
+  .ak-alert.trig{ border-color:rgba(239,159,39,.6); } .ak-alert.re{ border-color:rgba(133,183,235,.6); }
+  .ak-al-text{ opacity:.85; margin-top:3px; line-height:1.35; }
+  .ak-al-btns{ display:flex; flex-wrap:wrap; gap:5px; justify-content:flex-end; margin-top:7px; }

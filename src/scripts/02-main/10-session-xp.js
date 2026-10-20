@@ -254,7 +254,7 @@ const logView = (function(){ try{ const v = JSON.parse(localStorage.getItem(LOG_
 function saveLogView(){ try{ localStorage.setItem(LOG_VIEW_KEY, JSON.stringify(logView)); }catch(e){} }
 function logViewAllowed(pid){ return logView.on && !!logView.allow[pid]; }
 function logDetailed(){ return session.role==='player' ? !!session.logDetailed : logView.on; }
-function rollEntryFor(e, pid){ if(!e || !e.sec || logViewAllowed(pid)) return e; const o = Object.assign({}, e); delete o.sec; return o; }
+function rollEntryFor(e, pid){ if(!e || (!e.sec && !e.pnote)) return e; const o = Object.assign({}, e); delete o.pnote; if(!logViewAllowed(pid)) delete o.sec; return o; }
 // Личное (шёпот, тайный бросок) — только автору и адресату; pid=null — «всем сразу», личное не уходит вовсе
 function rollVisibleTo(e, pid){ if(!e.priv) return true; if(!pid) return false; if(e.secret) return e.to===pid; return e.to===pid || e.fromId===pid; } // тайный бросок не возвращается даже автору
 function rollEntriesFor(list, pid){ return (list || []).filter(e=>rollVisibleTo(e, pid)).map(e=>rollEntryFor(e, pid)); }
@@ -288,10 +288,14 @@ sanitizeRollEntry = function(e){
   if(e.chat){ const text = str(e.text, 500).trim(); if(!text) return null; out = {id:e.id, player:str(e.player, 60), kind:'quick', chat:true, text, toName:str(e.toName, 60)}; }
   else if(e.secretStub) out = {id:e.id, player:str(e.player, 60), kind:'quick', secretStub:true, label:str(e.label, 60)};
   else if(e.abilityUse){ const text = str(e.text, 900).trim(); if(!text) return null; out = {id:e.id, player:str(e.player, 60), kind:'quick', abilityUse:true, text}; }
-  else { out = _sanitizeRollEntryBase(e); if(!out) return null; if(e.secret) out.secret = true; }
+  else { out = _sanitizeRollEntryBase(e); if(!out) return null; if(e.secret) out.secret = true; if(e.pnote && (e.mapAttack || e.mapGrenade)) out.pnote = str(e.pnote, 240); }
   if(e.priv){ out.priv = true; out.to = str(e.to, 64); out.fromId = str(e.fromId, 64); }
   return out;
 };
+// постоянные модификаторы существ в атаке (Ирреальный −13, Инфлятор −1 рана…) — только Мастеру: игроку они секрет
+const _formatQuickRollEntryBase = formatQuickRollEntry;
+formatQuickRollEntry = function(e, undone){ const f = _formatQuickRollEntryBase(e, undone);
+  if(f && e && e.pnote && session.role!=='player') f.html = f.html.replace(/<\/span>$/, ` <span class="muted">· ${escapeHtml(e.pnote)}</span></span>`); return f; };
 function d20Part(max, rolls, roll){ return `к20≤${max} → ${rolls && rolls.length>1 ? `[${rolls.join(', ')}]→${roll}` : roll}`; }
 function detailedRegularEntry(e){
   if(e.max==null || !e.roll || e.secret) return null;

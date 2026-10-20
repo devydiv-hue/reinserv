@@ -135,7 +135,7 @@ const TargetRolls = (function(){
       const marks = [...formEl.querySelectorAll('[data-mk]:checked')].map(c=>({k:c.dataset.mk, r:Math.max(0, num('mr'))}));
       const cons = {hits:num('hn') > 0 || q('[data-f="bycat"]').checked ? {n:num('hn'), byCat:mode==='creature' && q('[data-f="bycat"]').checked, mu:num('mu'), muType:val('mut'), wounds:val('wounds').trim() || '1', travma:q('[data-f="travma"]').checked} : null,
         hp:val('hp').trim(), psi:Math.max(0, num('psi')), states:[...formEl.querySelectorAll('[data-st]:checked')].map(c=>c.dataset.st), marks, note:val('note').trim()};
-      const req = {id:'tr' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), title:val('title').trim() || 'Способность', src:src ? tokName(src) : 'Мастер', mode,
+      const req = {id:'tr' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), title:val('title').trim() || 'Способность', src:src ? tokName(src) : 'Мастер', srcId:src ? src.id : null, mode,
         stat:val('stat'), mod:Math.max(-21, Math.min(21, num('mod'))), n:num('n'), max:num('max'), vs:val('vs'), cons, rows:[]};
       const fired = formEl._onFired; closeForm(); start(req, targets); if(fired) try{ fired(); }catch(err){}
     });
@@ -165,7 +165,8 @@ const TargetRolls = (function(){
 
   /* ---------- запуск: запросы игрокам, автоброски ---------- */
   let cur = null; // текущий запрос Мастера
-  function rollD20(max){ const r = 1 + Math.floor(Math.random()*20), ev = evaluateD20Check(r, max); return {roll:r, max, success:ev.success, cat:ev.category}; }
+  function rollD20(max, mode){ const r1 = 1 + Math.floor(Math.random()*20), r2 = 1 + Math.floor(Math.random()*20), m = mode || 'plain';
+    const r = m==='plain' ? r1 : pickD20ForMode(r1, r2, max, m), ev = evaluateD20Check(r, max); return {roll:r, max, success:ev.success, cat:ev.category, mode:m, rolls:m==='plain' ? [r1] : [r1, r2]}; }
   const checkLabel = (r)=>r.mode==='creature' ? (r.vs ? `${r.src}: Максимум ${r.max} против ${(VS.find(v=>v[0]===r.vs) || [, r.vs])[1]} цели` : `${r.src}: атака, Максимум ${r.max}`) :
     (r.stat==='psi_plus' ? `Проверка с Максимумом [${r.n} + пси-сопротивление]` : `${LABEL[r.stat]} (${sgn(r.mod)})`);
   function start(req, ids){
@@ -179,8 +180,9 @@ const TargetRolls = (function(){
         if(online){ sendMsg({type:'tr-req', req:{id:req.id, title:req.title, src:req.src, stat:req.stat, mod:req.mod, n:req.n, cons:consText(req.cons)}}, t.ownerId); return; }
         row.status = 'offline'; return; // не на связи (или свой жетон на столе без сессии) — «🎲 за игрока»
       }
-      const r = rollD20(baseFor(t, req.stat, req.n) + (req.stat==='psi_plus' ? 0 : req.mod));
-      Object.assign(row, r, {status:'done', affected:!r.success}); row.apply = row.affected;
+      const sp = typeof AbilityKit!=='undefined' ? AbilityKit.savePassives(t, realKey(req.stat)) : {mod:0, mode:'plain', immune:false, notes:[]};
+      const r = sp.immune ? {roll:0, max:0, success:true, cat:1, mode:'plain'} : rollD20(baseFor(t, req.stat, req.n) + (req.stat==='psi_plus' ? 0 : req.mod) + sp.mod, sp.mode);
+      Object.assign(row, r, {status:'done', affected:!r.success, pnote:sp.notes.join('; ')}); row.apply = row.affected;
     });
     render();
   }
@@ -198,10 +200,10 @@ const TargetRolls = (function(){
     if(!panel){ panel = document.createElement('div'); panel.className = 'tr-panel'; document.body.appendChild(panel); panel.addEventListener('click', onPanel); panel.addEventListener('change', onPanel); }
     const r = cur, done = r.rows.filter(x=>x.status==='done'), failed = done.filter(x=>x.affected);
     const rowHtml = (x)=>{
-      const res = x.status==='done' ? `<span class="tr-res ${x.affected ? 'bad' : 'ok'}">${x.affected ? (r.mode==='creature' ? 'поражён' : 'провал') : (r.mode==='creature' ? 'устоял' : 'успех')}${x.affected && r.mode==='creature' && x.cat ? ', кат. ' + x.cat : !x.affected && r.mode!=='creature' ? ', КУ' + x.cat : ''}</span><span class="gs-muted">к20=${x.roll} / Макс.${x.max}${r.mode==='creature' && r.vs ? ` (${r.max} − ${x.stat})` : ''}${x.byGm ? ' · бросил Мастер' : ''}</span>`
+      const res = x.status==='done' ? `<span class="tr-res ${x.affected ? 'bad' : 'ok'}">${x.affected ? (r.mode==='creature' ? 'поражён' : 'провал') : (r.mode==='creature' ? 'устоял' : 'успех')}${x.affected && r.mode==='creature' && x.cat ? ', кат. ' + x.cat : !x.affected && r.mode!=='creature' ? ', КУ' + x.cat : ''}</span><span class="gs-muted">${x.roll ? `к20=${x.roll} / Макс.${x.max}` : 'без броска'}${r.mode==='creature' && r.vs ? ` (${r.max} − ${x.stat})` : ''}${x.byGm ? ' · бросил Мастер' : ''}${x.rerolled ? ' · ' + esc(x.rerolled.trim()) : ''}${x.pnote ? ' · ' + esc(x.pnote) : ''}${x.mode && x.mode!=='plain' ? ' · ' + (x.mode==='advantage' ? 'Упрощено' : 'Осложнено') + ' [' + (x.rolls || []).join(', ') + ']' : ''}</span>`
         : x.status==='wait' ? '<span class="gs-muted">ждём бросок игрока…</span>' : '<span class="gs-muted">игрок не на связи</span>';
       return `<div class="tr-r" data-r="${esc(x.id)}"><label><input type="checkbox" data-ap ${x.apply ? 'checked' : ''} ${x.status==='done' ? '' : 'disabled'}> <b>${esc(x.name)}</b></label>${res}
-        ${x.status!=='done' && x.kind==='player' && r.mode!=='creature' ? `<button type="button" class="gs-btn small" data-rf="${esc(x.id)}" title="Бросить за игрока по копии его листа">🎲 за игрока</button>` : ''}</div>`;
+        ${x.status!=='done' && x.kind==='player' && r.mode!=='creature' ? `<button type="button" class="gs-btn small" data-rf="${esc(x.id)}" title="Бросить за игрока по копии его листа">🎲 за игрока</button>` : ''}${rerollBtns(r, x)}</div>`;
     };
     panel.innerHTML = `<div class="tr-head"><b>🎯 ${esc(r.src)} — ${esc(r.title)}</b><button type="button" class="tr-x" data-trx="close" title="Закрыть">✕</button></div>
       <div class="gs-muted">${esc(checkLabel(r))}</div><div class="gs-muted">Провал: ${esc(consText(r.cons))}</div>
@@ -209,10 +211,28 @@ const TargetRolls = (function(){
       <div class="gs-row"><button type="button" class="gs-btn primary" data-trx="apply" ${r.rows.some(x=>x.apply) ? '' : 'disabled'}>Применить провалы (${r.rows.filter(x=>x.apply).length})</button>
         <span class="gs-muted">${done.length}/${r.rows.length} бросили · провалили ${failed.length}</span></div>`;
   }
+  // Переброс способностью существа: NPC-цель провалила проверку или существо промахнулось встречной проверкой
+  function rerollFor(r, x){
+    if(x.status!=='done' || typeof AbilityKit==='undefined') return [];
+    const gt = GT();
+    if(r.mode==='creature'){ if(x.affected || !r.srcId) return []; const s = gt.getToken(r.srcId); return s ? AbilityKit.rerollOptions(s, r.vs ? {type:'check', stat:'mistika'} : {type:'attack-own'}).map(o=>Object.assign(o, {who:r.srcId})) : []; }
+    if(x.kind!=='gm' || !x.affected) return [];
+    const t = gt.getToken(x.id); return t ? AbilityKit.rerollOptions(t, {type:'check', stat:realKey(r.stat)}).map(o=>Object.assign(o, {who:x.id})) : [];
+  }
+  const rerollBtns = (r, x)=>rerollFor(r, x).map(o=>`<button type="button" class="gs-btn small" data-rr="${esc(x.id)}" data-rk="${esc(o.key)}" title="${esc(o.text)}">↻ ${esc(o.name)}${o.total ? ` ${o.left}/${o.total}` : ''}</button>`).join('');
+  function doReroll(x, key){
+    const o = rerollFor(cur, x).find(z=>z.key===key); if(!o) return;
+    AbilityKit.bump(o.who, key, 1);
+    const r = rollD20(x.max), was = x.roll;
+    Object.assign(x, r); if(cur.mode==='creature') x.affected = r.success; else x.affected = !r.success;
+    x.apply = x.affected; x.rerolled = (x.rerolled || '') + `↻ ${o.name}: ${was}→${r.roll} `;
+    render(); uiToast(`«${o.name}»: к20 ${was} → ${r.roll}`, {icon:'↻'});
+  }
   function onPanel(e){
     const ap = e.target.closest && e.target.closest('[data-ap]');
     if(ap && e.type==='change'){ const row = cur.rows.find(x=>x.id===ap.closest('[data-r]').dataset.r); if(row){ row.apply = ap.checked; render(); } return; }
     if(e.type!=='click') return;
+    const rr = e.target.closest('[data-rr]'); if(rr){ const row = cur.rows.find(x=>x.id===rr.dataset.rr); if(row) doReroll(row, rr.dataset.rk); return; }
     const rf = e.target.closest('[data-rf]'); if(rf){ const row = cur.rows.find(x=>x.id===rf.dataset.rf); if(row) rollFor(row); return; }
     const x = e.target.closest('[data-trx]'); if(!x) return;
     if(x.dataset.trx==='close'){ if(cur.rows.some(r=>r.status==='done' && r.apply) && !cur.applied){ uiConfirm('Закрыть без применения последствий?', {title:'Бросок цели', ok:'Закрыть'}).then(ok=>{ if(ok){ cur = null; render(); } }); return; } cur = null; render(); }
