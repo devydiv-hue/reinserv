@@ -70,6 +70,13 @@ function renderXpChecklist(){
   renderXpChecklistGroup('xpChecklistMinor', 'minor', XP_DEEDS_MINOR);
   renderXpChecklistGroup('xpChecklistMajor', 'major', XP_DEEDS_MAJOR);
   document.getElementById('btnXpReset').disabled = session.role==='player';
+  // Подытоги разделов и итог встречи: деяние +1, пункт большой пятёрки +2 (максимум 10 + 10)
+  const a = session.xpChecklist.minor.filter(Boolean).length, b = session.xpChecklist.major.filter(Boolean).length;
+  const pa = a*XP_DEED_WEIGHT.minor, pb = b*XP_DEED_WEIGHT.major, max = XP_DEEDS_MINOR.length*XP_DEED_WEIGHT.minor + XP_DEEDS_MAJOR.length*XP_DEED_WEIGHT.major;
+  document.getElementById('xpSubMinor').textContent = `${a} из ${XP_DEEDS_MINOR.length} · +${pa}`;
+  document.getElementById('xpSubMajor').textContent = `${b} из ${XP_DEEDS_MAJOR.length} · +${pb}`;
+  document.getElementById('xpTotal').textContent = `+${pa + pb} опыта`;
+  document.getElementById('xpTotalRow').title = `Деяния +${pa} и большая пятёрка +${pb} — из ${max} возможных за встречу`;
 }
 // Дельта опыта — каждому игроку этой встречи отдельной выдачей с подтверждением (см. sendGrant: она же
 // сразу обновляет копию листа у Мастера и дойдёт даже до того, кто прямо сейчас переподключается), плюс

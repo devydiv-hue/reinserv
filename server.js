@@ -12,6 +12,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const zlib = require('zlib');
 
 const PORT = process.env.PORT || 3000;
 const DIR = __dirname;
@@ -342,12 +343,40 @@ const httpServer = http.createServer((req, res) => {
     res.end('Рядом с server.js не найден ни один .html файл — положите сюда файл листа персонажа.');
     return;
   }
-  fs.readFile(path.join(DIR, sheetFile), (err, data) => {
+  getSheet(path.join(DIR, sheetFile), (err, sh) => {
     if (err) { res.writeHead(500); res.end('Ошибка чтения файла: ' + err.message); return; }
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' }); // свежая версия при каждом открытии; без сети — копия из сервис-воркера
-    res.end(data);
+    // no-cache — браузер каждый раз спрашивает «не изменилась ли» (ETag); та же версия — 304 без тела
+    const head = { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache', 'ETag': sh.etag, 'Vary': 'Accept-Encoding' };
+    const inm = String(req.headers['if-none-match'] || '');
+    if (inm && inm.split(/\s*,\s*/).some(t => t.replace(/^W\//, '') === sh.etag)) { res.writeHead(304, head); res.end(); return; }
+    const ae = String(req.headers['accept-encoding'] || '');
+    if (sh.br && /\bbr\b/.test(ae)) { res.writeHead(200, Object.assign(head, { 'Content-Encoding': 'br', 'Content-Length': sh.br.length })); res.end(sh.br); return; }
+    if (sh.gz && /\bgzip\b/.test(ae)) { res.writeHead(200, Object.assign(head, { 'Content-Encoding': 'gzip', 'Content-Length': sh.gz.length })); res.end(sh.gz); return; }
+    res.writeHead(200, Object.assign(head, { 'Content-Length': sh.raw.length })); res.end(sh.raw);
   });
 });
+
+// Страница листа (~3,8 МБ) — сжатая заранее и один раз на версию файла: gzip сразу (~0,1 с), brotli — в фоне
+// (~5 с, ещё на ~20% меньше; до его готовности отдаётся gzip). Новая сборка (сменились размер или время файла) —
+// всё заново. ETag — по содержимому: повторное открытие той же версии — ответ 304 без тела.
+let sheetCache = null;
+function getSheet(file, cb) {
+  fs.stat(file, (e1, st) => {
+    if (e1) { cb(e1); return; }
+    const key = st.size + ':' + st.mtimeMs;
+    if (sheetCache && sheetCache.key === key) { cb(null, sheetCache); return; }
+    fs.readFile(file, (e2, raw) => {
+      if (e2) { cb(e2); return; }
+      const sh = { key, raw, etag: '"' + crypto.createHash('sha1').update(raw).digest('base64').replace(/[^A-Za-z0-9]/g, '').slice(0, 20) + '"', gz: null, br: null };
+      try { sh.gz = zlib.gzipSync(raw, { level: 9 }); } catch (e) {}
+      sheetCache = sh;
+      zlib.brotliCompress(raw, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 11, [zlib.constants.BROTLI_PARAM_SIZE_HINT]: raw.length } }, (e3, br) => {
+        if (!e3 && sheetCache === sh) { sh.br = br; console.log('[Server] Страница сжата: ' + (raw.length / 1048576).toFixed(2) + ' МБ → gzip ' + (sh.gz ? (sh.gz.length / 1048576).toFixed(2) : '—') + ' МБ, brotli ' + (br.length / 1048576).toFixed(2) + ' МБ'); }
+      });
+      cb(null, sh);
+    });
+  });
+}
 
 // ---- WebSocket-рукопожатие и разбор кадров вручную (без пакета "ws") ----
 // id -> таймер отложенного peer-left — см. cleanup() ниже: короткий сетевой сбой (тоннель/сеть моргнули,

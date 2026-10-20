@@ -2177,6 +2177,18 @@ var Theme = (function(){
   .nm-send{ position:absolute; top:6px; right:6px; opacity:.85; }
   .nm-show{ margin:6px 0 10px; } .nm-show img, .nm-show video{ max-height:58vh; }
   .nm-unmute{ position:absolute; left:50%; top:10px; transform:translateX(-50%); padding:6px 14px; border-radius:999px; cursor:pointer; color:#fff; background:rgba(0,0,0,.65); border:1px solid rgba(255,255,255,.35); }
+  /* Начисление опыта: подытоги разделов и итог */
+  .xp-sec-head{ display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; margin:4px 0 6px; }
+  .xp-sub{ margin-left:auto; font-weight:700; font-variant-numeric:tabular-nums; color:var(--ink); }
+  .xp-total{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:16px; padding-top:12px; border-top:1px solid var(--ink-soft); font-size:15px; }
+  .xp-total-pill{ padding:4px 14px; border-radius:999px; font-weight:700; font-variant-numeric:tabular-nums; color:#fff; background:linear-gradient(155deg, #b8402a, var(--stamp) 50%, #4a1109); }
+  /* Кадрирование портрета */
+  .pc-wrap{ display:flex; gap:14px; align-items:center; justify-content:center; flex-wrap:wrap; }
+  .pc-stage{ width:300px; height:300px; max-width:100%; border-radius:12px; background:#0c0907; cursor:grab; touch-action:none; }
+  .pc-stage:active{ cursor:grabbing; }
+  .pc-side{ display:flex; flex-direction:column; align-items:center; gap:6px; }
+  .pc-prev{ width:72px; height:72px; border-radius:50%; border:3px solid var(--ink); background:#0c0907; }
+  .pc-zoom{ display:flex; align-items:center; gap:8px; margin:10px 0 4px; font-weight:700; } .pc-zoom input{ flex:1; }
   /* ============================================================
      ТЁМНАЯ ТЕМА (scripts/00-theme.js ставит html[data-theme="dark"]): пергамент → «обсидиан». Почти всё
      переключается переменными (--card, --paper, --ink…); ниже — места, где цвета пергамента заданы напрямую.
@@ -2707,11 +2719,13 @@ html[data-theme="dark"] .gs-dock-btn.active{ color:#ff9b7f; }
         снятая отметка так же сразу отменяет начисление (на случай случайного клика). Игрок видит те же
         отметки, но поставить/снять их сам не может.
       </div>
+      <div class="xp-sec-head"><b>Деяния</b><span class="muted">+1 опыта за каждое</span><span class="xp-sub" id="xpSubMinor"></span></div>
       <div id="xpChecklistMinor"></div>
-      <div class="field-row identity-row" style="align-items:center;gap:10px;margin-top:20px;border-top:1px dotted var(--ink-soft);padding-top:14px;">
-        <b>Большая пятёрка</b><span class="muted">+2 опыта за пункт (деяния выше — по +1)</span>
+      <div class="xp-sec-head" style="margin-top:20px;border-top:1px dotted var(--ink-soft);padding-top:14px;">
+        <b>Большая пятёрка</b><span class="muted">+2 опыта за пункт</span><span class="xp-sub" id="xpSubMajor"></span>
       </div>
       <div id="xpChecklistMajor"></div>
+      <div class="xp-total" id="xpTotalRow"><b>Итого каждому игроку</b><span class="xp-total-pill" id="xpTotal"></span></div>
     </div>
   </div>
 </div>
@@ -12153,6 +12167,13 @@ function renderXpChecklist(){
   renderXpChecklistGroup('xpChecklistMinor', 'minor', XP_DEEDS_MINOR);
   renderXpChecklistGroup('xpChecklistMajor', 'major', XP_DEEDS_MAJOR);
   document.getElementById('btnXpReset').disabled = session.role==='player';
+  // Подытоги разделов и итог встречи: деяние +1, пункт большой пятёрки +2 (максимум 10 + 10)
+  const a = session.xpChecklist.minor.filter(Boolean).length, b = session.xpChecklist.major.filter(Boolean).length;
+  const pa = a*XP_DEED_WEIGHT.minor, pb = b*XP_DEED_WEIGHT.major, max = XP_DEEDS_MINOR.length*XP_DEED_WEIGHT.minor + XP_DEEDS_MAJOR.length*XP_DEED_WEIGHT.major;
+  document.getElementById('xpSubMinor').textContent = `${a} из ${XP_DEEDS_MINOR.length} · +${pa}`;
+  document.getElementById('xpSubMajor').textContent = `${b} из ${XP_DEEDS_MAJOR.length} · +${pb}`;
+  document.getElementById('xpTotal').textContent = `+${pa + pb} опыта`;
+  document.getElementById('xpTotalRow').title = `Деяния +${pa} и большая пятёрка +${pb} — из ${max} возможных за встречу`;
 }
 // Дельта опыта — каждому игроку этой встречи отдельной выдачей с подтверждением (см. sendGrant: она же
 // сразу обновляет копию листа у Мастера и дойдёт даже до того, кто прямо сейчас переподключается), плюс
@@ -28350,26 +28371,89 @@ const SheetExtras = (function(){
     if(x) x.style.display = p ? '' : 'none';
   }
   function schedule(){ if(!raf) raf = setTimeout(render, 30); } // таймер, не rAF: во фоновой вкладке кадры не идут
-  function toPortrait(file){
-    return new Promise((res, rej)=>{
-      const url = URL.createObjectURL(file), img = new Image();
-      img.onload = ()=>{ const S = 160, cv = document.createElement('canvas'); cv.width = cv.height = S; const c = cv.getContext('2d');
-        const k = Math.max(S/img.width, S/img.height), w = img.width*k, h = img.height*k;
-        c.imageSmoothingQuality = 'high'; c.drawImage(img, (S - w)/2, (S - h)/2, w, h); URL.revokeObjectURL(url);
-        let d = cv.toDataURL('image/webp', 0.82); if(!/^data:image\/webp/.test(d)) d = cv.toDataURL('image/jpeg', 0.85); res(d); };
-      img.onerror = ()=>{ URL.revokeObjectURL(url); rej(new Error('не удалось открыть картинку')); };
-      img.src = url;
-    });
+  /* Кадрирование портрета: круг поверх картинки — тянуть картинку (мышь, палец), масштаб — ползунок, колесо, два пальца.
+     Исходник (до 1600 px) хранится в этом браузере (IndexedDB reincarnator_portrait_src_v1) — кадр можно поправить позже;
+     в персонаже — только готовый круг 256×256 и id исходника с положением кадра. */
+  const OUT = 256, SRC_DB = 'reincarnator_portrait_src_v1', SRC_ST = 'src';
+  const loadImg = (blob)=>new Promise((res, rej)=>{ const u = URL.createObjectURL(blob), im = new Image(); im.onload = ()=>res({im, u}); im.onerror = ()=>{ URL.revokeObjectURL(u); rej(new Error('не удалось открыть картинку')); }; im.src = u; });
+  async function shrinkSrc(file){ // огромные фото с телефона — до 1600 px по длинной стороне
+    const {im, u} = await loadImg(file); const k = Math.min(1, 1600/Math.max(im.width, im.height));
+    if(k===1 && file.size < 3*1024*1024){ URL.revokeObjectURL(u); return file; }
+    const cv = document.createElement('canvas'); cv.width = Math.round(im.width*k); cv.height = Math.round(im.height*k); cv.getContext('2d').drawImage(im, 0, 0, cv.width, cv.height); URL.revokeObjectURL(u);
+    return await new Promise(r=>cv.toBlob(b=>r(b || file), 'image/webp', 0.9));
   }
-  function pick(){
-    if(typeof character==='undefined' || !character){ uiAlert('Сначала создайте персонажа.'); return; }
+  async function srcPut(id, blob){ try{ const d = await rdbOpen(SRC_DB, SRC_ST, 'id'); await rdbPut(d, SRC_ST, [{id, blob, t:Date.now()}]); d.close(); }catch(e){} }
+  async function srcGet(id){ try{ const d = await rdbOpen(SRC_DB, SRC_ST, 'id');
+    const r = await new Promise((res, rej)=>{ const q = d.transaction(SRC_ST, 'readonly').objectStore(SRC_ST).get(id); q.onsuccess = ()=>res(q.result || null); q.onerror = ()=>rej(q.error); }); d.close(); return r && r.blob; }catch(e){ return null; } }
+  // окно: возвращает {data, crop} или null
+  async function cropDialog(blob, crop0){
+    const {im, u} = await loadImg(blob);
+    const S = 300, R = 128, C = S/2, W = im.width, H = im.height, minS = (2*R)/Math.min(W, H);
+    let sc = minS, x = C - W*sc/2, y = C - H*sc/2;
+    if(crop0 && crop0.s){ sc = Math.max(minS, crop0.s*minS); x = C - crop0.cx*W*sc; y = C - crop0.cy*H*sc; }
+    const clamp = ()=>{ sc = Math.min(Math.max(sc, minS), minS*6); x = Math.min(C - R, Math.max(C + R - W*sc, x)); y = Math.min(C - R, Math.max(C + R - H*sc, y)); };
+    const pr = uiDialog({title:'Портрет персонажа', icon:'☺', html:`<div class="pc-wrap"><canvas class="pc-stage" width="${S*2}" height="${S*2}" title="Тяните картинку; колесо мыши или два пальца — масштаб"></canvas>
+        <div class="pc-side"><canvas class="pc-prev" width="${OUT}" height="${OUT}"></canvas><span class="gs-muted">так на жетоне</span></div></div>
+        <label class="pc-zoom">−<input type="range" min="1" max="6" step="0.01" value="${(sc/minS).toFixed(2)}">+</label>
+        <div class="gs-muted">Перетащите картинку, чтобы лицо оказалось в круге; масштаб — ползунком, колесом мыши или двумя пальцами.</div>`,
+      cancelValue:null, buttons:[{label:'Отмена', value:null}, {label:'Сохранить', value:'ok', primary:true}]});
+    await new Promise(r=>setTimeout(r, 0));
+    const dlg = [...document.querySelectorAll('.ui-dlg')].pop(), st = dlg.querySelector('.pc-stage'), pv = dlg.querySelector('.pc-prev'), zoom = dlg.querySelector('.pc-zoom input');
+    const g = st.getContext('2d'), gp = pv.getContext('2d');
+    const draw = ()=>{
+      clamp(); zoom.value = (sc/minS).toFixed(2);
+      g.setTransform(2, 0, 0, 2, 0, 0); g.clearRect(0, 0, S, S); g.imageSmoothingQuality = 'high'; g.drawImage(im, x, y, W*sc, H*sc);
+      g.fillStyle = 'rgba(10,8,6,.62)'; g.beginPath(); g.rect(0, 0, S, S); g.arc(C, C, R, 0, Math.PI*2, true); g.fill('evenodd');
+      g.strokeStyle = 'rgba(246,236,212,.9)'; g.lineWidth = 2; g.beginPath(); g.arc(C, C, R, 0, Math.PI*2); g.stroke();
+      gp.clearRect(0, 0, OUT, OUT); gp.save(); gp.beginPath(); gp.arc(OUT/2, OUT/2, OUT/2, 0, Math.PI*2); gp.clip(); gp.imageSmoothingQuality = 'high';
+      gp.drawImage(im, (C - R - x)/sc, (C - R - y)/sc, 2*R/sc, 2*R/sc, 0, 0, OUT, OUT); gp.restore();
+    };
+    const zoomAt = (k, px, py)=>{ const ns = Math.min(Math.max(sc*k, minS), minS*6), f = ns/sc; x = px - (px - x)*f; y = py - (py - y)*f; sc = ns; draw(); };
+    const pos = (e)=>{ const r = st.getBoundingClientRect(); return {x:(e.clientX - r.left)*S/r.width, y:(e.clientY - r.top)*S/r.height}; };
+    const ptrs = new Map(); let pinch = 0;
+    st.addEventListener('pointerdown', (e)=>{ st.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, pos(e)); if(ptrs.size===2){ const [a, b] = [...ptrs.values()]; pinch = Math.hypot(a.x - b.x, a.y - b.y); } });
+    st.addEventListener('pointermove', (e)=>{ if(!ptrs.has(e.pointerId)) return; const p = pos(e), was = ptrs.get(e.pointerId); ptrs.set(e.pointerId, p);
+      if(ptrs.size===1){ x += p.x - was.x; y += p.y - was.y; draw(); }
+      else if(ptrs.size===2){ const [a, b] = [...ptrs.values()], d = Math.hypot(a.x - b.x, a.y - b.y); if(pinch) zoomAt(d/pinch, (a.x + b.x)/2, (a.y + b.y)/2); pinch = d; } });
+    const up = (e)=>{ ptrs.delete(e.pointerId); pinch = 0; };
+    st.addEventListener('pointerup', up); st.addEventListener('pointercancel', up);
+    st.addEventListener('wheel', (e)=>{ e.preventDefault(); const p = pos(e); zoomAt(e.deltaY < 0 ? 1.08 : 1/1.08, p.x, p.y); }, {passive:false});
+    zoom.addEventListener('input', ()=>zoomAt(minS*(+zoom.value)/sc, C, C));
+    draw();
+    const r = await pr;
+    let data = null;
+    if(r==='ok'){
+      data = pv.toDataURL('image/webp', 0.86); if(!/^data:image\/webp/.test(data)) data = pv.toDataURL('image/jpeg', 0.88);
+      if(data.length > 88000) data = pv.toDataURL('image/jpeg', 0.75);
+    }
+    URL.revokeObjectURL(u);
+    return data ? {data, crop:{cx:+((C - x)/(W*sc)).toFixed(4), cy:+((C - y)/(H*sc)).toFixed(4), s:+(sc/minS).toFixed(3)}} : null;
+  }
+  function applyPortrait(res, srcId){
+    const was = character.portrait;
+    character.portrait = res.data; character.portraitCrop = Object.assign({src:srcId}, res.crop);
+    logEvent(character, was ? 'Портрет персонажа изменён.' : 'Портрет персонажа добавлен.'); renderAll();
+    if(typeof sendSheetSnapshotToGM==='function') sendSheetSnapshotToGM();
+    uiToast('Портрет — в листе и на вашем жетоне', {icon:'☺'});
+  }
+  async function fromFile(){
     const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*';
-    inp.onchange = ()=>{ const f = inp.files && inp.files[0]; if(!f) return;
-      toPortrait(f).then(d=>{ character.portrait = d; logEvent(character, 'Портрет персонажа обновлён.'); renderAll(); if(typeof sendSheetSnapshotToGM==='function') sendSheetSnapshotToGM();
-        uiToast('Портрет — в листе и на вашем жетоне', {icon:'☺'}); }).catch(e=>uiAlert('Портрет: ' + e.message, {icon:'⚠'})); };
+    inp.onchange = async ()=>{ const f = inp.files && inp.files[0]; if(!f) return;
+      try{ const blob = await shrinkSrc(f), id = 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+        const res = await cropDialog(blob, null); if(!res) return; await srcPut(id, blob); applyPortrait(res, id); }
+      catch(e){ uiAlert('Портрет: ' + e.message, {icon:'⚠'}); } };
     inp.click();
   }
-  function clear(){ if(!character || !character.portrait) return; const was = character.portrait; delete character.portrait; logEvent(character, 'Портрет убран.'); renderAll(); if(typeof sendSheetSnapshotToGM==='function') sendSheetSnapshotToGM();
+  async function pick(){
+    if(typeof character==='undefined' || !character){ uiAlert('Сначала создайте персонажа.'); return; }
+    const pc = character.portraitCrop, src = valid(character.portrait) && pc && pc.src ? await srcGet(pc.src) : null;
+    if(!valid(character.portrait)){ fromFile(); return; }
+    const r = await uiDialog({title:'Портрет персонажа', icon:'☺', text:src ? 'Поправить кадр или выбрать другую картинку?' : 'Выбрать другую картинку? (Исходник этого портрета в браузере не сохранился — кадр можно выбрать заново только с новой загрузкой.)',
+      cancelValue:null, buttons:[{label:'Отмена', value:null}].concat(src ? [{label:'Изменить кадр', value:'crop'}] : []).concat([{label:'Другая картинка', value:'file', primary:!src}])});
+    if(r==='file') fromFile();
+    else if(r==='crop' && src){ try{ const res = await cropDialog(src, pc); if(res) applyPortrait(res, pc.src); }catch(e){ uiAlert('Портрет: ' + e.message, {icon:'⚠'}); } }
+  }
+  function clear(){ if(!character || !character.portrait) return; const was = character.portrait; delete character.portrait; delete character.portraitCrop; logEvent(character, 'Портрет убран.'); renderAll(); if(typeof sendSheetSnapshotToGM==='function') sendSheetSnapshotToGM();
     uiToast('Портрет убран', {icon:'✕', action:{label:'Отменить', run:()=>{ if(character){ character.portrait = was; renderAll(); if(typeof sendSheetSnapshotToGM==='function') sendSheetSnapshotToGM(); } }}}); }
   const b = document.getElementById('btnPortrait'); if(b) b.addEventListener('click', pick);
   const x = document.getElementById('btnPortraitClear'); if(x) x.addEventListener('click', clear);

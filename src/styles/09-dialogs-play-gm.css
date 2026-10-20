@@ -336,3 +336,15 @@
   .nm-send{ position:absolute; top:6px; right:6px; opacity:.85; }
   .nm-show{ margin:6px 0 10px; } .nm-show img, .nm-show video{ max-height:58vh; }
   .nm-unmute{ position:absolute; left:50%; top:10px; transform:translateX(-50%); padding:6px 14px; border-radius:999px; cursor:pointer; color:#fff; background:rgba(0,0,0,.65); border:1px solid rgba(255,255,255,.35); }
+  /* Начисление опыта: подытоги разделов и итог */
+  .xp-sec-head{ display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; margin:4px 0 6px; }
+  .xp-sub{ margin-left:auto; font-weight:700; font-variant-numeric:tabular-nums; color:var(--ink); }
+  .xp-total{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:16px; padding-top:12px; border-top:1px solid var(--ink-soft); font-size:15px; }
+  .xp-total-pill{ padding:4px 14px; border-radius:999px; font-weight:700; font-variant-numeric:tabular-nums; color:#fff; background:linear-gradient(155deg, #b8402a, var(--stamp) 50%, #4a1109); }
+  /* Кадрирование портрета */
+  .pc-wrap{ display:flex; gap:14px; align-items:center; justify-content:center; flex-wrap:wrap; }
+  .pc-stage{ width:300px; height:300px; max-width:100%; border-radius:12px; background:#0c0907; cursor:grab; touch-action:none; }
+  .pc-stage:active{ cursor:grabbing; }
+  .pc-side{ display:flex; flex-direction:column; align-items:center; gap:6px; }
+  .pc-prev{ width:72px; height:72px; border-radius:50%; border:3px solid var(--ink); background:#0c0907; }
+  .pc-zoom{ display:flex; align-items:center; gap:8px; margin:10px 0 4px; font-weight:700; } .pc-zoom input{ flex:1; }
