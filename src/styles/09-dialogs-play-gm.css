@@ -375,7 +375,16 @@
   .ak-chip.ak-area{ background:#eeedfe; color:#3c3489; border-color:#afa9ec; } .ak-chip.ak-uses, .ak-chip.ak-act{ background:#f1efe8; color:#444441; }
   .ak-chip.ak-re{ background:#faeeda; color:#633806; border-color:#ef9f27; } .ak-chip.ak-pas, .ak-chip.ak-self{ background:#e1f5ee; color:#085041; border-color:#5dcaa5; }
   html[data-theme="dark"] .ak-chip{ filter:brightness(.92) saturate(.9); }
+  .ak-chip{ max-width:100%; overflow:hidden; text-overflow:ellipsis; }
+  .ak-chip.ak-cond{ background:#fdf3e1; color:#6b4204; border-color:#e8b75c; border-style:dashed; }
+  .ak-chip.ak-help{ background:transparent; color:#5f5e5a; border-style:dashed; font-weight:500; }
+  .ak-chip.ak-on{ background:#dff3d4; color:#1f5a0c; border-color:#7cc35a; display:inline-flex; align-items:center; }
+  .tr-extra{ margin:4px 0 2px; font-size:12.5px; }
+  .tr-x-i{ display:block; margin:3px 0; line-height:1.35; cursor:pointer; }
+  .tr-cond{ margin:4px 0; padding:5px 8px; border-radius:8px; font-size:12px; line-height:1.35; background:rgba(239,159,39,.12); border:1px dashed rgba(239,159,39,.5); }
+  .tr-ex{ font-size:11.5px; padding:0 6px; border-radius:999px; background:rgba(239,159,39,.18); cursor:pointer; }
   .ak-go{ padding:0 8px !important; font-weight:700; }
+  .ak-atk{ padding:0 8px !important; font-weight:700; color:#9c2f1c; }
   .ak-count{ font-size:11px; font-weight:700; padding:0 4px 0 6px; border-radius:999px; background:#f1efe8; color:#444441; display:inline-flex; align-items:center; gap:2px; }
   .ak-count.out{ background:#fcebeb; color:#791f1f; }
   .ak-mini{ border:0; background:transparent; box-shadow:none; padding:0 3px; cursor:pointer; font-size:11px; color:inherit; }

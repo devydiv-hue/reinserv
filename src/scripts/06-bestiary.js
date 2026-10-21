@@ -892,7 +892,8 @@ const Bestiary = (function(){
       tables:arr(t.tables, 10).map(tb=>tb && typeof tb==='object' ? {kind:KINDS[tb.kind] ? tb.kind : 'other', title:S(tb.title, 200), die:int(tb.die, 6, 2, 100),
         rows:arr(tb.rows, 40).map(r=>Array.isArray(r) ? [S(r[0], 12), S(r[1], 2000)] : null).filter(Boolean)} : null).filter(tb=>tb && tb.rows.length),
       notes:S(t.notes, 3000), color:/^#[0-9a-f]{6}$/i.test(t.color||'') ? t.color.toLowerCase() : '',
-      quick:!!t.quick, pen:+t.pen===6 ? 6 : 3, strong:S(t.strong, 600)
+      quick:!!t.quick, pen:+t.pen===6 ? 6 : 3, strong:S(t.strong, 600),
+      nature:['living', 'void', 'robot'].indexOf(t.nature) >= 0 ? t.nature : '' // пусто — по группе и способностям (creatureNature)
     };
   }
   const builtin = BESTIARY_BUILTIN.map(sanitizeTpl).filter(Boolean);
@@ -994,7 +995,7 @@ const Bestiary = (function(){
     const c = Object.assign(clone(tpl), {inst});
     const num = /\d$/.test(tpl.name) ? ` (${n + 1})` : ' ' + (n + 1); // «Пустота №5 (1)», а не «№5 1»
     return Object.assign({name:(tpl.name + num).slice(0, 60), hp:inst.hpMax, hpMax:inst.hpMax, size:rzSize(tpl.rz), color:tpl.color || COLORS[0],
-      hidden:!!prefs.spawnHidden, traumaThreshold:5, creature:c}, combatFields(tpl, inst));
+      hidden:!!prefs.spawnHidden, traumaThreshold:5, nature:creatureNature(tpl), creature:c}, combatFields(tpl, inst));
   }
 
   /* ---------- карточка (как в книге) ---------- */
@@ -1083,7 +1084,7 @@ const Bestiary = (function(){
     h.push(groupHtml('Тело', tpl.body), groupHtml('Личность', tpl.mind));
     if(tpl.skills) h.push(`<p><b>Навыки:</b> ${statsHtml(tpl.skills)}</p>`);
     if(tpl.know) h.push(`<p><b>Знания:</b> ${statsHtml(tpl.know)}</p>`);
-    tpl.abil.forEach((a, ai)=>h.push(`<p class="bst-ab"><b>${esc(a[0])}${a[0] ? ':' : ''}</b> ${plainHtml(a[1], a[0])}${typeof AbilityKit!=='undefined' ? AbilityKit.rowHtml(tok, 'a' + ai, a[0], a[1]) : ''}</p>`));
+    tpl.abil.forEach((a, ai)=>h.push(`<p class="bst-ab"><b>${esc(a[0])}${a[0] ? ':' : ''}</b> ${plainHtml(a[1], a[0])}${typeof AbilityKit!=='undefined' ? AbilityKit.rowHtml(tok, 'a' + ai, a[0], a[1], tpl) : ''}</p>`));
     const tables = tpl.tables.map((tb, i)=>({tb, i})), moves = tables.filter(x=>x.tb.kind==='move'), eqTables = tables.filter(x=>x.tb.kind!=='move');
     moves.forEach(x=>h.push(tableHtml(tpl, x.tb, x.i, inst, ctx)));
     {
@@ -1158,7 +1159,7 @@ const Bestiary = (function(){
       if(tb.kind==='move'){ const ci = body.indexOf(':'), head = body.slice(0, ci); body = ci>0 && ci<40 && !/[()\[]/.test(head) ? `<b>${esc(head)}:</b>${plainHtml(body.slice(ci + 1))}` : plainHtml(body); }
       else body = richHtml(body, ri===hl ? ctx : null);
       const pick = inst && tb.kind!=='move' ? ` <button type="button" class="bst-mini" data-act="tbl-pick" data-i="${i}" data-r="${ri}" title="Выбрать эту строку">✓</button>` : '';
-      const ak = tb.kind==='move' && typeof AbilityKit!=='undefined' ? AbilityKit.rowHtml(ctx && ctx.tok, 'm' + i + '-' + ri, 'Ход ' + r[0], r[1]) : '';
+      const ak = tb.kind==='move' && typeof AbilityKit!=='undefined' ? AbilityKit.rowHtml(ctx && ctx.tok, 'm' + i + '-' + ri, 'Ход ' + r[0], r[1], tpl) : '';
       return `<div class="bst-row${ri===hl ? ' on' : ''}"><span class="bst-r">${esc(r[0])}.</span><span>${body}${pick}${ak}</span></div>`;
     }).join('');
     return `<div class="bst-tbl"><div class="bst-tbl-h"><span>${esc(tb.title || KINDS[tb.kind])} <small>(${KINDS[tb.kind]}, к${tb.die})</small>${info}</span>${btn}</div>${rows}</div>`;
@@ -1171,7 +1172,7 @@ const Bestiary = (function(){
       <div class="bst-inst-row"><span class="bst-hp">ОЗ <b>${tok.hp==null ? '—' : tok.hp}</b>${inst.hpMax!=null ? ' / ' + inst.hpMax : ''}</span>
         <input type="text" class="bst-hp-in" data-hp placeholder="−3, +2 или 8" title="Число — установить, −N/+N — изменить">
         <button type="button" class="bst-mini" data-act="hp">OK</button>
-        <span class="bst-sep"></span>🦴 <b>${tok.trauma||0}</b><button type="button" class="bst-mini" data-act="tr" data-d="1">+</button><button type="button" class="bst-mini" data-act="tr" data-d="-1">−</button></div>
+        ${tokenNature(tok)==='void' ? '<span class="bst-sep"></span><span class="bst-muted" title="У пустот травм не бывает">без травм</span>' : `<span class="bst-sep"></span><span title="${tokenNature(tok)==='robot' ? 'Поломки' : 'Травмы'}">${tokenNature(tok)==='robot' ? '🔧' : '🦴'}</span> <b>${tok.trauma||0}</b><button type="button" class="bst-mini" data-act="tr" data-d="1">+</button><button type="button" class="bst-mini" data-act="tr" data-d="-1">−</button>`}</div>
       <div class="bst-inst-row"><label class="bst-chk"><input type="checkbox" data-act="bodrost" ${inst.bodrost ? 'checked' : ''}> Бодрость</label>
         ${c.quick ? `<label class="bst-chk"><input type="checkbox" data-act="strong" ${inst.strong ? 'checked' : ''}> Сильная сторона / невыгодная позиция (Помеха 6)</label>` : ''}
         <span class="bst-muted">Защита ${tok.defense||0}${subs ? ' (' + esc(subs) + ')' : ''} · в руке: ${esc(w)}</span></div>
@@ -1181,10 +1182,11 @@ const Bestiary = (function(){
         <label class="bst-chk"><input type="checkbox" data-act="public" ${prefs.publicRolls ? 'checked' : ''}> броски видны игрокам</label></div>
     </div>`;
   }
+  const natureTag = (n)=>n==='void' ? ' <small class="bst-nat" title="У пустот травм не бывает">· пустота, без травм</small>' : n==='robot' ? ' <small class="bst-nat" title="Вместо травм — поломки">· робот, поломки 🔧</small>' : '';
   function cardHtml(tpl, tok){
     const who = tok ? tok.name : tpl.name;
     return `<div class="bst-card" data-who="${esc(who)}"${tok ? ` data-tok="${esc(tok.id)}"` : ''}>
-      <div class="bst-name">${esc(tok ? tok.name : tpl.name)}${tpl.faction ? ` <small>· ${esc(tpl.faction)}</small>` : ''}</div>
+      <div class="bst-name">${esc(tok ? tok.name : tpl.name)}${tpl.faction ? ` <small>· ${esc(tpl.faction)}</small>` : ''}${natureTag(tok ? tokenNature(tok) : creatureNature(tpl))}</div>
       ${tok ? instHtml(tok) : ''}${cardBodyHtml(tpl, tok)}</div>`;
   }
 
@@ -1237,7 +1239,7 @@ const Bestiary = (function(){
       if((m = raw.match(/^([+-])(\d+)$/))) hp += (m[1]==='-' ? -1 : 1) * (+m[2]); else if((m = raw.match(/^=?(-?\d+)$/))) hp = +m[1]; else { note('Не понял число — например 8, −3 или +2'); return; }
       gt().updateToken(t.id, {hp}); return;
     }
-    if(act==='tr'){ gt().updateToken(t.id, {trauma:Math.max(0, (t.trauma||0) + (+b.dataset.d))}); return; }
+    if(act==='tr'){ if(tokenNature(t)==='void') return; gt().updateToken(t.id, {trauma:Math.max(0, (t.trauma||0) + (+b.dataset.d))}); return; }
     if(act==='bodrost'){ patchCreature(t, (c, inst)=>{ inst.bodrost = b.checked; }); return; }
     if(act==='strong'){ patchCreature(t, (c, inst)=>{ inst.strong = b.checked; }, (c, inst)=>({attackMod:-(inst.strong ? 6 : c.pen), attackModEnabled:true})); return; }
     if(act==='edit-token'){ gt().editToken(t.id); return; }
@@ -1439,6 +1441,8 @@ const Bestiary = (function(){
       <h2>${tpl ? 'Изменить' : 'Новое'} ${quick ? '— быстрый противник' : 'существо'}</h2>
       <div class="bst-grid">
         ${f('name', 'Название *', t.name, 'required maxlength="60"')}${f('group', 'Группа', t.group, 'maxlength="60"')}${f('faction', 'Фракция', t.faction, 'maxlength="60"')}
+        <label class="bst-f"><span>Природа</span><select name="nature" title="Травмы — у гуманоидов и животных; у пустот травм нет; у роботов вместо травм — поломки">
+          <option value="" ${!t.nature ? 'selected' : ''}>авто (по группе и способностям)</option>${Object.keys(CREATURE_NATURES).map(k=>`<option value="${k}" ${t.nature===k ? 'selected' : ''}>${CREATURE_NATURES[k]}${k==='void' ? ' — без травм' : k==='robot' ? ' — поломки 🔧' : ' — травмы 🦴'}</option>`).join('')}</select></label>
         <label class="bst-f"><span>Цвет жетона</span><select name="color">${COLORS.map(c=>`<option value="${c}" ${(t.color || COLORS[0])===c ? 'selected' : ''} style="background:${c};color:#fff">${c}</option>`).join('')}</select></label>
       </div>
       ${ta('desc', 'Описание', t.desc, 2)}
@@ -1464,7 +1468,7 @@ const Bestiary = (function(){
     const collect = ()=>{
       const fd = new FormData(form), g = (k)=>String(fd.get(k)==null ? '' : fd.get(k));
       const base = tpl ? clone(tpl) : {id:newTplId()};
-      Object.assign(base, {name:g('name'), group:g('group'), faction:g('faction'), desc:g('desc'), color:g('color'), oz:g('oz'), notes:g('notes'), quick});
+      Object.assign(base, {name:g('name'), group:g('group'), faction:g('faction'), desc:g('desc'), color:g('color'), oz:g('oz'), notes:g('notes'), quick, nature:g('nature')});
       if(quick) Object.assign(base, {pen:+g('pen'), strong:g('strong')});
       else Object.assign(base, {def:g('def'), run:g('run'), rz:g('rz'), squad:g('squad'), seals:fd.get('seals')==='on', body:g('body'), mind:g('mind'), skills:g('skills'), know:g('know'),
         abil:textToAbil(g('abil')), gear:g('gear').split('\n').map(s=>s.trim()).filter(Boolean), chances:textToChances(g('chances')), tables:textToTables(g('tables'))});

@@ -186,7 +186,7 @@ function sanitizeRollEntry(e){
       Object.assign(out, { mapAttack:true, attackId:str(e.attackId, 64), attacker:str(e.attacker, 60), target:str(e.target, 60),
         weaponName:str(e.weaponName, 120), fireMode: ['attack','burst','suppress'].indexOf(e.fireMode)>=0 ? e.fireMode : 'attack',
         rolls:ints(e.rolls, 2), roll:int(e.roll, 0), mode:rollMode(e.mode), success:bool(e.success), category:int(e.category, null),
-        jammed:!!e.jammed, unprotected:!!e.unprotected, outOfRange:!!e.outOfRange, slow:!!e.slow, total:Math.max(0, int(e.total, 0)),
+        jammed:!!e.jammed, unprotected:!!e.unprotected, outOfRange:!!e.outOfRange, slow:!!e.slow, total:Math.max(0, int(e.total, 0)), robot:!!e.robot,
         hits:(Array.isArray(e.hits) ? e.hits : []).slice(0, 60).map(h=>{
           const o = { k12:int(h && h.k12, 0), pen:!!(h && h.pen), wounds:Math.max(0, int(h && h.wounds, 0)), trauma:!!(h && h.trauma), red:!!(h && h.red) };
           if(h && Array.isArray(h.rolls12)) o.rolls12 = ints(h.rolls12, 30);
@@ -201,7 +201,7 @@ function sanitizeRollEntry(e){
         category:int(e.category, null), outcome: ['hit','frag','none'].indexOf(e.outcome)>=0 ? e.outcome : 'none', slow:!!e.slow,
         victims:(Array.isArray(e.victims) ? e.victims : []).slice(0, 40).map(v=>({ name:str(v && v.name, 60),
           bN:Math.max(0, int(v && v.bN, 0)), bP:Math.max(0, int(v && v.bP, 0)), fN:Math.max(0, int(v && v.fN, 0)), fP:Math.max(0, int(v && v.fP, 0)),
-          total:Math.max(0, int(v && v.total, 0)), trauma:Math.max(0, int(v && v.trauma, 0)), burn:Math.max(0, int(v && v.burn, 0)), immune:!!(v && v.immune) })) });
+          total:Math.max(0, int(v && v.total, 0)), trauma:Math.max(0, int(v && v.trauma, 0)), robot:!!(v && v.robot), burn:Math.max(0, int(v && v.burn, 0)), immune:!!(v && v.immune) })) });
       if(e.sec && typeof e.sec==='object') out.sec = { max:int(e.sec.max, 0), max12: e.sec.max12==null ? null : int(e.sec.max12, 0) }; // пороги — только допущенным Мастером
       return out;
     }
@@ -318,7 +318,7 @@ function detailedQuickEntry(e, undoneAttacks){
       const many = e.hits.length > 1; // вариант «Б»: порог один раз, дальше — броски попаданий
       const hitsTxt = e.hits.map(h=>{
         const k = h.rolls12 ? `[${h.rolls12.join(', ')}]→${h.k12}` : String(h.k12);
-        const bone = h.trauma ? (h.red ? ' <span class="bone-red" title="Травма (черта оружия «травма»)">🦴</span>' : ' <span title="Травма">🦴</span>') : '';
+        const bone = h.trauma ? ' ' + traumaIconHtml(e.robot, h.red) : '';
         return `${k} ${h.pen ? 'пробило' : 'не пробило'}${many && h.pen ? ` (${h.wounds} ${woundsWord(h.wounds)})` : ''}${bone}`;
       }).join('; ');
       body += `Успех, КУ${e.category}` + (e.hits.length ? ` · к12≤${e.sec.max12==null ? '?' : e.sec.max12} → ${hitsTxt}` : '') + ` · итого ${e.total} ${woundsWord(e.total)}`;
@@ -338,7 +338,7 @@ function detailedQuickEntry(e, undoneAttacks){
     if(e.victims.length) body += ' · ' + e.victims.map(v=>{
       if(v.immune) return `${escapeHtml(v.name)}: защита от температуры выдержала`;
       const parts = []; if(v.bN) parts.push(`взрыв ${v.bP}/${v.bN}`); if(v.fN) parts.push(`осколки ${v.fP}/${v.fN}`);
-      return `${escapeHtml(v.name)}: ${parts.length ? parts.join(', ')+' — ' : ''}${v.total} ${woundsWord(v.total)}${v.trauma ? ` <span title="Травмы">🦴${v.trauma>1?v.trauma:''}</span>` : ''}${v.burn ? ` 🔥${v.burn}` : ''}`;
+      return `${escapeHtml(v.name)}: ${parts.length ? parts.join(', ')+' — ' : ''}${v.total} ${woundsWord(v.total)}${v.trauma ? ' ' + traumaIconHtml(v.robot, false, v.trauma) : ''}${v.burn ? ` 🔥${v.burn}` : ''}`;
     }).join('; ');
     if(e.slow) body += ' · ⚡ медленное — цель может отреагировать';
     if(undone) body += ' · <b>отменено Мастером</b>';
@@ -480,7 +480,7 @@ function formatQuickRollEntry(e, undoneAttacks){
       const hitsTxt = e.hits.map(h=>{
         const k = h.rolls12 ? `к12=[${h.rolls12.join(', ')}]→${h.k12}` : `к12=${h.k12}`;
         if(!h.pen) return `${k} не пробило`;
-        const bone = h.trauma ? (h.red ? ' <span class="bone-red" title="Травма (черта оружия «травма»)">🦴</span>' : ' <span title="Травма">🦴</span>') : '';
+        const bone = h.trauma ? ' ' + traumaIconHtml(e.robot, h.red) : '';
         return `${k} пробило (${h.wounds} ${woundsWord(h.wounds)})${bone}`;
       }).join('; ');
       body += `Успех, КУ${e.category} · ${hitsTxt} · итого ${e.total} ${woundsWord(e.total)}`;
@@ -502,7 +502,7 @@ function formatQuickRollEntry(e, undoneAttacks){
       if(v.bN) parts.push(`взрыв ${v.bP}/${v.bN}`);
       if(v.fN) parts.push(`осколки ${v.fP}/${v.fN}`);
       const burn = v.burn ? ` 🔥${v.burn}` : '';
-      const bone = v.trauma ? ` <span title="Травмы">🦴${v.trauma>1?v.trauma:''}</span>` : '';
+      const bone = v.trauma ? ' ' + traumaIconHtml(v.robot, false, v.trauma) : '';
       return `${escapeHtml(v.name)}: ${parts.length ? parts.join(', ')+' — ' : ''}${v.total} ${woundsWord(v.total)}${bone}${burn}`;
     }).join('; ');
     if(e.slow) body += ' · ⚡ медленное — цель может отреагировать';

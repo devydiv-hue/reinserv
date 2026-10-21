@@ -71,7 +71,7 @@ const AreaTemplates = (function(){
       path = `<path d="M${X(tpl.x)},${X(tpl.y)} L${X(tpl.x + Math.cos(a1)*R)},${X(tpl.y + Math.sin(a1)*R)} A${X(R)},${X(R)} 0 0 1 ${X(tpl.x + Math.cos(a2)*R)},${X(tpl.y + Math.sin(a2)*R)} Z"/>`; }
     const who = affectedTokens(tpl);
     svg.innerHTML = `<g class="at-shape">${path}</g><circle class="at-origin" cx="${X(tpl.x)}" cy="${X(tpl.y)}" r="${(C*0.12).toFixed(1)}"/>`;
-    const v = vp(); if(!info){ info = document.createElement('div'); info.className = 'at-info'; }
+    const v = vp(); if(!info){ info = document.createElement('div'); info.className = 'at-info gt-ui'; }
     if(info.parentNode!==v) v.appendChild(info);
     info.classList.toggle('at-pick', !!pickCtx);
     info.innerHTML = pickCtx
@@ -151,7 +151,7 @@ const AreaTemplates = (function(){
 
   function renderTools(){
     const v = vp(); if(!enabled || !v){ if(tools){ tools.remove(); tools = null; } return; }
-    if(!tools){ tools = document.createElement('div'); tools.className = 'at-tools';
+    if(!tools){ tools = document.createElement('div'); tools.className = 'at-tools gt-ui';
       tools.addEventListener('click', (e)=>{ const b = e.target.closest('[data-at]'); if(!b) return; const a = b.dataset.at;
         if(a==='open'){ tools.classList.toggle('open'); if(!tools.classList.contains('open')) clear(); else renderTools(); }
         else if(a==='deg'){ coneDeg = coneDeg===60 ? 90 : coneDeg===90 ? 45 : 60; if(tpl && tpl.shape==='cone'){ tpl.deg = coneDeg; draw(); } renderTools(); }

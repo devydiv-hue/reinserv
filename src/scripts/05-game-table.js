@@ -18,6 +18,24 @@
    существующие hpMax/psiMax. Правка HP с жетона — выдача с подтверждением (sendGrant, как удача), он
    меняет свой character, и обратно оно приходит уже обычным sheet-snapshot.
    ====================================================================== */
+/* Природа существа: травмы бывают только у гуманоидов и животных; у пустот травм нет; у роботов вместо травм —
+   поломки 🔧 (тот же порог «к12 выше Травма-к12»). Явно — поле «Природа» (шаблон бестиария и жетон: nature),
+   иначе по шаблону: способность «Робот» — робот; «пустот» в группе, фракции или названии — пустота (кроме
+   одержимого: у него тело носителя). */
+const CREATURE_NATURES = {living:'гуманоид / животное', void:'пустота', robot:'робот'};
+function creatureNature(c){
+  if(!c) return 'living';
+  if(CREATURE_NATURES[c.nature]) return c.nature;
+  if((c.abil || []).some(a=>/^\s*робот\s*$/i.test(String(a && a[0] || ''))) || /(?:^|[^а-яё])(?:робот|андроид)/i.test(c.name || '')) return 'robot';
+  if(/одержим/i.test(c.name || '')) return 'living';
+  return /пустот/i.test([c.group, c.faction, c.name].join(' ')) ? 'void' : 'living';
+}
+function tokenNature(t){ return t && CREATURE_NATURES[t.nature] ? t.nature : t && t.creature ? creatureNature(t.creature) : 'living'; }
+// значок травмы (🦴) или поломки робота (🔧); red — от оружия с чертой «травма»
+function traumaIconHtml(robot, red, n){
+  return `<span${red ? ' class="bone-red"' : ''} title="${robot ? 'Поломка' : 'Травма'}${red ? ' (черта оружия «травма»)' : ''}">${robot ? '🔧' : '🦴'}</span>${n > 1 ? n : ''}`;
+}
+
 const GameTable = (function(){
   const CELL = TABLE_CELL_PX;           // пикселей на клетку при масштабе 100% — общий с редактором карт (MapKit)
   const METERS_PER_CELL = TABLE_METERS_PER_CELL; // главное правило: 1 клетка = 3 м
@@ -51,7 +69,7 @@ const GameTable = (function(){
   function safeColor(c, d){ return /^#[0-9a-f]{6}$/i.test(c||'') ? c.toLowerCase() : d; }
 
   // Отметки состояний на жетоне (способности существ, «Бросок цели»): r — осталось кругов, 0 — пока не снимут
-  const MARKS = {shock:'Шок', prone:'Сбит с ног', grabbed:'Схвачен', stunned:'Оглушён', blind:'Ослеплён', fear:'Испуган'};
+  const MARKS = {shock:'Шок', prone:'Сбит с ног', grabbed:'Схвачен', stunned:'Оглушён', blind:'Ослеплён', skipturn:'Пропускает ход', vanished:'Исчез', limit:'На пределе сил', fear:'Испуган'};
   function sanitizeToken(t){
     t = t || {};
     const kind = t.kind==='player' ? 'player' : 'gm';
@@ -84,6 +102,8 @@ const GameTable = (function(){
     out.unprotectedEnabled = kind==='gm' && !!t.unprotectedEnabled;    // «атака по незащищённым частям» разрешена
     out.slowReaction = !!t.slowReaction; // ⚡ по жетону ударили медленным оружием — может отреагировать (снимает Мастер)
     out.burning = Math.round(clamp(num(t.burning,0), 0, 99)); // 🔥 горит N кругов (термическая граната; уменьшает/снимает Мастер)
+    out.nature = CREATURE_NATURES[t.nature] ? t.nature : t.creature ? creatureNature(t.creature) : 'living';
+    if(out.nature==='void'){ out.trauma = 0; out.traumaRed = 0; } // у пустот травм не бывает
     out.marks = (Array.isArray(t.marks) ? t.marks : []).slice(0, 12).filter(m=>m && MARKS[m.k]).map(m=>({k:m.k, r:Math.round(clamp(num(m.r,0), 0, 99))})); // отметки (Бросок цели)
     if(kind==='gm'){
       out.reflexes = Math.round(clamp(num(t.reflexes,3), 0, 20)); // рефлексы NPC — против них мечут гранаты
@@ -402,7 +422,7 @@ const GameTable = (function(){
         const t = s.tokens[cmd.id];
         if(!t) return deny('Жетон не найден');
         const patch = {};
-        ['name','hp','hpMax','hpShown','size','color','hidden','avatar','rotation','marks',
+        ['name','hp','hpMax','hpShown','size','color','hidden','avatar','rotation','marks','nature',
          'defense','defenseSubs','armorName','weaponText','attackMod','attackModEnabled','unprotectedEnabled','unprotectedMod','traumaThreshold','trauma','traumaRed','strength','slowReaction','burning','reflexes','grenade','atkSkill','creature']
           .forEach(k=>{ if(cmd.patch && k in cmd.patch) patch[k] = cmd.patch[k]; });
         ops.push({op:'token-upsert', token:sanitizeToken(Object.assign({}, t, patch))});
@@ -718,7 +738,7 @@ const GameTable = (function(){
       el.classList.toggle('cb-noact', !!cbp && cbp.noAct); }
     const v = vitalsFor(t);
     const pf = portraitFor(t);
-    const key = JSON.stringify([t.name, t.color, t.avatar, pf ? pf.length + pf.slice(-16) : '', t.hp, t.hpMax, t.hpShown, t.hpFrac, isAuthority(), t.kind, t.hidden, t.size, t.rotation, t.trauma, t.traumaRed, t.slowReaction, t.burning, JSON.stringify(t.marks || []), v && [v.name, v.hp, v.hpMax, v.psi, v.psiMax]]);
+    const key = JSON.stringify([t.name, t.color, t.avatar, pf ? pf.length + pf.slice(-16) : '', t.hp, t.hpMax, t.hpShown, t.hpFrac, isAuthority(), t.kind, t.hidden, t.size, t.rotation, t.trauma, t.traumaRed, t.nature, t.slowReaction, t.burning, JSON.stringify(t.marks || []), v && [v.name, v.hp, v.hpMax, v.psi, v.psiMax]]);
     if(el._gtKey===key) return;
     el._gtKey = key;
     const name = tokenName(t, v), sz = SIZE_CELLS[t.size]*CELL;
@@ -744,8 +764,9 @@ const GameTable = (function(){
   // Травмы под жетоном: 🦴N — обычные, красная 🦴M — от оружия с чертой «травма» (см. resolveAttack)
   function traumaBadgesHtml(t){
     if(!t.trauma && !t.traumaRed && !t.slowReaction && !t.burning && !(t.marks && t.marks.length)) return '';
+    const rb = tokenNature(t)==='robot';
     const marks = (t.marks || []).map(m=>`<span class="gt-mark-badge" title="${MARKS[m.k]}${m.r ? ': ещё ' + m.r + ' кр.' : ' — пока не снимут'}">${MARKS[m.k]}${m.r ? ' ' + m.r : ''}</span>`).join('');
-    return `<span class="gt-trauma-row">${marks}${t.burning?`<span class="gt-burn-badge" title="Горит (термическая граната): кругов">🔥${t.burning}</span>`:""}${t.slowReaction?'<span class="gt-slow-badge" title="Атакован медленным оружием — может отреагировать">⚡ реакция</span>':''}${t.trauma?`<span title="Травмы">🦴${t.trauma}</span>`:''}${t.traumaRed?`<span class="bone-red" title="Травмы от оружия с чертой «травма»">🦴</span><span class="gt-trauma-red-n">${t.traumaRed}</span>`:''}</span>`;
+    return `<span class="gt-trauma-row">${marks}${t.burning?`<span class="gt-burn-badge" title="Горит (термическая граната): кругов">🔥${t.burning}</span>`:""}${t.slowReaction?'<span class="gt-slow-badge" title="Атакован медленным оружием — может отреагировать">⚡ реакция</span>':''}${t.trauma?`<span title="${rb ? 'Поломки' : 'Травмы'}">${rb ? '🔧' : '🦴'}${t.trauma}</span>`:''}${t.traumaRed?`<span class="bone-red" title="${rb ? 'Поломки' : 'Травмы'} от оружия с чертой «травма»">${rb ? '🔧' : '🦴'}</span><span class="gt-trauma-red-n">${t.traumaRed}</span>`:''}</span>`;
   }
   function refreshTokenPos(id){ const el = tokenEls.get(id), t = tok(id); if(el && t){ positionTokenEl(el, t); el.classList.toggle('dragging', !!dragPos[id]); } }
   function setSelection(ids){ selected.clear(); ids.forEach(id=>selected.add(id)); tokenEls.forEach((el,id)=>el.classList.toggle('selected', selected.has(id))); renderInfoCard(); }
@@ -764,7 +785,7 @@ const GameTable = (function(){
     if(isAuthority() && t.kind==='gm'){
       const ws = t.weaponText ? parseWeaponStats(t.weaponText) : null;
       combat = `<div class="gt-ic-sub" style="margin-top:4px">Защита ${t.defense}${Object.keys(t.defenseSubs||{}).length?' ('+Object.keys(t.defenseSubs).map(k=>k+t.defenseSubs[k]).join(', ')+')':''}` +
-        ` · ${ws ? escapeHtml(ws.cleanName)+` (Ат${ws.at>=0?'+':''}${ws.at}, МУ${ws.mu})` : 'без оружия'} · травма-к12 ${t.traumaThreshold}</div>`;
+        ` · ${ws ? escapeHtml(ws.cleanName)+` (Ат${ws.at>=0?'+':''}${ws.at}, МУ${ws.mu})` : 'без оружия'} · ${({void:'пустота — без травм', robot:'робот — поломка-к12 ' + t.traumaThreshold})[tokenNature(t)] || 'травма-к12 ' + t.traumaThreshold}</div>`;
     }
     const bones = (t.trauma||t.traumaRed||t.slowReaction||t.burning) ? `<div class="gt-ic-sub">${traumaBadgesHtml(t)}</div>` : '';
     infoCard.innerHTML = `<div class="gt-ic-sub">${kindTxt} · ${SIZE_LABELS[t.size]}${t.hidden?' · скрыт':''}</div><div class="gt-ic-name">${escapeHtml(tokenName(t, v))}</div>`+
@@ -995,6 +1016,18 @@ const GameTable = (function(){
         pill(ctx, b.x, b.y, `${fmtNum(ri.meters)} м · ${ri.label}`, ri.ok ? 'rgba(156,47,28,.92)' : 'rgba(92,82,64,.92)');
       }
     }
+    if(abilityPick){
+      const P = abilityPick, src = P.srcId ? tok(P.srcId) : null;
+      const ring = (t, color, dash)=>{ const b = toScreen(t); ctx.save(); ctx.beginPath(); ctx.arc(b.x, b.y, SIZE_CELLS[t.size]*CELL*cam.z/2 + 5, 0, Math.PI*2); ctx.strokeStyle = color; ctx.lineWidth = 3; ctx.setLineDash(dash); ctx.stroke(); ctx.restore(); };
+      P.ids.forEach(id=>{ const t = tok(id); if(t) ring(t, '#9c2f1c', []); });
+      if(P.cur){
+        const hov = pickUnder(P.cur), end = hov ? {x:hov.x, y:hov.y} : P.cur;
+        if(hov) ring(hov, '#9c2f1c', [4,4]);
+        if(src){ const a = toScreen(src), b = toScreen(end), m = Math.round(Math.hypot(end.x - src.x, end.y - src.y)*METERS_PER_CELL*10)/10, far = P.rangeM && m > P.rangeM;
+          strokePath(ctx, [a, b], far ? '#5c5240' : '#9c2f1c', [8,5]);
+          pill(ctx, b.x, b.y, `${fmtNum(m)} м${P.rangeM ? ` · дальность ${P.rangeM} м${far ? ' — дальше' : ''}` : ''}`, far ? 'rgba(92,82,64,.92)' : 'rgba(156,47,28,.92)'); }
+      }
+    }
     if(placing && placing.cur){
       const t = tok(placing.ids[0]);
       if(t){ const a = toScreen(t), b = toScreen(placing.cur); strokePath(ctx, [a,b], '#1c1712', [6,6]); pill(ctx, b.x, b.y, measureLabel(Math.hypot(placing.cur.x-t.x, placing.cur.y-t.y))); }
@@ -1192,6 +1225,7 @@ const GameTable = (function(){
     if(e.button===1 || (e.button===0 && (spaceHeld || tool==='pan'))){ startPan(e, p); e.preventDefault(); return; }
     if(e.button!==0) return;
     if(e.altKey){ doPing(w); return; }
+    if(abilityPick){ handlePickClick(e); return; } // цели способности существа — см. pickTargets
     if(targeting){ handleTargetClick(e, p); return; } // выбор цели атаки — см. startTargeting
     if(placing){ finishPlacing(w, e.shiftKey); return; }
     const t = tokenFromEvent(e);
@@ -1250,6 +1284,7 @@ const GameTable = (function(){
     lastMouse = w;
     if(pointerBroadcast && role()==='gm' && !interaction) sendTransient({type:'gt-pointer', x:r3(w.x), y:r3(w.y)}, 90);
     if(!interaction){
+      if(abilityPick){ abilityPick.cur = w; requestRender({fx:true}); return; }
       if(targeting){ targeting.cur = w; requestRender({fx:true}); return; }
       if(placing){ movePlacing(w, e.shiftKey); return; }
       if(ruler && ruler.mode==='waypoints'){ ruler.cur = w; requestRender({fx:true}); }
@@ -1380,6 +1415,7 @@ const GameTable = (function(){
   function cancelAll(){
     cancelInteraction();
     targeting = null;
+    if(abilityPick) finishPick(null);
     if(placing){ placing.ids.forEach(id=>{ delete dragPos[id]; refreshTokenPos(id); }); placing = null; }
     ruler = null; polyDraft = null;
     closeMenu(); closePopover(); showHint();
@@ -1438,7 +1474,7 @@ const GameTable = (function(){
     e.preventDefault();
     if(polyDraft){ finishPolygon(); return; }
     if(ruler){ ruler = null; showHint(); requestRender({fx:true}); return; }
-    if(placing || targeting){ cancelAll(); return; }
+    if(placing || targeting || abilityPick){ cancelAll(); return; }
     const p = localPt(e), w = toWorld(p), t = tokenFromEvent(e);
     if(t) openTokenMenu(t, p); else openFieldMenu(w, p);
   }
@@ -1564,7 +1600,8 @@ const GameTable = (function(){
   }
   function showHint(){
     let h = '';
-    if(targeting) h = IS_TOUCH_UI ? 'Тап по цели атаки · тап по пустому месту — отмена' : 'Выберите цель атаки · Esc или правый клик — отмена';
+    if(abilityPick) h = IS_TOUCH_UI ? 'Тап по цели способности · тап по пустому месту — отмена' : 'Выберите цель способности · Esc или правый клик — отмена';
+    else if(targeting) h = IS_TOUCH_UI ? 'Тап по цели атаки · тап по пустому месту — отмена' : 'Выберите цель атаки · Esc или правый клик — отмена';
     else if(placing) h = IS_TOUCH_UI ? 'Тап — поставить жетон' : 'Клик — поставить · Shift — по сетке · Esc — отмена';
     else if(polyDraft) h = 'Клик — вершина · двойной клик, Enter или клик по первой точке — замкнуть · Esc — отмена';
     else if(ruler && ruler.mode==='waypoints') h = 'Клик — ещё точка · двойной клик, правый клик или Esc — убрать';
@@ -1754,9 +1791,13 @@ const GameTable = (function(){
     return Object.keys(byGen).map(g=>`<optgroup label="${escapeHtml(GEN_LABELS[g]||g)}">${byGen[g].join('')}</optgroup>`).join('');
   }
   function combatFieldsHtml(cur, isPlayerTok){
+    const nat = tokenNature(cur);
     const n = (name, val, min, max)=>`<input type="number" name="${name}" step="1" min="${min}" max="${max}" value="${val}">`;
-    const bones = `<div class="gt-f-row"><label class="gt-f">Травмы 🦴${n('trauma', cur.trauma||0, 0, 99)}</label>`+
-                  `<label class="gt-f">Красные <span class="bone-red">🦴</span>${n('traumaRed', cur.traumaRed||0, 0, 99)}</label></div>`+
+    const ic = nat==='robot' ? '🔧' : '🦴';
+    const natSel = `<label class="gt-f">Природа<select name="nature" title="Травмы — у гуманоидов и животных; у пустот травм нет; у роботов — поломки">${Object.keys(CREATURE_NATURES).map(k=>`<option value="${k}" ${nat===k?'selected':''}>${CREATURE_NATURES[k]}${k==='void' ? ' — без травм' : k==='robot' ? ' — поломки 🔧' : ' — травмы 🦴'}</option>`).join('')}</select></label>`;
+    const bones = natSel + (nat==='void' ? `<div class="gt-pop-note">У пустот травм не бывает.</div>` :
+                  `<div class="gt-f-row"><label class="gt-f">${nat==='robot' ? 'Поломки' : 'Травмы'} ${ic}${n('trauma', cur.trauma||0, 0, 99)}</label>`+
+                  `<label class="gt-f">Красные <span class="bone-red">${ic}</span>${n('traumaRed', cur.traumaRed||0, 0, 99)}</label></div>`)+
                   `<label class="gt-check"><input type="checkbox" name="slowReaction" ${cur.slowReaction?'checked':''}> ⚡ Может отреагировать (атакован медленным оружием)</label>`+
                   `<label class="gt-f">🔥 Горит, кругов (термическая граната)${n('burning', cur.burning||0, 0, 99)}</label>`;
     if(isPlayerTok){
@@ -1773,7 +1814,7 @@ const GameTable = (function(){
       `<label class="gt-f">Броня (каталог — заполнит защиту)<select name="armor"><option value="">— вручную —</option>${aOpts}</select></label>`+
       `<div class="gt-f-row"><label class="gt-f">Защита${n('defense', cur.defense||0, 0, 99)}</label>`+
       `<label class="gt-f">Сила${n('strength', cur.strength==null?3:cur.strength, 0, 20)}</label>`+
-      `<label class="gt-f">Травма-к12${n('traumaThreshold', cur.traumaThreshold||5, 1, 12)}</label></div>`+
+      (nat==='void' ? '</div>' : `<label class="gt-f">${nat==='robot' ? 'Поломка' : 'Травма'}-к12${n('traumaThreshold', cur.traumaThreshold||5, 1, 12)}</label></div>`)+
       `<div class="gt-f-row"><label class="gt-f">Рефлексы${n('reflexes', cur.reflexes==null?3:cur.reflexes, 0, 20)}</label>`+
       `<label class="gt-f">Граната<select name="grenade"><option value="">— нет —</option>${Object.keys(GRENADE_SPECS).map(k=>`<option value="${k}" ${cur.grenade===k?'selected':''}>${escapeHtml(GRENADE_SPECS[k].name)}</option>`).join('')}</select></label></div>`+
       `<div class="gt-pop-note" data-subs-note>${Object.keys(cur.defenseSubs||{}).length ? 'По типам урона: '+escapeHtml(Object.keys(cur.defenseSubs).map(k=>k+cur.defenseSubs[k]).join(', ')) : ''}</div>`+
@@ -1784,7 +1825,7 @@ const GameTable = (function(){
   }
   function readCombatFields(fd, cur, isPlayerTok, subsState){
     const int = (k, d)=>{ const v = parseInt(String(fd.get(k)), 10); return isFinite(v) ? v : d; };
-    const out = { trauma:int('trauma', cur.trauma||0), traumaRed:int('traumaRed', cur.traumaRed||0), attackMod:int('attackMod', cur.attackMod||0), slowReaction: fd.get('slowReaction')==='on', burning:int('burning', cur.burning||0) };
+    const out = { nature:CREATURE_NATURES[fd.get('nature')] ? fd.get('nature') : tokenNature(cur), trauma:int('trauma', cur.trauma||0), traumaRed:int('traumaRed', cur.traumaRed||0), attackMod:int('attackMod', cur.attackMod||0), slowReaction: fd.get('slowReaction')==='on', burning:int('burning', cur.burning||0) };
     if(isPlayerTok){ out.attackModEnabled = fd.get('attackModEnabled')==='on'; return out; }
     const cat = combatCatalog();
     const wi = fd.get('weapon'), ai = fd.get('armor');
@@ -2347,7 +2388,7 @@ const GameTable = (function(){
     return {base, tags};
   }
   // Постоянные способности существ (AbilityKit): Ирреальный, Инфлятор, Владение, Муштра, Мука, Сыпучая кора, Инерционный щит…
-  function passiveAtk(att, tgt, w){ try{ return typeof AbilityKit!=='undefined' ? AbilityKit.attackPassives(att, tgt, w) : null; }catch(e){ console.warn('[Способности]', e); return null; } }
+  function passiveAtk(att, tgt, w, commit){ try{ return typeof AbilityKit!=='undefined' ? AbilityKit.attackPassives(att, tgt, w, {commit:!!commit}) : null; }catch(e){ console.warn('[Способности]', e); return null; } }
   function secretPart(tgt, unprotected){
     let v = 0; const tags = [];
     if(tgt.attackModEnabled && tgt.attackMod){ v += tgt.attackMod; tags.push(`Мод. цели: ${tgt.attackMod>0?'+':''}${tgt.attackMod}`); }
@@ -2359,6 +2400,36 @@ const GameTable = (function(){
     return characterTorsoDefense(attackerSheet(tgt), muType);
   }
 
+  /* Цели способности существа прямо на карте (кнопка ⚔ у способности, AbilityKit): клик по жетону — цель; набралось
+     n целей — готово (при n > 1 — «Готово» раньше, повторный клик снимает цель). Esc / правый клик — отмена. */
+  let abilityPick = null, pickInfo = null; // {srcId, n, title, rangeM, ids, cur, done}
+  function pickUnder(cur){ return Object.values(st().tokens).find(t=>tokenVisibleHere(t) && t.id!==(abilityPick && abilityPick.srcId) && Math.hypot(t.x-cur.x, t.y-cur.y) <= SIZE_CELLS[t.size]/2) || null; }
+  function pickTargets(o){
+    if(!viewport || !isAuthority()){ if(o && o.done) o.done(null); return; }
+    cancelAll();
+    abilityPick = {srcId:o.srcId || null, n:Math.max(1, o.n || 1), title:o.title || 'Способность', rangeM:o.rangeM || 0, ids:[], cur:null, done:o.done};
+    renderPickInfo(); showHint(); requestRender({fx:true});
+  }
+  function finishPick(ids){ const P = abilityPick; abilityPick = null; renderPickInfo(); showHint(); requestRender({fx:true}); if(P && P.done) P.done(ids); }
+  function handlePickClick(e){
+    const P = abilityPick, t = tokenFromEvent(e);
+    if(!t){ if(e.pointerType==='touch') finishPick(null); else toast('Выберите жетон-цель · Esc — отмена'); return; }
+    if(t.id===P.srcId){ toast('Это само существо — выберите цель'); return; }
+    const i = P.ids.indexOf(t.id); if(i >= 0) P.ids.splice(i, 1); else P.ids.push(t.id);
+    if(P.ids.length >= P.n) finishPick(P.ids.slice()); else { renderPickInfo(); requestRender({fx:true}); }
+  }
+  function renderPickInfo(){
+    const P = abilityPick;
+    if(!P){ if(pickInfo){ pickInfo.remove(); pickInfo = null; } return; }
+    if(!pickInfo){ pickInfo = document.createElement('div'); pickInfo.className = 'at-info at-pick gt-ui';
+      pickInfo.addEventListener('click', (e)=>{ const b = e.target.closest('[data-pk]'); if(!b || !abilityPick) return; e.stopPropagation(); finishPick(b.dataset.pk==='done' ? abilityPick.ids.slice() : null); }); }
+    if(pickInfo.parentNode!==viewport) viewport.appendChild(pickInfo);
+    const names = P.ids.map(id=>{ const t = tok(id); return t ? tokenName(t, vitalsFor(t)) : '?'; });
+    pickInfo.innerHTML = `<b>⚔ ${escapeHtml(P.title)}</b> · ${P.n > 1 ? `цели: <b>${P.ids.length}/${P.n}</b>` : 'выберите цель'}${P.rangeM ? ` · дальность ${P.rangeM} м` : ''}`+
+      (names.length ? `<div class="at-names">${names.map(escapeHtml).join(', ')}</div>` : '')+
+      `<div class="at-hint">${IS_TOUCH_UI ? 'Тап' : 'Клик'} по жетону — цель${P.n > 1 ? ', ещё раз — снять' : ''}. Параметры — как в карточке.</div>`+
+      `<div class="at-btns"><button type="button" class="small" data-pk="cancel">Отмена</button>${P.n > 1 ? `<button type="button" class="small primary" data-pk="done" ${P.ids.length ? '' : 'disabled'}>Готово — ${P.ids.length}</button>` : ''}</div>`;
+  }
   // Атака оружием существа: оружие становится «в руке» жетона (Максимум из книги — через atkSkill), затем выбор цели
   function creatureAttack(id, text, skill, mode){
     const t = tok(id); if(!t || !isAuthority()) return;
@@ -2427,7 +2498,7 @@ const GameTable = (function(){
       const known = attackKnownPart(c, t.w, t.fireMode, range, optikaOn, att.kind==='gm');
       let knownBase = known.base, tags = known.tags;
       if(auth){ const sec = secretPart(tgt, unprot); knownBase += sec.v; tags = tags.concat(sec.tags);
-        const pa = passiveAtk(att, tgt, t.w); if(pa.mod || pa.tags.length){ knownBase += pa.mod; tags = tags.concat(pa.tags); } } // Мастер видит полный Максимум
+        const pa = passiveAtk(att, tgt, t.w); if(pa && (pa.mod || pa.tags.length)){ knownBase += pa.mod; tags = tags.concat(pa.tags); } } // Мастер видит полный Максимум
       _mapAttackCtx = { attackerId:att.id, targetId:tgt.id, weaponIdx:t.weaponIdx, fireMode:t.fireMode, unprotected:unprot, optikaOn,
                         knownBase, tags, rerollOf:null };
       closePopover();
@@ -2482,19 +2553,32 @@ const GameTable = (function(){
   function rollWoundsExpr(v){ const s = String(v==null ? '' : v).trim().replace(/[−–]/g, '-'), m = /^(\d*)[кkdд](\d+)\s*([+-]\s*\d+)?$/i.exec(s);
     if(m){ let t = 0; for(let i=0;i<(+m[1] || 1);i++) t += 1 + Math.floor(Math.random()*(+m[2])); return t + (m[3] ? +m[3].replace(/\s/g, '') : 0); }
     const n = parseInt(s, 10); return isFinite(n) ? n : 0; }
+  // Черты — как у оружия (weaponHitPlan): «мощь» — раны = выпавший к12 (если раны не указаны); «пул» — [КУ существа] к12
+  // на попадание, берётся наибольший пробивший; «разрыв» — +4 раны, если на к20 существа выпало 11+. h.cat, h.roll — бросок существа.
+  // Способности цели: меньше/больше ран (в т. ч. по типу МУ), усиления защиты.
   function applyHitsTo(id, h){
     const tgt = tok(id); if(!tgt || !isAuthority() || !(h && h.n > 0)) return null;
-    const max12 = (h.mu || 0) - targetDefense(tgt, h.muType), thr = tgt.kind==='player' ? 5 : (tgt.traumaThreshold || 5), hits = [];
-    for(let i=0;i<Math.min(30, h.n);i++){ const k12 = randInt(12), pen = max12 >= 1 && k12 <= max12; hits.push({k12, pen, wounds:pen ? Math.max(1, rollWoundsExpr(h.wounds || 1)) : 0, trauma:pen && k12 > thr}); }
+    let pa = null; try{ pa = typeof AbilityKit!=='undefined' ? AbilityKit.hitPassives(tgt) : null; }catch(e){ console.warn('[Способности]', e); }
+    pa = pa || {adj:{}, adjAll:0, defMod:0, tags:[]};
+    const max12 = (h.mu || 0) - targetDefense(tgt, h.muType) - (pa.defMod || 0), thr = tgt.kind==='player' ? 5 : (tgt.traumaThreshold || 5), hits = [];
+    const nat = tokenNature(tgt), per = h.pul ? Math.max(1, h.cat || 1) : 1, rz = h.razryv && (h.roll || 0) >= 11 ? 4 : 0, adj = (pa.adjAll || 0) + (pa.adj[String(h.muType || '').toLowerCase()] || 0);
+    for(let i=0;i<Math.min(30, h.n);i++){
+      const rolls12 = Array.from({length:per}, ()=>randInt(12)), fits = rolls12.filter(k=>k<=max12), pen = max12 >= 1 && fits.length > 0;
+      const k12 = pen ? Math.max(...fits) : Math.max(...rolls12);
+      const wounds = pen ? Math.max(0, Math.max(1, (h.moshh ? k12 : rollWoundsExpr(h.wounds || 1)) + rz) + adj) : 0;
+      hits.push({k12, rolls12:per > 1 ? rolls12 : null, pen, wounds, trauma:pen && k12 > thr && nat!=='void'}); }
     const total = hits.reduce((a, x)=>a + x.wounds, 0), trN = hits.filter(x=>x.trauma).length, patch = {};
     if(trN){ if(h.travma) patch.traumaRed = (tgt.traumaRed || 0) + trN; else patch.trauma = (tgt.trauma || 0) + trN; }
     if(total){ if(tgt.kind==='gm'){ if(tgt.hp!==null && tgt.hp!==undefined) patch.hp = tgt.hp - total; } else changeCharacterHp(tgt.ownerId, -total); }
     if(Object.keys(patch).length) execCommand({c:'token-update', id, patch});
-    const txt = `к12≤${max12} → ${hits.map(x=>`${x.k12} ${x.pen ? 'пробило' : 'не пробило'}${x.trauma ? ' 🦴' : ''}`).join('; ')} · ${total} ${woundsWord(total)}`;
+    const each = hits.length > 1 && hits.some(x=>x.pen && x.wounds!==hits.find(y=>y.pen).wounds);
+    const txt = `к12≤${max12} → ${hits.map(x=>`${x.rolls12 ? `[${x.rolls12.join(', ')}]→` : ''}${x.k12} ${x.pen ? 'пробило' : 'не пробило'}${x.pen && each ? ` (${x.wounds})` : ''}${x.trauma ? (nat==='robot' ? ' 🔧' : ' 🦴') : ''}`).join('; ')} · ${total} ${woundsWord(total)}`
+      + (rz && total ? ' (разрыв +4)' : '') + (pa.tags.length && hits.some(x=>x.pen) ? ` (${pa.tags.join('; ')})` : '');
     return {hits, total, max12, text:txt};
   }
   function addMarkTo(id, k, r){ const t = tok(id); if(!t || !isAuthority() || !MARKS[k]) return;
-    const marks = (t.marks || []).filter(m=>m.k!==k).concat([{k, r:Math.max(0, Math.round(+r || 0))}]); execCommand({c:'token-update', id, patch:{marks}}); }
+    const n = /[кkdд]/i.test(String(r)) ? rollWoundsExpr(r) : Math.round(+r || 0); // «на к6 кругов» — бросок при наложении
+    const marks = (t.marks || []).filter(m=>m.k!==k).concat([{k, r:Math.max(0, n)}]); execCommand({c:'token-update', id, patch:{marks}}); return n; }
   function changeCharacterHp(ownerId, delta){
     if(ownerId===myOwnerId()){
       if(typeof character!=='undefined' && character){
@@ -2546,7 +2630,7 @@ const GameTable = (function(){
       const prev = attackRecords.find(r=>r.attackId===req.rerollOf);
       if(prev && prev.attackerOwner===(from||null)) undoAttack(prev.attackId, true);
     }
-    const pa = passiveAtk(att, tgt, w) || {mod:0, tags:[], adj:{}, adjAll:0, shield:false};
+    const pa = passiveAtk(att, tgt, w, true) || {mod:0, tags:[], adj:{}, adjAll:0, shield:false, defMod:0, muMod:0, firstDmg:0};
     const fullMax = attackKnownPart(c, w, fireMode, range, !!req.optikaOn, att.kind==='gm').base + chosenMod + secretPart(tgt, !!req.unprotected).v + pa.mod;
     let max12Shown = null; // для подробного вида лога (пороги видят только допущенные Мастером)
     const roll = pickD20ForMode(rolls[0], rolls[1], fullMax, mode);
@@ -2560,17 +2644,17 @@ const GameTable = (function(){
       const targetHp = tgt.kind==='gm' ? tgt.hp : (tSheet ? tSheet.hpCurrent : null); // для «раны 6, если у цели 10+ ОЗ»
       const plan = weaponHitPlan(Object.assign({}, w, {speedBonusAvailable:!!req.speedAvailable}), fireMode, roll, ev.category, {targetHp});
       speedUsed = plan.speedUsed;
-      const max12 = (w.mu||0) - (unprotected ? 0 : targetDefense(tgt, w.muType)); max12Shown = max12;
+      const max12 = (w.mu||0) + (pa.muMod||0) - (unprotected ? 0 : targetDefense(tgt, w.muType) + (pa.defMod||0)); max12Shown = max12; // усиления: МУ атакующего, защита цели
       const thr = tgt.kind==='player' ? 5 : (tgt.traumaThreshold || 5);
       for(let i=0;i<plan.hits;i++){
         const rolls12 = Array.from({length:plan.rollsPerHit}, ()=>randInt(12));
         const fits = rolls12.filter(k=>k<=max12);
         const pen = max12>=1 && fits.length>0;
         const k12 = pen ? Math.max(...fits) : Math.max(...rolls12); // «Пул»: лучший — наибольший, что ещё пробивает
-        const h = {k12, pen, wounds: pen ? plan.woundsFor(k12) : 0, trauma: pen && k12>thr, red:false};
+        const h = {k12, pen, wounds: pen ? plan.woundsFor(k12) : 0, trauma: pen && k12>thr && tokenNature(tgt)!=='void', red:false};
         h.red = h.trauma && !!w.travma;
         if(plan.pulShot) h.rolls12 = rolls12;
-        if(h.pen){ const d = pa.adjAll + (pa.adj[String(w.muType || '').toLowerCase()] || 0); if(d) h.wounds = Math.max(0, h.wounds + d); } // раны: способности цели и атакующего
+        if(h.pen){ const d = pa.adjAll + (pa.adj[String(w.muType || '').toLowerCase()] || 0) + (pa.firstDmg && !hits.some(x=>x.pen) ? pa.firstDmg : 0); if(d) h.wounds = Math.max(0, h.wounds + d); } // раны: способности цели и атакующего
         hits.push(h);
       }
       if(pa.shield && hits.length > 1){ const k = randInt(12), drop = Math.min(k, hits.length - 1); hits.splice(hits.length - drop, drop); pa.tags.push(`щит: к12=${k}, отменено ${drop}`); }
@@ -2598,11 +2682,11 @@ const GameTable = (function(){
     if(Object.keys(patch).length) execCommand({c:'token-update', id:tgt.id, patch});
     attackRecords.push(rec); saveAttackRecords();
     recordAndShareQuickRoll({ mapAttack:true, attackId, attacker:attackerName, target:targetName, weaponName:w.name, fireMode, rolls, roll, mode,
-                              success:ev.success, category:ev.category, jammed, unprotected, slow:!!w.slow, hits, total, sec:{max:fullMax, max12:max12Shown}, pnote:pa.tags.join('; ') });
+                              success:ev.success, category:ev.category, jammed, unprotected, slow:!!w.slow, hits, total, robot:tokenNature(tgt)==='robot', sec:{max:fullMax, max12:max12Shown}, pnote:pa.tags.join('; ') });
     if(att.kind==='player' && !ev.success) if(typeof GmAdvice!=='undefined') GmAdvice.event('miss'); // промах атаки игрока
     if(typeof Reactions!=='undefined') Reactions.trigger(roll===12 ? 'crit' : (roll===13 && !ev.success) ? 'fumble' : ev.success ? 'hit' : 'miss', att.id);
     lastAttackReqs[attackId] = {req, from:from || null};
-    if(typeof AbilityKit!=='undefined') setTimeout(()=>{ try{ AbilityKit.onAttack({attackId, attackerId:att.id, targetId:tgt.id, roll, success:ev.success, jammed, fromPlayer:!!from || att.kind==='player'}); }catch(e){ console.warn('[Способности]', e); } }, 0);
+    if(typeof AbilityKit!=='undefined') setTimeout(()=>{ try{ AbilityKit.onAttack({attackId, attackerId:att.id, targetId:tgt.id, roll, success:ev.success, jammed, total, fromPlayer:!!from || att.kind==='player'}); }catch(e){ console.warn('[Способности]', e); } }, 0);
     return {ok:true, success:ev.success, jammed, speedUsed};
   }
   function undoAttack(attackId, asReroll){
@@ -2756,7 +2840,7 @@ const GameTable = (function(){
       const thr = t.kind==='player' ? 5 : (t.traumaThreshold || 5);
       return Array.from({length:Math.max(0, n)}, ()=>{
         const k12 = randInt(12), pen = max12>=1 && k12<=max12;
-        return {k12, pen, wounds: pen ? Math.max(1, part.wounds) : 0, trauma: pen && k12>thr};
+        return {k12, pen, wounds: pen ? Math.max(1, part.wounds) : 0, trauma: pen && k12>thr && tokenNature(t)!=='void'};
       });
     };
     if(spec.thermal){
@@ -2798,7 +2882,7 @@ const GameTable = (function(){
       recVictims.push(rv);
       grand += total;
       const lv = {name: tokenName(t, vitalsFor(t)), bN:v.blast.length, bP:v.blast.filter(h=>h.pen).length, fN:v.frag.length, fP:v.frag.filter(h=>h.pen).length,
-                  total, trauma:traumaN, burn:v.burn, immune:v.immune};
+                  total, trauma:traumaN, robot:tokenNature(t)==='robot', burn:v.burn, immune:v.immune};
       if(t.kind==='gm' && t.hidden){ grand -= total; hiddenNotes.push(`${lv.name}: ${total} ${woundsWord(total)}`); return; } // скрытых в общем логе нет
       logVictims.push(lv);
     });
@@ -2939,12 +3023,16 @@ const GameTable = (function(){
            enterSandbox, exitSandbox, inSandbox:()=>sandbox ? sandbox.kind : null, sandboxDemo, sandboxCombat, captureScene, applyScene, focusOwner,
            submitMapAttack, undoAttack, canUndoAttack, setScene, focusScene, redraw:()=>requestRender({bg:true, draw:true, fx:true}),
            placeToken, creatureAttack, getToken:(id)=>tok(id), vitalsOf:(t)=>vitalsFor(t), updateToken:(id, patch)=>act({c:'token-update', id, patch}),
-           editToken:(id)=>{ const t = tok(id); if(t) openTokenForm(t, null, {x:40, y:60}); }, refreshToolbar:()=>{ if(viewport) renderToolbar(); },
+           pickTargets, editToken:(id)=>{ const t = tok(id); if(t) openTokenForm(t, null, {x:40, y:60}); }, refreshToolbar:()=>{ if(viewport) renderToolbar(); },
            get state(){ return st(); }, get camera(){ return cam; },
            setPaused(on){ paused = !!on; if(viewport) renderTokens(); }, get paused(){ return paused; },
            // переброс атаки с карты (способность существа): прежняя отменяется целиком (rerollOf), новый к20 — здесь
            rerollAttack(attackId){ const r = lastAttackReqs[attackId]; if(!r || !isAuthority()) return {ok:false, reason:'Атака не найдена'};
              const n = r.req.mode==='plain' || !r.req.mode ? 1 : 2, req = Object.assign({}, r.req, {attackId:newId('atk'), rolls:Array.from({length:n}, ()=>randInt(20)), rerollOf:attackId});
+             return resolveAttack(req, r.from); },
+           // та же атака с теми же к20, но с поправкой к Максимуму («Нечеловеческая изворотливость»: −3 к этой атаке)
+           redoAttack(attackId, modDelta){ const r = lastAttackReqs[attackId]; if(!r || !isAuthority()) return {ok:false, reason:'Атака не найдена'};
+             const req = Object.assign({}, r.req, {attackId:newId('atk'), chosenMod:Math.round(num(r.req.chosenMod, 0)) + Math.round(+modDelta || 0), rerollOf:attackId});
              return resolveAttack(req, r.from); },
            applyHitsTo, addMarkTo, rollWoundsExpr, MARKS, ownerIdHere:()=>myOwnerId(), sheetOfToken:(t)=>attackerSheet(t), defenseOf:(t, muType)=>targetDefense(t, muType) };
 })();

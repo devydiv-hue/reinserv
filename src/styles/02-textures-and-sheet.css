@@ -51,6 +51,14 @@
     -webkit-text-stroke:2.6px #fbf4e2; paint-order:stroke fill; box-shadow:0 3px 0 rgba(0,0,0,.5), 0 0 0 1px rgba(246,236,212,.15); }
   body #sheetControls .button-like:hover{ background:#120d0a; color:#fff6e4; -webkit-text-stroke:2.6px #0a0608; }
   body #sheetControls #btnUndo{ background:#0e0a0c; color:#fff6e4; border-color:#8a7a68; -webkit-text-stroke:2.6px #0a0608; }
+  /* Обводка букв выше держится на paint-order:stroke fill (обводка под заливкой). Для HTML-текста Chrome
+     научился этому только в версии 123, а старше (на Windows 7 Chrome не новее 109) рисует толстую обводку
+     поверх букв — подписи кнопок и вкладок превращаются в чёрные кляксы. Отличаем такие браузеры по
+     light-dark() (появился в том же Chrome 123) и просто снимаем обводку: цвета букв и фона и без неё
+     контрастны. */
+  @supports not (color: light-dark(#000, #fff)){
+    *{ -webkit-text-stroke:0 !important; }
+  }
   .wrap{max-width:1180px; margin:0 auto;}
   .topbar h1{ margin-bottom:2px; }
   #btnCharMenu{ display:none; order:5; }

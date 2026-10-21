@@ -190,7 +190,7 @@ const Chronicle = (function(){
       if(!was) return;
       if(hp!=null && was.hp!=null && hp <= 0 && was.hp > 0) add('down', `${name} повержен`);
       else if(hp!=null && was.hp!=null && hp > 0 && was.hp <= 0) add('up', `${name} снова на ногах`);
-      if(tr > was.tr) add('trauma', `${name}: травма (${tr})`);
+      if(tr > was.tr){ const rb = typeof tokenNature==='function' && tokenNature(t)==='robot'; add(rb ? 'breakage' : 'trauma', `${name}: ${rb ? 'поломка' : 'травма'} (${tr})`); }
     });
     [...seen.keys()].forEach(id=>{ if(!alive.has(id)) seen.delete(id); });
     if(typeof session!=='undefined' && session.role==='gm'){
@@ -211,8 +211,8 @@ const Chronicle = (function(){
   }
 
   /* ---------- вкладка «Летопись» на экране Мастера ---------- */
-  const ICON = {roll:'⚄', atk:'🗡', loot:'⛏', init:'⚔', combat:'⚔', round:'↻', down:'☠', up:'✚', trauma:'🦴', grant:'🎁', join:'☺', note:'✎'};
-  const MAIN = new Set(['combat', 'down', 'up', 'trauma', 'grant', 'note', 'loot']);
+  const ICON = {roll:'⚄', atk:'🗡', loot:'⛏', init:'⚔', combat:'⚔', round:'↻', down:'☠', up:'✚', trauma:'🦴', breakage:'🔧', grant:'🎁', join:'☺', note:'✎'};
+  const MAIN = new Set(['combat', 'down', 'up', 'trauma', 'breakage', 'grant', 'note', 'loot']);
   const hhmm = (t)=>new Date(t).toLocaleTimeString('ru-RU', {hour:'2-digit', minute:'2-digit'});
   const dayTxt = (t)=>new Date(t).toLocaleDateString('ru-RU', {day:'numeric', month:'long'});
   function pickSession(){ const l = list(); return l.find(s=>s.id===view.sel) || l[l.length - 1] || null; }
