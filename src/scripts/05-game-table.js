@@ -2117,6 +2117,11 @@ const GameTable = (function(){
     abilityTextsOf(t).forEach(a=>{
       const sent = String(a.x).split(/(?<=[.!?])\s+/).filter(x=>/инициатив/i.test(x)).join(' ');
       if(!sent) return;
+      // существо из листа персонажа: «может … совершить её Упрощённо» (за пси — решает Мастер), «смекалку вместо рефлексов»
+      if(t.creature && t.creature.pc && /смекалк\S*\s+вместо\s+рефлекс/i.test(sent)){ const sm = typeof TargetRolls!=='undefined' ? TargetRolls.npcStat(t, 'smekalka') : refl;
+        if(sm > refl){ refl = sm; notes.push(`${a.n}: смекалка ${sm} вместо рефлексов`); } return; }
+      if(t.creature && t.creature.pc && /может[^.]*Упрощ/i.test(sent) && !/союзник|если\s+(?!боец|персонаж)/i.test(sent)){ const ps = /(\d+)\s+пси/i.exec(sent);
+        adv++; notes.push(`${a.n}: Упрощена${ps ? ` (за ${ps[1]} пси)` : ''}`); return; }
       if(/союзник|может|если|когда|вместо/i.test(sent)){ hints.push(a.n || sent.slice(0, 40)); return; }
       const m = sent.match(/инициатив[^.]*?\+\s*(\d+)/i); if(m){ mod += +m[1]; notes.push(`${a.n} +${m[1]}`); }
       if(/Упрощ/i.test(sent)){ adv++; notes.push(`${a.n}: Упрощена`); }
