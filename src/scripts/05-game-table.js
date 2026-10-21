@@ -1676,6 +1676,7 @@ const GameTable = (function(){
       if(t.creature && typeof Bestiary!=='undefined') items.unshift({id:'card', label:'📖 Карточка существа', run:()=>Bestiary.openFloat(t.id)});
       items.push(...combatMenuItems(t, p));
       if(t.kind==='player') items.push({id:'psi', label:'Изменить Psi…', run:()=>openVitalForm(t, 'psi', p)});
+      if(t.kind==='player' && typeof Bestiary!=='undefined' && attackerSheet(t)) items.push({id:'tobst', label:'📖 В бестиарий…', run:()=>Bestiary.fromSheet(attackerSheet(t), {name:tokenName(t, vitalsFor(t)), player:(session.players[t.ownerId] && session.players[t.ownerId].name) || ''})});
       items.push({id:'size', run:(size)=>act({c:'token-update', id:t.id, patch:{size}}),
         html:`<div class="gt-menu-sizes">${Object.keys(SIZE_CELLS).map(s=>`<button type="button" data-size="${s}" class="${t.size===s?'active':''}">${SIZE_LABELS[s].split(' ')[0]}</button>`).join('')}</div>`});
       if(t.kind==='gm') items.push({id:'hide', label:t.hidden ? 'Показать игрокам' : 'Скрыть от игроков', run:()=>act({c:'token-update', id:t.id, patch:{hidden:!t.hidden}})});

@@ -816,17 +816,18 @@ function maxAttainableCategory(max){
 // формулы «успех при итоге ≤ Максимума», но не полностью независимые от Максимума:
 //  - нат.12 — всегда успех, но его категория — максимально ДОСТИЖИМАЯ при текущем Максимуме
 //    (maxAttainableCategory), а не жёстко КУ3;
-//  - нат.13 — провал с последствиями при Максимуме ≤20; при Максимуме 21 — тоже провал, но БЕЗ
-//    последствий (natConsequences=false); при Максимуме 22 и выше особое правило снимается вовсе —
-//    13 достаточно глубоко в диапазоне успеха, и засчитывается обычный успех (КУ3).
+//  - нат.13 — всегда провал (с последствиями) при Максимуме до 20; при Максимуме 21 и выше перестаёт быть
+//    провалом — обычный успех (КУ3). Так решил Мастер (21.10.2026: «если максимум 21 и выше, 13 перестаёт
+//    быть провалом»); раньше при 21 был «провал без последствий», и у атак с карты и способностей существ —
+//    где Максимум часто ровно 21 — 13 выходило провалом.
 // Категория успеха (КУ1/2/3) для ОБЫЧНОГО (не нат.12/13) успеха делит диапазон 1..20 на трети.
 // Вынесено отдельной функцией, чтобы боковая панель бросков кубов (D20 в ней) считала успех/провал
 // ТЕМ ЖЕ правилом, а не повторяла его копией.
 function evaluateD20Check(roll, max){
   if(roll===12) return {success:true, category:maxAttainableCategory(max), natConsequences:false};
   if(roll===13){
-    if(max>=22) return {success:true, category:3, natConsequences:false}; // 13 всегда >10, КУ3 по обычной формуле
-    return {success:false, category:null, natConsequences: max<21};
+    if(max>=21) return {success:true, category:3, natConsequences:false}; // 13 всегда >10, КУ3 по обычной формуле
+    return {success:false, category:null, natConsequences:true};
   }
   const success = roll<=max;
   const category = success ? (roll<=5?1:roll<=10?2:3) : null;
@@ -858,6 +859,6 @@ function pickD20ForMode(a, b, max, mode){
 // evaluateD20Check) было видно в обоих логах одинаково, а не расходилось по формулировке.
 function natTagText(roll, success, natConsequences){
   if(roll===12) return ' · нат. 12';
-  if(roll===13) return success ? ' · нат. 13 (Макс.≥22 — успех)' : (natConsequences ? ' · нат. 13' : ' · нат. 13 (без последствий)');
+  if(roll===13) return success ? ' · нат. 13 (Макс.≥21 — успех)' : ' · нат. 13';
   return '';
 }

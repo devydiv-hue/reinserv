@@ -239,7 +239,7 @@ const AbilityKit = (function(){
   }
   const memo = new Map();
   function parse(name, text, ctx){
-    ctx = ctx || {}; const key = (ctx.voidish ? 'v' : 'h') + (ctx.pc ? 'p' : '') + (ctx.now ? 'n|' : '|') + (name || '') + '|' + (text || '');
+    ctx = ctx || {}; const key = (ctx.voidish ? 'v' : 'h') + (ctx.pc ? (ctx.pcFeats ? 'pf' : 'p') : '') + (ctx.now ? 'n|' : '|') + (name || '') + '|' + (text || '');
     if(memo.has(key)) return memo.get(key);
     const s = parseRaw(name, text, ctx); memo.set(key, s); if(memo.size > 3000) memo.clear(); return s;
   }
@@ -380,7 +380,7 @@ const AbilityKit = (function(){
     else if((m = /на\s+(\d+)\s+круг/i.exec(t))) s.duration = {base:+m[1]};
     s.areaSpec = areaSpec(t);
     if(s.atk && s.areaSpec && s.areaSpec.shape==='circle') s.areaSpec = null; // у атаки «в пределах N м» — дальность по одной цели
-    s.feats = ctx.chained || ctx.pc ? [] : features(name, t); // постоянные свойства персонажа считает лист, не автоматика существ
+    s.feats = ctx.chained || (ctx.pc && !ctx.pcFeats) ? [] : features(name, t); // свойства персонажа считает лист; у существа из листа (pcFeats) — автоматика существ
     if(s.selfCheck && ((!s.selfCheck.max && !ctx.pc) || s.feats.some(f=>(f.id==='cancelWounds' && f.roll) || f.id==='deathRise'))) s.selfCheck = null; // бросок уже в подсказке
     s.kind = s.check ? 'save' : s.opp ? 'opposed' : s.atk ? 'attack' : (!consEmpty(s.always) || s.always.note) ? 'auto' : s.selfCheck ? 'self' : s.feats.length ? 'passive' : 'text';
     if(s.cat1Only) s.extras.forEach(e=>{ if(e.when==='cat2' || e.when==='le15') e.replace = true; });
@@ -521,7 +521,7 @@ const AbilityKit = (function(){
   /* ---------- отсылки («как морок Нара», «обычную атаку (см. выше)») ---------- */
   const voidishOf = (tpl)=>!!tpl && (/Пустот/i.test(tpl.group || '') || /пустот/i.test(tpl.name || ''));
   function resolved(name, text, tpl){
-    const ctx = {voidish:voidishOf(tpl)}, s = parse(name, text, ctx);
+    const ctx = {voidish:voidishOf(tpl), pc:!!(tpl && tpl.pc), pcFeats:!!(tpl && tpl.pc)}, s = parse(name, text, ctx);
     if(!s.ref) return s;
     const stem = (x)=>String(x || '').toLowerCase().replace(/ё/g, 'е').replace(/\s*\(.*$/, '').trim().split(/\s+/).map(w=>w.length > 4 ? w.slice(0, -2) : w).join(' ');
     const want = stem(s.ref), match = (a)=>stem(a[0]);
@@ -558,6 +558,12 @@ const AbilityKit = (function(){
     return set;
   }
 
+  // Свой бросок существа: Максимум из книги («(13)») или — у существа из листа персонажа — 10 + характеристика + модификатор
+  function selfMax(tok, s){
+    const c = s.selfCheck; if(!c) return null; if(c.max) return c.max;
+    if(!s.pc || !tok || typeof TargetRolls==='undefined') return null;
+    return 10 + TargetRolls.npcStat(tok, c.stat==='hladnokrovie' ? 'volya' : c.stat) + (c.mod || 0);
+  }
   /* ---------- карточка существа: плашки, кнопки ---------- */
   // key — 'a<i>' способность или 'm<таблица>-<строка>' ход пустоты; tpl — шаблон (для отсылок и «персонажа» у пустот)
   function rowHtml(tok, key, name, text, tpl){
@@ -571,7 +577,8 @@ const AbilityKit = (function(){
     if(canFire && tok) btns.push(`<button type="button" class="bst-mini ak-atk" data-ak-atk="${esc(key)}" data-tok="${esc(tok.id)}" title="Атака: ${s.areaSpec && s.areaSpec.shape!=='all' ? 'область на карте — видно, кого задевает' : s.areaSpec ? 'все на поле' : 'цель — кликом по жетону на карте'}; параметры — как в карточке">⚔</button>`);
     if(canFire) btns.push(`<button type="button" class="bst-mini ak-go" data-ak-go="${esc(key)}" ${tok ? `data-tok="${esc(tok.id)}"` : ''} title="Креативное использование способности">★</button>`);
     const buff = (s.feats || []).find(f=>f.id==='buff');
-    if(tok && s.selfCheck && s.selfCheck.max && !s.opp) btns.push(`<button type="button" class="bst-mini" data-ak-self="${esc(key)}" data-tok="${esc(tok.id)}" title="Бросок существа к20 против Максимума ${s.selfCheck.max}${buff && buff.spec.viaRoll ? ' — при успехе включится усиление' : ''}">🎲 ${s.selfCheck.max}</button>`);
+    const sm = selfMax(tok, s); // у существа из листа свой бросок перед целями делает ⚔ — отдельная 🎲 только без целей
+    if(tok && sm!=null && !s.opp && !(s.pc && canFire)) btns.push(`<button type="button" class="bst-mini" data-ak-self="${esc(key)}" data-tok="${esc(tok.id)}" title="Бросок существа к20 против Максимума ${sm}${buff && buff.spec.viaRoll ? ' — при успехе включится усиление' : ''}">🎲 ${sm}</button>`);
     if(tok && buff && !buff.spec.viaRoll) btns.push(`<button type="button" class="bst-mini" data-ak-buff="${esc(key)}" data-tok="${esc(tok.id)}" title="Включить: ${esc(buffLabel(buff.spec))}">▶ включить</button>`);
     const active = tok ? buffsOf(tok.id).find(b=>b.key===key) : null;
     const activeHtml = active ? `<span class="ak-chip ak-on">✦ активно${active.oneShot ? ' (на одну)' : active.left ? `: ещё ${active.left} кр.` : ''}<button type="button" class="ak-mini" data-ak-unbuff="${esc(key)}" data-tok="${esc(tok.id)}" title="Снять">✕</button></span>` : '';
@@ -611,7 +618,12 @@ const AbilityKit = (function(){
     if(typeof toggleMainTab==='function') toggleMainTab('table');
     const go = (ids)=>{ hidden.forEach(el=>{ el.style.visibility = ''; }); if(!ids) return;
       if(!ids.length && !(s.areaSpec && s.areaSpec.shape==='all')){ uiToast('В области нет целей', {icon:'⚔'}); return; }
-      TargetRolls.open({src:tokId, targets:ids, title, prefill:s, auto:true, onFired:()=>{ if(s.uses){ bump(tokId, key, 1); refreshCard(); } }}); };
+      // существо из листа: сначала свой бросок («совершает Бросок мистики (−6), в случае успеха…»), провал — без эффекта
+      let pcRoll = null; const sm = s.pc && !s.opp ? selfMax(gt.getToken(tokId), s) : null;
+      if(sm!=null){ const r = rollCreature(gt.getToken(tokId), title, sm, 'plain');
+        if(!r.success){ if(s.uses){ bump(tokId, key, 1); refreshCard(); } uiToast(`«${title}»: к20=${r.roll} / Макс.${sm} — провал, способность не сработала`, {icon:'⚔'}); return; }
+        pcRoll = {label:CHECK_LABEL(s.selfCheck), opp:false, rolls:[r.roll], mode:'plain', base:sm, roll:r.roll, success:true, cat:r.cat}; }
+      TargetRolls.open({src:tokId, targets:ids, title, prefill:s, auto:true, pcRoll, onFired:()=>{ if(s.uses){ bump(tokId, key, 1); refreshCard(); } }}); };
     const a = s.areaSpec;
     if(a && a.shape==='all'){ go([]); return; }
     setTimeout(()=>{ if(a && typeof AreaTemplates!=='undefined') AreaTemplates.pick(a, tokId, title, go);
@@ -627,8 +639,8 @@ const AbilityKit = (function(){
   async function selfRoll(tokId, tpl, key){
     const gt = GTk(), tok = gt && gt.getToken(tokId), ab = abilityByKey(tpl, key); if(!tok || !ab) return;
     const s = resolved(ab.name, ab.text, tpl); if(!(await checkUses(tokId, key, s, ab))) return;
-    const sc = s.selfCheck, mode = /Упрощ\S*\s+Брос/i.test(ab.text) ? 'advantage' : /Осложн\S*\s+Брос/i.test(ab.text) ? 'disadvantage' : 'plain';
-    const r = rollCreature(tok, ab.name.replace(/\s*\([^)]*\)\s*$/, ''), sc.max, mode);
+    const mode = /Упрощ\S*\s+Брос/i.test(ab.text) ? 'advantage' : /Осложн\S*\s+Брос/i.test(ab.text) ? 'disadvantage' : 'plain';
+    const r = rollCreature(tok, ab.name.replace(/\s*\([^)]*\)\s*$/, ''), selfMax(tok, s), mode);
     if(s.uses) bump(tokId, key, 1);
     const buff = (s.feats || []).find(f=>f.id==='buff' && f.spec.viaRoll);
     if(buff && r.success){ addBuff(tokId, key, ab.name.replace(/\s*\([^)]*\)\s*$/, ''), buff.spec, r.cat); uiToast(`«${ab.name}»: успех, КУ${r.cat} — ${buffLabel(buff.spec)}`, {icon:'✦'}); }

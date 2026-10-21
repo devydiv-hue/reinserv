@@ -893,7 +893,8 @@ const Bestiary = (function(){
         rows:arr(tb.rows, 40).map(r=>Array.isArray(r) ? [S(r[0], 12), S(r[1], 2000)] : null).filter(Boolean)} : null).filter(tb=>tb && tb.rows.length),
       notes:S(t.notes, 3000), color:/^#[0-9a-f]{6}$/i.test(t.color||'') ? t.color.toLowerCase() : '',
       quick:!!t.quick, pen:+t.pen===6 ? 6 : 3, strong:S(t.strong, 600),
-      nature:['living', 'void', 'robot'].indexOf(t.nature) >= 0 ? t.nature : '' // пусто — по группе и способностям (creatureNature)
+      nature:['living', 'void', 'robot'].indexOf(t.nature) >= 0 ? t.nature : '', // пусто — по группе и способностям (creatureNature)
+      pc:!!t.pc // из листа персонажа: способности разбираются как у персонажа (свой бросок — по характеристикам существа)
     };
   }
   const builtin = BESTIARY_BUILTIN.map(sanitizeTpl).filter(Boolean);
@@ -1356,7 +1357,8 @@ const Bestiary = (function(){
           <div class="bst-side-btns">
             <button type="button" class="small" data-m="new">+ Существо</button>
             <button type="button" class="small" data-m="quick">+ Быстрый противник</button>
-            <button type="button" class="small" data-m="import">Импорт</button>
+            <button type="button" class="small" data-m="sheet" title="Существо из листа персонажа: своего, игрока или из файла">Из листа…</button>
+            <button type="button" class="small" data-m="import" title="Файл бестиария или сохранение листа персонажа (.json)">Импорт</button>
             <button type="button" class="small" data-m="export">Экспорт</button>
           </div>
           <div class="bst-side-list"></div>
@@ -1389,6 +1391,7 @@ const Bestiary = (function(){
         uiToast(`«${tpl.name}» удалено из бестиария`, {icon:'✕', action:{label:'Отменить', run:()=>{ userList.splice(Math.min(at, userList.length), 0, own); saveUser(); prefs.sel = own.id; savePrefs(); render(); }}}); } break;
       case 'place': if(tpl) placeOnTable(tpl, null, null, true); break;
       case 'import': view.querySelector('[data-f=file]').click(); break;
+      case 'sheet': pickSheet(); break;
       case 'export': exportJson(); break;
       case 'void': { const t = generateVoid(); prefs.sel = t.id; viewMove = null; savePrefs(); render(); note(`Создана «${t.name}»`); break; }
     }
@@ -1405,6 +1408,7 @@ const Bestiary = (function(){
     const rd = new FileReader();
     rd.onload = ()=>{
       let data; try{ data = JSON.parse(rd.result); }catch(err){ note('Это не JSON-файл бестиария'); return; }
+      if(data && data.character && data.character.stats){ fromSheet(data.character, data.extra || {}); return; } // сохранение листа персонажа
       const list = arr(Array.isArray(data) ? data : data && data.creatures, 2000).map(sanitizeTpl).filter(Boolean);
       if(!list.length){ note('В файле нет существ'); return; }
       let added = 0, replaced = 0;
@@ -1412,6 +1416,93 @@ const Bestiary = (function(){
       if(saveUser()){ note(`Импорт: новых ${added}, обновлено ${replaced}`); render(); }
     };
     rd.readAsText(f);
+  }
+
+  /* ---------- из листа персонажа ----------
+     Лист (свой, копия листа игрока у Мастера, файл сохранения .json) → шаблон существа, который открывается в
+     конструкторе — проверить и сохранить. Тело и личность — как в книге: общее значение и отличающиеся; навыки и
+     знания — ненулевые; ОЗ — максимум листа, Защ — надетая броня торса (иначе поле «Защита (тело)»), Бег — лёгкая
+     атлетика (по пескам −3), Рз — размер. Оружие из слотов и инвентаря — «Название [свойства]» с Максимумом атаки
+     (и парирования) по навыку боя; надетая броня, остальное снаряжение — строкой; способности — как в листе;
+     пси, пси-сопротивление, достоинства и недостатки — в примечании. */
+  const signed = (v)=>v < 0 ? '−' + Math.abs(v) : String(v);
+  const lowFirst = (s)=>s ? s[0].toLowerCase() + s.slice(1) : s; // «путник на Равнине»
+  function sheetStatList(c, keys){ return keys.map(k=>`${lowFirst(STAT_LABELS[k])} ${signed(c.stats[k] || 0)} (${10 + (c.stats[k] || 0)})`).join(', '); }
+  // «3 (13): рефлексы 4 (14).» — общее значение группы (самое частое) и те, что от него отличаются
+  function sheetGroupLine(c, keys){
+    const cnt = {}; keys.forEach(k=>{ const v = c.stats[k] || 0; cnt[v] = (cnt[v] || 0) + 1; });
+    const base = +Object.keys(cnt).sort((a, b)=>cnt[b] - cnt[a] || keys.findIndex(k=>(c.stats[k] || 0)===+a) - keys.findIndex(k=>(c.stats[k] || 0)===+b))[0];
+    const diff = keys.filter(k=>(c.stats[k] || 0)!==base);
+    return `${signed(base)} (${10 + base}): ${diff.length ? sheetStatList(c, diff) : 'нет'}.`;
+  }
+  const itemName = (s)=>cap(String(s || '').split(/\s+—\s+|[,;(]/)[0].trim()); // «Огниво и 2 факела, горят 15 минут…» → «Огниво и 2 факела»
+  // строка оружия книги: Максимум атаки = 10 + навык боя + Ат (если в тексте его ещё нет)
+  function sheetWeaponLine(c, text){
+    const p = parseWeaponStats(text); if(!p) return null;
+    const sk = weaponCombatSkill({name:p.cleanName, dl:p.dl, sl:p.sl}), v = sk ? (c.stats[sk] || 0) : 0;
+    let st = p.statText.replace(/\[/g, '(').replace(/\]/g, ')').replace(/\.\s*$/, '');
+    if(!/Ат\s*[+−-]\s*\d+\s*\(\d+\)/.test(st)) st = st.replace(WEAPON_AT_RE, (m)=>`${m} (${10 + v + p.at})`);
+    if(p.pr!=null && !/Пр\s*[+−-]\s*\d+\s*\(\d+\)/.test(st)) st = st.replace(WEAPON_PR_RE, (m)=>`${m} (${10 + v + p.pr})`);
+    return `${cap(p.cleanName)} [${st}]`;
+  }
+  // слот без текста свойств (вписан вручную) — свойства из полей слота
+  function slotText(w){
+    if(w.itemNameSnapshot) return w.itemNameSnapshot;
+    const props = String(w.properties || '').replace(/<[^>]*>/g, '').trim();
+    if(WEAPON_AT_RE.test(props) && WEAPON_MU_RE.test(props)) return `${w.name} — ${props}`;
+    const parts = [w.dl!=null ? `Дл ${w.dl}` : '', `Ат ${w.at >= 0 ? '+' : '−'}${Math.abs(w.at || 0)}`, w.pr!=null ? `Пр ${w.pr >= 0 ? '+' : '−'}${Math.abs(w.pr)}` : '',
+      `МУ ${w.mu || 0}${w.muType ? ' ' + w.muType : ''}`, w.sl!=null ? `Сл ${w.sl}` : '', w.hasExplicitWounds ? `раны ${w.wounds}` : '', props].filter(Boolean);
+    return `${w.name} — ${parts.join(', ')}`;
+  }
+  function sheetToTpl(c, hint){
+    hint = hint || {}; const st = c.stats || {}, inv = c.inventory || {}, items = ['on_body', 'pockets', 'backpack', 'tiny'].flatMap(k=>inv[k] || []);
+    const name = String(hint.name || c.name || '').trim() || 'Персонаж';
+    const arch = typeof ARCHETYPES!=='undefined' && ARCHETYPES[c.archetypeKey], sub = arch && arch.subtypes && arch.subtypes[c.subtypeKey];
+    const origin = typeof ORIGINS!=='undefined' && ORIGINS[c.originKey], career = typeof CAREERS!=='undefined' && CAREERS[c.careerKey];
+    const hp = 3 + (st.vynoslivost || 0) + (c.size || 0) + (c.bonusHpMax || 0), psi = 3 + (st.duh || 0) + (c.bonusPsiMax || 0), la = st.legkaya_atletika || 0;
+    // защита: лучшая надетая броня на торсе
+    let def = null;
+    items.forEach(it=>{ if(!it.wornZones || it.wornZones.indexOf('tors') < 0) return; const a = parseArmorStats(it.name); if(a && (!def || a.base > def.base)) def = a; });
+    const gear = [], used = new Set();
+    (c.weapons || []).forEach(w=>{ if(!w || !w.name) return; const l = sheetWeaponLine(c, slotText(w)); if(l){ gear.push(l); if(w.itemId) used.add(w.itemId); } });
+    items.forEach(it=>{ if(used.has(it.id)) return; const l = sheetWeaponLine(c, it.name); if(l && gear.indexOf(l) < 0){ gear.push(l); used.add(it.id); } });
+    items.forEach(it=>{ if(used.has(it.id) || !(it.wornZones && it.wornZones.length) || !parseArmorStats(it.name)) return;
+      const i = it.name.indexOf(' — '); gear.push(i > 0 ? `${cap(it.name.slice(0, i))} [${it.name.slice(i + 3).replace(/\[/g, '(').replace(/\]/g, ')').replace(/\.\s*$/, '')}]` : it.name); used.add(it.id); });
+    const rest = items.filter(it=>!used.has(it.id)).map(it=>itemName(it.name)).filter(Boolean);
+    if(rest.length) gear.push(('Снаряжение: ' + rest.join(', ') + '.').slice(0, 1800));
+    const abil = (c.abilities || []).map(a=>[S(a.name, 120), S((a.text || '') + (a.enhancedText ? ` Усилено (${a.enhancedSource || ''}): ${a.enhancedText}` : ''), 3000)]).filter(a=>a[0] || a[1]);
+    if((+c.psiSoprot || 12) > 12) abil.unshift(['Пси-сопротивление', `пси-сопротивление +${+c.psiSoprot - 12}.`]); // так его прочитает «Бросок цели»
+    if(abil.length > 40){ const n = abil.length - 39; abil.length = 39; abil.push(['Ещё способности', `ещё ${n} — в листе персонажа.`]); }
+    const list = (xs)=>(xs || []).map(x=>x && String(x.text || '').trim().replace(/\.+$/, '')).filter(Boolean).join('; ');
+    const notes = [`Из листа персонажа${hint.player ? ` (игрок ${hint.player})` : ''}, ${new Date().toLocaleDateString()}.`,
+      `Пси ${psi}, пси-сопротивление ${+c.psiSoprot || 12}, удача ${c.luck==null ? 1 : c.luck}${c.appearance ? `, внешность ${signed(c.appearance)}` : ''}${c.siz ? `, СИЗ ${signed(c.siz)}` : ''}.`,
+      list(c.advantages) ? 'Достоинства: ' + list(c.advantages) + '.' : '', list(c.flaws) ? 'Недостатки: ' + list(c.flaws) + '.' : ''].filter(Boolean).join('\n');
+    return sanitizeTpl({id:newTplId(), name, group:'Персонажи', faction:[arch && arch.name, sub && sub.name].filter(Boolean).join(' · '),
+      desc:[arch ? `${arch.name}${sub ? ` (${sub.name})` : ''}, уровень ${c.level || 0}.` : '', origin ? `Происхождение — ${origin.name}.` : '', career ? `Карьера — ${career.name}.` : ''].filter(Boolean).join(' '),
+      oz:String(Math.max(1, hp)), def:def ? def.base + (def.subs.length ? ` (${def.subs.join(', ')})` : '') : String((c.armor && +c.armor.body) || 0),
+      run:`${10 + la}/${7 + la}`, rz:c.size || 0, squad:0, nature:'living', pc:true,
+      body:sheetGroupLine(c, BODY), mind:sheetGroupLine(c, PERSONALITY),
+      skills:sheetStatList(c, ADV_SKILLS.concat(COMBAT_SKILLS).filter(k=>st[k])) + (ADV_SKILLS.concat(COMBAT_SKILLS).some(k=>st[k]) ? '.' : ''),
+      know:sheetStatList(c, CULTURE.concat(NEWWORLD, OLDWORLD).filter(k=>st[k])) + (CULTURE.concat(NEWWORLD, OLDWORLD).some(k=>st[k]) ? '.' : ''),
+      abil, gear, chances:[], tables:[], notes});
+  }
+  function fromSheet(c, hint){
+    if(!c || !c.stats){ note('Лист пустой — сначала создайте персонажа'); return; }
+    if(isPlayerRole()) return;
+    const tpl = sheetToTpl(c, hint); if(tpl) openEditor(tpl, false, {fresh:true});
+  }
+  // «Из листа…»: свой лист, листы подключённых игроков (копии у Мастера) или файл сохранения
+  async function pickSheet(){
+    const own = typeof character!=='undefined' && character ? {c:character, hint:{name:(document.getElementById('fName') || {}).value, player:(document.getElementById('fPlayer') || {}).value}} : null;
+    const ps = typeof session!=='undefined' ? Object.keys(session.players || {}).map(id=>({id, p:session.players[id]})).filter(x=>x.p && x.p.character) : [];
+    const btns = [{label:'Отмена', value:null}];
+    if(own) btns.push({label:`Мой лист «${own.hint.name || 'без имени'}»`, value:'own'});
+    ps.forEach(x=>btns.push({label:`Игрок «${(x.p.extra && x.p.extra.name) || x.p.name || 'Игрок'}»`, value:'p:' + x.id}));
+    btns.push({label:'Файл персонажа…', value:'file', primary:true});
+    const v = await uiDialog({title:'Существо из листа персонажа', icon:'📖', text:'Карточка откроется в конструкторе — проверьте и сохраните. Из файла — сохранение листа (.json, «Экспорт в файл»).', cancelValue:null, buttons:btns});
+    if(v==='own') fromSheet(own.c, own.hint);
+    else if(v==='file') view.querySelector('[data-f=file]').click();
+    else if(v && v.indexOf('p:')===0){ const p = session.players[v.slice(2)]; if(p) fromSheet(p.character, {name:(p.extra && p.extra.name) || p.name, player:p.extra && p.extra.player}); }
   }
 
   /* ---------- конструктор ---------- */
@@ -1435,8 +1526,8 @@ const Bestiary = (function(){
   function chancesToText(c){ return c.map(x=>`${x[0]}/${x[1]} | ${x[2]}${x[3] && x[3].def!=null ? ' | защита ' + x[3].def : ''}`).join('\n'); }
   function textToChances(s){ return String(s||'').split('\n').map(l=>{ const m = l.trim().match(/^(\d+)\s*(?:\/|из)\s*(\d+)\s*\|\s*([^|]*?)\s*(?:\|\s*защита\s*(\d+))?\s*$/i); return m ? [+m[1], +m[2], m[3], m[4]!=null ? {def:+m[4]} : null] : null; }).filter(Boolean); }
   let editorEl = null;
-  function openEditor(tpl, quick){
-    closeEditor();
+  function openEditor(tpl, quick, opts){
+    closeEditor(); opts = opts || {};
     const t = tpl || {name:'', group:'Мои существа', faction:'', desc:'', oz:quick ? '3' : '5', def:'0', run:'13/10', rz:0, squad:3, seals:false,
       body:'3 (13): нет.', mind:'3 (13): нет.', skills:'', know:'', abil:[], gear:[], chances:[], tables:[], notes:'', color:'', quick, pen:3, strong:''};
     const f = (name, label, val, attrs)=>`<label class="bst-f"><span>${label}</span><input type="text" name="${name}" value="${esc(val)}" ${attrs||''}></label>`;
@@ -1444,7 +1535,7 @@ const Bestiary = (function(){
     editorEl = document.createElement('div');
     editorEl.className = 'bst-modal';
     editorEl.innerHTML = `<form class="bst-modal-box panel" autocomplete="off">
-      <h2>${tpl ? 'Изменить' : 'Новое'} ${quick ? '— быстрый противник' : 'существо'}</h2>
+      <h2>${opts.fresh ? 'Новое существо из листа персонажа' : (tpl ? 'Изменить' : 'Новое') + (quick ? ' — быстрый противник' : ' существо')}</h2>
       <div class="bst-grid">
         ${f('name', 'Название *', t.name, 'required maxlength="60"')}${f('group', 'Группа', t.group, 'maxlength="60"')}${f('faction', 'Фракция', t.faction, 'maxlength="60"')}
         <label class="bst-f"><span>Природа</span><select name="nature" title="Травмы — у гуманоидов и животных; у пустот травм нет; у роботов вместо травм — поломки">
@@ -1484,7 +1575,9 @@ const Bestiary = (function(){
       const t2 = collect(); if(!t2){ note('Нужно название'); return null; }
       const i = userList.findIndex(u=>u.id===t2.id); if(i>=0) userList[i] = t2; else userList.push(t2);
       if(!saveUser()) return null;
-      prefs.sel = t2.id; savePrefs(); closeEditor(); render(); renderDock(); return t2;
+      prefs.sel = t2.id; savePrefs(); closeEditor(); render(); renderDock();
+      if(opts.fresh) uiToast(`«${t2.name}» — в бестиарии, группа «${t2.group}»`, {icon:'📖'});
+      return t2;
     };
     form.addEventListener('submit', (e)=>{ e.preventDefault(); save(); });
     form.querySelector('[data-x]').onclick = closeEditor;
@@ -1671,16 +1764,19 @@ const Bestiary = (function(){
   function isPlayerRole(){ return typeof session!=='undefined' && session.role==='player'; }
   function refreshRole(){
     const btn = document.getElementById('tabBtnBestiary'); if(btn) btn.style.display = isPlayerRole() ? 'none' : '';
+    const sb = document.getElementById('btnSheetToBestiary'); if(sb) sb.style.display = isPlayerRole() ? 'none' : '';
     if(isPlayerRole()){ if(dockEl) dockEl.style.display = 'none'; closeFloat(); if(visible && typeof toggleMainTab==='function') toggleMainTab('sheet'); }
     if(visible) render();
   }
   function setVisible(v){ visible = !!v; if(visible) render(); }
   function onTableShown(){ if(prefs.dock && !isPlayerRole()){ ensureDock(); if(dockEl){ dockEl.style.display = ''; renderDock(); fitBelowBars(dockEl); } } floats.forEach(placeFloat); }
   function onTableChanged(){ if(floats.length) renderFloat(true); }
-  function init(){ view = document.getElementById('bestiaryTabView'); refreshRole(); }
+  function init(){ view = document.getElementById('bestiaryTabView'); refreshRole();
+    const sb = document.getElementById('btnSheetToBestiary');
+    if(sb) sb.addEventListener('click', ()=>fromSheet(typeof character!=='undefined' ? character : null, {name:(document.getElementById('fName') || {}).value, player:(document.getElementById('fPlayer') || {}).value})); }
   return { init, setVisible, refreshRole, onTableShown, onTableChanged, toggleDock, openFloat, closeFloat,
            tokenWeapons:(t)=>t && t.creature ? instWeapons(t.creature, t.creature.inst) : [], get dockOpen(){ return !!prefs.dock; },
-           list:all, byId, makeTokenFields, sanitizeTpl, parseDef, itemsIn, selId:()=>prefs.sel, refreshFloat:()=>{ renderFloat(); try{ render(); }catch(e){} } };
+           list:all, byId, makeTokenFields, sanitizeTpl, parseDef, itemsIn, selId:()=>prefs.sel, fromSheet, sheetToTpl, refreshFloat:()=>{ renderFloat(); try{ render(); }catch(e){} } };
 })();
 try{ Bestiary.init(); }catch(e){ console.error('[Бестиарий] не удалось запустить', e);
   const v = document.getElementById('bestiaryTabView');
