@@ -14,6 +14,9 @@
      характеристикой и модификатором; результат сам уходит Мастеру. За NPC и встречные проверки бросает приложение.
    - Панель результатов у Мастера: кто прошёл и кто провалил; последствия — только после «Применить».
      Невосприимчивость существ к состояниям («Робот», «Неистовство») учитывается при применении.
+   - Способность персонажа (22-pc-abilities.js): opts.pcRoll — его уже сделанный бросок. Встречная («Бросок мистики против
+     воли цели») — те же к20 против Максимума персонажа минус характеристика каждой цели; «[категория успеха] попаданий»,
+     «[6 ОЗ за категорию успеха]», длительность — по категории успеха персонажа.
    Сообщения: tr-req (Мастер → игрок), tr-res (игрок → Мастер).
    ====================================================================== */
 const TargetRolls = (function(){
@@ -219,9 +222,11 @@ const TargetRolls = (function(){
         if(on('self')) req.selfCost = sp.selfCost;
         req.notes = sp.notes || [];
       }
+      req.pcRoll = formEl._pcRoll;
       const fired = formEl._onFired; closeForm(); start(req, targets); if(fired) try{ fired(); }catch(err){}
     });
     formEl.addEventListener('keydown', (e)=>{ if(e.key==='Escape'){ e.stopPropagation(); closeForm(); } });
+    formEl._pcRoll = opts.pcRoll || null;
     if(opts.prefill) prefill(opts.prefill, q, (m)=>{ formEl.querySelector(`.tr-mode [data-mode="${m}"]`).click(); }, src);
     formEl._onFired = opts.onFired || null;
     if(opts.auto){ formEl.style.display = 'none'; q('[data-x="go"]').click(); if(formEl) formEl.style.display = ''; return; } // не прошло (нет целей) — форма для правки
@@ -232,7 +237,8 @@ const TargetRolls = (function(){
     const set = (f, v)=>{ const el = q(`[data-f="${f}"]`); if(el && v!=null){ el.value = v; el.dispatchEvent(new Event('change', {bubbles:true})); } };
     const auto = s.kind==='auto';
     if(auto) setMode('auto');
-    else if(s.opp || s.atk){ setMode('creature'); set('max', (s.opp || s.atk).max); set('vs', s.opp ? s.opp.vs : ''); if(s.atk && s.atk.n) set('an', s.atk.n); }
+    else if(s.opp || s.atk){ setMode('creature'); const pr = formEl._pcRoll;
+      set('max', s.opp && s.opp.pc ? (pr ? pr.base : (src ? 10 + statValue(src, s.opp.stat) : 10) + (s.opp.mod || 0)) : (s.opp || s.atk).max); set('vs', s.opp ? s.opp.vs : ''); if(s.atk && s.atk.n) set('an', s.atk.n); }
     else if(s.check){ set('stat', s.check.stat); set('mod', s.check.mod || 0); if(s.check.n) set('n', s.check.n); if(s.check.rmode) set('rmode', s.check.rmode);
       if(s.check.vsSrc && src){ const v = statValue(src, s.check.vsSrc.stat) + s.check.vsSrc.bonus; set('mod', Math.max(-21, -v)); } } // «против воли пустоты»
     const c = auto ? (s.always || {}) : (s.cons || {});
@@ -271,6 +277,17 @@ const TargetRolls = (function(){
     if(max < 0) return {roll:0, max, success:false, cat:null, mode:'plain', rolls:[], impossible:true};
     const r1 = 1 + Math.floor(Math.random()*20), r2 = 1 + Math.floor(Math.random()*20), m = mode || 'plain';
     const r = m==='plain' ? r1 : pickD20ForMode(r1, r2, max, m), ev = evaluateD20Check(r, max); return {roll:r, max, success:ev.success, cat:ev.category, mode:m, rolls:m==='plain' ? [r1] : [r1, r2]}; }
+  // к20 уже брошены игроком: при Упрощении/Осложнении лучшая/худшая из двух — по Максимуму этой цели
+  function fixedD20(p, max){
+    if(max < 0) return {roll:0, max, success:false, cat:null, mode:'plain', rolls:[], impossible:true};
+    const m = p.mode || 'plain', rr = p.rolls, r = m==='plain' || rr.length < 2 ? rr[0] : pickD20ForMode(rr[0], rr[1], max, m), ev = evaluateD20Check(r, max);
+    return {roll:r, max, success:ev.success, cat:ev.category, mode:rr.length < 2 ? 'plain' : m, rolls:rr.slice()}; }
+  const pcRollText = (r)=>{ const p = r.pcRoll; if(!p) return ''; const md = p.mode==='advantage' ? ', Упрощённо' : p.mode==='disadvantage' ? ', Осложнённо' : '';
+    return p.opp ? `${p.label}: к20 ${p.rolls.join(', ')}${md} · Макс. ${p.base} − характеристика цели` : `${p.label}: к20=${p.roll} / Макс.${p.base}${md} — успех, КУ${p.cat}`; };
+  // категория успеха: свой бросок персонажа (до цели) или — во встречной и атаке — по каждой цели
+  const catOf = (x)=>cur && cur.pcRoll && !cur.pcRoll.opp && cur.mode!=='creature' ? cur.pcRoll.cat : x.cat;
+  const catExpr = (v, cat)=>String(v==null ? '' : v).replace(/(\d+)\s*[×x*]\s*кат\S*/i, (m, n)=>String(+n * Math.max(1, cat || 1)));
+  const catWounds = (v, cat)=>{ const m = /^(?:(\d+)\s*\+\s*)?кат\S*$/i.exec(String(v || '').trim()); return m ? String((+m[1] || 0) + Math.max(1, cat || 1)) : v; }; // «1+кат»
   const checkLabel = (r)=>r.mode==='auto' ? `${r.src}: без броска` : r.mode==='creature' ? (r.vs ? `${r.src}: Максимум ${r.max} против ${(VS.find(v=>v[0]===r.vs) || [, r.vs])[1]} цели` : `${r.src}: Максимум ${r.max}`) :
     (r.stat==='psi_plus' ? `Проверка с Максимумом [${r.n} + пси-сопротивление]` : r.stat==='psi_cur_plus' ? `Проверка с Максимумом [${r.n} + текущие пси]` : `${LABEL[r.stat]} (${sgn(r.mod)})`);
   function start(req, ids){
@@ -283,7 +300,7 @@ const TargetRolls = (function(){
       req.rows.push(row);
       if(req.tgtFilter){ const f = req.tgtFilter, v = statValue(t, f.stat); if(f.le ? v > f.n : v < f.n){ Object.assign(row, {status:'done', roll:0, affected:false, apply:false, cat:null, pnote:`не действует: ${f.text.replace(/^\S+\s+с\s+/i, '')} — у цели ${v}`}); return; } }
       if(req.mode==='auto'){ Object.assign(row, {status:'done', roll:0, affected:true, apply:true}); return; }
-      if(req.mode==='creature'){ const sv = statValue(t, req.vs), s0 = req.atk && ak && req.srcId ? gt.getToken(req.srcId) : null, am = s0 ? ak.abilityAtkMod(s0, t) : {mod:0, tags:[]}, r = rollD20(req.max - sv + am.mod);
+      if(req.mode==='creature'){ const sv = statValue(t, req.vs), s0 = req.atk && ak && req.srcId ? gt.getToken(req.srcId) : null, am = s0 ? ak.abilityAtkMod(s0, t) : {mod:0, tags:[]}, r = req.pcRoll && req.pcRoll.opp ? fixedD20(req.pcRoll, req.max - sv + am.mod) : rollD20(req.max - sv + am.mod);
         const pn = am.tags.concat(req.oddNote && r.roll % 2 ? ['нечётное к20: ' + req.oddNote.replace(/^если[^,]*,\s*(?:то\s+)?/i, '')] : []);
         Object.assign(row, r, {status:'done', stat:sv, affected:r.success}, pn.length ? {pnote:pn.join('; ')} : {}); row.apply = row.affected; return; }
       if(t.kind==='player'){
@@ -336,7 +353,8 @@ const TargetRolls = (function(){
     };
     const nApply = r.rows.filter(x=>x.apply).length, hasAlways = r.always && !consEmpty(r.always);
     panel.innerHTML = `<div class="tr-head"><b>🎯 ${esc(r.src)} — ${esc(r.title)}</b><button type="button" class="tr-x" data-trx="close" title="Закрыть">✕</button></div>
-      <div class="gs-muted">${esc(checkLabel(r))}</div>
+      ${r.pcRoll && (r.pcRoll.opp || auto) ? '' : `<div class="gs-muted">${esc(checkLabel(r))}</div>`}
+      ${r.pcRoll ? `<div class="gs-muted">🎲 ${esc(pcRollText(r))}</div>` : ''}
       ${hasAlways ? `<div class="gs-muted">Всем (при любом исходе): ${esc(consText(r.always))}</div>` : ''}
       <div class="gs-muted">${auto ? 'Последствия' : r.mode==='creature' ? 'Поражённым' : 'Провал'}: ${esc(consText(r.cons) || (hasAlways ? '—' : 'на усмотрение Мастера'))}</div>
       ${(r.extras || []).map(e=>`<div class="gs-muted">${exName(e, r)}: ${esc(exText(e))}</div>`).join('')}
@@ -394,12 +412,13 @@ const TargetRolls = (function(){
   function applyCons(t, c, x, done){
     const gt = GT(), ak = AK(); if(!c) return;
     const imm = ak && t.kind==='gm' ? ak.immuneStates(t) : new Set(), skipped = [];
-    if(c.hits){ const H = c.hits, one = H.pul || H.razryv, n = one && (H.byCat || H.byRoll) ? 1 : H.byCat ? (H.n || 0) + Math.max(1, x.cat || 1) : H.byRoll ? Math.max(1, x.roll || 1) : DICE_N(H) ? gt.rollWoundsExpr(H.nExpr) : H.n;
-      const crt = cur && cur.mode==='creature' && x.affected, w = sizeWounds(H.wounds, t, cur && cur.srcId);
-      const h = n > 0 ? gt.applyHitsTo(t.id, {n, mu:H.mu, muType:H.muType, wounds:w, travma:H.travma, moshh:!!H.moshh, pul:!!H.pul, razryv:!!H.razryv, cat:crt ? x.cat : 0, roll:crt ? x.roll : 0}) : null;
+    const pc = cur && cur.pcRoll && !cur.pcRoll.opp && cur.mode!=='creature' ? cur.pcRoll : null, cat = catOf(x), roll = pc ? pc.roll : x.roll;
+    if(c.hits){ const H = c.hits, one = H.pul || H.razryv, n = one && (H.byCat || H.byRoll) ? 1 : H.byCat ? (H.n || 0) + Math.max(1, cat || 1) : H.byRoll ? Math.max(1, roll || 1) : DICE_N(H) ? gt.rollWoundsExpr(H.nExpr) : H.n;
+      const crt = (cur && cur.mode==='creature' && x.affected) || !!pc, w = catWounds(sizeWounds(H.wounds, t, cur && cur.srcId), cat);
+      const h = n > 0 ? gt.applyHitsTo(t.id, {n, mu:H.mu, muType:H.muType, wounds:w, travma:H.travma, moshh:!!H.moshh, pul:!!H.pul, razryv:!!H.razryv, cat:crt ? cat : 0, roll:crt ? roll : 0}) : null;
       if(h) x._w = (x._w || 0) + h.total;
       if(h) done.push(`${DICE_N(H) ? H.nExpr + '=' : ''}${n}×МУ ${H.mu}${H.moshh || H.pul || H.razryv ? ' (' + ['мощь', 'пул', 'разрыв'].filter((k, i)=>H[['moshh', 'pul', 'razryv'][i]]).join(', ') + ')' : ''}${w!==H.wounds ? `, раны ${w}` : ''}: ${h.text}`); }
-    if(c.hp){ const v = gt.rollWoundsExpr(c.hp); if(v){ const t2 = gt.getToken(t.id); if(t.kind==='player') grantTo(t.ownerId, {kind:'vitals', which:'hp', mode:'delta', value:-v}); else if(t2 && t2.hp!=null) gt.updateToken(t.id, {hp:t2.hp - v}); x._w = (x._w || 0) + v; x._hp = (x._hp || 0) + v; done.push(`−${v} ОЗ`); } }
+    if(c.hp){ const v = gt.rollWoundsExpr(catExpr(c.hp, cat)); if(v){ const t2 = gt.getToken(t.id); if(t.kind==='player') grantTo(t.ownerId, {kind:'vitals', which:'hp', mode:'delta', value:-v}); else if(t2 && t2.hp!=null) gt.updateToken(t.id, {hp:t2.hp - v}); x._w = (x._w || 0) + v; x._hp = (x._hp || 0) + v; done.push(`−${v} ОЗ`); } }
     const sh = t.kind==='player' ? gt.sheetOfToken(t) : null, sts = (sh && sh.states) || {};
     if(c.psi){ if(t.kind==='player'){ grantTo(t.ownerId, {kind:'vitals', which:'psi', mode:'delta', value:-c.psi}); x._psi = (x._psi || 0) + c.psi; done.push(`−${c.psi} пси`); } else done.push(`−${c.psi} пси (у существа — вручную)`); }
     (c.states || []).forEach(k=>{ const nm = (SHEET_STATES.find(s=>s[0]===k) || [, k])[1];
@@ -435,7 +454,7 @@ const TargetRolls = (function(){
           else if(sr && t.kind!=='player' && r.sryv==='always') done.push(`срыв (к20=${x.roll}): ${sr[2]} — ${sr[3]}`);
           else if(t.kind==='player' && psi0==null) done.push('срыв — если пси 0 и меньше (лист недоступен)'); }
         hit.push(x);
-        if(r.ongoing && r.ongoing.length && ak){ const du = r.duration; const left = du ? (du.base || 0) + (du.plusCat ? Math.max(1, x.cat || 1) : 0) : 0;
+        if(r.ongoing && r.ongoing.length && ak){ const du = r.duration; const left = du ? (du.base || 0) + (du.plusCat ? Math.max(1, catOf(x) || 1) : 0) : 0;
           r.ongoing.forEach(text=>ak.addOngoing({tokId:x.id, srcId:r.srcId, title:r.title, text, voidish:r.voidish, left:left || null})); done.push('каждый круг: напоминание' + (left ? ` (${left} кр.)` : '')); }
       }
       if(done.length || hitNow) parts.push(`${x.name} — ${done.join(', ') || 'без последствий'}`);
@@ -444,7 +463,7 @@ const TargetRolls = (function(){
     const ok = r.mode==='auto' ? [] : r.rows.filter(x=>x.status==='done' && !x.affected).map(x=>x.name);
     const drained = r.drain ? r.rows.reduce((a, x)=>a + (x._hp || 0), 0) : 0, sTok = drained && r.srcId ? gt.getToken(r.srcId) : null;
     if(sTok && sTok.hp!=null){ const nh = sTok.hpMax!=null ? Math.min(sTok.hpMax, sTok.hp + drained) : sTok.hp + drained; gt.updateToken(sTok.id, {hp:nh}); r.selfCost = (r.selfCost || []).concat([`+${nh - sTok.hp} ОЗ (исцелилась)`]); }
-    const text = `${r.src} — «${r.title}» (${checkLabel(r)}): ${parts.length ? parts.join('; ') : 'никто не пострадал'}${ok.length ? '. Устояли: ' + ok.join(', ') : ''}${r.selfCost ? '. Сама: ' + r.selfCost.join(', ') : ''}`;
+    const text = `${r.src} — «${r.title}» (${r.pcRoll ? pcRollText(r) : checkLabel(r)}): ${parts.length ? parts.join('; ') : 'никто не пострадал'}${ok.length ? '. Устояли: ' + ok.join(', ') : ''}${r.selfCost ? '. Сама: ' + r.selfCost.join(', ') : ''}`;
     recordAndShareQuickRoll({abilityUse:true, text:text.slice(0, 900)});
     r.applied = true; cur = null; render();
     uiToast('Последствия применены', {icon:'🎯'});

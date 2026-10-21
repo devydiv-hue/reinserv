@@ -46,6 +46,20 @@ const AbilityKit = (function(){
     const ti = lastAt(W(TGT_W + (voidish ? '|персонаж[а-яё]*' : '')), before), si = lastAt(W(voidish ? SELF_W.replace('персонаж|', '') : SELF_W), before);
     return ti > si ? 'target' : si > ti ? 'self' : null;
   }
+  // Способности персонажей (ctx.pc): бросок без цели-подлежащего — свой («псионик совершает Бросок мистики (−6)»).
+  // Цель — только в именительном и не после предлога («о цели», «к существу» — не подлежащее); местоимения («он
+  // совершает…») — сам персонаж; условия («когда цель атакует персонажа, …») не в счёт.
+  const PC_TGT_W = 'цель|цели|противник|противники|жертва|жертвы|существо|существа|враг|враги|союзник|союзники|видящие|слышащие|каждый|каждое|каждая|все|значим[а-яё]+|подопечн[а-яё]+|атакуем[а-яё]+';
+  const PC_SELF_W = ['персонаж', 'псионик', 'псинетик', 'телепат', 'шаман', 'культист', 'жрец', 'монах', 'инквизитор', 'некромастер', 'дипломат', 'экзорцист', 'лидер', 'охотник', 'теург']
+    .map(w=>w + '(?:а|у|ом|ем|е)?').concat(['рыцар(?:ь|я|ю|ем|е)', 'куртизанк(?:а|и|е|у|ой)', 'он', 'она']).join('|');
+  const PC_TGT_RE = new RegExp('(?<![а-яё])(?<!(?:^|[^а-яё])(?:о|об|в|во|на|к|ко|по|с|со|у|от|для|из|за|над|под|при|против|до|перед|про)\\s+)(?:' + PC_TGT_W + ')(?![а-яё])', 'gi');
+  function ownerOfPc(before, vsNote){
+    if(vsNote){ if(/цел|противник|жертв|существ|враг|лидер|кажд/i.test(vsNote)) return 'self'; if(W(PC_SELF_W).test(vsNote)) return 'target'; } // «против воли цели» / «против мистики шамана»
+    if(/(?:^|[^а-яё])долж(?:но|на|ны)\s+(?:\S+\s+){0,2}$/i.test(before)) return 'target';
+    if(/(?:^|[^а-яё])должен\s+(?:\S+\s+){0,2}$/i.test(before)) return 'self';
+    before = deTime(before).replace(/(?:^|[\s,;(])(?:если|когда|пока)\s[^,]*,/gi, ' ');
+    return lastAt(PC_TGT_RE, before) > lastAt(W(PC_SELF_W), before) ? 'target' : 'self';
+  }
   const hasTargetWords = (s, voidish)=>lastAt(W(TGT_W + (voidish ? '|персонаж[а-яё]*' : '') + '|нему|ней|им'), deTime(s)) >= 0;
   const ONGOING_RE = /(?:в|в самом)\s+(?:начале|конце)\s+(?:каждого\s+|следующего\s+|нового\s+|этого\s+)?круга|каждый\s+(?:свой\s+)?ход|тратит каждый свой ход|каждый раз,\s+пока|пока\s+[^.]*связь\s+существует/i;
   const SUCCESS_IF = /если\s+[^,]{0,50}(?:попада|успе|захват\s+состоял)/i;
@@ -73,7 +87,7 @@ const AbilityKit = (function(){
   }
 
   /* ---------- проверки во фразе ---------- */
-  function findChecks(sn, nextSn, voidish, whole){
+  function findChecks(sn, nextSn, voidish, whole, pc){
     const out = []; let m;
     // «при провале спасброска от пси-поля» — ссылка на уже сделанный бросок
     const isRef = (at)=>/(?:(?:при|в\s+случае)\s+(?:провал\S*|успех\S*)|результат\S*)\s+$/i.test(sn.slice(Math.max(0, at - 30), at));
@@ -118,6 +132,11 @@ const AbilityKit = (function(){
       const before = sn.slice(0, c.at).split(/;\s/).pop();
       if(c.plural) { c.role = 'bonus'; return; }
       if(c.max && c.type==='check'){ c.role = 'self'; return; } // «Бросок воли (−3) (13)» — свой Максимум существа
+      if(pc){ c.role = ownerOfPc(before, c.vsNote);
+        // «Бросок мистики против воли цели» — своя встречная проверка персонажа: из его Максимума вычитается характеристика цели
+        const v = c.role==='self' && c.vsNote && /^против\s+(л[её]гк\S*\s+атлетик\S*|ловкост\S*\s+рук|\S+)/i.exec(c.vsNote), vs = v && statOf(v[1]);
+        if(vs){ c.type = 'opp'; c.vs = vs; c.pc = true; c.role = null; }
+        return; }
       const own = ownerOf(before, voidish);
       if(own) { c.role = own; return; }
       if(/^\s*спасброс/i.test(sn.slice(c.at)) && /\+\s*\d+/.test(sn.slice(c.end, c.end + 25)) && !hasTargetWords(whole, voidish)) { c.role = 'bonus'; return; }
@@ -139,12 +158,16 @@ const AbilityKit = (function(){
       const byCat = /категори/i.test(cnt), byRoll = /значени|выпавш/i.test(cnt), cp = /\[\s*(\d+)\s*\+\s*категори/i.exec(cnt);
       const pre = x.slice(Math.max(0, m.index - 16), m.index), prof = !cnt && (/^(?:оружие|попадани\S*\s*:|попаданием)/i.test(m[0]) || /\(\s*$|соверша\S*\s+$/i.test(pre));
       const tr = (tail.match(/мощь|пул|разрыв/gi) || []).map(x=>x.toLowerCase()), sz = w && /^\[\s*размер\s+(цели|пустоты|существа)[^\]+]*(?:\+\s*(\d+))?/i.exec(w[1]);
+      const wc = w && /^\[\s*(?:(\d+)\s*\+\s*)?категори\S*\s+успеха\s*\]$/i.exec(w[1]); // «раны [1 + категория успеха]» → «1+кат»
       c.hits = {n:/^\d+$/.test(cnt) ? +cnt : byCat ? (cp ? +cp[1] : 0) : 1, nExpr:/к6/.test(cnt) ? 'к6' : byRoll ? 'по выпавшему к20' : /\[/.test(cnt) && !byCat ? cnt : null, byCat, byRoll, mu:+m[3], muType:(m[4] || 'удар').toLowerCase(),
-        wounds:sz ? (/цели/i.test(sz[1]) ? 'размер цели' : 'размер существа') + (sz[2] ? '+' + sz[2] : '') : w ? (/^\[/.test(w[1]) ? '1' : w[1].replace(/\s/g, '')) : '1',
-        woundsNote:w && /^\[/.test(w[1]) && !sz ? 'раны ' + w[1] : '', travma:/травма/i.test(tail), traits:tr.join(', '),
+        wounds:sz ? (/цели/i.test(sz[1]) ? 'размер цели' : 'размер существа') + (sz[2] ? '+' + sz[2] : '') : wc ? (wc[1] ? wc[1] + '+' : '') + 'кат' : w ? (/^\[/.test(w[1]) ? '1' : w[1].replace(/\s/g, '')) : '1',
+        woundsNote:w && /^\[/.test(w[1]) && !sz && !wc ? 'раны ' + w[1] : '', travma:/травма/i.test(tail), traits:tr.join(', '),
         moshh:tr.indexOf('мощь') >= 0 && !w, pul:tr.indexOf('пул') >= 0, razryv:tr.indexOf('разрыв') >= 0, prof}; }
     const hpRe = /(\d*к\d+(?:\s*\+\s*\d+)?|\d+)\s+(ОЗ|ран[а-яё]*)(?![а-яё])/gi;
-    while((m = hpRe.exec(x))){
+    // «теряет [6 ОЗ за категорию успеха]», «нанося по [2 за категорию успеха] ран» — столько за каждую категорию успеха
+    const hk = /(?:теря\S*|получа\S*|получ[иа]т|нанос\S*|нанося\S*)\s+(?:им\s+|цели\s+)?(?:по\s+)?\[\s*(\d+)\s*(?:ОЗ\s+|ран\S*\s+)?за\s+(?:кажд\S*\s+)?категори\S*\s+успеха\s*\]/i.exec(x);
+    if(hk) c.hp = hk[1] + '×кат';
+    while(!hk && (m = hpRe.exec(x))){
       const pre = x.slice(Math.max(0, m.index - 95), m.index), post = x.slice(m.index + m[0].length, m.index + m[0].length + 14);
       if(/меньше|больше/i.test(post) || /(?:отмен|игнорир)\S*\s+(?:получение\s+)?(?:до\s+|по\s+)?$/i.test(pre) || /раны\s*$|\+\s*$/i.test(pre)) continue;
       if(/(теря|получ|наносит|нанося|отбира|отнима|потеря|лишает)/i.test(pre) && !/исцеля|лечит|восстанавлива/i.test(pre.slice(-30))){ c.hp = m[1].replace(/\s/g, ''); break; }
@@ -194,7 +217,7 @@ const AbilityKit = (function(){
     if((m = /шириной\s+в\s+(\d+)\s+и\s+длиной\s+в?\s*(\d+)\s*м/i.exec(t))) return {shape:'line', w:+m[1], len:+m[2], at:'self'};
     if((m = /полос\S*\s+шириной\s+(?:в\s+)?(\d+)\s*м/i.exec(t))){ const l = /до\s+(\d+)\s*м/i.exec(t); return {shape:'line', w:+m[1], len:l ? +l[1] : 12, at:'self'}; }
     if((m = /кривой\s+длиной\s+до\s+(\d+)\s*м/i.exec(t))) return {shape:'line', w:3, len:+m[1], at:'self'};
-    if((m = /квадратной области со стороной в\s+(\d+)/i.exec(t)) || (m = /област\S*\s+(?:в\s+)?(\d+)\s*[×x]\s*\d+/i.exec(t))) return {shape:'rect', side:+m[1], at:'point'};
+    if((m = /квадратн\S*\s+област\S*\s+(?:со\s+стороной|с\s+гранью)\s+в\s+(\d+)/i.exec(t)) || (m = /област\S*\s+(?:в\s+)?(\d+)\s*[×x]\s*\d+/i.exec(t))) return {shape:'rect', side:+m[1], at:'point'};
     if((m = /в радиусе\s+(\d+)\s*(?:м|метр)/i.exec(t))) return {shape:'circle', r:+m[1], at:/точк/i.test(t.slice(m.index, m.index + 50)) ? 'point' : 'self'};
     if((m = /цель и все[^.]{0,30}в пределах\s+(\d+)\s*м/i.exec(t))) return {shape:'circle', r:+m[1], at:'point'};
     if((m = /(?:все|кажд\S*)[^.]{0,90}?в пределах\s+(\d+)\s*(?:м|метр)/i.exec(t)) || (m = /в пределах\s+(\d+)\s*(?:м|метр\S*)\s+от\s+(?:неё|него|себя|пустоты|херувима)/i.exec(t))) return {shape:'circle', r:+m[1], at:'self'};
@@ -206,16 +229,24 @@ const AbilityKit = (function(){
     return a.shape==='circle' ? `круг ${a.r} м ${a.at==='self' ? 'вокруг себя' : 'в точке'}` : a.shape==='rect' ? `квадрат ${a.side} м в точке` : a.shape==='line' ? `полоса ${a.len}×${a.w} м` : `конус ${a.len} м`; }
 
   /* ---------- главный разбор ---------- */
+  // Пси-дисциплина листа — несколько техник в одном тексте («Пирокинез: … Бытовой пирокинез: …»): по части на технику;
+  // вступление до первой техники — описание. Без заголовков — способность целиком (i = 0).
+  function pcParts(name, text){
+    const t = String(text || ''), re = /(?:^|[.!?]\s+)([А-ЯЁ][а-яё]+(?:[ -][а-яё]+){0,3}):\s/g, heads = []; let m;
+    while((m = re.exec(t))){ if(/^(?:Важно|Примечание|Например|Пример)$/i.test(m[1])) continue; heads.push({name:m[1], at:m.index + m[0].indexOf(m[1]), body:m.index + m[0].length}); }
+    if(!heads.length) return [{name:name || '', text:t, i:0}];
+    return heads.map((h, i)=>({name:`${name}: ${h.name}`, text:t.slice(h.body, i + 1 < heads.length ? heads[i + 1].at : t.length).trim(), i:i + 1})).filter(x=>x.text.length > 30);
+  }
   const memo = new Map();
   function parse(name, text, ctx){
-    ctx = ctx || {}; const key = (ctx.voidish ? 'v' : 'h') + (ctx.now ? 'n|' : '|') + (name || '') + '|' + (text || '');
+    ctx = ctx || {}; const key = (ctx.voidish ? 'v' : 'h') + (ctx.pc ? 'p' : '') + (ctx.now ? 'n|' : '|') + (name || '') + '|' + (text || '');
     if(memo.has(key)) return memo.get(key);
     const s = parseRaw(name, text, ctx); memo.set(key, s); if(memo.size > 3000) memo.clear(); return s;
   }
   // ctx.now — текст «каждого круга» разбирается как действие сейчас (напоминание в начале круга)
   function parseRaw(name, text, ctx){
     const voidish = !!ctx.voidish, ONG = ctx.now ? /$^/ : ONGOING_RE, t = String(text || ''), S = sentences(t);
-    const s = {name:name || '', text:t, voidish, cons:C(), always:C(), extras:[], ongoing:[], notes:[], selfCost:[], chain:null};
+    const s = {name:name || '', text:t, voidish, pc:!!ctx.pc, cons:C(), always:C(), extras:[], ongoing:[], notes:[], selfCost:[], chain:null};
     const cands = [], escapes = [];
     s.uses = ctx.chained ? null : parseUses(name, t);
     s.act = ctx.chained ? null : actOf(t, voidish);
@@ -226,7 +257,7 @@ const AbilityKit = (function(){
     const scan = (allowOng, allowEsc)=>{ pass++; let escCand = null; for(let j = 0; j < S.length; j++){
       if(/^\s*например/i.test(S[j]) || (!allowOng && ONG.test(S[j]))) continue;
       const em = ESCAPE_RE.exec(S[j]);
-      let cs = findChecks(S[j], S[j + 1], voidish, t);
+      let cs = findChecks(S[j], S[j + 1], voidish, t, ctx.pc);
       if(em){ // проверки после «пока не преуспеет / может избежать» — способ избавиться
         const late = cs.filter(c=>c.at > em.index && (c.role==='target' || c.type==='opp')); cs = cs.filter(c=>c.at < em.index || !(c.role==='target' || c.type==='opp'));
         if(late.length && !escCand && !UNTIL_RE.test(S[j])) escCand = {j, c:late[0]};
@@ -244,7 +275,7 @@ const AbilityKit = (function(){
     if(!main && !alwaysBefore()) scan(true, false);
     if(!main && !alwaysBefore()) scan(true, true);
     if(main){
-      if(main.type==='opp') s.opp = {max:main.max, vs:main.vs || '', stat:main.stat || null};
+      if(main.type==='opp') s.opp = main.pc ? {pc:true, max:null, vs:main.vs, stat:main.stat, mod:main.mod || 0} : {max:main.max, vs:main.vs || '', stat:main.stat || null};
       else if(main.type==='atk'){ s.atk = {max:main.max}; const an = /(\d+|две|два|три)\s+(?:\S+\s+){0,2}?атак/i.exec(S[P].slice(0, main.end)); if(an) s.atk.n = ({две:2, два:2, три:3})[an[1].toLowerCase()] || +an[1]; }
       else s.check = {stat:main.stat, mod:main.mod || 0, n:main.n, vsNote:main.vsNote, rmode:main.rmode || '', alt:main.alt || '', env:main.env || ''};
       if(main.alt) s.notes.push(`или ${main.alt} — на выбор цели`);
@@ -275,7 +306,7 @@ const AbilityKit = (function(){
         const cl = cleanLead(clauses[ci]); if(cl.length < 4) continue;
         const isCat2 = CAT2_RE.test(cl);
         if(isCat2 || (LE15_RE.test(cl) && !/провалил|промахнул/i.test(cl))){
-          const e = {when:isCat2 ? 'cat2' : 'le15', text:cl.trim()}, cc = findChecks(cl, '', voidish, t).find(c=>c.role==='target');
+          const e = {when:isCat2 ? 'cat2' : 'le15', text:cl.trim()}, cc = findChecks(cl, '', voidish, t, ctx.pc).find(c=>c.role==='target');
           e.cons = consFrom(cc ? cl.slice(cc.end) : cl); if(cc) e.viaCheck = CHECK_LABEL(cc); if(/вместо\s+этого/i.test(cl)) e.replace = true;
           s.extras.push(e); continue; }
         const rg = /если\s+\[\s*значени\S*[^\]]*к20\s*\]\s+выше\s+(\S+(?:\s+\S+)?)\s+цели,?\s*(?:то\s+)?(.*)$/i.exec(cl), sz = /если\s+размер\s+цели\s+(\d+)\s+и\s+меньше,?\s*(?:то\s+)?(.*)$/i.exec(cl);
@@ -284,9 +315,9 @@ const AbilityKit = (function(){
         const bg = /если\s+(?:пустота|существо)\s+больше\s+цели\s+на\s+(\d+)\s+и\s+более\s+размер\S*,?\s*(?:то\s+)?(.*)$/i.exec(cl);
         if(bg && !consEmpty(consFrom(bg[2]))){ s.extras.push({when:'srcBigger', n:+bg[1], text:cl.trim(), cons:consFrom(bg[2])}); continue; }
         if(isConditional(cl)){ s.notes.push(cl.trim()); continue; }
-        if(!inP && !ctx.chained && !s.also && findChecks(cl, '', voidish, t).some(c=>c.type==='atk' && c.max)){
+        if(!inP && !ctx.chained && !s.also && findChecks(cl, '', voidish, t, ctx.pc).some(c=>c.type==='atk' && c.max)){
           const al = parseRaw(name, cl, Object.assign({}, ctx, {chained:true})); if(al.atk){ s.also = al; continue; } }
-        const cc = findChecks(cl, '', voidish, t).find(c=>c.role==='target' || c.type==='opp');
+        const cc = findChecks(cl, '', voidish, t, ctx.pc).find(c=>c.role==='target' || c.type==='opp');
         if(cc && !(inP && cc.at===0) && (inP || ci > 0 || CHAIN_LEAD.test(cl))){
           // следующий бросок для поражённых: то, что до него, — ещё последствия этого броска
           mergeCons(s.cons, consFrom(cl.slice(0, cc.at)));
@@ -324,6 +355,9 @@ const AbilityKit = (function(){
     });
     if(s.ongoing.some(x=>/прекраща\S*\s+эффект|снять|избав/i.test(x))) [s.cons].concat(s.extras.map(e=>e.cons)).forEach(c=>c.marks.forEach(mk=>{ if(mk.d) mk.r = 0; }));
     if(consEmpty(s.cons) && !s.cons.note && cands.length) s.cons.note = cands.join(' ').slice(0, 200);
+    // у персонажа: «значимые … могут … преуспеть в спасброске …, чтобы избежать ран» — урон получают провалившие, а не все
+    if(ctx.pc && s.check && main && /избега|избежа/i.test(S[P]) && consEmpty(s.cons) && !consEmpty(s.always)){
+      s.cons = s.always; s.always = C(); if(/значим/i.test(S[P])) s.notes.push('избежать могут только значимые для истории — остальным отметьте «применить» сами'); }
     // общие правила книги. Хладнокровие: при провале −2 пси (при модификаторе ±0 — −1) и испуг до конца сцены; пси 0 и меньше —
     // срыв по к20 этой проверки (20-target-rolls, SRYV). Пси-поле: пси-облучение + 1 истощение, итог 15− — пси-мутация.
     // Вредная среда: заражение по среде + 1 истощение (и +1 в конце каждого дня, пока не снято).
@@ -346,19 +380,26 @@ const AbilityKit = (function(){
     else if((m = /на\s+(\d+)\s+круг/i.exec(t))) s.duration = {base:+m[1]};
     s.areaSpec = areaSpec(t);
     if(s.atk && s.areaSpec && s.areaSpec.shape==='circle') s.areaSpec = null; // у атаки «в пределах N м» — дальность по одной цели
-    s.feats = ctx.chained ? [] : features(name, t);
-    if(s.selfCheck && (!s.selfCheck.max || s.feats.some(f=>(f.id==='cancelWounds' && f.roll) || f.id==='deathRise'))) s.selfCheck = null; // бросок уже в подсказке
+    s.feats = ctx.chained || ctx.pc ? [] : features(name, t); // постоянные свойства персонажа считает лист, не автоматика существ
+    if(s.selfCheck && ((!s.selfCheck.max && !ctx.pc) || s.feats.some(f=>(f.id==='cancelWounds' && f.roll) || f.id==='deathRise'))) s.selfCheck = null; // бросок уже в подсказке
     s.kind = s.check ? 'save' : s.opp ? 'opposed' : s.atk ? 'attack' : (!consEmpty(s.always) || s.always.note) ? 'auto' : s.selfCheck ? 'self' : s.feats.length ? 'passive' : 'text';
     if(s.cat1Only) s.extras.forEach(e=>{ if(e.when==='cat2' || e.when==='le15') e.replace = true; });
     // «отбирает 2к6 ОЗ и исцеляет равноценное количество ОЗ себе», «ОЗ, которые исцеляются пустоте»
     if(/исцеля\S*\s+(?:равноценное|столько же|такое же)\s+(?:количество\s+)?(?:ОЗ\s+)?себе|которые\s+исцеляются\s+(?:пустоте|ей|ему|существу)/i.test(t)) s.drain = true;
     // «Бросок воли против воли пустоты» (+ «Воля пустоты +3») — модификатор из характеристики существа
-    const vs = s.check && /^против\s+(\S+)\s+(?:пустот\S*|существ\S*)$/i.exec(s.check.vsNote || ''), vst = vs && statOf(vs[1]);
-    if(vst){ const bm = new RegExp('(\\S+)\\s+пустот\\S*\\s+\\+\\s*(\\d+)', 'i').exec(t); s.check.vsSrc = {stat:vst, bonus:bm && statOf(bm[1])===vst ? +bm[2] : 0}; }
+    // у персонажа: «Бросок рефлексов против мистики персонажа (псионика, шамана)» — из характеристики персонажа
+    const vs = s.check && (ctx.pc ? /^против\s+(л[её]гк\S*\s+атлетик\S*|ловкост\S*\s+рук|\S+)(?![^]*(?:цел|противник|жертв|существ|атакующ|враг|кажд))/i : /^против\s+(\S+)\s+(?:пустот\S*|существ\S*)$/i).exec(s.check.vsNote || ''), vst = vs && statOf(vs[1]);
+    if(vst && ctx.pc) s.check.vsSrc = {stat:vst, bonus:0};
+    else if(vst){ const bm = new RegExp('(\\S+)\\s+пустот\\S*\\s+\\+\\s*(\\d+)', 'i').exec(t); s.check.vsSrc = {stat:vst, bonus:bm && statOf(bm[1])===vst ? +bm[2] : 0}; }
     // «если при проверке … на к20 выпадет нечётное значение, то …» — подсказка в строке броска
     m = /[^.]*на\s+к20\s+выпад\S*\s+нечётн[^.]*\./i.exec(t); if(m) s.oddNote = m[0].trim();
     if(s.always.note) s.notes = s.notes.filter(n=>n.trim().slice(0, 150)!==s.always.note.trim().slice(0, 150));
     const H = s.cons.hits; if(H && H.prof && !H.byCat && !H.byRoll && (s.atk || (s.opp && /атак/i.test(S[P] || '')))){ H.byCat = true; H.n = 0; } // успешная атака — [КУ] попаданий
+    if(ctx.pc && !ctx.chained){
+      // цена в пси («затратив действие и 2 пси», «за 1 пси», «тратит действие, 3 пси») и «при провале расходуется до конца дня»
+      m = /(?:за|по)?тра[тч]\S*\s+(?:действие\s*(?:и|,)\s*)?(\d+)\s+пси(?![а-яё-])|(?:расход\S*|за)\s+(\d+)\s+пси(?![а-яё-])/i.exec(t); if(m) s.psiCost = +(m[1] || m[2]);
+      s.spendOnFail = /(?:в\s+случае\s+провала|при\s+провале)[^.]*(?:расход|утрачива|не\s+может\s+(?:больше\s+)?(?:использовать|применять))/i.test(t);
+    }
     s.chips = chips(s);
     return s;
   }
@@ -450,7 +491,9 @@ const AbilityKit = (function(){
     if(s.act) out.push(['act', s.act]);
     if(s.uses) out.push(['uses', usesLabel(s.uses)]);
     if(s.check) out.push(['save', '🎯 цель: ' + (s.check.rmode ? (s.check.rmode==='disadvantage' ? 'Осложнённо, ' : 'Упрощённо, ') : '') + CHECK_LABEL(s.check) + (s.check.alt ? ' или ' + s.check.alt : '') + (s.check.vsNote ? ' ' + s.check.vsNote : '')]);
-    if(s.opp) out.push(['save', s.opp.vs ? `🎯 Макс. ${s.opp.max} против ${STAT_NAME[s.opp.vs]} цели` : `🎯 бросок существа (${s.opp.max}), при успехе — цель`]);
+    if(s.psiCost) out.push(['act', `${s.psiCost} пси`]);
+    if(s.opp && s.opp.pc) out.push(['save', `🎲 ${CHECK_LABEL({stat:s.opp.stat, mod:s.opp.mod})} против ${STAT_NAME[s.opp.vs]} цели`]);
+    else if(s.opp) out.push(['save', s.opp.vs ? `🎯 Макс. ${s.opp.max} против ${STAT_NAME[s.opp.vs]} цели` : `🎯 бросок существа (${s.opp.max}), при успехе — цель`]);
     if(s.atk) out.push(['save', `⚔ ${s.atk.n > 1 ? s.atk.n + ' атаки' : 'атака'}, Макс. ${s.atk.max}`]);
     if(s.kind==='auto') out.push(['save', '💥 без броска']);
     if(act){
@@ -468,7 +511,7 @@ const AbilityKit = (function(){
       const nt = s.notes.filter(n=>!/^или .* — на выбор цели$/.test(n));
       if(nt.length) out.push(['help', `✎ ${nt.length > 1 ? nt.length + ' условия' : 'условие'} — решает Мастер`, nt.join('\n')]);
     }
-    if(s.selfCheck && !s.opp) out.push(['self', '🎲 бросок существа: ' + CHECK_LABEL(s.selfCheck)]);
+    if(s.selfCheck && !s.opp) out.push(['self', (s.pc ? '🎲 свой бросок: ' : '🎲 бросок существа: ') + CHECK_LABEL(s.selfCheck) + (s.pc && act ? ', при успехе — цели' : '')]);
     (s.feats || []).forEach(f=>out.push([f.id==='reroll' || f.id==='trigger' ? 're' : f.id==='buff' ? 'save' : 'pas', (f.id==='reroll' || f.id==='buff' ? '' : f.id==='trigger' ? '⚡ ' : '⚙ авто: ') + f.label]));
     if(!act && !(s.feats || []).length && !(s.selfCheck && s.selfCheck.max) && (/[+−]\s*\d|Упрощ|Осложн|раз в|перебро|защит|(?:^|[^а-яё])ран(?:ы|у|а|ами)?(?![а-яё])|Брос|провер|реакци|действи|удач/i.test(s.text) || /(?:^|[^А-Яа-яЁё])ОЗ(?![А-Яа-яЁё])/.test(s.text))) out.push(['help', '📖 справка — решает Мастер']);
     return out;
@@ -875,5 +918,6 @@ const AbilityKit = (function(){
   }, 1500);
 
   return { parse, resolved, areaLabel, consLabel, rowHtml, chipsHtml, usedOf, bump, resetToken:(id)=>{ delete uses[id]; saveUses(); refreshCard(); },
-    attackPassives, initAura, savePassives, consumeBuff, immuneStates, addOngoing, buffsOf, onAttack, rerollOptions, alert, features, CHECK_LABEL, extraName, extraText, hitPassives, abilityAtkMod, onWounded };
+    attackPassives, initAura, savePassives, consumeBuff, immuneStates, addOngoing, buffsOf, onAttack, rerollOptions, alert, features, CHECK_LABEL, extraName, extraText, hitPassives, abilityAtkMod, onWounded,
+    pcParts, targetsWanted, rangeOf, STAT_NAME };
 })();

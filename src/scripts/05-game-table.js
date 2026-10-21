@@ -18,23 +18,6 @@
    существующие hpMax/psiMax. Правка HP с жетона — выдача с подтверждением (sendGrant, как удача), он
    меняет свой character, и обратно оно приходит уже обычным sheet-snapshot.
    ====================================================================== */
-/* Природа существа: травмы бывают только у гуманоидов и животных; у пустот травм нет; у роботов вместо травм —
-   поломки 🔧 (тот же порог «к12 выше Травма-к12»). Явно — поле «Природа» (шаблон бестиария и жетон: nature),
-   иначе по шаблону: способность «Робот» — робот; «пустот» в группе, фракции или названии — пустота (кроме
-   одержимого: у него тело носителя). */
-const CREATURE_NATURES = {living:'гуманоид / животное', void:'пустота', robot:'робот'};
-function creatureNature(c){
-  if(!c) return 'living';
-  if(CREATURE_NATURES[c.nature]) return c.nature;
-  if((c.abil || []).some(a=>/^\s*робот\s*$/i.test(String(a && a[0] || ''))) || /(?:^|[^а-яё])(?:робот|андроид)/i.test(c.name || '')) return 'robot';
-  if(/одержим/i.test(c.name || '')) return 'living';
-  return /пустот/i.test([c.group, c.faction, c.name].join(' ')) ? 'void' : 'living';
-}
-function tokenNature(t){ return t && CREATURE_NATURES[t.nature] ? t.nature : t && t.creature ? creatureNature(t.creature) : 'living'; }
-// значок травмы (🦴) или поломки робота (🔧); red — от оружия с чертой «травма»
-function traumaIconHtml(robot, red, n){
-  return `<span${red ? ' class="bone-red"' : ''} title="${robot ? 'Поломка' : 'Травма'}${red ? ' (черта оружия «травма»)' : ''}">${robot ? '🔧' : '🦴'}</span>${n > 1 ? n : ''}`;
-}
 
 const GameTable = (function(){
   const CELL = TABLE_CELL_PX;           // пикселей на клетку при масштабе 100% — общий с редактором карт (MapKit)
@@ -1685,7 +1668,7 @@ const GameTable = (function(){
     if(!selected.has(t.id) && canControl(t)) setSelection([t.id]);
     if(isAuthority()){
       const ids = selected.has(t.id) ? [...selected] : [t.id];
-      const items = attackMenuItems(t, p).concat([
+      const items = attackMenuItems(t, p).concat(abilityMenuItems(t, p), [
         {id:'move', label:'Переместить', run:()=>startPlacing(ids)},
         {id:'edit', label:'Изменить…', run:()=>openTokenForm(t, null, p)},
         {id:'hp', label:'Изменить HP…', run:()=>openVitalForm(t, 'hp', p)}
@@ -1704,12 +1687,17 @@ const GameTable = (function(){
       return;
     }
     if(canControl(t)){
-      openMenu(p, name, attackMenuItems(t, p).concat([
+      openMenu(p, name, attackMenuItems(t, p).concat(abilityMenuItems(t, p), [
         {id:'sel', label:'Выбрать', run:()=>setSelection([t.id])},
         {id:'move', label:'Переместить', run:()=>startPlacing([t.id])},
         {id:'sheet', label:'Открыть персонажа', run:()=>{ toggleMainTab('sheet'); const el = document.getElementById('hpValue'); if(el) el.scrollIntoView({block:'center', behavior:'smooth'}); }}
       ].concat(typeof Reactions!=='undefined' && Reactions.manualAllowed(t) ? [{id:'rx', label:'🎞 Реакция…', run:()=>{ const r = viewport.getBoundingClientRect(); Reactions.pickForToken(t.id, r.left + p.x, r.top + p.y); }}] : [])));
     }
+  }
+  // Способности персонажа (PcAbilities): у игрока — своего, у Мастера — любого по копии листа
+  function abilityMenuItems(t, p){
+    if(t.kind!=='player' || typeof PcAbilities==='undefined' || !attackerSheet(t)) return [];
+    return [{id:'pcab', label:'✦ Способности…', run:()=>{ const r = viewport.getBoundingClientRect(); PcAbilities.openList(t.id, r.left + p.x, r.top + p.y); }}];
   }
   function openFieldMenu(w, p){
     const items = [{id:'ping', label:'Ping сюда', run:()=>doPing(w)}];
@@ -2400,12 +2388,13 @@ const GameTable = (function(){
     return characterTorsoDefense(attackerSheet(tgt), muType);
   }
 
-  /* Цели способности существа прямо на карте (кнопка ⚔ у способности, AbilityKit): клик по жетону — цель; набралось
-     n целей — готово (при n > 1 — «Готово» раньше, повторный клик снимает цель). Esc / правый клик — отмена. */
+  /* Цели способности прямо на карте (кнопка ⚔ у способности существа — AbilityKit, у персонажа — PcAbilities): клик по
+     жетону — цель; набралось n целей — готово (при n > 1 — «Готово» раньше, повторный клик снимает цель). Esc / правый
+     клик — отмена. Игрок выбирает цели только для своего жетона. */
   let abilityPick = null, pickInfo = null; // {srcId, n, title, rangeM, ids, cur, done}
   function pickUnder(cur){ return Object.values(st().tokens).find(t=>tokenVisibleHere(t) && t.id!==(abilityPick && abilityPick.srcId) && Math.hypot(t.x-cur.x, t.y-cur.y) <= SIZE_CELLS[t.size]/2) || null; }
   function pickTargets(o){
-    if(!viewport || !isAuthority()){ if(o && o.done) o.done(null); return; }
+    if(!viewport || !(isAuthority() || (o && o.srcId && canControl(tok(o.srcId))))){ if(o && o.done) o.done(null); return; }
     cancelAll();
     abilityPick = {srcId:o.srcId || null, n:Math.max(1, o.n || 1), title:o.title || 'Способность', rangeM:o.rangeM || 0, ids:[], cur:null, done:o.done};
     renderPickInfo(); showHint(); requestRender({fx:true});

@@ -30,6 +30,9 @@ function wheelIntent(e){
   if(e.deltaX!==0 || Math.abs(e.deltaY) < 20 || now - _touchpadTs < 350){ _touchpadTs = now; return 'pan'; } // два пальца: мелкие шаги и/или горизонталь
   return 'zoom';
 }
+// Старые браузеры (Chrome на Windows 7) меняют число в поле, над которым крутят колесо, пока поле в фокусе:
+// игрок «листает» лист — а уменьшается Размер, Опыт или Удача. Снимаем фокус — колесо прокручивает страницу.
+document.addEventListener('wheel', (e)=>{ const t = e.target; if(t && t.type==='number' && t===document.activeElement) t.blur(); }, {passive:true});
 function wheelModeButtonHtml(cls){ const m = WHEEL_MODES[wheelMode()]; return `<button type="button" class="${cls}" data-wheelmode title="${m.title} · нажмите, чтобы сменить">${m.icon}<span class="wm-lbl"> ${m.label}</span></button>`; }
 document.addEventListener('click', (e)=>{
   const b = e.target.closest && e.target.closest('[data-wheelmode]'); if(!b) return;

@@ -390,6 +390,23 @@
   .ak-mini{ border:0; background:transparent; box-shadow:none; padding:0 3px; cursor:pointer; font-size:11px; color:inherit; }
   .ak-preview{ margin-top:6px; display:flex; flex-direction:column; gap:3px; font-size:12px; max-height:22vh; overflow:auto; }
   .ak-pv b{ margin-right:4px; }
+  /* Способности персонажа на столе: окно из меню жетона (22-pc-abilities.js) */
+  .pa-list{ position:fixed; z-index:190; /* под окном броска (200) — оно открывается поверх */ width:min(460px, calc(100vw - 16px)); max-height:min(70vh, 640px); display:flex; flex-direction:column; overflow:hidden; box-sizing:border-box;
+    background:var(--card); color:var(--ink); border:2px solid var(--ink); border-radius:12px; box-shadow:0 14px 26px -10px rgba(0,0,0,.65); font-size:12.5px; }
+  .pa-head{ display:flex; align-items:center; gap:6px; padding:6px 6px 6px 11px; background:rgba(28,23,18,.08); border-bottom:1.5px solid rgba(28,23,18,.25);
+    cursor:grab; user-select:none; -webkit-user-select:none; touch-action:none; }
+  .pa-list.dragging .pa-head{ cursor:grabbing; }
+  .pa-head b{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pa-x{ border:0; background:transparent; box-shadow:none; color:inherit; cursor:pointer; padding:0 6px; }
+  .pa-body{ overflow:auto; padding:6px 10px 8px; }
+  .pa-row{ padding:5px 2px; border-top:1px solid rgba(28,23,18,.15); }
+  .pa-row:first-child{ border-top:0; }
+  .pa-row .ak-row{ margin-left:0; margin-top:2px; }
+  .pa-name{ font-weight:700; }
+  .pa-row.spent .pa-name{ opacity:.6; }
+  .pa-spent{ font-weight:600; font-size:10.5px; color:var(--stamp); }
+  .pa-foot{ margin-top:6px; color:var(--ink-soft); font-size:11px; line-height:1.35; }
+  .pa-ask{ display:flex; flex-direction:column; gap:4px; margin:4px 0 8px; font-size:13px; line-height:1.4; }
   /* Области: выбор целей шаблоном */
   .tr-area{ padding:6px 8px; border-radius:10px; background:rgba(255,255,255,.04); }
   .tr-area.hl{ outline:1px solid rgba(175,169,236,.6); }

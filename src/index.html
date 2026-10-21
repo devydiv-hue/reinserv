@@ -217,7 +217,7 @@
             <div id="fAlignmentDropdown" class="align-dropdown"></div>
           </div>
           <div class="field" style="max-width:130px;"><label>Внешний вид</label><input type="number" id="fAppearanceNum" title="Меняется автоматически при уродствах/мутациях; можно поменять вручную"></div>
-          <div class="field" style="max-width:130px;"><label>Размер</label><input type="number" id="fSizeNum" title="Меняется автоматически при уродствах/мутациях; можно поменять вручную"></div>
+          <div class="field" style="max-width:130px;"><label>Размер</label><input type="number" id="fSizeNum" min="-4" max="4" title="От −4 до +4. Меняется автоматически при уродствах/мутациях; можно поменять вручную"></div>
           <div class="field" style="max-width:130px;"><label>Удача</label><input type="number" id="fLuckNum" title="Тратится на переброс любой проверки характеристики/способности; выдаёт Мастер (или поменяйте вручную)"></div>
         </div>
       </div>
@@ -541,6 +541,9 @@
 </script>
 <script>
 /*@include scripts/21-ability-kit.js*/
+</script>
+<script>
+/*@include scripts/22-pc-abilities.js*/
 </script>
 </body>
 </html>

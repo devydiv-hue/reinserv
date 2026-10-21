@@ -132,6 +132,7 @@ function showRerollPopup(statKey, mod, mode){
 // правилом, что и у боковой панели бросков кубов, см. compareD20Outcomes выше).
 function executeRoll(statKey, base, mod, popup, mode){
   if(statKey==='map_attack') return executeMapAttackRoll(base, mod, popup, mode); // атака с игрового стола — см. там
+  if(statKey==='map_ability') return executeMapAbilityRoll(base, mod, popup, mode); // способность персонажа со стола
   mode = mode || 'plain';
   const max = base + mod;
   const rolls = mode==='plain' ? [randInt(20)] : [randInt(20), randInt(20)];
@@ -609,7 +610,7 @@ window.addFlawCustom = async function(){
 // после броска (см. showRerollPopup).
 function abilityGrantsReroll(text){ return /перебросить|переброс/i.test(text||''); }
 function abilityFlagHtml(a){
-  if(!abilityGrantsReroll(a.text)) return '';
+  if(!abilityGrantsReroll(a.text) && !a.spent) return ''; // потраченная (провал «расходуется до конца дня» на столе) — тоже, чтобы вернуть
   return `<button class="small" onclick="toggleAbilitySpent('${a.id}')">${a.spent?'✓ Потрачено (сбросить)':'○ Доступна (отметить потраченной)'}</button>`;
 }
 // См. ABILITY_NOTE_LINKS выше — заметки вида "Сила во мне" считаются заново при каждой отрисовке (не

@@ -692,6 +692,36 @@ SAVE_ROLL_DEFS['creature_roll'] = {
   tags(){ return _creatureRollCtx ? [_creatureRollCtx.label + ': ' + _creatureRollCtx.base] : []; },
   formula(){ return 'Максимум из карточки существа'; }
 };
+// Бросок способности персонажа с игрового стола (PcAbilities): тот же жест, Максимум — 10 + характеристика, модификатор
+// способности подсвечен. Встречная («против воли цели») — вердикт у Мастера: из Максимума вычитается характеристика цели.
+let _mapAbilityCtx = null;
+Object.defineProperty(STAT_LABELS, 'map_ability', { enumerable:true, configurable:true, get(){ return _mapAbilityCtx ? _mapAbilityCtx.label : 'Способность'; } });
+SAVE_ROLL_DEFS['map_ability'] = {
+  get label(){ return _mapAbilityCtx ? _mapAbilityCtx.label : 'Способность'; }, anchorMod: 0,
+  base(){ return _mapAbilityCtx ? _mapAbilityCtx.base : 10; },
+  tags(){ return _mapAbilityCtx ? _mapAbilityCtx.tags.slice() : []; },
+  formula(){ return _mapAbilityCtx && _mapAbilityCtx.opp ? '10 + характеристика; характеристику цели вычтет Мастер' : '10 + характеристика + модификатор способности'; }
+};
+function executeMapAbilityRoll(base, mod, popup, mode){
+  mode = mode || 'plain';
+  const ctx = _mapAbilityCtx, max = base + mod, rolls = mode==='plain' ? [randInt(20)] : [randInt(20), randInt(20)];
+  const roll = pickD20ForMode(rolls[0], rolls[1], max, mode), ev = evaluateD20Check(roll, max), opp = !!(ctx && ctx.opp);
+  if(!opp && typeof recordAndShareRoll==='function') recordAndShareRoll('map_ability', mod, roll, max, ev.success, ev.category, mode, rolls); // встречную запишет Мастер — с итогом по целям
+  popup.querySelector('.hex-field').remove();
+  popup.querySelector('.roll-max-preview').remove();
+  popup.querySelector('.roll-tags').remove();
+  if(_rollOverlayEl) _rollOverlayEl.querySelectorAll('.roll-side-hint').forEach(h=>h.remove());
+  const startRect = popup.getBoundingClientRect();
+  const modeTxt = mode==='advantage' ? ' · Преимущество' : mode==='disadvantage' ? ' · Помеха' : '';
+  const stage = document.createElement('div');
+  stage.innerHTML = opp ? `<div class="roll-outcome"><span class="verdict">к20: ${rolls.join(', ')}</span>Макс. ${max} − характеристика цели — итог у Мастера${modeTxt}</div>`
+    : `<div class="roll-outcome ${ev.success?'success':'failure'}"><span class="verdict">${ev.success?`Успех, КУ${ev.category}`:'Провал'}</span>к20=${roll} / Макс.${max}${modeTxt}</div>`;
+  popup.appendChild(stage);
+  launchRollAnimation({diceType:'d20', mode, max, rolls, roll}, startRect).then(()=>{
+    closeRollOverlay();
+    if(ctx && ctx.done) ctx.done({rolls, mode, chosenMod:mod, base:max, roll, success:ev.success, cat:ev.category});
+  });
+}
 // Вместо обычного executeRoll для 'map_attack': кости бросаются здесь (с той же анимацией), но успех и
 // попадания считает Мастер — у игрока нет модификаторов цели, поэтому вердикт тут не показывается.
 function executeMapAttackRoll(base, mod, popup, mode){

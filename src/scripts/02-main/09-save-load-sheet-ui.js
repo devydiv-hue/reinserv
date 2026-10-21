@@ -21,6 +21,10 @@ function applyLoadedPayload(payload){
   const hadCheckpoint = !!(pc0 && ((pc0._lvlCheckpoint && (pc0._levelUpTarget || pc0._backfillTarget)) || (pc0._genCheckpoint && pc0._levelUpTarget)));
   pendingRoleplayChoices=[]; pendingChoices=[]; pendingItemRolls=[];
   character = restoreLevelCheckpoint(pc0);
+  if(typeof character.size==='number' && character.size !== clampSize(character.size)){ // лист из времени без предела −4…+4
+    logEvent(character, `Размер ${character.size} вне пределов ${SIZE_MIN}…+${SIZE_MAX} — исправлен на ${clampSize(character.size)}.`);
+    character.size = clampSize(character.size); reclampVitals(character);
+  }
   lostPendingNotice = hadPending && !hadCheckpoint ? payload.extra.pendingCount : 0;
   document.getElementById('fName').value = (payload.extra && payload.extra.name) || '';
   document.getElementById('fPlayer').value = (payload.extra && payload.extra.player) || '';
@@ -497,10 +501,17 @@ document.getElementById('fAppearanceNum').addEventListener('change', (e)=>{
   if(v !== character.appearance){ logEvent(character, `Внешний вид изменён вручную: ${character.appearance} → ${v}.`); character.appearance = v; }
   renderAll();
 });
-document.getElementById('fSizeNum').addEventListener('change', (e)=>{
+document.getElementById('fSizeNum').addEventListener('change', async (e)=>{
   if(!character) return;
-  const v = parseInt(e.target.value,10);
-  if(Number.isNaN(v)){ renderAll(); return; }
+  const raw = parseInt(e.target.value,10);
+  if(Number.isNaN(raw)){ renderAll(); return; }
+  const v = clampSize(raw);
+  if(v !== raw) uiToast(`Размер — от ${SIZE_MIN} до +${SIZE_MAX}`, {icon:'⚠'});
+  // Размер входит в максимум ОЗ (выносливость + размер + 3): случайно «прокрученное» поле однажды увело его в −12,
+  // а максимум ОЗ — в −8. Такое значение — только с подтверждением.
+  const c = character, newMax = hpMax(Object.assign({}, c, {size:v}));
+  if(v !== c.size && newMax <= 0 && !(await uiConfirm(`Размер ${v}: максимум ОЗ станет ${newMax}. Оставить такой размер?`, {title:'Размер', ok:'Оставить', cancel:'Вернуть ' + c.size, icon:'⚠'}))){ renderAll(); return; }
+  if(c !== character) return;
   if(v !== character.size){ logEvent(character, `Размер изменён вручную: ${character.size} → ${v}.`); character.size = v; reclampVitals(character); }
   renderAll();
 });

@@ -666,9 +666,11 @@ function applyModifier(c, mod, source, auto){
       break;
     }
     case 'size': {
-      c.sizeLog.push({source, delta: mod.delta});
-      c.size += mod.delta;
-      logEvent(c, `Размер ${mod.delta>0?'+':''}${mod.delta} (${source}) → сейчас ${c.size}.`);
+      // в журнал источника — сколько реально прибавилось в пределах −4…+4, чтобы его снятие вернуло ровно столько же
+      const d = clampSize(c.size + mod.delta) - c.size;
+      c.sizeLog.push({source, delta: d});
+      c.size += d;
+      logEvent(c, `Размер ${mod.delta>0?'+':''}${mod.delta} (${source}) → сейчас ${c.size}${d!==mod.delta ? ` (предел ${SIZE_MIN}…+${SIZE_MAX})` : ''}.`);
       break;
     }
     case 'psiSoprot': {
@@ -836,7 +838,7 @@ function removeBonusesBySource(c, sourcePrefix){
     c.stats[s] -= removed;
   });
   { let removed = 0; c.appearanceLog = c.appearanceLog.filter(e=>{ if(e.source.startsWith(sourcePrefix)){ removed += e.delta; return false; } return true; }); c.appearance -= removed; }
-  { let removed = 0; c.sizeLog = c.sizeLog.filter(e=>{ if(e.source.startsWith(sourcePrefix)){ removed += e.delta; return false; } return true; }); c.size -= removed; }
+  { let removed = 0; c.sizeLog = c.sizeLog.filter(e=>{ if(e.source.startsWith(sourcePrefix)){ removed += e.delta; return false; } return true; }); c.size = clampSize(c.size - removed); }
   { let removed = 0; c.psiSoprotLog = c.psiSoprotLog.filter(e=>{ if(e.source.startsWith(sourcePrefix)){ removed += e.delta; return false; } return true; }); c.psiSoprot -= removed; }
   { let removed = 0; c.bonusHpMaxLog = c.bonusHpMaxLog.filter(e=>{ if(e.source.startsWith(sourcePrefix)){ removed += e.delta; return false; } return true; }); c.bonusHpMax -= removed; }
   { let removed = 0; c.bonusPsiMaxLog = c.bonusPsiMaxLog.filter(e=>{ if(e.source.startsWith(sourcePrefix)){ removed += e.delta; return false; } return true; }); c.bonusPsiMax -= removed; }
@@ -922,7 +924,7 @@ function processNextLevelIfReady(c, fullHealEachStep){
 // never auto-resolved by "случайный" mode) since bigger size trades Скрытность away, not a pure upgrade.
 // Increasing size also shifts Сила/Скрытность by it, per the book's own size-change rule (стр. 81).
 function offerSizeBonusIfEligible(c){
-  if(c._sizeBonusOffered) return;
+  if(c._sizeBonusOffered || c.size >= SIZE_MAX) return;
   const eligible = ['sila','vynoslivost'].find(s=>c.stats[s]%3===0 && c.stats[s]>=6);
   if(!eligible) return;
   c._sizeBonusOffered = true;
@@ -1146,6 +1148,9 @@ function applyStartingGear(c){
   }
 }
 
+// Размер персонажа — от −4 до +4: ни бонусы, ни ручная правка не выводят за эти пределы.
+const SIZE_MIN = -4, SIZE_MAX = 4;
+function clampSize(v){ return Math.max(SIZE_MIN, Math.min(SIZE_MAX, v)); }
 function hpMax(c){ return 3 + c.stats.vynoslivost + c.size + c.bonusHpMax; } // book: "выносливость + размер + 3" (стр. 80) + any bonusHpMax abilities (e.g. Боец «Живучий»)
 function psiMax(c){ return 3 + c.stats.duh + c.bonusPsiMax; }
 function reclampVitals(c){
@@ -1154,7 +1159,9 @@ function reclampVitals(c){
 }
 // Only the lower bound is a hard wall (-max). Values above max are kept as-is and
 // displayed as "max+N" (see formatMetric) rather than clamped away.
-function clampLower(v, max){ return v < -max ? -max : v; }
+// A max of 0 or below (e.g. a size mistyped to −12) must not turn the −max wall into a positive floor
+// that lifts the current value up — that's how a player ended up with ОЗ «8/−8».
+function clampLower(v, max){ const m = Math.max(0, max); return v < -m ? -m : v; }
 function formatMetric(value, max){
   return value > max ? `${max}+${value-max}` : `${value}`;
 }

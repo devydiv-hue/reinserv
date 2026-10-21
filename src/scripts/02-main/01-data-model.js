@@ -3522,3 +3522,23 @@ function hintForSubtype(key){
   return _hintCache['sub:'+key] = text;
 }
 
+
+// Лежит в первом блоке скриптов, а не в 05-game-table.js: лог бросков (10-session-xp.js) рисует значок травмы
+// ещё при загрузке страницы, когда блок игрового стола не запущен.
+/* Природа существа: травмы бывают только у гуманоидов и животных; у пустот травм нет; у роботов вместо травм —
+   поломки 🔧 (тот же порог «к12 выше Травма-к12»). Явно — поле «Природа» (шаблон бестиария и жетон: nature),
+   иначе по шаблону: способность «Робот» — робот; «пустот» в группе, фракции или названии — пустота (кроме
+   одержимого: у него тело носителя). */
+const CREATURE_NATURES = {living:'гуманоид / животное', void:'пустота', robot:'робот'};
+function creatureNature(c){
+  if(!c) return 'living';
+  if(CREATURE_NATURES[c.nature]) return c.nature;
+  if((c.abil || []).some(a=>/^\s*робот\s*$/i.test(String(a && a[0] || ''))) || /(?:^|[^а-яё])(?:робот|андроид)/i.test(c.name || '')) return 'robot';
+  if(/одержим/i.test(c.name || '')) return 'living';
+  return /пустот/i.test([c.group, c.faction, c.name].join(' ')) ? 'void' : 'living';
+}
+function tokenNature(t){ return t && CREATURE_NATURES[t.nature] ? t.nature : t && t.creature ? creatureNature(t.creature) : 'living'; }
+// значок травмы (🦴) или поломки робота (🔧); red — от оружия с чертой «травма»
+function traumaIconHtml(robot, red, n){
+  return `<span${red ? ' class="bone-red"' : ''} title="${robot ? 'Поломка' : 'Травма'}${red ? ' (черта оружия «травма»)' : ''}">${robot ? '🔧' : '🦴'}</span>${n > 1 ? n : ''}`;
+}

@@ -1183,6 +1183,7 @@ const Bestiary = (function(){
     </div>`;
   }
   const natureTag = (n)=>n==='void' ? ' <small class="bst-nat" title="У пустот травм не бывает">· пустота, без травм</small>' : n==='robot' ? ' <small class="bst-nat" title="Вместо травм — поломки">· робот, поломки 🔧</small>' : '';
+  function safeCard(tpl, tok){ try{ return cardHtml(tpl, tok); }catch(e){ return failHtml(`Карточка «${tpl && tpl.name || '?'}»`, e); } }
   function cardHtml(tpl, tok){
     const who = tok ? tok.name : tpl.name;
     return `<div class="bst-card" data-who="${esc(who)}"${tok ? ` data-tok="${esc(tok.id)}"` : ''}>
@@ -1313,8 +1314,13 @@ const Bestiary = (function(){
     q = String(q||'').trim().toLowerCase();
     return all().filter(t=>(!group || t.group===group) && (!q || (t.name + ' ' + t.faction + ' ' + t.group + ' ' + t.desc).toLowerCase().includes(q)));
   }
+  // Сбой отрисовки — текстом на месте списка или карточки (и в консоли), а не пустое место: этот текст и присылать
+  function failHtml(what, e){ console.error('[Бестиарий] ' + what, e); return `<div class="bst-muted bst-fail">⚠ ${esc(what)} не отрисовалась: ${esc(e && e.message || e)}</div>`; }
   function renderSide(){
     const side = view.querySelector('.bst-side-list'); if(!side) return;
+    try{ renderSideList(side); }catch(e){ side.innerHTML = failHtml('Список существ', e); }
+  }
+  function renderSideList(side){
     const groups = [...new Set(all().map(t=>t.group))];
     const sel = view.querySelector('[data-f=group]');
     sel.innerHTML = '<option value="">Все группы</option>' + groups.map(g=>`<option ${prefs.group===g ? 'selected' : ''}>${esc(g)}</option>`).join('');
@@ -1336,7 +1342,7 @@ const Bestiary = (function(){
         ${own && bi ? '<button type="button" class="small" data-m="revert" title="Вернуть текст книги">↺ Как в книге</button>' : ''}
         ${own && !bi ? '<button type="button" class="small" data-m="del">✕ Удалить</button>' : ''}
         <label class="bst-chk"><input type="checkbox" data-m="public" ${prefs.publicRolls ? 'checked' : ''}> броски видны игрокам</label>
-      </div>` + cardHtml(tpl, null).replace('class="bst-card"', `class="bst-card" data-tpl="${esc(tpl.id)}"`)
+      </div>` + safeCard(tpl, null).replace('class="bst-card"', `class="bst-card" data-tpl="${esc(tpl.id)}"`)
       + (bi ? `<div class="bst-muted bst-src">Встроенный бестиарий${isEdited(tpl) ? ' · изменено вами' : ''}.</div>` : '');
   }
   function render(){
@@ -1490,7 +1496,8 @@ const Bestiary = (function(){
   function closeEditor(){ if(editorEl){ editorEl.remove(); editorEl = null; } }
 
   /* ---------- игровой стол: панель и карточка жетона ---------- */
-  let dockEl = null, floatEl = null, floatTokId = null, floatTplId = null, drag = null;
+  let dockEl = null, drag = null;
+  const floats = []; // открытые карточки существ (см. «Карточки существ на столе — окна»)
   function vp(){ return document.getElementById('gtViewport'); }
   function placeOnTable(tpl, cx, cy, switchTab){
     const g = gt(); if(!g){ note('Игровой стол недоступен'); return false; }
@@ -1525,6 +1532,9 @@ const Bestiary = (function(){
   }
   function renderDock(){
     if(!dockEl) return;
+    try{ renderDockList(); }catch(e){ dockEl.querySelector('.bst-dock-list').innerHTML = failHtml('Список существ', e); }
+  }
+  function renderDockList(){
     const g = groupsOf(filtered(prefs.dq, '')); let voidBtn = false;
     dockEl.querySelector('.bst-dock-list').innerHTML = Object.keys(g).map(k=>(!voidBtn && /^Пустоты/.test(k) && (voidBtn = true) ? '<button type="button" class="bst-mini bst-gen" data-d="void" title="Сгенерировать случайную пустоту и поставить в центр поля">🎲 Случайная пустота</button>' : '') + `<div class="bst-gtitle">${esc(k)}</div>` + g[k].map(t=>
       `<div class="bst-ditem" data-drag="${esc(t.id)}" title="Перетащите на поле"><span class="bst-dot" style="background:${t.color || COLORS[0]}"></span><span class="bst-dname">${esc(t.name)}</span>
@@ -1561,45 +1571,101 @@ const Bestiary = (function(){
     const under = document.elementFromPoint(e.clientX, e.clientY);
     if(under && vp() && vp().contains(under) && !under.closest('.gt-ui')) placeOnTable(t, e.clientX, e.clientY, false);
   }
-  // Панель инструментов стола на узком окне переносится в 2 строки — карточку и панель ставим ниже неё
-  function fitBelowBars(el){
-    const v = vp(); if(!v) return;
-    const left = el===dockEl ? v.clientWidth - 10 - (el.offsetWidth || 272) : 10, right = el===dockEl ? v.clientWidth : left + (el.offsetWidth || 440);
-    let y = 46;
+  // Панель инструментов стола на узком окне переносится в 2 строки — панель бестиария и новые карточки ставим ниже неё
+  function barsBottom(left, right){
+    const v = vp(); let y = 46; if(!v) return y;
     ['gtToolbar', 'gtSubbar', 'gtZoombar'].forEach(id=>{ const b = document.getElementById(id);
       if(!b || !b.offsetParent || !b.offsetHeight || b.offsetTop > v.clientHeight / 2) return; // нижняя панель масштаба на узком окне не мешает
       if(b.offsetLeft < right && b.offsetLeft + b.offsetWidth > left) y = Math.max(y, b.offsetTop + b.offsetHeight); });
+    return y;
+  }
+  function fitBelowBars(el){
+    const v = vp(); if(!v) return;
+    const left = v.clientWidth - 10 - (el.offsetWidth || 272), y = barsBottom(left, v.clientWidth);
     el.style.top = (y + 8) + 'px'; el.style.maxHeight = `calc(100% - ${y + 70}px)`;
   }
-  function refitAll(){ [floatEl, dockEl].forEach(el=>{ if(el && el.style.display!=='none' && el.offsetParent) fitBelowBars(el); }); }
+  function refitAll(){ if(dockEl && dockEl.style.display!=='none' && dockEl.offsetParent) fitBelowBars(dockEl); floats.forEach(placeFloat); }
   let barsObserved = false;
   function observeBars(){
     if(barsObserved || typeof ResizeObserver==='undefined' || !vp()) return; barsObserved = true;
     const ro = new ResizeObserver(refitAll); ['gtToolbar', 'gtSubbar', 'gtZoombar', 'gtViewport'].forEach(id=>{ const b = document.getElementById(id); if(b) ro.observe(b); });
   }
-  function ensureFloat(){
-    observeBars();
-    if(floatEl || !vp()) return;
-    floatEl = document.createElement('div'); floatEl.className = 'gt-ui bst-float';
-    vp().appendChild(floatEl);
-    floatEl.addEventListener('click', (e)=>{ if(e.target.closest('[data-f=close]')) closeFloat(); });
-    floatEl.addEventListener('wheel', (e)=>e.stopPropagation(), {passive:true});
+
+  /* Карточки существ на столе — окна: открыть можно несколько (жетоны и справочные), свернуть до заголовка
+     (– или двойной щелчок по заголовку) и перетащить за заголовок куда удобно. Положение — в пикселях от угла
+     поля; при сужении окна карточки подтягиваются внутрь. Порядок в floats — порядок наложения (последняя сверху). */
+  function createFloat(f){
+    const el = f.el = document.createElement('div'); el.className = 'gt-ui bst-float';
+    el.innerHTML = `<div class="bst-float-h" title="Перетащите, чтобы передвинуть · двойной щелчок — свернуть или развернуть"><span class="bst-float-t"></span>
+      <button type="button" class="bst-mini" data-f="min"></button><button type="button" class="bst-mini" data-f="close" title="Закрыть">✕</button></div><div class="bst-float-b"></div>`;
+    vp().appendChild(el);
+    el.addEventListener('pointerdown', ()=>toFront(f), true);
+    el.addEventListener('wheel', (e)=>e.stopPropagation(), {passive:true});
+    const h = el.firstElementChild;
+    h.addEventListener('click', (e)=>{ const b = e.target.closest('[data-f]'); if(!b) return; if(b.dataset.f==='close') closeFloat(f.key); else setMin(f, !f.min); });
+    h.addEventListener('dblclick', (e)=>{ if(!e.target.closest('button')) setMin(f, !f.min); });
+    h.addEventListener('pointerdown', (e)=>{
+      if(e.button!==0 || e.target.closest('button')) return;
+      const sx = e.clientX, sy = e.clientY, x0 = f.x, y0 = f.y;
+      try{ h.setPointerCapture(e.pointerId); }catch(err){}
+      const move = (ev)=>{ f.x = x0 + ev.clientX - sx; f.y = y0 + ev.clientY - sy; placeFloat(f); };
+      const up = ()=>{ h.removeEventListener('pointermove', move); h.removeEventListener('pointerup', up); h.removeEventListener('pointercancel', up); el.classList.remove('dragging'); };
+      h.addEventListener('pointermove', move); h.addEventListener('pointerup', up); h.addEventListener('pointercancel', up);
+      el.classList.add('dragging');
+    });
   }
-  function openFloat(tokId, tplId){ floatTokId = tokId || null; floatTplId = tokId ? null : tplId; ensureFloat(); renderFloat(); }
-  function closeFloat(){ floatTokId = floatTplId = null; if(floatEl){ floatEl.style.display = 'none'; floatEl.innerHTML = ''; } }
-  function renderFloat(){
-    if(!floatEl || (!floatTokId && !floatTplId)) return;
-    const g = gt(), t = floatTokId && g ? g.getToken(floatTokId) : null;
-    if(floatTokId && (!t || !t.creature)){ closeFloat(); return; }
-    const tpl = t ? t.creature : byId(floatTplId); if(!tpl){ closeFloat(); return; }
-    const focused = floatEl.contains(document.activeElement) && document.activeElement.matches('.bst-hp-in') ? document.activeElement.value : null;
-    const top = floatEl.scrollTop;
-    floatEl.innerHTML = `<button type="button" class="bst-mini bst-float-x" data-f="close" title="Закрыть">✕</button>` + cardHtml(tpl, t).replace('class="bst-card"', `class="bst-card"${t ? '' : ` data-tpl="${esc(tpl.id)}"`}`)
+  function placeFloat(f){
+    const v = vp(); if(!v || !f.el) return;
+    const vw = v.clientWidth, vh = v.clientHeight, hh = f.el.firstElementChild.offsetHeight || 34;
+    f.x = Math.max(0, Math.min(f.x, vw - (f.el.offsetWidth || 440))); f.y = Math.max(0, Math.min(f.y, vh - hh));
+    f.el.style.left = f.x + 'px'; f.el.style.top = f.y + 'px'; f.el.style.maxHeight = Math.max(hh, vh - f.y - 10) + 'px';
+  }
+  function toFront(f){
+    const i = floats.indexOf(f); if(i<0) return;
+    if(i!==floats.length - 1){ floats.splice(i, 1); floats.push(f); }
+    floats.forEach((x, k)=>{ x.el.style.zIndex = String(Math.min(19, 11 + k)); }); // ниже меню (20) и всплывающих окон (21) стола
+  }
+  function setMin(f, on){
+    f.min = !!on; f.el.classList.toggle('min', f.min);
+    if(!f.min){ const vh = vp().clientHeight; f.y = Math.min(f.y, Math.max(0, vh - Math.min(420, vh * .7))); } // развёрнутой у нижнего края — подняться, чтобы карточку было видно
+    renderOne(f); placeFloat(f);
+  }
+  function openFloat(tokId, tplId){
+    if(!vp()) return; observeBars();
+    const key = tokId ? 'tok:' + tokId : 'tpl:' + tplId;
+    let f = floats.find(x=>x.key===key);
+    if(!f){
+      const prev = floats[floats.length - 1], top0 = barsBottom(10, 450) + 8;
+      f = {key, tokId:tokId || null, tplId:tokId ? null : tplId, min:false, x:10, y:top0, el:null, sig:''};
+      if(prev){ f.x = prev.x + 28; f.y = prev.y + 28; if(f.y > vp().clientHeight - 200){ f.x = 10 + floats.length % 5 * 28; f.y = top0; } } // лесенкой от верхней
+      createFloat(f); floats.push(f);
+    }
+    toFront(f); setMin(f, false);
+  }
+  function closeFloat(key){ // без ключа — все
+    floats.slice().forEach(f=>{ if(key && f.key!==key) return; f.el.remove(); floats.splice(floats.indexOf(f), 1); });
+  }
+  function renderOne(f, lazy){
+    const g = gt(), t = f.tokId && g ? g.getToken(f.tokId) : null;
+    if(f.tokId && (!t || !t.creature)){ closeFloat(f.key); return; }
+    const tpl = t ? t.creature : byId(f.tplId); if(!tpl){ closeFloat(f.key); return; }
+    const sig = JSON.stringify([t || tpl, f.min]);
+    if(lazy && sig===f.sig) return; // стол меняется часто — нетронутые карточки не перерисовываем
+    f.sig = sig;
+    const hp = t ? (t.hp!=null ? ` <small>ОЗ ${esc(t.hp)}${t.hpMax!=null ? '/' + esc(t.hpMax) : ''}</small>` : '') : ' <small>· справочник</small>';
+    f.el.querySelector('.bst-float-t').innerHTML = `📖 ${esc(t ? t.name : tpl.name)}${hp}`;
+    const mb = f.el.querySelector('[data-f=min]'); mb.textContent = f.min ? '▢' : '–'; mb.title = f.min ? 'Развернуть' : 'Свернуть';
+    const body = f.el.lastElementChild;
+    if(f.min){ body.innerHTML = ''; return; } // свёрнутая — только заголовок
+    const focused = body.contains(document.activeElement) && document.activeElement.matches('.bst-hp-in') ? document.activeElement.value : null;
+    const top = body.scrollTop;
+    body.innerHTML = safeCard(tpl, t).replace('class="bst-card"', `class="bst-card"${t ? '' : ` data-tpl="${esc(tpl.id)}"`}`)
       + (t ? '' : `<div class="bst-actions"><button type="button" class="small primary" data-d2="place">⬇ Поставить в центр</button></div>`);
-    floatEl.style.display = 'block'; fitBelowBars(floatEl); floatEl.scrollTop = top;
-    const pl = floatEl.querySelector('[data-d2=place]'); if(pl) pl.onclick = ()=>placeOnTable(tpl, null, null, false);
-    if(focused!=null){ const i = floatEl.querySelector('.bst-hp-in'); if(i){ i.value = focused; i.focus(); } }
+    body.scrollTop = top;
+    const pl = body.querySelector('[data-d2=place]'); if(pl) pl.onclick = ()=>placeOnTable(tpl, null, null, false);
+    if(focused!=null){ const i = body.querySelector('.bst-hp-in'); if(i){ i.value = focused; i.focus(); } }
   }
+  function renderFloat(lazy){ floats.slice().forEach(f=>renderOne(f, lazy)); }
 
   /* ---------- связи с остальным приложением ---------- */
   function isPlayerRole(){ return typeof session!=='undefined' && session.role==='player'; }
@@ -1609,11 +1675,13 @@ const Bestiary = (function(){
     if(visible) render();
   }
   function setVisible(v){ visible = !!v; if(visible) render(); }
-  function onTableShown(){ if(prefs.dock && !isPlayerRole()){ ensureDock(); if(dockEl){ dockEl.style.display = ''; renderDock(); fitBelowBars(dockEl); } } if(floatEl && floatEl.style.display==='block') fitBelowBars(floatEl); }
-  function onTableChanged(){ if(floatEl && floatEl.style.display==='block') renderFloat(); }
+  function onTableShown(){ if(prefs.dock && !isPlayerRole()){ ensureDock(); if(dockEl){ dockEl.style.display = ''; renderDock(); fitBelowBars(dockEl); } } floats.forEach(placeFloat); }
+  function onTableChanged(){ if(floats.length) renderFloat(true); }
   function init(){ view = document.getElementById('bestiaryTabView'); refreshRole(); }
   return { init, setVisible, refreshRole, onTableShown, onTableChanged, toggleDock, openFloat, closeFloat,
            tokenWeapons:(t)=>t && t.creature ? instWeapons(t.creature, t.creature.inst) : [], get dockOpen(){ return !!prefs.dock; },
            list:all, byId, makeTokenFields, sanitizeTpl, parseDef, itemsIn, selId:()=>prefs.sel, refreshFloat:()=>{ renderFloat(); try{ render(); }catch(e){} } };
 })();
-try{ Bestiary.init(); }catch(e){ console.error('[Бестиарий] не удалось запустить', e); }
+try{ Bestiary.init(); }catch(e){ console.error('[Бестиарий] не удалось запустить', e);
+  const v = document.getElementById('bestiaryTabView');
+  if(v) v.innerHTML = `<div class="panel"><h2>Бестиарий</h2><p class="muted">⚠ Не запустился: ${escapeHtml(e && e.message || e)}</p></div>`; }

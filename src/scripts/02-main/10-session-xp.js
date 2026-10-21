@@ -637,7 +637,7 @@ function recordAndShareRoll(statKey, mod, roll, max, success, category, mode, ro
     statLabel: STAT_LABELS[statKey]||statKey, mod, roll, max, success, category,
     mode: mode||'plain', rolls: rolls||[roll]
   };
-  if(secretRollActive() && statKey!=='creature_roll' && statKey!=='map_attack'){ shareSecretRoll(entry, entry.statLabel); return; }
+  if(secretRollActive() && statKey!=='creature_roll' && statKey!=='map_attack' && statKey!=='map_ability'){ shareSecretRoll(entry, entry.statLabel); return; }
   addRollLogEntry(entry);
   if(statKey!=='map_attack' && (roll===12 || (roll===13 && !success)) && typeof Reactions!=='undefined') // реакция «Крит!» / «Провал!» над бросившим
     Reactions.rollEvent(roll===12 ? 'crit' : 'fumble', statKey==='creature_roll' && _creatureRollCtx ? _creatureRollCtx.tokId : null);
