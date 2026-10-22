@@ -269,7 +269,7 @@ const AbilityKit = (function(){
       if(sc && S[j + 1] && /^\s*(?:при успехе|в случае успеха)/i.test(S[j + 1]) && /(?:^|[^а-яё])(?:цел[а-яё]*|противник[а-яё]*)(?=[^а-яё]|$)/i.test(S[j + 1])){ main = {type:'opp', max:sc.max, vs:'', stat:sc.stat, at:sc.at, end:sc.end, fromSelf:true}; P = j; return; }
       const a = cs.find(c=>c.role==='target' || c.type==='opp' || c.type==='atk');
       if(a){ if(escCand && escCand.j < j && a.type==='check'){ P = escCand.j; main = escCand.c; } else { P = j; main = a; } return; } } };
-    const alwaysIn = (sn)=>{ const b = stripTrigger(sn); return !ONG.test(sn) && !ESCAPE_RE.test(sn) && hasTargetWords(b, voidish) && ALWAYS_VERB.test(b) && !/должн|если|иначе|при провале|в случае|может\s+получить|получает\s+\+|\+\s*\d+\s+к\s/i.test(b) && !consEmpty(consFrom(b)); };
+    const alwaysIn = (sn)=>{ const b = stripTrigger(sn); return !ONG.test(sn) && !ESCAPE_RE.test(sn) && hasTargetWords(b, voidish) && ALWAYS_VERB.test(b) && !/долж(?:ен|н)|если|иначе|при провале|в случае|может\s+получить|получает\s+\+|\+\s*\d+\s+к\s/i.test(b) && !consEmpty(consFrom(b)); };
     const alwaysBefore = ()=>S.slice(0, P < 0 ? S.length : P).some(alwaysIn);
     scan(false, false);
     if(!main && !alwaysBefore()) scan(true, false);
@@ -397,7 +397,7 @@ const AbilityKit = (function(){
     const H = s.cons.hits; if(H && H.prof && !H.byCat && !H.byRoll && (s.atk || (s.opp && /атак/i.test(S[P] || '')))){ H.byCat = true; H.n = 0; } // успешная атака — [КУ] попаданий
     if(ctx.pc && !ctx.chained){
       // цена в пси («затратив действие и 2 пси», «за 1 пси», «тратит действие, 3 пси») и «при провале расходуется до конца дня»
-      m = /(?:за|по)?тра[тч]\S*\s+(?:действие\s*(?:и|,)\s*)?(\d+)\s+пси(?![а-яё-])|(?:расход\S*|за)\s+(\d+)\s+пси(?![а-яё-])/i.exec(t); if(m) s.psiCost = +(m[1] || m[2]);
+      m = /(?:за|по)?тра[тч]\S*\s+(?:(?:свободное\s+)?(?:действие|реакцию)\s*(?:и|,)\s*)?(\d+)\s+пси(?![а-яё-])|(?:расход\S*|за)\s+(\d+)\s+пси(?![а-яё-])/i.exec(t); if(m) s.psiCost = +(m[1] || m[2]);
       s.spendOnFail = /(?:в\s+случае\s+провала|при\s+провале)[^.]*(?:расход|утрачива|не\s+может\s+(?:больше\s+)?(?:использовать|применять))/i.test(t);
     }
     s.chips = chips(s);
@@ -405,7 +405,12 @@ const AbilityKit = (function(){
   }
 
   /* ---------- постоянные свойства и автоматика (что приложение делает само) ---------- */
+  const featMemo = new Map();
   function features(name, t, pc){
+    const fk = (pc ? 'p|' : 'c|') + (name || '') + '|' + (t || ''); if(featMemo.has(fk)) return featMemo.get(fk);
+    const res = featuresRaw(name, t, pc); featMemo.set(fk, res); if(featMemo.size > 3000) featMemo.clear(); return res;
+  }
+  function featuresRaw(name, t, pc){
     const out = [], S = sentences(t); let m;
     S.forEach(sn=>{
       if((/не повреждающ\S* пси-плоскость/i.test(sn) || /атак\S*[^.]{0,60}по\s+(нему|ней|пустот\S*)/i.test(sn)) && (m = /(?:штраф|модификатор)\s*([−-]\s*\d+)/i.exec(sn)) && !/может|раз в круг|если персонаж хочет|выбирает/i.test(sn))
@@ -421,6 +426,7 @@ const AbilityKit = (function(){
         const energy = /энергетическ/i.test(sn), ranged = /стрелков/i.test(sn), other = !ally && /если|когда|в бою с|раз в/i.test(sn);
         if(!other && !(pc && /по\s+(?:ней|нему|цели|жертв)|за\s+\d+\s+пси|на\s+\d+\s+круг|ярост|в\s+первом\s+круге/i.test(sn))) out.push({id:'atkBonus', v:+m[1], energy, ranged, allyM:ally ? +(String(ally[1] || ally[2]).replace(',', '.')) : 0,
           label:`+${m[1]} к атаке${energy ? ' энергетическим' : ''}${ranged && !energy ? ' стрелковым' : ''}${ally ? ', если союзник в ' + (ally[1] || ally[2]) + ' м' : ''}`}); }
+      if((m = /атак\S*\s+(?:произведена\s+)?из\s+([а-яё]+)[^.]*?успешн[^.]*?на\s+(\d+)\s+категори\S*\s+успеха\s+выше/i.exec(sn))) out.push({id:'catBonus', v:+m[2], weapon:m[1].toLowerCase().slice(0, Math.max(3, m[1].length - 2)), label:`успешная атака из ${m[1]}: категория успеха +${m[2]}`});
       if((m = /\+\s*(\d+)\s+к\s+ранам[^.]*если у цели не полное ОЗ/i.exec(sn))) out.push({id:'muka', v:+m[1], label:`+${m[1]} к ранам, если у цели не полное ОЗ`});
       if(/инициатив/i.test(sn) && !/союзник|может|если|когда|вместо|перебро/i.test(sn)){
         if((m = /инициатив[^.]*?\+\s*(\d+)/i.exec(sn))) out.push({id:'initBonus', label:`инициатива +${m[1]}`});
@@ -443,18 +449,22 @@ const AbilityKit = (function(){
       if((m = /в радиусе\s+(\d+)\s*м\s+существа могут перебрасывать броски костей только/i.exec(sn))) out.push({id:'anchor', r:+m[1], label:`в ${m[1]} м перебросы только прекогницией — подсказки перебросов отключены`});
       if(/Упрощ\S*\s+атакует\s+испуганн/i.test(sn)) out.push({id:'hintTorment', label:'подсказка атаке: Упрощённо по испуганным и сбитым с ног'});
       if(/если персонаж скрыт[^.]*атакующ[^.]*Упрощ/i.test(sn)) out.push({id:'hintStealth', label:'подсказка атаке: Упрощённо, если существо скрыто'});
+      if(/значени\S*\s+11\s+и\s+12\s+на\s+к12/i.test(sn)) out.push({id:'headShot', label:'при стрельбе к12 11–12 — попадание в голову: травма Осложнённо'});
+      if((m = /превосходит\s+числом\s+противника[^.]*в\s+пределах\s+([\d,]+)\s*м[^.]*\+\s*(\d+)\s+к\s+атаке/i.exec(sn))) out.push({id:'outnumber', m:+m[1].replace(',', '.'), v:+m[2], label:`+${m[2]} к атаке при численном перевесе, если союзник в ${m[1]} м`});
+      if((m = /\+\s*(\d*к\d+)\s+ран\s+каждой\s+цели,\s*первый\s+раз\s+за\s+день\s+получившей\s+урон\s+из\s+тяж[её]л/i.exec(sn))) out.push({id:'firstHeavyBonus', expr:m[1], label:`+${m[1]} ран цели при первом за день уроне из тяжёлого оружия`});
       if(/(провалил\S*|промахнул\S*)\s+с\s+итогом\s+15/i.test(sn)) out.push({id:'trigger', label:'подсказка: игрок провалил с итогом 15−' + (/промахнул/i.test(sn) ? ' (промах атаки рядом)' : '')});
     });
     const rs = pc ? rerollScopePc(t) : rerollScope(t);
     if(rs && rs.scope!=='other' && rs.scope!=='trauma' && rs.scope!=='hits_all' && rs.scope!=='hits_note') out.push({id:'reroll', scope:rs.scope, label:'↻ переброс: ' + ({own_d20:'свой к20', own_attack:'своя атака', vs_me:'атака по нему и его рефлексы' + (/на 1 рану больше/i.test(t) ? ' (если всё же попали — +1 рана)' : ''), stat:'проверка ' + (rs.stats || [rs.stat]).map(k=>STAT_NAME[k] || k).join(' или ')})[rs.scope] + (rs.cond ? ', ' + rs.cond : '')});
+    if(rs && rs.scope==='trauma') out.push({id:'traumaReroll', label:'переброс таблицы травм — кнопка при травме'}); // 23-trauma-table.js
     if(pc) out.push(...featuresPc(t, rs));
     const buff = buffSpec(t, pc);
-    if(buff) out.push({id:'buff', spec:buff, label:'▶ включить: ' + buffLabel(buff)});
+    if(buff) out.push({id:'buff', spec:buff, label:(buff.target ? '🎯 цель: ' : '▶ включить: ') + buffLabel(buff)});
     return out;
   }
   // Временное усиление: «на 3 круга +3 к проверкам атаки», неистовство (по броску), Мясник (на одну атаку)…
   function buffSpec(t, pc){
-    const dur = /на\s+\[\s*категори\S*\s+успеха\s*\]\s+круг/i.test(t) ? {cat:true} : (/на\s+(\d+)\s+круг/i.exec(t) ? {n:+/на\s+(\d+)\s+круг/i.exec(t)[1]} : null);
+    let dur = /на\s+\[\s*категори\S*\s+успеха\s*\]\s+круг/i.test(t) ? {cat:true} : (/на\s+(\d+)\s+круг/i.exec(t) ? {n:+/на\s+(\d+)\s+круг/i.exec(t)[1]} : null);
     const mods = {}; let m;
     if((m = (pc ? /\+\s*(\d+)\s+к\s+(?:проверкам\s+)?атак[еаи]?(?![а-яё])(?!\s+по\s)/i : /\+\s*(\d+)\s+к\s+проверкам\s+атак/i).exec(t)) && dur) mods.attack = +m[1];
     if((m = /защиту\s+\+\s*(\d+)/i.exec(t)) && dur) mods.def = +m[1];
@@ -464,6 +474,35 @@ const AbilityKit = (function(){
     let oneShot = false;
     if((m = /добавляет\s+\+\s*(\d*к\d+)\s+к\s+атаке/i.exec(t))){ mods.attackDice = m[1]; oneShot = true; if((m = /\+\s*(\d+)\s+к\s+МУ/i.exec(t))) mods.mu = +m[1]; }
     if((m = /повысив своё пси-сопротивление на\s+\+?\s*(\d+)/i.exec(t))){ mods.psiSave = +m[1]; oneShot = true; }
+    // выбранная цель: «Выгодный угол», «Прикрыть колесницу» (защита против её попаданий), «Жертва» (+3 к атаке, +1 МУ по ней),
+    // «Снайперский выстрел» (+[восприятие] по мишени, атаки по стрелку +3), «Ган-ката» (её дальнобойные атаки −[рефлексы])
+    let target = false;
+    if((m = /выбирает\s+видимую\s+цель[^.]*защита\s+(?:его\s+)?(?:брони|всех)[^.]*?\+\s*(\d+)(?:\s*\(\s*\+\s*(\d+)[^)]*стрелков[^)]*?(\d+)\s*м\s*\))?/i.exec(t))){ mods.defVs = +m[1]; if(m[2]){ mods.defVsRanged = +m[2]; mods.defVsM = +m[3]; } target = true; }
+    if((m = /назначает\s+существо\s+жертвой[^.]*?\+\s*(\d+)\s+МУ\s+и\s+\+\s*(\d+)\s+к\s+атаке/i.exec(t))){ mods.muVs = +m[1]; mods.atkVs = +m[2]; target = true; }
+    if(/прицелиться[^.]*атаки\s+по\s+нему\s+\+\s*\d+[^.]*модификатор\s+\+\s*\[\s*восприяти/i.test(t)){ mods.meAtk = +/атаки\s+по\s+нему\s+\+\s*(\d+)/i.exec(t)[1]; mods.atkVsStat = 'vospriyatie'; target = true; }
+    if(/выбирает\s+видимую\s+цель[^.]*помеху,\s*равную\s*\[\s*рефлексы[^\]]*\]\s*,?\s*на\s+дальнобойные\s+атаки/i.test(t)){ mods.ganKata = 'refleksy'; target = true; }
+    // телохранитель: «Охрана» персонажа — штраф −4 атакам по подопечному, промах кат. 1 — 1 попадание в защитника; «Охрана»
+    // существа (Акын) — укрытие в упор, провал кат. 1 — успех атаки по защитнику; «Защити меня» — выбранный защитник рядом
+    // принимает каждое попадание по ней с шансом 5 из 6
+    if(/выступает\s+(?:её|его)\s+защитником/i.test(t)){ m = /штраф\s*([−-]\s*\d+)/i.exec(t); mods.guardPen = m ? Math.abs(NUM(m[1])) : 0; mods.guardHit = /приходится\s+в\s+защитника/i.test(t) ? 'hit' : ''; target = true; }
+    if(/даёт\s+укрытие\s+для\s+существа\s+в\s+упор/i.test(t)){ mods.guardPen = 0; mods.guardHit = /успехами\s+атаки\s+по\s+персонажу/i.test(t) ? 'attack' : 'hit'; target = true; }
+    if(/становится\s+максимальным\s+укрытием\s+от\s+атак/i.test(t)){ m = /с\s+шансом\s+(\d+)\s+из\s+(\d+)/i.exec(t); mods.bodyShield = m ? [+m[1], +m[2]] : [5, 6]; target = true;
+      if((m = /на\s+\[\s*(\d+)\s*\+\s*категори\S*\s+успеха\s*\]\s+круг/i.exec(t))) dur = {cat:true, plus:+m[1]}; }
+    // «Петлять»: атаки по нему −3 до его нового хода; «Занять позицию»: в укрытии защита +1
+    if((m = /попытки\s+попасть\s+по\s+нему\s+получат\s*([−-]\s*\d+)/i.exec(t))){ mods.meAtk = NUM(m[1]); if(!dur) dur = {n:1}; }
+    if((m = /в\s+укрытии\s+защита\s+(?:персонажа\s+)?\+\s*(\d+)/i.exec(t))) mods.def = +m[1];
+    // разовая прибавка к следующей проверке: «добавить 1к6 к своим рефлексам», «+1к6 к проверке характеристик тела», «1к6 к Максимуму проверки техники»
+    if((m = /добавить\s+\+?\s*(\d*к\d+|\d+)\s+к\s+(?:Максимуму\s+)?(?:сво\S*\s+)?(?:проверк\S*\s+)?(характеристик\S*\s+тела|[^.;,]+)/i.exec(t)) && !/выпавш/i.test(m[2])){
+      const ks = /характеристик\S*\s+тела/i.test(m[2]) ? ['vynoslivost', 'legkaya_atletika', 'refleksy', 'sila'] : statsIn(m[2]).filter(k=>k!=='hladnokrovie');
+      if(ks.length){ mods.checkBonus = {expr:m[1].replace(/^1(?=к)/, ''), stats:ks}; oneShot = true; } }
+    // «Намерение убить»: атака Упрощённо, первый урон +к6 ран — на одну атаку
+    if((m = /атаку\s+Упрощ\S*[^.]*первый\s+урон[^.]*\+\s*(\d*к\d+|\d+)\s+ран/i.exec(t))){ mods.atkAdvHint = true; mods.firstDmgDice = m[1]; oneShot = true; }
+    // по броску: «Пси-щит» — отклонить [КУ] попаданий следующей атаки; «Невероятное везенье» — игнорировать атаки [КУ] врагов
+    // в этом круге; «Неуязвимое тело» — [5 за КУ] временных ОЗ; «Встань и иди» — полное исцеление
+    if(/отклоняя\s+или\s+поглощая\s+\[\s*категори\S*\s+успеха\s*\]\s+попадани/i.test(t)){ mods.cancelHits = 'cat'; oneShot = true; }
+    if(/защищает\s+себя\s+в\s+этот\s+раунд[^.]*от\s+атак\s+\[\s*категори\S*\s+успеха\s*\]\s+враг/i.test(t)){ mods.ignoreAttacks = 'cat'; if(!dur) dur = {n:1}; }
+    if((m = /\[\s*(\d+)\s+за\s+категори\S*\s+успеха\s*\]\s+временн\S*\s+ОЗ/i.exec(t))) mods.tempHpPerCat = +m[1];
+    if(/восстанавлива\S*\s+весь\s+запас\s+здоровья/i.test(t)){ mods.fullHeal = true; oneShot = true; }
     if(pc){ // «Ярость»: +3 временных ОЗ, игнорирует истощение, Осложнённо проходит проверки смекалки…; «Дикий напор»: можно Упрощённо пройти проверку силы или воли
       if((m = /\+\s*(\d+)\s+временн\S*\s+ОЗ/i.exec(t)) && (dur || Object.keys(mods).length)) mods.tempHp = +m[1];
       if(/игнорирует\s+истощени/i.test(t) && (dur || Object.keys(mods).length)) mods.immune = (mods.immune || []).concat(['istoshenie']);
@@ -473,16 +512,26 @@ const AbilityKit = (function(){
       if(Object.keys(mods).length && (m = /исцелиться\s+на\s+(\d+)\s+ОЗ/i.exec(t))) mods.heal = +m[1];
     }
     if(!Object.keys(mods).length) return null;
+    const byCat = mods.cancelHits==='cat' || mods.ignoreAttacks==='cat' || mods.tempHpPerCat || mods.fullHeal; // эффект зависит от броска — бросок обязателен
     const roll = /Брос\S*\s+(\S+)\s*(?:\(([−+-]\s*\d+)\)\s*)?\((\d+)\)[^.]*(?:в случае успеха|в успехе)/i.exec(t) || (oneShot && mods.psiSave ? /Брос\S*\s+(\S+)\s*(?:\(([−+-]\s*\d+)\)\s*)?\((\d+)\)/i.exec(t) : null)
-      || (pc ? /Брос\S*\s+(\S+(?:\s+(?:атлетики|рук))?)\s*(?:\(([−+-]\s*\d+)\))?[^]{0,80}?(?:в случае успеха|при успехе)/i.exec(t) : null); // у персонажа Максимум — по характеристике
-    return {mods, rounds:dur, oneShot, viaRoll:roll ? {stat:statOf(roll[1]), mod:roll[2] ? NUM(roll[2]) : 0, max:roll[3] ? +roll[3] : null} : null};
+      || (pc ? /Брос\S*\s+(\S+(?:\s+(?:атлетики|рук))?)\s*(?:\(([−+-]\s*\d+)\))?[^]{0,80}?(?:в случае успеха|при успехе)/i.exec(t) : null) // у персонажа Максимум — по характеристике
+      || (pc && byCat ? /Брос\S*\s+(\S+(?:\s+(?:атлетики|рук))?)\s*(?:\(([−+-]\s*\d+)\))?/i.exec(t) : null);
+    return {mods, rounds:dur, oneShot, target, viaRoll:roll ? {stat:statOf(roll[1]), mod:roll[2] ? NUM(roll[2]) : 0, max:roll[3] ? +roll[3] : null} : null};
   }
   function buffLabel(b){ const m = b.mods, p = [];
     if(m.attack) p.push(`+${m.attack} к атаке`); if(m.attackDice) p.push(`+${m.attackDice} к атаке`); if(m.mu) p.push(`МУ +${m.mu}`); if(m.def) p.push(`защита +${m.def}`);
     if(m.woundsTaken) p.push('−1 рана от каждого попадания'); if(m.firstDmg) p.push(`первый урон за круг +${m.firstDmg} раны`); if(m.psiSave) p.push(`+${m.psiSave} к пси-сопротивлению`);
     if(m.immune) p.push('без ' + m.immune.map(k=>({ispug:'испуга', shock:'шока', istoshenie:'истощения'})[k] || k).join(' и '));
-    if(m.tempHp) p.push(`+${m.tempHp} временных ОЗ`); if(m.heal) p.push(`+${m.heal} ОЗ сразу`); if(m.dis) p.push('Осложнены: ' + m.dis.map(k=>STAT_NAME[k] || k).join(', ')); if(m.adv) p.push('Упрощена проверка ' + m.adv.map(k=>STAT_NAME[k] || k).join(' или '));
-    return p.join(', ') + (b.oneShot ? (m.adv ? ' — одна проверка' : ' — на одну атаку/проверку') : b.rounds ? (b.rounds.cat ? ' на [кат.] кругов' : ` на ${b.rounds.n} кр.`) : '') + (b.viaRoll ? ` — после броска${b.viaRoll.max ? ` (${b.viaRoll.max})` : ''}` : ''); }
+    if(m.tempHp) p.push(`+${m.tempHp} временных ОЗ`); if(m.heal) p.push(`+${m.heal} ОЗ сразу`);
+    if(m.defVs) p.push(`защита +${m.defVs} против выбранной цели${m.defVsRanged ? ` (+${m.defVsRanged}, если стреляет с ${m.defVsM} м)` : ''}`); if(m.atkVs) p.push(`+${m.atkVs} к атаке по цели`); if(m.muVs) p.push(`МУ +${m.muVs} по цели`);
+    if(m.atkVsStat) p.push(`+[${STAT_NAME[m.atkVsStat] || m.atkVsStat}] к атакам по мишени`); if(m.meAtk) p.push(`атаки по нему ${m.meAtk > 0 ? '+' : '−'}${Math.abs(m.meAtk)}`);
+    if(m.ganKata) p.push('дальнобойные атаки цели по нему −[рефлексы]'); if(m.checkBonus) p.push(`+${m.checkBonus.expr} к проверке ${m.checkBonus.stats.length > 3 ? 'тела' : m.checkBonus.stats.map(k=>STAT_NAME[k] || k).join(' или ')}`);
+    if(m.atkAdvHint) p.push('атака Упрощённо'); if(m.firstDmgDice) p.push(`первый урон +${m.firstDmgDice} ран`);
+    if(m.cancelHits) p.push(`отклонить ${m.cancelHits==='cat' ? '[кат.]' : m.cancelHits} попаданий`); if(m.ignoreAttacks) p.push(`игнорировать атаки ${m.ignoreAttacks==='cat' ? '[кат.]' : m.ignoreAttacks} врагов`);
+    if(m.tempHpPerCat) p.push(`[${m.tempHpPerCat} × кат.] временных ОЗ`); if(m.fullHeal) p.push('полное исцеление, травмы сняты');
+    if(m.guardHit!=null) p.push(`охраняет цель${m.guardPen ? `: атаки по ней −${m.guardPen}` : ': укрытие'}${m.guardHit==='hit' ? ', промах кат. 1 — попадание в защитника' : m.guardHit==='attack' ? ', провал кат. 1 — атака по защитнику' : ''}`);
+    if(m.bodyShield) p.push(`защитник (цель) принимает попадания по нему с шансом ${m.bodyShield[0]} из ${m.bodyShield[1]}`); if(m.dis) p.push('Осложнены: ' + m.dis.map(k=>STAT_NAME[k] || k).join(', ')); if(m.adv) p.push('Упрощена проверка ' + m.adv.map(k=>STAT_NAME[k] || k).join(' или '));
+    return p.join(', ') + (b.oneShot ? (m.fullHeal ? '' : m.adv || m.checkBonus ? ' — одна проверка' : m.cancelHits ? ' — следующая атака' : ' — на одну атаку/проверку') : b.rounds ? (b.rounds.cat ? (b.rounds.plus ? ` на [${b.rounds.plus} + кат.] кругов` : ' на [кат.] кругов') : ` на ${b.rounds.n} кр.`) : '') + (b.viaRoll ? ` — после броска${b.viaRoll.max ? ` (${b.viaRoll.max})` : ''}` : ''); }
   /* ---------- существо из листа персонажа: формулировки способностей персонажа ----------
      Перебросы: «перебросить результат/итог проверки атаки» — своя атака (подсказка после промаха); «перебросить проверку
      техники / восприятия / выносливости или …» и «(своей или чужой), если участвуют его рефлексы» — эта проверка; «все
@@ -535,14 +584,30 @@ const AbilityKit = (function(){
         if(a1 && a2 && !(a1==='refleksy' && a2==='smekalka')) out.push({id:'evasion', stat:a1, vs:a2, label:`подсказка при попадании по нему: Бросок ${STAT_NAME[a1] || m[1]} против ${STAT_NAME[a2] || m[2]} атакующего — промах`}); }
       // «Берсерк», «Мгновенная контратака»: внеочередная атака в ответ
       if(/(?:получая\s+попадание|атаковал\S*\s+(?:цель|его|вора|персонажа)|если\s+\S+\s+атаковал\S*)[^.]*внеочередн\S*\s+атак/i.test(sn)) out.push({id:'counterHint', onHit:/получая\s+попадание/i.test(sn), label:'подсказка: внеочередная атака в ответ', text:sn.trim()});
+      if(/охраняем\S*\s+цель\s+должна\s+быть\s+атакована[^.]*реакцией\s+атаковать/i.test(sn)) out.push({id:'guardReact', label:'подсказка, когда атакуют подопечного «Охраны»'});
       // «Точность»: при стрельбе +1 к МУ
-      if((m = /при\s+стрельбе[^.]*\+\s*(\d+)\s+к\s+МУ/i.exec(sn))) out.push({id:'muBonus', v:+m[1], ranged:true, label:`+${m[1]} МУ при стрельбе`});
+      if((m = /при\s+стрельбе[^.]*\+\s*(\d+)\s+к\s+МУ/i.exec(sn))) out.push({id:'muBonus', v:+m[1], ranged:true, notPb:/не\s+в\s+упор/i.test(sn), label:`+${m[1]} МУ при стрельбе${/не\s+в\s+упор/i.test(sn) ? ' (не в упор)' : ''}`});
       // «Умелая атака», «Вонзаться»: нанося урон, добавить +1к6 / +1 рану — кнопка после попадания
       if((m = /нанося\s+урон[^.]*?(?:добавить|нанести)\s+(?:ей\s+|ещё\s+)?\+\s*(\d*к\d+|\d+)\s+ран/i.exec(sn))) out.push({id:'bonusWound', expr:m[1], label:`после урона: +${m[1]} ${m[1]==='1' ? 'рана' : 'ран'} (кнопка)`});
+      // «Вера — мой щит»: в проверках воли — мистика вместо воли; «Убеждения, изменяющие реальность»: отмена [дух] ран из запаса [мистика]
+      if(/вместо\s+целев\S*\s+характеристик\S*\s+(?:свою\s+)?мистик/i.test(sn) && /вол/i.test(sn)) out.push({id:'willShield', stat:'mistika', label:'Бросок воли по мистике, если так лучше'});
+      if(/растратить\s+\[\s*дух\s*\]\s+очков[^.]*отменить[^.]*\[\s*дух\s*\]\s+ран/i.test(sn)) out.push({id:'cancelWounds', perStat:'duh', poolStat:'mistika', per:0, daily:0, roll:null, label:'отмена [дух] ран из запаса [мистика] — подсказка, когда ранен'});
+      // «Терзать»: +3 к атаке и +1 МУ по уязвимой цели; «Умелый стрелок»: +1 за каждую следующую стрельбу по той же цели
+      if((m = /\+\s*(\d+)\s+к\s+проверкам\s+атак\s+по\s+цели\s+и\s+\+\s*(\d+)\s+к\s+МУ[^.]*(?:испуган|шок|обездвиж)/i.exec(sn))) out.push({id:'vsVulnerable', atk:+m[1], mu:+m[2], label:`+${m[1]} к атаке и МУ +${m[2]} по испуганной / в шоке / обездвиженной цели`});
+      if((m = /следующая\s+стрелковая\s+атака\s+по\s+одной\s+цели[^.]*накопительн\S*\s+модификатор\s+\+\s*1\s*\(\s*макс\S*\s*\+\s*(\d+)/i.exec(sn))) out.push({id:'stackAim', max:+m[1], label:`+1 за каждую следующую стрельбу по той же цели (до +${m[1]})`});
+      // «Родство с оружием»: после проверки атаки +к6 к выпавшему (кнопка — та же атака с новым к20)
+      if((m = /после\s+проверки\s+атаки\s+можно\s+добавить\s+(\S+)\s+к\s+выпавшему/i.exec(sn))) out.push({id:'addToRoll', expr:m[1], label:`после атаки: +${m[1]} к выпавшему на к20 (кнопка)`});
+      // подсказки трекера боя: в начале боя (ход до боя, 2 реакции), в начале / в конце круга
+      if(/в\s+начале\s+боя|перед\s+(?:сценой\s+)?боя|до\s+начала\s+боя|\d+\s+реакци\S*\s+в\s+круг/i.test(sn)){ if(!out.some(f=>f.id==='hintStart')) out.push({id:'hintStart', label:'подсказка в начале боя'}); }
+      else if(/в\s+(?:начале|конце)\s+(?:каждого\s+|нового\s+)?круга/i.test(sn) && !/цел[ьи]/i.test(sn) && !out.some(f=>f.id==='hintRound')) out.push({id:'hintRound', label:'подсказка в трекере боя (начало / конец круга)'});
       if(/инициатив/i.test(sn) && /может[^.]*Упрощ/i.test(sn) && !/союзник/i.test(sn)) out.push({id:'initPc', label:'инициатива Упрощена' + (/(\d+)\s+пси/i.exec(sn) ? ` (за ${/(\d+)\s+пси/i.exec(sn)[1]} пси)` : '')});
       if(/смекалк\S*\s+вместо\s+рефлекс\S*[^.]*инициатив|инициатив[^.]*смекалк\S*\s+вместо\s+рефлекс/i.test(sn)) out.push({id:'initPc', label:'инициатива по смекалке, если она выше рефлексов'});
       if(/если\s+в\s+(\S+)\s+преуспел[^.]*атак/i.test(sn)) out.push({id:'onHitHint', when:/если\s+в\s+(\S+)/i.exec(sn)[1], label:'подсказка после успешной атаки', text:sn.trim()});
     });
+    // прибавка к другой технике («Сила во мне», «Выдержка психокинетика», «Клокочущая мощь») — считается при её применении (stackMods)
+    const sm = modsIn(t);
+    if(Object.keys(sm).length && !sm.vuln && /пси-способност|должен\s+потерять\s+пси|культов\S*\s+символ|применяя|перед\s+проверк|теперь\s+также|изучен\S*\s+повторно/i.test(t) && !/атак\S*\s+(?:произведена\s+)?из\s|(?<![а-яё])Брос[а-яё]*\s/i.test(t)) // со своим броском («Ясновидение») — не прибавка
+      out.push({id:'stackMod', label:(GRANT_RE.test(t) ? 'при повторном изучении техника получает: ' : 'прибавка при применении техники: ') + groupLabel({mods:sm}), cond:'считается само при применении с карты (окно выбора перед броском)'});
     return out;
   }
   // Что перебрасывает способность
@@ -586,7 +651,7 @@ const AbilityKit = (function(){
       if(nt.length) out.push(['help', `✎ ${nt.length > 1 ? nt.length + ' условия' : 'условие'} — решает Мастер`, nt.join('\n')]);
     }
     if(s.selfCheck && !s.opp) out.push(['self', (s.pc ? '🎲 свой бросок: ' : '🎲 бросок существа: ') + CHECK_LABEL(s.selfCheck) + (s.pc && act ? ', при успехе — цели' : '')]);
-    (s.feats || []).forEach(f=>out.push([f.id==='reroll' || f.id==='trigger' || f.id==='rerollNote' || f.id==='rerollHits' ? 're' : f.id==='buff' ? 'save' : 'pas', (f.id==='reroll' || f.id==='buff' || f.id==='rerollNote' || f.id==='rerollHits' ? '' : f.id==='trigger' ? '⚡ ' : '⚙ авто: ') + f.label].concat(f.cond ? [f.cond] : [])));
+    (s.feats || []).forEach(f=>out.push([f.id==='reroll' || f.id==='trigger' || f.id==='rerollNote' || f.id==='rerollHits' ? 're' : f.id==='buff' ? 'save' : 'pas', (f.id==='reroll' || f.id==='buff' || f.id==='rerollNote' || f.id==='rerollHits' ? '' : f.id==='trigger' ? '⚡ ' : /^hint/.test(f.id) ? '⏱ ' : '⚙ авто: ') + f.label].concat(f.cond ? [f.cond] : [])));
     if(!act && !(s.feats || []).length && !(s.selfCheck && s.selfCheck.max) && (/[+−]\s*\d|Упрощ|Осложн|раз в|перебро|защит|(?:^|[^а-яё])ран(?:ы|у|а|ами)?(?![а-яё])|Брос|провер|реакци|действи|удач/i.test(s.text) || /(?:^|[^А-Яа-яЁё])ОЗ(?![А-Яа-яЁё])/.test(s.text))) out.push(['help', '📖 справка — решает Мастер']);
     return out;
   }
@@ -595,6 +660,7 @@ const AbilityKit = (function(){
   /* ---------- отсылки («как морок Нара», «обычную атаку (см. выше)») ---------- */
   const voidishOf = (tpl)=>!!tpl && (/Пустот/i.test(tpl.group || '') || /пустот/i.test(tpl.name || ''));
   function resolved(name, text, tpl){
+    if(tpl && tpl.pc) text = String(text || '').replace(/\s*Усилено\s*\([^)]*\):[^]*$/, ''); // усиление — прибавкой при применении (stackMods)
     const ctx = {voidish:voidishOf(tpl), pc:!!(tpl && tpl.pc), pcFeats:!!(tpl && tpl.pc)}, s = parse(name, text, ctx);
     if(!s.ref) return s;
     const stem = (x)=>String(x || '').toLowerCase().replace(/ё/g, 'е').replace(/\s*\(.*$/, '').trim().split(/\s+/).map(w=>w.length > 4 ? w.slice(0, -2) : w).join(' ');
@@ -607,6 +673,145 @@ const AbilityKit = (function(){
     return r;
   }
 
+  /* ---------- суммирование: что прибавляется к технике персонажа ----------
+     Усиление при повторном изучении («Усилено»: +1 категория, +3 попадания, раны выше на 1, +3 / +1к6 к Максимуму) — к
+     технике, которую называет оно само или способность-источник («Позволяет применять пирокинез»), иначе ко всем техникам
+     способности. Другие способности, называющие технику («Сила во мне»: +3 к Максимуму дальнего телекинетического удара;
+     «Раздавить»: МУ архивации плоти 12 → 15), вместе со своим «(усиление)» («… теперь также повышает МУ на 1 и … для
+     архивации плоти»). Способности дисциплины или всех пси-способностей («Выдержка психокинетика»: +1 категория; «Оракул»:
+     +1к6 к Максимуму сенсорной; «Талант психокинетика», «Терпеливый», «Клокочущая мощь»: −1 пси); «Терзать»: +3 к
+     Максимуму мистической способности, отнимающей ОЗ, против испуганной / в шоке / обездвиженной цели.
+     «Может добавить / повысить» — по выбору перед броском, остальное — всегда; всё складывается. Способности —
+     [{id, name, text, enh, enhSrc}] (pcList — из листа, tplList — из карточки существа из листа). */
+  const normTx = (x)=>String(x || '').toLowerCase().replace(/ё/g, 'е');
+  // основа слова: «телекинез» целиком (не «телекинетика»), «архивация» → «архиваци», «дальний» → «дальн»
+  const techStem = (w)=>(/(?:ий|ый|ой|ая|ое|ые|ие)$/.test(w) && w.length > 5 ? w.slice(0, -2) : /[аеиоуыэюяьй]$/.test(w) ? w.slice(0, -1) : w) + '[а-я]{0,4}';
+  // техника в тексте: последние два значимых слова названия («…телекинетического удара», «вселение в духа»), all — все
+  function techRe(name, all){ const ws = normTx(name).replace(/\s*\([^)]*\)\s*$/, '').replace(/[^а-я\s-]/g, ' ').split(/\s+/).filter(w=>w.length > 2); if(!ws.length) return null;
+    return new RegExp('(?<![а-я-])' + (all ? ws : ws.slice(-2)).map(techStem).join('\\s+(?:[а-я]{1,2}\\s+)?') + '(?![а-я])', 'i'); }
+  // рядом с упоминанием — «применяя», «для», «перед проверкой», «МУ»: речь о применении техники, а не о слове
+  // («ловкостью во время перемещения» — не техника «Перемещение»)
+  const CUE = /применя|использ|провер|(?<![а-я])му(?![а-я])|(?<![а-я])для(?![а-я])|перед|пси-способност/;
+  // упоминание без «соседей» с тем же словом («пирокинез», а не «бытовой пирокинез»)
+  function mentions(text, name, siblings, cue){ const re = techRe(name); if(!re) return false; let x = normTx(text), m;
+    (siblings || []).forEach(sb=>{ if(normTx(sb)!==normTx(name) && re.test(normTx(sb))){ const r2 = techRe(sb, true); if(r2) x = x.replace(new RegExp(r2.source, 'gi'), ' '); } });
+    const g = new RegExp(re.source, 'gi');
+    while((m = g.exec(x))){ if(!cue || CUE.test(x.slice(0, m.index).split(/\s+/).slice(-7).join(' '))) return true; }
+    return false; }
+  function psiDisc(name){ if(typeof PSI_ABILITY_CATALOG==='undefined') return null; const n = String(name || '').replace(/\s*\([^)]*\)\s*$/, '');
+    for(const d of Object.keys(PSI_ABILITY_CATALOG)) for(const k of Object.keys(PSI_ABILITY_CATALOG[d])) if(PSI_ABILITY_CATALOG[d][k].indexOf(n) >= 0) return d;
+    return null; }
+  function cultTier(name){ if(typeof CULTIST_ABILITY_CATALOG==='undefined') return null; const n = String(name || '').replace(/\s*\([^)]*\)\s*$/, '');
+    for(const r of Object.keys(CULTIST_ABILITY_CATALOG)) for(const k of Object.keys(CULTIST_ABILITY_CATALOG[r])) if(CULTIST_ABILITY_CATALOG[r][k].indexOf(n) >= 0) return k;
+    return null; }
+  const DISC_RE = {'Психокинетика':/психокинетик/i, 'Сенсорика':/сенсорн/i, 'Телепатия':/телепати/i, 'Вероятностная аналитика':/вероятностн\S*\s+аналитик|аналитическ/i};
+  const GRANT_RE = /изучен\S*\s+повторно|даже\s+если\s+(?:пси-)?способност\S*\s+ещ[её]\s+не\s+изучен/i; // «Позволяет применять … Если … изучен повторно» — работает через «Усилено»
+  function modsIn(x){
+    const m = {}; let r; x = String(x || '');
+    if((r = /(?:добав\S*|получа\S*)\s+\+?\s*(\d*к6)\s+к\s+(?:её\s+|его\s+)?Максимум/i.exec(x))) m.maxDice = r[1].replace(/^1(?=к)/, '');
+    else if((r = /(?:добав\S*|получа\S*)\s+\+?\s*(\d+)\s+к\s+(?:её\s+|его\s+)?Максимум/i.exec(x) || /Максимум\S*\s+проверки\s+\+\s*(\d+)/i.exec(x) || /\+\s*(\d+)\s+к\s+Максимуму/i.exec(x))) m.max = +r[1];
+    if((r = /к\s+Максимуму\s+проверки\s+(?:\S+\s+){0,3}?добавля\S*\s+(\S+)/i.exec(x)) && statOf(r[1])) m.maxStat = statOf(r[1]);
+    if((r = /(?:\+\s*(\d+)|на\s+(\d+))\s+категори\S*\s+успеха/i.exec(x) || /категори\S*\s+успеха\s+на\s+(\d+)/i.exec(x))) m.cat = +(r[1] || r[2]);
+    if((r = /на\s+(\d+)\s+попадани\S*\s+больше/i.exec(x))) m.hits = +r[1];
+    if((r = /раны\s+выше\s+на\s+(\d+)/i.exec(x) || /на\s+(\d+)\s+ран\S*\s+больше/i.exec(x))) m.wounds = +r[1];
+    if((r = /МУ\s+(?:\S+\s+){0,3}?с\s+(\d+)\s+до\s+(\d+)/i.exec(x))) m.muSet = +r[2];
+    else if((r = /повыша\S*\s+МУ\s+(?:\S+\s+){0,3}?на\s+(\d+)/i.exec(x) || /\+\s*(\d+)\s+к\s+МУ/i.exec(x))) m.mu = +r[1];
+    if((r = /на\s+(\d+)\s+пси\s+меньше/i.exec(x))){ m.psi = +r[1]; const mn = /(\d+)\s+пси\s+и\s+больше/i.exec(x); if(mn) m.psiMin = +mn[1]; if(/теологи/i.test(x)) m.teol = true; }
+    return m;
+  }
+  // группа — одна способность-источник: её модификаторы, выбор, расход
+  function groupOf(key, src, srcText, modText){
+    const mods = modsIn(modText); if(!Object.keys(mods).length) return null;
+    const sp = /(?:значени\S*|итог\S*)\s+(?:\S+\s+){0,2}?(?:больше|выше|превыша\S*)\s+(?:сво\S*\s+)?(\S+)[^.]*?(?:расход\S*|не\s+может\s+быть\s+взят\S*\s+вновь)\s+до\s+конца\s+(дня|(?:игровой\s+)?встречи|сцены)/i.exec(srcText);
+    return {key, src, mods, opt:/(?:может|можно)\s+(?:\S+\s+){0,2}?(?:добав|повыс|взять|увелич)/i.test(modText), uses:parseUses(src, srcText),
+      spend:sp && statOf(sp[1]) ? {stat:statOf(sp[1]), per:/дн/i.test(sp[2]) ? 'день' : /встреч/i.test(sp[2]) ? 'встречу' : 'сцену'} : null,
+      spendFail:/при\s+провале\s+(?:\S+\s+){0,2}?расход\S*/i.test(srcText)};
+  }
+  function pcList(c){ return (c && c.abilities || []).map(a=>({id:a.id, name:String(a.name || ''), text:String(a.text || ''), enh:String(a.enhancedText || ''), enhSrc:String(a.enhancedSource || ''), spent:!!a.spent})); }
+  function tplList(tpl){ return (tpl && tpl.abil || []).map((a, i)=>{ const x = String(a[1] || ''), m = /\s*Усилено\s*\(([^)]*)\):\s*([^]*)$/.exec(x);
+    return {id:'a' + i, name:String(a[0] || ''), text:m ? x.slice(0, m.index) : x, enh:m ? m[2] : '', enhSrc:m ? m[1] : ''}; }); }
+  // лист → строки карточки существа: техника дисциплины — своей строкой «Архивация плоти (Психоконструкция)», вступление —
+  // строкой дисциплины; «Усилено (…)» — к технике, которую называет усиление или его источник, иначе ко всем
+  function pcRows(c){
+    const list = pcList(c), rows = [];
+    list.forEach(a=>{ const enh = a.enh ? ` Усилено (${a.enhSrc}): ${a.enh}` : '', parts = pcParts(a.name, a.text);
+      if(parts.length < 2 || !parts[0].i){ rows.push([a.name, a.text + enh]); return; }
+      const techs = parts.map(p=>p.name.slice(a.name.length + 2)), first = a.text.indexOf(techs[0] + ':'), intro = first > 0 ? a.text.slice(0, first).trim() : '';
+      const src = list.find(x=>x.name===a.enhSrc), where = a.enh + ' ' + (src ? src.text : ''), named = techs.filter(tc=>mentions(where, tc, techs));
+      if(intro.length > 40) rows.push([a.name, intro]);
+      parts.forEach((p, i)=>rows.push([`${techs[i]} (${a.name})`, p.text + (enh && (!named.length || named.indexOf(techs[i]) >= 0) ? enh : '')])); });
+    return rows;
+  }
+  // owner — способность с техникой, part — {name, tech, text, s}; всё, что к ней прибавляется
+  function stackMods(list, owner, part){
+    const out = [], s = part.s || {}, tech = part.tech || owner.name, disc = psiDisc(owner.name.replace(/\s*\([^)]*\)\s*$/, '')) || psiDisc((/\(([^)]+)\)\s*$/.exec(owner.name) || [])[1]);
+    const sibs = pcParts(owner.name, owner.text).map(p=>p.i ? p.name.slice(p.name.indexOf(': ') + 2) : '').filter(Boolean);
+    const byRef = (t, cue)=>mentions(t, tech, sibs, cue) || (tech!==owner.name && !sibs.some(x=>mentions(t, x, sibs)) && mentions(t, owner.name.replace(/\s*\([^)]*\)\s*$/, ''), [], cue));
+    if(owner.enh){ // усиление самой способности
+      const src = list.find(a=>a.name===owner.enhSrc), where = owner.enh + ' ' + (src ? src.text : '');
+      if(sibs.length < 2 || byRef(where) || !sibs.some(x=>mentions(where, x, sibs))){ const g = groupOf('enh:' + owner.id, owner.enhSrc || 'усиление', owner.enh, owner.enh); if(g){ g.enh = true; g.spent = !!(src && src.spent); out.push(g); } } }
+    const stat = s.opp ? s.opp.stat : s.selfCheck ? s.selfCheck.stat : null, hurts = [s.cons, s.always].some(c=>c && (c.hits || c.hp));
+    list.forEach(a=>{
+      if(a===owner || a.id===owner.id || GRANT_RE.test(a.text) || /\(усиление\)\s*$/i.test(a.name)) return;
+      const adds = list.filter(b=>b!==a && (normTx(b.name)===normTx(a.name) + ' (усиление)' || normTx(b.text).indexOf(normTx(a.name) + ' теперь') === 0));
+      const all = [a.text].concat(adds.map(b=>b.text)).join(' '), key = 'm:' + a.id;
+      if(byRef(all, true)){ // называет технику
+        // модификаторы — из фраз, называющих технику, иначе (техника названа в «(усиление)») — из всех фраз со своими модификаторами
+        let near = sentences(a.text).filter(sn=>byRef(sn, true) && Object.keys(modsIn(sn)).length).join(' ');
+        if(!near) near = sentences(a.text).filter(sn=>Object.keys(modsIn(sn)).length).join(' ');
+        const g = groupOf(key, a.name, a.text, near + ' ' + adds.map(b=>b.text).join(' '));
+        if(g){ g.spent = !!a.spent; out.push(g); } return; }
+      let m;
+      if((m = /\+\s*(\d+)\s+к\s+Максимуму\s+мистическ\S*\s+отнимающ\S*\s+ОЗ/i.exec(a.text)) && stat==='mistika' && hurts){ out.push({key, src:a.name, mods:{vuln:+m[1]}, opt:false, uses:null, spend:null}); return; }
+      // способности культового символа: «тратит на 1 пси меньше, если к20 не выше теологии»
+      const cs = sentences(a.text).find(x=>/культов\S*\s+символ/i.test(x) && Object.keys(modsIn(x)).length);
+      if(cs){ if(cultTier(owner.name)==='Культовый символ'){ const g = groupOf(key, a.name, a.text, cs); if(g){ g.spent = !!a.spent; out.push(g); } } return; }
+      // вся дисциплина, все пси-способности, любая потеря пси
+      const sn = sentences(a.text).find(x=>/пси-способност/i.test(x) && Object.keys(modsIn(x)).length) || sentences(a.text).find(x=>/должен\s+потерять\s+пси/i.test(x) && modsIn(x).psi);
+      if(!sn) return;
+      const d = Object.keys(DISC_RE).find(k=>DISC_RE[k].test(sn));
+      if(/пси-способност/i.test(sn) ? (d ? disc!==d : !disc) : !s.psiCost) return;
+      const g = groupOf(key, a.name, a.text, sn); if(g){ g.spent = !!a.spent; out.push(g); }
+    });
+    return out.filter(g=>s.psiCost || Object.keys(g.mods).some(k=>k!=='psi' && k!=='psiMin' && k!=='teol')); // скидки в пси — только у способностей с ценой
+  }
+  // что значит группа — для окна выбора и лога
+  function groupLabel(g){ const m = g.mods, p = [];
+    if(m.max) p.push(`+${m.max} к Максимуму`); if(m.maxDice) p.push(`+${m.maxDice} к Максимуму`); if(m.maxStat) p.push(`+[${STAT_NAME[m.maxStat] || m.maxStat}] к Максимуму`);
+    if(m.vuln) p.push(`+${m.vuln} к Максимуму против испуганной / в шоке / обездвиженной цели`);
+    if(m.cat) p.push(`+${m.cat} к категории успеха`); if(m.hits) p.push(`+${m.hits} попадания`); if(m.muSet) p.push(`МУ ${m.muSet}`); if(m.mu) p.push(`МУ +${m.mu}`); if(m.wounds) p.push(`раны +${m.wounds}`);
+    if(m.psi) p.push(`−${m.psi} пси к цене${m.psiMin ? ` (если цена ${m.psiMin}+)` : ''}${m.teol ? ' (если к20 не выше теологии)' : ''}`);
+    return p.join(', ') + (g.spend ? ` (к20 выше ${STAT_NAME[g.spend.stat] || g.spend.stat} — расходуется до конца ${g.spend.per==='день' ? 'дня' : g.spend.per==='встречу' ? 'встречи' : 'сцены'})` : '') + (g.spendFail ? ' (при провале расходуется)' : ''); }
+  // выбранные группы → поправки: Максимум, категория, попадания, МУ, раны, цена в пси
+  function sumMods(groups, c){
+    const a = {max:0, dice:[], cat:0, hits:0, mu:0, muSet:0, wounds:0, cuts:[], vuln:0, tags:[]};
+    groups.forEach(g=>{ const m = g.mods;
+      if(m.max) a.max += m.max; if(m.maxStat && c){ const v = +((c.stats || {})[m.maxStat]) || 0; a.max += v; }
+      if(m.maxDice){ const v = GTk() ? GTk().rollWoundsExpr(m.maxDice) : 1 + Math.floor(Math.random()*6); a.max += v; a.dice.push(`${g.src}: ${m.maxDice}=${v}`); }
+      if(m.cat) a.cat += m.cat; if(m.hits) a.hits += m.hits; if(m.mu) a.mu += m.mu; if(m.muSet) a.muSet = Math.max(a.muSet, m.muSet); if(m.wounds) a.wounds += m.wounds; if(m.vuln) a.vuln += m.vuln;
+      if(m.psi && !m.teol) a.cuts.push({n:m.psi, min:m.psiMin || 0, key:g.key, src:g.src});
+      if(Object.keys(m).some(k=>k!=='psi' && k!=='psiMin' && k!=='teol' && k!=='vuln')) a.tags.push(`${g.src}: ${groupLabel({mods:Object.assign({}, m, {psi:0, vuln:0})})}`); });
+    return a;
+  }
+  // цена в пси после скидок («Клокочущая мощь» — только если цена 2+); какие скидки сработали
+  function psiAfter(cost, cuts){ let v = +cost || 0; const used = []; (cuts || []).forEach(x=>{ if(v > 0 && (+cost || 0) >= x.min){ v = Math.max(0, v - x.n); used.push(x); } }); return {cost:v, used}; }
+  // раны с прибавкой: «2» → «3», «1+кат» → «2+кат», «к6» → «к6+1», «размер цели+2» → «размер цели+3»
+  function plusWounds(w, n){ w = String(w==null ? '1' : w).trim(); let m;
+    if(/^\d+$/.test(w)) return String(+w + n);
+    if((m = /^(\d*)\s*\+?\s*кат$/i.exec(w))) return `${(+m[1] || 0) + n}+кат`;
+    if((m = /^(размер\s+\S+)(?:\+(\d+))?$/i.exec(w))) return `${m[1]}+${(+m[2] || 0) + n}`;
+    return `${w}+${n}`; }
+  // разбор способности с поправками (для формы «Бросок цели»)
+  function withAdj(s, a){
+    if(!a || !(a.hits || a.mu || a.muSet || a.wounds || a.max)) return s;
+    const fix = (c)=>{ if(!c || !c.hits) return c; const h = Object.assign({}, c.hits);
+      if(a.hits && !h.nExpr) h.n = (h.n || 0) + a.hits; if(a.muSet) h.mu = Math.max(h.mu || 0, a.muSet); if(a.mu) h.mu = (h.mu || 0) + a.mu; if(a.wounds && !h.moshh) h.wounds = plusWounds(h.wounds, a.wounds);
+      return Object.assign({}, c, {hits:h}); };
+    const r = Object.assign({}, s, {cons:fix(s.cons), always:fix(s.always)});
+    if(a.max){ if(r.opp) r.opp = Object.assign({}, r.opp, {mod:(r.opp.mod || 0) + a.max}); if(r.selfCheck) r.selfCheck = Object.assign({}, r.selfCheck, {mod:(r.selfCheck.mod || 0) + a.max}); }
+    return r;
+  }
+
   /* ---------- счётчики, усиления, продолжающиеся эффекты (у Мастера) ---------- */
   const USES_KEY = 'reincarnator_ability_uses_v1', BUFF_KEY = 'reincarnator_ability_buffs_v1', ONG_KEY = 'reincarnator_ability_ongoing_v1';
   const loadJ = (k)=>{ try{ return JSON.parse(localStorage.getItem(k) || 'null') || null; }catch(e){ return null; } };
@@ -616,12 +821,19 @@ const AbilityKit = (function(){
   const usedOf = (tokId, key)=>((uses[tokId] || {})[key] || 0);
   function bump(tokId, key, d){ const u = uses[tokId] || (uses[tokId] = {}); u[key] = Math.max(0, (u[key] || 0) + d); saveUses(); }
   const buffsOf = (tokId)=>(buffs[tokId] || []);
-  function addBuff(tokId, key, name, spec, cat){
-    const rounds = spec.oneShot ? null : spec.rounds ? (spec.rounds.cat ? Math.max(1, cat || 1) : spec.rounds.n) : null;
+  function addBuff(tokId, key, name, spec, cat, target){
+    const rounds = spec.oneShot ? null : spec.rounds ? (spec.rounds.cat ? Math.max(1, cat || 1) + (spec.rounds.plus || 0) : spec.rounds.n) : null;
+    const k = Math.max(1, cat || 1), mods = Object.assign({}, spec.mods);
+    if(mods.cancelHits==='cat') mods.cancelHits = k; if(mods.ignoreAttacks==='cat') mods.ignoreAttacks = k; if(mods.tempHpPerCat){ mods.tempHp = mods.tempHpPerCat * k; delete mods.tempHpPerCat; }
+    if(mods.fullHeal){ // «Встань и иди»: весь запас здоровья, травмы, истощение — сразу, без усиления
+      const gt = GTk(), t = gt && gt.getToken(tokId); if(!t) return;
+      gt.updateToken(tokId, Object.assign({trauma:0, traumaRed:0, marks:(t.marks || []).filter(x=>['exhausted', 'shock', 'dead', 'immobile', 'limit'].indexOf(x.k) < 0)}, t.hpMax!=null ? {hp:Math.max(t.hp || 0, t.hpMax)} : {}));
+      if(typeof TraumaTable!=='undefined') TraumaTable.clear(tokId); refreshCard(); return; }
+    spec = Object.assign({}, spec, {mods});
     // временные ОЗ: жетон не держит ОЗ выше максимума (стол поднимает максимум) — прежний максимум помним в усилении
     const gt0 = GTk(), t0 = spec.mods.tempHp && gt0 && gt0.getToken(tokId), prev = buffsOf(tokId).find(b=>b.key===key);
     const baseMax = prev && prev.baseMax!=null ? prev.baseMax : t0 && t0.hpMax!=null ? t0.hpMax : null;
-    buffs[tokId] = buffsOf(tokId).filter(b=>b.key!==key).concat([Object.assign({key, name, mods:spec.mods, left:rounds, oneShot:spec.oneShot}, baseMax!=null ? {baseMax} : {})]); saveJ(BUFF_KEY, buffs); refreshCard();
+    buffs[tokId] = buffsOf(tokId).filter(b=>b.key!==key).concat([Object.assign({key, name, mods:spec.mods, left:rounds, oneShot:spec.oneShot}, baseMax!=null ? {baseMax} : {}, target ? {target} : {})]); saveJ(BUFF_KEY, buffs); refreshCard();
     if(t0 && t0.hp!=null && !(prev && prev.baseMax!=null)) gt0.updateToken(tokId, {hp:t0.hp + spec.mods.tempHp}); // повторное включение того же — без вторых временных ОЗ
     if(spec.mods.heal){ const gt = GTk(), t = gt && gt.getToken(tokId); if(t && t.hp!=null) gt.updateToken(tokId, {hp:t.hpMax!=null ? Math.min(t.hpMax, t.hp + spec.mods.heal) : t.hp + spec.mods.heal}); }
     if(spec.mods.immune){ const gt = GTk(), t = gt && gt.getToken(tokId); if(t && (t.marks || []).some(m=>m.k==='fear' || m.k==='shock')) gt.updateToken(tokId, {marks:t.marks.filter(m=>m.k!=='fear' && m.k!=='shock')}); }
@@ -661,9 +873,10 @@ const AbilityKit = (function(){
     const buff = (s.feats || []).find(f=>f.id==='buff');
     const sm = selfMax(tok, s); // у существа из листа свой бросок перед целями делает ⚔ — отдельная 🎲 только без целей
     if(tok && sm!=null && !s.opp && !(s.pc && canFire)) btns.push(`<button type="button" class="bst-mini" data-ak-self="${esc(key)}" data-tok="${esc(tok.id)}" title="Бросок существа к20 против Максимума ${sm}${buff && buff.spec.viaRoll ? ' — при успехе включится усиление' : ''}">🎲 ${sm}</button>`);
-    if(tok && buff && !buff.spec.viaRoll) btns.push(`<button type="button" class="bst-mini" data-ak-buff="${esc(key)}" data-tok="${esc(tok.id)}" title="Включить: ${esc(buffLabel(buff.spec))}">▶ включить</button>`);
+    if(tok && buff && !buff.spec.viaRoll) btns.push(`<button type="button" class="bst-mini" data-ak-buff="${esc(key)}" data-tok="${esc(tok.id)}" title="${buff.spec.target ? 'Выбрать цель на карте' : 'Включить'}: ${esc(buffLabel(buff.spec))}">${buff.spec.target ? '🎯 цель' : '▶ включить'}</button>`);
     const active = tok ? buffsOf(tok.id).find(b=>b.key===key) : null;
-    const activeHtml = active ? `<span class="ak-chip ak-on">✦ активно${active.oneShot ? ' (на одну)' : active.left ? `: ещё ${active.left} кр.` : ''}<button type="button" class="ak-mini" data-ak-unbuff="${esc(key)}" data-tok="${esc(tok.id)}" title="Снять">✕</button></span>` : '';
+    const tgtName = active && active.target ? (()=>{ const gt = GTk(), x = gt && gt.getToken(active.target); return x ? nameOfTok(x) : '?'; })() : '';
+    const activeHtml = active ? `<span class="ak-chip ak-on">✦ активно${tgtName ? ' → ' + esc(tgtName) : ''}${active.oneShot ? ' (на одну)' : active.left ? `: ещё ${active.left} кр.` : ''}<button type="button" class="ak-mini" data-ak-unbuff="${esc(key)}" data-tok="${esc(tok.id)}" title="Снять">✕</button></span>` : '';
     const shown = usesHtml ? Object.assign({}, s, {chips:s.chips.filter(c=>c[0]!=='uses')}) : s;
     return `<span class="ak-row">${chipsHtml(shown)}${activeHtml}${usesHtml}${btns.join('')}</span>`;
   }
@@ -676,12 +889,42 @@ const AbilityKit = (function(){
     if(!tokId || !s.uses) return true; const left = s.uses.n - usedOf(tokId, key);
     return left > 0 || await uiConfirm(`«${ab.name}» уже использована ${s.uses.n} раз (${s.uses.per}). Применить всё равно?`, {title:'Способность', ok:'Применить'});
   }
+  // существо из листа: что прибавляется к способности (AbilityKit.stackMods) — постоянное само, «может добавить» — галочками
+  async function tplChoose(tokId, tpl, key, s, title, ask){
+    const gt = GTk(), tok = tokId && gt ? gt.getToken(tokId) : null, list = tpl && tpl.pc && key[0]==='a' ? tplList(tpl) : null, owner = list && list[+key.slice(1)];
+    if(!owner) return {chosen:[], adj:sumMods([], null)};
+    const ps = pcParts(owner.name, owner.text), tech = ps.length > 1 && ps[0].i ? ps[0].name.slice(owner.name.length + 2) : owner.name.replace(/\s*\([^)]*\)\s*$/, '');
+    const gs = stackMods(list, owner, {name:owner.name, tech, text:owner.text, s})
+      .filter(g=>Object.keys(g.mods).some(k=>k!=='psi' && k!=='psiMin' && k!=='teol')) // пси существа не ведутся
+      .map(g=>{ const used = tok ? usedOf(tok.id, g.key) : 0; return Object.assign(g, {left:g.uses ? Math.max(0, g.uses.n - used) : null, off:g.uses ? used >= g.uses.n : !!(g.spend || g.spendFail) && used > 0}); });
+    const opts = ask ? gs.filter(g=>g.opt) : [], fixed = gs.filter(g=>!g.opt && !g.off), line = (g)=>esc(`${g.src}: ${groupLabel(g)}`);
+    let picked = [];
+    if(opts.length){
+      const v = await uiDialog({title, icon:'✦', html:`<div class="pa-ask">${fixed.length ? `<div class="pa-mods"><b>Прибавится само:</b>${fixed.map(g=>`<div>• ${line(g)}</div>`).join('')}</div>` : ''}`+
+        `<div class="pa-mods"><b>По выбору:</b>${opts.map((g, i)=>`<label class="ui-dlg-check"><input type="checkbox" name="pm${i}"><span>${line(g)}${g.off ? ' <span class="gs-muted">— уже потрачена</span>' : g.left!=null ? ` <span class="gs-muted">◷ ${g.left}/${g.uses.n}</span>` : ''}</span></label>`).join('')}</div></div>`,
+        cancelValue:false, buttons:[{label:'Отмена', value:false}, {label:'Дальше', value:(vals)=>vals, primary:true}]});
+      if(!v) return null; picked = opts.filter((g, i)=>v['pm' + i]); }
+    const chosen = fixed.concat(picked), stats = new Proxy({}, {get:(o, k)=>tok && typeof TargetRolls!=='undefined' ? TargetRolls.npcStat(tok, k) : 0});
+    return {chosen, adj:sumMods(chosen, {stats})};
+  }
+  // после своего броска существа: «раз в …», «к20 выше воли — расходуется» (счётчик ◷ у Мастера)
+  function tplSettle(tokId, st, r){
+    const gt = GTk(), tok = gt && gt.getToken(tokId); if(!tok || !st) return;
+    st.chosen.forEach(g=>{ const onlyCat = Object.keys(g.mods).every(k=>k==='cat');
+      if(g.uses && !(onlyCat && !(r && r.success))) bump(tokId, g.key, 1); // встречная — по итогу у целей (catUsed)
+      if(r && ((g.spend && typeof TargetRolls!=='undefined' && r.roll > TargetRolls.npcStat(tok, g.spend.stat)) || (g.spendFail && !r.success))){
+        bump(tokId, g.key, g.uses ? g.uses.n : 1); uiToast(`«${g.src}»: к20=${r.roll} — расходуется${g.spend ? ` до конца ${g.spend.per==='день' ? 'дня' : g.spend.per==='встречу' ? 'встречи' : 'сцены'}` : ''}`, {icon:'✦', ms:5000}); } });
+    refreshCard();
+  }
+  // «+1 к категории» во встречной: поражена хоть одна цель — тогда и расходуется
+  const catUsed = (tokId, st)=>()=>{ st.chosen.forEach(g=>{ if(g.uses && Object.keys(g.mods).every(k=>k==='cat')) bump(tokId, g.key, 1); }); refreshCard(); };
   async function fire(tokId, tpl, key){
     const ab = abilityByKey(tpl, key); if(!ab || typeof TargetRolls==='undefined') return;
-    const s = resolved(ab.name, ab.text, tpl);
-    if(!(await checkUses(tokId, key, s, ab))) return;
+    const s0 = resolved(ab.name, ab.text, tpl);
+    if(!(await checkUses(tokId, key, s0, ab))) return;
+    const st = await tplChoose(tokId, tpl, key, s0, ab.name, false), s = withAdj(s0, st.adj); // форма: постоянные прибавки
     const gt = GTk(), sel = gt && gt.selectedIds ? gt.selectedIds().filter(id=>id!==tokId) : [];
-    TargetRolls.open({src:tokId || null, targets:sel, title:ab.name.replace(/\s*\([^)]*\)\s*$/, ''), prefill:s, onFired:()=>{ if(tokId && s.uses){ bump(tokId, key, 1); refreshCard(); } }});
+    TargetRolls.open({src:tokId || null, targets:sel, title:ab.name.replace(/\s*\([^)]*\)\s*$/, ''), prefill:s, mods:{catPlus:st.adj.cat, vuln:st.adj.vuln}, onCat:tokId ? catUsed(tokId, st) : null, onFired:()=>{ if(tokId && s.uses){ bump(tokId, key, 1); refreshCard(); } }});
   }
   // ⚔ — сразу на стол: цель кликом по жетону (область — шаблоном с задетыми жетонами), параметры — как в форме по умолчанию
   const WORD_N = {два:2, две:2, три:3, четыре:4};
@@ -693,19 +936,23 @@ const AbilityKit = (function(){
   const rangeOf = (x)=>{ const m = /в\s+пределах\s+(\d+)\s*(?:м(?![а-яё])|метр)/i.exec(x || ''); return m ? +m[1] : 0; };
   async function quickFire(tokId, tpl, key){
     const gt = GTk(), ab = abilityByKey(tpl, key); if(!gt || !ab || !tokId || typeof TargetRolls==='undefined') return;
-    const s = resolved(ab.name, ab.text, tpl), title = ab.name.replace(/\s*\([^)]*\)\s*$/, '');
-    if(!(await checkUses(tokId, key, s, ab))) return;
+    const s0 = resolved(ab.name, ab.text, tpl), title = ab.name.replace(/\s*\([^)]*\)\s*$/, '');
+    if(!(await checkUses(tokId, key, s0, ab))) return;
+    const st = await tplChoose(tokId, tpl, key, s0, title, true); if(!st) return;
+    const s = withAdj(s0, st.adj), mods = {catPlus:st.adj.cat, vuln:st.adj.vuln};
     const hidden = [...document.querySelectorAll('.bst-float, .tr-panel, #gmScreen.open')].filter(el=>el.style.visibility!=='hidden'); // не закрывают стол
     hidden.forEach(el=>{ el.style.visibility = 'hidden'; });
     if(typeof toggleMainTab==='function') toggleMainTab('table');
     const go = (ids)=>{ hidden.forEach(el=>{ el.style.visibility = ''; }); if(!ids) return;
       if(!ids.length && !(s.areaSpec && s.areaSpec.shape==='all')){ uiToast('В области нет целей', {icon:'⚔'}); return; }
       // существо из листа: сначала свой бросок («совершает Бросок мистики (−6), в случае успеха…»), провал — без эффекта
-      let pcRoll = null; const sm = s.pc && !s.opp ? selfMax(gt.getToken(tokId), s) : null;
-      if(sm!=null){ const r = rollCreature(gt.getToken(tokId), title, sm, 'plain');
+      let pcRoll = null, sm = s.pc && !s.opp ? selfMax(gt.getToken(tokId), s) : null;
+      if(sm!=null && st.adj.vuln && ids.length && ids.every(id=>{ const x = gt.getToken(id); return x && vulnerable(x); })) sm += st.adj.vuln; // «Терзать»: все цели уязвимы
+      if(sm!=null){ const r = rollCreature(gt.getToken(tokId), title, sm, 'plain'); tplSettle(tokId, st, r);
         if(!r.success){ if(s.uses){ bump(tokId, key, 1); refreshCard(); } uiToast(`«${title}»: к20=${r.roll} / Макс.${sm} — провал, способность не сработала`, {icon:'⚔'}); return; }
-        pcRoll = {label:CHECK_LABEL(s.selfCheck), opp:false, rolls:[r.roll], mode:'plain', base:sm, roll:r.roll, success:true, cat:r.cat}; }
-      TargetRolls.open({src:tokId, targets:ids, title, prefill:s, auto:true, pcRoll, onFired:()=>{ if(s.uses){ bump(tokId, key, 1); refreshCard(); } }}); };
+        pcRoll = {label:CHECK_LABEL(s0.selfCheck) + (st.adj.tags.length ? ' · ' + st.adj.tags.concat(st.adj.dice).join('; ') : ''), opp:false, rolls:[r.roll], mode:'plain', base:sm, roll:r.roll, success:true, cat:r.cat + (st.adj.cat || 0)}; }
+      else tplSettle(tokId, st, null);
+      TargetRolls.open({src:tokId, targets:ids, title, prefill:s, auto:true, pcRoll, mods, onCat:pcRoll ? null : catUsed(tokId, st), onFired:()=>{ if(s.uses){ bump(tokId, key, 1); refreshCard(); } }}); };
     const a = s.areaSpec;
     if(a && a.shape==='all'){ go([]); return; }
     setTimeout(()=>{ if(a && typeof AreaTemplates!=='undefined') AreaTemplates.pick(a, tokId, title, go);
@@ -720,10 +967,12 @@ const AbilityKit = (function(){
   }
   async function selfRoll(tokId, tpl, key){
     const gt = GTk(), tok = gt && gt.getToken(tokId), ab = abilityByKey(tpl, key); if(!tok || !ab) return;
-    const s = resolved(ab.name, ab.text, tpl); if(!(await checkUses(tokId, key, s, ab))) return;
+    const s0 = resolved(ab.name, ab.text, tpl); if(!(await checkUses(tokId, key, s0, ab))) return;
+    const st = await tplChoose(tokId, tpl, key, s0, ab.name, true); if(!st) return; const s = withAdj(s0, st.adj);
     const mode = /Упрощ\S*\s+Брос/i.test(ab.text) ? 'advantage' : /Осложн\S*\s+Брос/i.test(ab.text) ? 'disadvantage' : 'plain';
-    const r = rollCreature(tok, ab.name.replace(/\s*\([^)]*\)\s*$/, '') + (s.pc && s.selfCheck ? ': ' + CHECK_LABEL(s.selfCheck) : ''), selfMax(tok, s), mode);
+    const r = rollCreature(tok, ab.name.replace(/\s*\([^)]*\)\s*$/, '') + (s.pc && s.selfCheck ? ': ' + CHECK_LABEL(s0.selfCheck) : ''), selfMax(tok, s), mode);
     if(s.uses) bump(tokId, key, 1);
+    tplSettle(tokId, st, r); if(r.success && st.adj.cat) r.cat += st.adj.cat; // «Выдержка психокинетика»: категория +1
     const buff = (s.feats || []).find(f=>f.id==='buff' && f.spec.viaRoll);
     if(buff && r.success){ addBuff(tokId, key, ab.name.replace(/\s*\([^)]*\)\s*$/, ''), buff.spec, r.cat); uiToast(`«${ab.name}»: успех, КУ${r.cat} — ${buffLabel(buff.spec)}`, {icon:'✦'}); }
     else uiToast(`«${ab.name}»: к20=${r.roll} / Макс.${r.max} — ${r.success ? 'успех, КУ' + r.cat : 'провал'}`, {icon:'🎲'});
@@ -742,7 +991,13 @@ const AbilityKit = (function(){
     else if(b.dataset.akAtk){ if(t) quickFire(tokId, tpl, b.dataset.akAtk); else uiToast('Существа нет на столе', {icon:'⚔'}); }
     else if(b.dataset.akSelf) selfRoll(tokId, tpl, b.dataset.akSelf);
     else if(b.dataset.akBuff){ const ab = abilityByKey(tpl, b.dataset.akBuff), s = ab && resolved(ab.name, ab.text, tpl), f = s && (s.feats || []).find(x=>x.id==='buff'); if(!f) return;
-      checkUses(tokId, b.dataset.akBuff, s, ab).then(ok=>{ if(!ok) return; if(s.uses) bump(tokId, b.dataset.akBuff, 1); addBuff(tokId, b.dataset.akBuff, ab.name.replace(/\s*\([^)]*\)\s*$/, ''), f.spec, 1); uiToast(`«${ab.name}» включено: ${buffLabel(f.spec)}`, {icon:'✦'}); }); }
+      checkUses(tokId, b.dataset.akBuff, s, ab).then(ok=>{ if(!ok) return; const nm = ab.name.replace(/\s*\([^)]*\)\s*$/, ''), key = b.dataset.akBuff;
+        if(!f.spec.target){ if(s.uses) bump(tokId, key, 1); addBuff(tokId, key, nm, f.spec, 1); uiToast(`«${ab.name}» включено: ${buffLabel(f.spec)}`, {icon:'✦'}); return; }
+        // цель — кликом по жетону на карте (карточки на время прячутся)
+        const hidden = [...document.querySelectorAll('.bst-float, .tr-panel, #gmScreen.open')].filter(el=>el.style.visibility!=='hidden'); hidden.forEach(el=>{ el.style.visibility = 'hidden'; });
+        if(typeof toggleMainTab==='function') toggleMainTab('table');
+        setTimeout(()=>gt.pickTargets({srcId:tokId, n:1, title:nm, done:(ids)=>{ hidden.forEach(el=>{ el.style.visibility = ''; }); if(!ids || !ids[0]) return;
+          if(s.uses) bump(tokId, key, 1); addBuff(tokId, key, nm, f.spec, 1, ids[0]); uiToast(`«${nm}»: цель — ${nameOfTok(gt.getToken(ids[0]))}`, {icon:'🎯'}); }}), 120); }); }
   }, true);
 
   /* ---------- конструктор: что распознано по ходу набора ---------- */
@@ -776,7 +1031,12 @@ const AbilityKit = (function(){
   /* ---------- общее для автоматики ---------- */
   const GTk = ()=>typeof GameTable!=='undefined' ? GameTable : null;
   const nameOfTok = (t)=>{ const gt = GTk(), v = gt && gt.vitalsOf(t); return (v && v.name) || t.name || 'Жетон'; };
-  const abilOf = (t)=>(t && t.creature && t.creature.abil || []).map((a, i)=>({i, key:'a' + i, n:String(a[0] || '').replace(/\s*\([^)]*\)\s*$/, ''), name:a[0], x:String(a[1] || ''), feats:features(a[0], a[1], !!t.creature.pc)}));
+  // жетон игрока: из листа — только постоянные бонусы атаки и защиты («Точность», «Терзать», «Мастер», «Мастерство боя»);
+  // перебросы, усиления и подсказки игрок делает сам в листе и окне способностей
+  const PC_TOKEN_FEATS = ['atkBonus', 'muBonus', 'vsVulnerable', 'stackAim', 'muka', 'catBonus', 'atkVsMe', 'woundsTaken', 'woundsTyped', 'inertial'];
+  const abilOf = (t)=>t && t.kind==='player' && !t.creature ? (()=>{ const gt = GTk(), c = gt && gt.sheetOfToken ? gt.sheetOfToken(t) : null;
+    return (c && c.abilities || []).map((a, i)=>({i, key:'p' + i, n:String(a.name || '').replace(/\s*\([^)]*\)\s*$/, ''), name:a.name, x:String(a.text || ''), feats:features(a.name, a.text || '', true).filter(f=>PC_TOKEN_FEATS.indexOf(f.id) >= 0)})); })()
+    : (t && t.creature && t.creature.abil || []).map((a, i)=>({i, key:'a' + i, n:String(a[0] || '').replace(/\s*\([^)]*\)\s*$/, ''), name:a[0], x:String(a[1] || ''), feats:features(a[0], a[1], !!t.creature.pc)}));
   const featOf = (t, id)=>{ const out = []; abilOf(t).forEach(a=>a.feats.forEach(f=>{ if(f.id===id) out.push(Object.assign({abil:a}, f)); })); return out; };
   function distM(a, b){ const gt = GTk(), p1 = gt && gt.tokenWorld(a.id), p2 = gt && gt.tokenWorld(b.id); if(!p1 || !p2) return Infinity;
     const mpc = typeof AreaTemplates!=='undefined' ? AreaTemplates.metersPerCell() : 3, c = gt.cellPx;
@@ -790,28 +1050,58 @@ const AbilityKit = (function(){
 
   /* ---------- атака с карты: поправки (Мастеру — в Максимуме, в ранах; игрокам не видно) ---------- */
   function attackPassives(att, tgt, w, opts){
-    opts = opts || {}; const out = {mod:0, tags:[], adj:{}, adjAll:0, shield:false, defMod:0, muMod:0, firstDmg:0};
+    opts = opts || {}; const out = {mod:0, tags:[], adj:{}, adjAll:0, shield:false, defMod:0, muMod:0, firstDmg:0, catPlus:0};
     const ranged = !!(w && (w.dl || w.range || /Дл\s*\d/.test(w.statText || '')));
     featOf(tgt, 'atkVsMe').forEach(f=>{ out.mod -= f.v; out.tags.push(`${f.abil.n} −${f.v}`); });
     woundsSide(tgt, out);
+    // усиления цели: «Петлять» / прицеливание (атаки по нему ±), защита против выбранной цели, «Ган-ката», «Пси-щит», «Невероятное везенье»
+    buffsOf(tgt.id).forEach(b=>{ const m = b.mods;
+      if(m.meAtk){ out.mod += m.meAtk; out.tags.push(`${b.name}: ${m.meAtk > 0 ? '+' : '−'}${Math.abs(m.meAtk)}`); }
+      if(m.defVs && b.target===att.id){ const v = ranged && m.defVsRanged && distM(att, tgt) <= (m.defVsM || 0) ? m.defVsRanged : m.defVs; out.defMod += v; out.tags.push(`${b.name}: защита +${v}`); }
+      if(m.ganKata && b.target===att.id && ranged){ const v = typeof TargetRolls!=='undefined' ? TargetRolls.npcStat(tgt, m.ganKata) : 0; if(v > 0){ out.mod -= v; out.tags.push(`${b.name}: −${v}`); } }
+      if(m.cancelHits){ out.cancelHits = (out.cancelHits || 0) + m.cancelHits; out.tags.push(`${b.name}: отклонит ${m.cancelHits}`); if(opts.commit) b.spent = true; }
+      if(m.ignoreAttacks > 0){ out.ignore = true; out.tags.push(`${b.name}: атака игнорируется`); if(opts.commit){ m.ignoreAttacks--; if(m.ignoreAttacks <= 0) b.spent = true; } } });
+    if(opts.commit && buffsOf(tgt.id).some(b=>b.spent)){ buffs[tgt.id] = buffsOf(tgt.id).filter(b=>!b.spent); saveJ(BUFF_KEY, buffs); refreshCard(); }
+    guardsOf(tgt, att).forEach(g=>{ if(g.b.mods.guardPen){ out.mod -= g.b.mods.guardPen; out.tags.push(`${g.b.name} (${nameOfTok(g.p)}): −${g.b.mods.guardPen} (атака со стороны защитника?)`); } else out.tags.push(`${g.b.name} (${nameOfTok(g.p)}): укрытие — по правилам укрытий`); });
     if(ranged) featOf(tgt, 'inertial').forEach(f=>{ out.shield = true; out.tags.push(`${f.abil.n}: щит`); });
     featOf(att, 'atkBonus').forEach(f=>{
       if(f.energy && !(w && /энерг/i.test(w.muType || ''))) return; if(f.ranged && !ranged) return; if(f.allyM && !allyNear(att, f.allyM)) return;
       out.mod += f.v; out.tags.push(`${f.abil.n} +${f.v}`); });
-    featOf(att, 'muBonus').forEach(f=>{ if(f.ranged && !ranged) return; out.muMod += f.v; out.tags.push(`${f.abil.n}: МУ +${f.v}`); });
+    featOf(att, 'muBonus').forEach(f=>{ if((f.ranged && !ranged) || (f.notPb && distM(att, tgt) <= 1.6)) return; out.muMod += f.v; out.tags.push(`${f.abil.n}: МУ +${f.v}`); });
+    featOf(att, 'catBonus').forEach(f=>{ if(f.weapon && !(w && new RegExp('(?:^|[^а-яё])' + f.weapon, 'i').test(w.name || ''))) return; out.catPlus += f.v; out.tags.push(`${f.abil.n}: категория +${f.v} при успехе`); });
     featOf(att, 'muka').forEach(f=>{ if(!fullHp(tgt)){ out.adjAll += f.v; out.tags.push(`${f.abil.n}: +${f.v} рана`); } });
     if(featOf(att, 'hintTorment').length && ((tgt.marks || []).some(m=>m.k==='fear' || m.k==='prone') || (tgt.kind==='player' && (()=>{ const gt = GTk(), c = gt && gt.sheetOfToken(tgt); return c && c.states && c.states.ispug; })()))) out.tags.push('Мучить: атакуйте Упрощённо');
     if(featOf(att, 'hintStealth').length && att.hidden) out.tags.push('Скрытая атака: Упрощённо');
     // усиления: атакующего и цели
     const r = curRound();
+    // «Терзать»: по испуганной, оглушённой, обездвиженной цели; «Напор»: численный перевес и лидер рядом; «Умелый стрелок»
+    featOf(att, 'vsVulnerable').forEach(f=>{ if(!vulnerable(tgt)) return; out.mod += f.atk; out.muMod += f.mu; out.tags.push(`${f.abil.n}: +${f.atk}, МУ +${f.mu}`); });
+    featOf(att, 'outnumber').forEach(f=>{ if(!outnumbers(att) || !allyNear(att, f.m)) return; out.mod += f.v; out.tags.push(`${f.abil.n} +${f.v} (численный перевес — лидер рядом?)`); });
+    featOf(att, 'stackAim').forEach(f=>{ const st = aimStack[att.id]; if(ranged && st && st.target===tgt.id && st.n > 0){ const v = Math.min(f.max, st.n); out.mod += v; out.tags.push(`${f.abil.n} +${v}`); } });
     buffsOf(att.id).forEach(b=>{ const m = b.mods;
+      if(b.target===tgt.id){ if(m.atkVs){ out.mod += m.atkVs; out.tags.push(`${b.name} +${m.atkVs}`); } if(m.muVs){ out.muMod += m.muVs; out.tags.push(`${b.name}: МУ +${m.muVs}`); }
+        if(m.atkVsStat){ const v = typeof TargetRolls!=='undefined' ? TargetRolls.npcStat(att, m.atkVsStat) : 0; if(v){ out.mod += v; out.tags.push(`${b.name} +${v}`); } } }
+      if(m.atkAdvHint) out.tags.push(`${b.name}: атакуйте Упрощённо`);
+      if(m.firstDmgDice && opts.commit){ const v = GTk().rollWoundsExpr(m.firstDmgDice); out.firstDmg += v; out.tags.push(`${b.name}: первый урон +${v}`); }
       if(m.attack){ out.mod += m.attack; out.tags.push(`${b.name} +${m.attack}`); }
       if(m.attackDice){ if(opts.commit){ const v = GTk().rollWoundsExpr(m.attackDice); out.mod += v; out.tags.push(`${b.name} +${m.attackDice}=${v}`); } else out.tags.push(`${b.name} +${m.attackDice}`); }
       if(m.mu){ out.muMod += m.mu; out.tags.push(`${b.name}: МУ +${m.mu}`); }
       if(m.firstDmg && b.firstRound!==r){ out.firstDmg += m.firstDmg; out.tags.push(`${b.name}: +${m.firstDmg} раны к первому урону`); if(opts.commit) b.firstRound = r; } });
-    if(opts.commit){ const before = (buffs[att.id] || []).length; buffs[att.id] = buffsOf(att.id).filter(b=>!(b.oneShot && (b.mods.attackDice || b.mods.mu))); if((buffs[att.id] || []).length!==before) refreshCard(); saveJ(BUFF_KEY, buffs); }
+    if(opts.commit){ const before = (buffs[att.id] || []).length; buffs[att.id] = buffsOf(att.id).filter(b=>!(b.oneShot && (b.mods.attackDice || b.mods.mu || b.mods.firstDmgDice || b.mods.atkAdvHint))); if((buffs[att.id] || []).length!==before) refreshCard(); saveJ(BUFF_KEY, buffs); }
     return out;
   }
+  // цель уязвима: испугана, в шоке, оглушена, схвачена, сбита с ног, обездвижена (у игрока — испуг в листе)
+  function vulnerable(t){ if((t.marks || []).some(m=>['fear', 'shock', 'stunned', 'grabbed', 'prone', 'immobile'].indexOf(m.k) >= 0)) return true;
+    const gt = GTk(), c = t.kind==='player' && gt ? gt.sheetOfToken(t) : null; return !!(c && c.states && c.states.ispug); }
+  // своих (того же вида жетонов) на поле больше, чем чужих
+  function outnumbers(att){ const gt = GTk(); if(!gt) return false; const all = Object.values(gt.state.tokens || {}).filter(o=>!(o.marks || []).some(m=>m.k==='dead') && !(o.hp!=null && o.hp <= 0));
+    return all.filter(o=>o.kind===att.kind).length > all.filter(o=>o.kind!==att.kind).length; }
+  const aimStack = {}; // «Умелый стрелок»: att -> {target, n}
+  // телохранители цели: живые жетоны рядом (до 1,6 м), у которых «Охрана» на эту цель; не сам атакующий
+  function guardsOf(tgt, att){ const gt = GTk(); if(!gt) return []; const out = [];
+    Object.values(gt.state.tokens || {}).forEach(p=>{ if(p.id===tgt.id || (att && p.id===att.id) || (p.marks || []).some(m=>m.k==='dead') || (p.hp!=null && p.hp <= 0)) return;
+      buffsOf(p.id).forEach(b=>{ if(b.mods.guardHit!=null && b.target===tgt.id && distM(p, tgt) <= 1.6) out.push({p, b}); }); });
+    return out; }
   // что цель делает с попаданиями по себе: меньше/больше ран (в т. ч. по типу МУ), усиления защиты
   function woundsSide(tgt, out){
     featOf(tgt, 'woundsTaken').forEach(f=>{ out.adjAll -= f.v; out.tags.push(`${f.abil.n}: −${f.v} к ранам`); });
@@ -849,12 +1139,14 @@ const AbilityKit = (function(){
       if(key==='save_kislotnost' && f.id==='saveAcid'){ out.mod += f.v; out.notes.push(`${a.n} +${f.v}`); }
       if(f.id==='statAdv' && f.stats.indexOf(key) >= 0){ adv++; out.notes.push(`${a.n}: Упрощено`); }
       if(f.id==='statDis' && statWord && new RegExp(statWord, 'i').test(f.label)){ dis++; out.notes.push(`${a.n}: Осложнено`); }
-      if(f.id==='willShield' && key==='volya'){ const s = parse(a.name, a.x); if(!s.uses || usedOf(t.id, a.key) < s.uses.n) out.altMax = {max:f.max, key:a.key, name:a.n}; }
+      if(f.id==='willShield' && key==='volya'){ const s = parse(a.name, a.x), mx = f.max || (f.stat && typeof TargetRolls!=='undefined' ? 10 + TargetRolls.npcStat(t, f.stat) : 0);
+        if(mx && (!s.uses || usedOf(t.id, a.key) < s.uses.n)) out.altMax = {max:mx, key:a.key, name:a.n}; }
     }));
     if(key==='save_psi_pole'){ const b = buffsOf(t.id).find(x=>x.mods.psiSave); if(b){ out.mod += b.mods.psiSave; out.notes.push(`${b.name} +${b.mods.psiSave}`); out.consume = b.key; } }
     buffsOf(t.id).forEach(b=>{ // усиления существа из листа: «Ярость» — Осложнены смекалка…, «Дикий напор» — одна проверка силы или воли Упрощена
       if((b.mods.dis || []).indexOf(key) >= 0){ dis++; out.notes.push(`${b.name}: Осложнено`); }
-      if((b.mods.adv || []).indexOf(key) >= 0){ adv++; out.notes.push(`${b.name}: Упрощено`); if(b.oneShot && !out.consume) out.consume = b.key; } });
+      if((b.mods.adv || []).indexOf(key) >= 0){ adv++; out.notes.push(`${b.name}: Упрощено`); if(b.oneShot && !out.consume) out.consume = b.key; }
+      if(b.mods.checkBonus && b.mods.checkBonus.stats.indexOf(key) >= 0 && !out.consume){ const v = GTk() ? GTk().rollWoundsExpr(b.mods.checkBonus.expr) : 0; out.mod += v; out.notes.push(`${b.name} +${b.mods.checkBonus.expr}=${v}`); out.consume = b.key; } });
     out.mode = adv > dis ? 'advantage' : dis > adv ? 'disadvantage' : 'plain';
     return out;
   }
@@ -888,15 +1180,17 @@ const AbilityKit = (function(){
     const a = {total};
     featOf(tgt, 'cancelWounds').forEach(f=>{
       const s = parse(f.abil.name, f.abil.x), left = s.uses ? s.uses.n - usedOf(tgt.id, f.abil.key) : Infinity;
-      const pool = f.daily ? f.daily - usedOf(tgt.id, f.abil.key + '_w') : Infinity; if(left <= 0 || pool <= 0) return;
-      const n = Math.min(f.per, a.total, pool);
-      alert({kind:'re', title:`⚙ ${nameOfTok(tgt)}: «${f.abil.n}»`, text:`Получено ${a.total} ран. Отменить ${n}?${f.roll ? ` Нужен Бросок ${STAT_NAME[f.roll.stat] || ''} (${f.roll.max}) — при провале способность до конца встречи.` : ''}${s.uses ? ` Осталось ${left}/${s.uses.n}.` : ''}${f.daily ? ` За день ещё ${pool} ран.` : ''} ${/таблице травм/i.test(f.abil.x) ? 'Бросок по таблице травм — Упрощённо; противник получает внеочередную атаку (на выбор Мастера).' : ''}`,
+      const npc = (k)=>typeof TargetRolls!=='undefined' ? TargetRolls.npcStat(tgt, k) : 0, per = f.per || (f.perStat ? npc(f.perStat) : 0), daily = f.daily || (f.poolStat ? npc(f.poolStat) : 0);
+      const pool = daily ? daily - usedOf(tgt.id, f.abil.key + '_w') : Infinity; if(left <= 0 || pool <= 0 || per <= 0) return;
+      const n = Math.min(per, a.total, pool);
+      alert({kind:'re', title:`⚙ ${nameOfTok(tgt)}: «${f.abil.n}»`, text:`Получено ${a.total} ран. Отменить ${n}?${f.roll ? ` Нужен Бросок ${STAT_NAME[f.roll.stat] || ''} (${f.roll.max}) — при провале способность до конца встречи.` : ''}${s.uses ? ` Осталось ${left}/${s.uses.n}.` : ''}${daily ? ` В запасе ещё ${pool} ${f.poolStat ? '(запас — на бой, ↺ в карточке)' : 'ран за день'}.` : ''} ${/таблице травм/i.test(f.abil.x) ? 'Бросок по таблице травм — Упрощённо; противник получает внеочередную атаку (на выбор Мастера).' : ''}`,
         actions:[{label:`Отменить ${n}`, run:()=>{ const t2 = gt.getToken(tgt.id);
           if(f.roll){ const r = rollCreature(t2, f.abil.n, f.roll.max); if(!r.success) bump(tgt.id, f.abil.key, 99); }
-          hpChange(t2, n); if(s.uses && !f.roll) bump(tgt.id, f.abil.key, 1); if(f.daily) bump(tgt.id, f.abil.key + '_w', n);
+          hpChange(t2, n); if(s.uses && !f.roll) bump(tgt.id, f.abil.key, 1); if(daily) bump(tgt.id, f.abil.key + '_w', n);
           logAbility(`${nameOfTok(tgt)} — «${f.abil.n}»: отменено ${n} ран`); refreshCard(); }}]}); });
   }
   const hintRound = {}; // подсказка «в ярости преуспел в атаке» — раз в круг
+  const heavyHit = {};  // «Месиво»: кого существо сегодня уже ранило тяжёлым оружием (до перезагрузки страницы)
   function onAttack(a){
     const gt = GTk(); if(!gt || (typeof session!=='undefined' && session.role==='player')) return;
     const att = gt.getToken(a.attackerId), tgt = gt.getToken(a.targetId); if(!att || !tgt) return;
@@ -920,6 +1214,23 @@ const AbilityKit = (function(){
             if(r.success){ gt.undoAttack(a.attackId); logAbility(`${nameOfTok(tgt)} — «${f.abil.n}»: к20=${r.roll} / Макс.${r.max} — увернулся, атака ${nameOfTok(att)} отменена`); uiToast('Увернулся — атака отменена', {icon:'⚙'}); }
             else uiToast(`Не вышло (к20=${r.roll} / Макс.${r.max})`, {icon:'⚙'}); }}]}); });
     }
+    // телохранитель: промах по подопечному с категорией провала 1 (к20 16+) — попадание в защитника; «Активная защита» — подсказка
+    guardsOf(tgt, att).forEach(g=>{
+      if(!a.success && !a.jammed && a.roll >= 16){ const w = gt.attackWeapon ? gt.attackWeapon(a.attackId) : null;
+        alert({kind:'trig', title:`🛡 ${nameOfTok(g.p)}: «${g.b.name}»`, text:`${nameOfTok(att)} промахнулся по ${nameOfTok(tgt)} с категорией провала 1 (к20=${a.roll}) — ${g.b.mods.guardHit==='attack' ? 'это успех атаки по защитнику с категорией 1' : '1 попадание приходится в защитника'}${w ? ` (${w.name}: МУ ${w.mu} ${w.muType}, раны ${w.wounds})` : ''}.`, ms:180000,
+          actions:w ? [{label:`🛡 Попадание в ${nameOfTok(g.p)}`, run:()=>{ const h = gt.applyHitsTo(g.p.id, {n:1, mu:w.mu, muType:w.muType, wounds:w.wounds, travma:w.travma, moshh:w.moshh}); if(h) logAbility(`${nameOfTok(g.p)} — «${g.b.name}»: попадание вместо ${nameOfTok(tgt)}: ${h.text}`); }}, {label:'Не сейчас', run:()=>{}}] : [{label:'Понятно', run:()=>{}}]}); }
+      featOf(g.p, 'guardReact').forEach(f=>{ const s = parse(f.abil.name, f.abil.x), left = s.uses ? s.uses.n - usedOf(g.p.id, f.abil.key) : Infinity; if(left <= 0) return;
+        alert({kind:'trig', title:`🛡 ${nameOfTok(g.p)}: «${f.abil.n}»`, text:`${nameOfTok(att)} атакует ${nameOfTok(tgt)} — защитник может реакцией атаковать ${nameOfTok(att)} или применить в него способность.${s.uses ? ` Осталось ${left}/${s.uses.n}.` : ''}`,
+          actions:[{label:'Использовано', run:()=>{ if(s.uses){ bump(g.p.id, f.abil.key, 1); refreshCard(); } }}, {label:'Не сейчас', run:()=>{}}]}); }); });
+    // «Защити меня»: защитник рядом принимает каждое пробившее попадание с шансом 5 из 6
+    if(a.success && a.total > 0) buffsOf(tgt.id).forEach(b=>{ if(!b.mods.bodyShield || !b.target) return; const p = gt.getToken(b.target); if(!p || distM(p, tgt) > 1.6) return;
+      const e = (session.log || []).find(x=>x.attackId===a.attackId), hits = e && Array.isArray(e.hits) ? e.hits.filter(h=>h.pen) : []; if(!hits.length) return;
+      const [ch, of] = b.mods.bodyShield, w = gt.attackWeapon ? gt.attackWeapon(a.attackId) : null;
+      alert({kind:'trig', title:`🛡 ${nameOfTok(tgt)}: «${b.name}»`, text:`По ${nameOfTok(tgt)} пробило ${hits.length} ${hits.length===1 ? 'попадание' : 'попаданий'}: каждое с шансом ${ch} из ${of} приходится в ${nameOfTok(p)}.`, ms:180000,
+        actions:[{label:`🎲 к${of} за каждое`, run:()=>{ const moved = hits.filter(()=>1 + Math.floor(Math.random()*of) <= ch); if(!moved.length){ logAbility(`${nameOfTok(tgt)} — «${b.name}»: ни одно попадание не ушло в ${nameOfTok(p)}`); return; }
+          const back = moved.reduce((s2, h)=>s2 + (h.wounds || 0), 0); hpChange(gt.getToken(tgt.id), back);
+          const h = w ? gt.applyHitsTo(p.id, {n:moved.length, mu:w.mu, muType:w.muType, wounds:w.wounds, travma:w.travma, moshh:w.moshh}) : null;
+          logAbility(`${nameOfTok(tgt)} — «${b.name}»: ${moved.length} из ${hits.length} попаданий — в ${nameOfTok(p)} (${nameOfTok(tgt)} +${back} ОЗ обратно)${h ? ': ' + h.text : ''}`); }}, {label:'Не сейчас', run:()=>{}}]}); });
     // существо из листа под атакой: «Берсерк» (получая попадание), «Мгновенная контратака» (если атаковали)
     if(tgt.creature && tgt.creature.pc) featOf(tgt, 'counterHint').forEach(f=>{ if(f.onHit && !(a.success && a.total > 0)) return;
       const s = parse(f.abil.name, f.abil.x), left = s.uses ? s.uses.n - usedOf(tgt.id, f.abil.key) : Infinity; if(left <= 0) return;
@@ -945,6 +1256,16 @@ const AbilityKit = (function(){
           actions:[{label:`+${f.expr} ран`, run:()=>{ const v = gt.rollWoundsExpr(f.expr); hpChange(gt.getToken(tgt.id), -v); if(s.uses) bump(att.id, f.abil.key, 1); logAbility(`${nameOfTok(att)} — «${f.abil.n}»: ещё ${v} ${v===1 ? 'рана' : v < 5 ? 'раны' : 'ран'} по ${nameOfTok(tgt)}`); refreshCard(); }}, {label:'Не сейчас', run:()=>{}}]}); });
       featOf(att, 'onHitHint').forEach(f=>{ const on = buffsOf(att.id).some(b=>new RegExp('^' + f.when.slice(0, 5), 'i').test(b.name)); if(!on || hintRound[att.id + f.abil.key]===curRound()) return;
         hintRound[att.id + f.abil.key] = curRound(); alert({kind:'trig', title:`⚡ ${nameOfTok(att)}: «${f.abil.n}»`, text:f.text, actions:[{label:'Понятно', run:()=>{}}]}); });
+    }
+    if(att.creature){
+      if(featOf(att, 'stackAim').length){ const st = aimStack[att.id]; aimStack[att.id] = {target:tgt.id, n:st && st.target===tgt.id ? st.n + 1 : 1}; }
+      featOf(att, 'addToRoll').forEach(f=>{ const s = parse(f.abil.name, f.abil.x), left = s.uses ? s.uses.n - usedOf(att.id, f.abil.key) : Infinity; if(left <= 0 || a.jammed) return; // не переброс — «Якорь» не мешает
+        alert({kind:'re', title:`↻ ${nameOfTok(att)}: «${f.abil.n}»`, text:`Атака по ${nameOfTok(tgt)}: к20=${a.roll} — ${a.success ? 'успех' : 'провал'}. Добавить ${f.expr} к выпавшему? (Выше к20 — выше категория успеха, но можно выйти за Максимум; 13 перестаёт быть 13.)${s.uses ? ` Осталось ${left}/${s.uses.n}.` : ''}`,
+          actions:[{label:`+${f.expr} к к20`, run:()=>{ const add = gt.rollWoundsExpr(f.expr), v = Math.min(20, a.roll + add); bump(att.id, f.abil.key, 1);
+            const r = gt.redoAttackRoll ? gt.redoAttackRoll(a.attackId, v) : null; uiToast(r && r.ok ? `«${f.abil.n}»: к20 ${a.roll}+${add} → ${v} — ${r.success ? 'успех' : 'провал'}` : 'Не удалось: ' + (r && r.reason || ''), {icon:'↻'}); refreshCard(); }}, {label:'Не сейчас', run:()=>{}}]}); });
+      if(a.success && a.total > 0) featOf(att, 'firstHeavyBonus').forEach(f=>{ const w = att.weaponText && typeof parseWeaponStats==='function' ? parseWeaponStats(att.weaponText) : null;
+        if(!w || !(w.sl >= 4)) return; const seen = heavyHit[att.id] || (heavyHit[att.id] = []); if(seen.indexOf(tgt.id) >= 0) return; seen.push(tgt.id);
+        const v = gt.rollWoundsExpr(f.expr); hpChange(gt.getToken(tgt.id), -v); logAbility(`${nameOfTok(att)} — «${f.abil.n}»: первый урон из тяжёлого оружия по ${nameOfTok(tgt)} за день — ещё ${v} ${v===1 ? 'рана' : v < 5 ? 'раны' : 'ран'}`); });
     }
     // «Тактик»: успех и чётное значение — цель прижата огнём
     if(a.success && att.creature && a.roll % 2===0) featOf(att, 'tactic').forEach(f=>alert({kind:'trig', title:`⚡ ${nameOfTok(att)}: «${f.abil.n}»`, text:`Успех с чётным к20 (${a.roll}): ${nameOfTok(tgt)} теряет реакцию; если реакции нет или цель не хочет её терять — ${nameOfTok(att)} реакцией проводит внеочередную атаку. (Только стрельба из двуручного оружия.)`, actions:[{label:'Понятно', run:()=>{}}]}));
@@ -1042,5 +1363,5 @@ const AbilityKit = (function(){
 
   return { parse, resolved, areaLabel, consLabel, rowHtml, chipsHtml, usedOf, bump, resetToken:(id)=>{ delete uses[id]; saveUses(); refreshCard(); },
     attackPassives, initAura, savePassives, consumeBuff, immuneStates, addOngoing, buffsOf, onAttack, rerollOptions, alert, features, CHECK_LABEL, extraName, extraText, hitPassives, abilityAtkMod, onWounded,
-    pcParts, targetsWanted, rangeOf, STAT_NAME };
+    pcParts, targetsWanted, rangeOf, STAT_NAME, addBuff, dropBuff, vulnerable, stackMods, groupLabel, sumMods, withAdj, psiAfter, pcList, tplList, pcRows };
 })();

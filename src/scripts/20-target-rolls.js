@@ -17,6 +17,8 @@
    - Способность персонажа (22-pc-abilities.js): opts.pcRoll — его уже сделанный бросок. Встречная («Бросок мистики против
      воли цели») — те же к20 против Максимума персонажа минус характеристика каждой цели; «[категория успеха] попаданий»,
      «[6 ОЗ за категорию успеха]», длительность — по категории успеха персонажа.
+     Способности-усилители (AbilityKit.stackMods): pcRoll.catPlus (у существа из листа — opts.mods) — +N к категории успеха
+     во встречной, .vuln — +N к Максимуму против испуганной / в шоке / обездвиженной цели («Терзать»).
    Сообщения: tr-req (Мастер → игрок), tr-res (игрок → Мастер).
    ====================================================================== */
 const TargetRolls = (function(){
@@ -165,7 +167,7 @@ const TargetRolls = (function(){
         <label title="Раны = выпавшее на к12 (если раны не указаны числом)"><input type="checkbox" data-f="moshh"> мощь</label><label title="Одно попадание: к12 по категории успеха существа, берётся лучший"><input type="checkbox" data-f="pul"> пул</label><label title="Одно попадание; +4 раны, если на к20 существа выпало 11+"><input type="checkbox" data-f="razryv"> разрыв</label></div>
       <div class="tr-row"><label>−ОЗ <input data-f="hp" type="text" size="5" placeholder="2к6" title="число или кубы"></label><label>−пси <input data-f="psi" type="number" min="0" max="20" value="0"></label>
         ${SHEET_STATES.map(([k, l])=>`<label><input type="checkbox" data-st="${k}"> ${l}</label>`).join('')}</div>
-      <div class="tr-row">${Object.keys(gt.MARKS).filter(k=>k!=='fear').map(k=>`<label><input type="checkbox" data-mk="${k}"> ${gt.MARKS[k].toLowerCase()}</label>`).join('')}
+      <div class="tr-row">${Object.keys(gt.MARKS).filter(k=>k!=='fear' && k!=='dead' && k!=='exhausted').map(k=>`<label><input type="checkbox" data-mk="${k}"> ${gt.MARKS[k].toLowerCase()}</label>`).join('')}
         <label>на <input data-f="mr" type="text" size="3" value="1" title="Кругов: число или «к6»; 0 — пока не снимут"> кр.</label></div>
       <label class="ui-dlg-field"><span>Ещё (текстом — игрок увидит)</span><input data-f="note" type="text" maxlength="200" placeholder="например, отброшена на к6 м"></label>
       <div class="tr-extra"></div>
@@ -223,10 +225,12 @@ const TargetRolls = (function(){
         req.notes = sp.notes || [];
       }
       req.pcRoll = formEl._pcRoll;
+      req.onCat = formEl._onCat || null;
+      const xo = formEl._mods || {}; req.catPlus = (req.pcRoll && req.pcRoll.catPlus) || xo.catPlus || 0; req.vuln = (req.pcRoll && req.pcRoll.vuln) || xo.vuln || 0;
       const fired = formEl._onFired; closeForm(); start(req, targets); if(fired) try{ fired(); }catch(err){}
     });
     formEl.addEventListener('keydown', (e)=>{ if(e.key==='Escape'){ e.stopPropagation(); closeForm(); } });
-    formEl._pcRoll = opts.pcRoll || null;
+    formEl._pcRoll = opts.pcRoll || null; formEl._mods = opts.mods || null; formEl._onCat = opts.onCat || null; // onCat — «+1 к категории» сработала хоть у одной цели // {catPlus, vuln} — у существа из листа
     if(opts.prefill) prefill(opts.prefill, q, (m)=>{ formEl.querySelector(`.tr-mode [data-mode="${m}"]`).click(); }, src);
     formEl._onFired = opts.onFired || null;
     if(opts.auto){ formEl.style.display = 'none'; q('[data-x="go"]').click(); if(formEl) formEl.style.display = ''; return; } // не прошло (нет целей) — форма для правки
@@ -300,8 +304,11 @@ const TargetRolls = (function(){
       req.rows.push(row);
       if(req.tgtFilter){ const f = req.tgtFilter, v = statValue(t, f.stat); if(f.le ? v > f.n : v < f.n){ Object.assign(row, {status:'done', roll:0, affected:false, apply:false, cat:null, pnote:`не действует: ${f.text.replace(/^\S+\s+с\s+/i, '')} — у цели ${v}`}); return; } }
       if(req.mode==='auto'){ Object.assign(row, {status:'done', roll:0, affected:true, apply:true}); return; }
-      if(req.mode==='creature'){ const sv = statValue(t, req.vs), s0 = req.atk && ak && req.srcId ? gt.getToken(req.srcId) : null, am = s0 ? ak.abilityAtkMod(s0, t) : {mod:0, tags:[]}, r = req.pcRoll && req.pcRoll.opp ? fixedD20(req.pcRoll, req.max - sv + am.mod) : rollD20(req.max - sv + am.mod);
-        const pn = am.tags.concat(req.oddNote && r.roll % 2 ? ['нечётное к20: ' + req.oddNote.replace(/^если[^,]*,\s*(?:то\s+)?/i, '')] : []);
+      if(req.mode==='creature'){ const sv = statValue(t, req.vs), s0 = req.atk && ak && req.srcId ? gt.getToken(req.srcId) : null, am = s0 ? ak.abilityAtkMod(s0, t) : {mod:0, tags:[]};
+        // способности-усилители (AbilityKit.stackMods): «Терзать» — +N к Максимуму против уязвимой цели; +N к категории успеха
+        const vu = req.vuln && ak && ak.vulnerable(t) ? req.vuln : 0, r = req.pcRoll && req.pcRoll.opp ? fixedD20(req.pcRoll, req.max - sv + am.mod + vu) : rollD20(req.max - sv + am.mod + vu);
+        if(r.success && req.catPlus){ r.cat = (r.cat || 1) + req.catPlus; r.catUp = true; }
+        const pn = am.tags.concat(vu ? [`+${vu} к Максимуму: цель уязвима`] : [], r.success && req.catPlus ? [`категория +${req.catPlus}`] : [], req.oddNote && r.roll % 2 ? ['нечётное к20: ' + req.oddNote.replace(/^если[^,]*,\s*(?:то\s+)?/i, '')] : []);
         Object.assign(row, r, {status:'done', stat:sv, affected:r.success}, pn.length ? {pnote:pn.join('; ')} : {}); row.apply = row.affected; return; }
       if(t.kind==='player'){
         const online = typeof session!=='undefined' && session.role==='gm' && session.players[t.ownerId];
@@ -317,6 +324,7 @@ const TargetRolls = (function(){
       const r = sp.immune ? {roll:0, max:0, success:true, cat:1, mode:'plain'} : rollD20(max, mixMode(req.rmode, sp.mode));
       Object.assign(row, r, {status:'done', affected:!r.success, pnote:sp.notes.join('; ')}); row.apply = row.affected;
     });
+    if(req.onCat && req.rows.some(x=>x.catUp)) try{ req.onCat(); }catch(e){ console.warn('[Бросок цели]', e); }
     render();
   }
   // за игрока (не на связи или не отвечает): по копии его листа у Мастера
@@ -425,7 +433,8 @@ const TargetRolls = (function(){
       if(imm.has(k)){ skipped.push(nm); return; }
       if(t.kind==='player' && k==='stress' && sts.stress){ grantTo(t.ownerId, {kind:'vitals', which:'psi', mode:'delta', value:-1}); x._psi = (x._psi || 0) + 1; done.push('стресс уже есть → −1 пси'); return; }
       if(t.kind==='player' && k==='istoshenie' && sts.istoshenie){ gt.addMarkTo(t.id, 'limit', 0); done.push('второе истощение → на пределе сил (без сознания)'); return; }
-      if(t.kind==='player') grantTo(t.ownerId, {kind:'state', key:k, on:true}); else if(k==='ispug') gt.addMarkTo(t.id, 'fear', 0); done.push(nm + (t.kind!=='player' && k!=='ispug' ? ' (у существа — вручную)' : '')); });
+      if(t.kind==='player') grantTo(t.ownerId, {kind:'state', key:k, on:true}); else if(k==='ispug') gt.addMarkTo(t.id, 'fear', 0); else if(k==='istoshenie') gt.addMarkTo(t.id, 'exhausted', 0);
+      done.push(nm + (t.kind!=='player' && k==='stress' ? ' (у существа — вручную)' : '')); });
     (c.marks || []).forEach(m=>{ const nm = gt.MARKS[m.k].toLowerCase();
       if(imm.has(m.k)){ skipped.push(nm); return; }
       const n = gt.addMarkTo(t.id, m.k, m.r); done.push(nm + (typeof m.r==='string' && n ? ` (${m.r}=${n} кр.)` : '')); });

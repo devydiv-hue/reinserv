@@ -52,7 +52,8 @@ const GameTable = (function(){
   function safeColor(c, d){ return /^#[0-9a-f]{6}$/i.test(c||'') ? c.toLowerCase() : d; }
 
   // Отметки состояний на жетоне (способности существ, «Бросок цели»): r — осталось кругов, 0 — пока не снимут
-  const MARKS = {shock:'Шок', prone:'Сбит с ног', grabbed:'Схвачен', stunned:'Оглушён', blind:'Ослеплён', skipturn:'Пропускает ход', vanished:'Исчез', limit:'На пределе сил', fear:'Испуган'};
+  const MARKS = {shock:'Шок', prone:'Сбит с ног', grabbed:'Схвачен', stunned:'Оглушён', blind:'Ослеплён', skipturn:'Пропускает ход', vanished:'Исчез', limit:'На пределе сил', fear:'Испуган',
+    exhausted:'Истощён', immobile:'Обездвижен', dead:'Погиб'}; // последние три — таблица травм и поломок (23-trauma-table.js), истощение существ
   function sanitizeToken(t){
     t = t || {};
     const kind = t.kind==='player' ? 'player' : 'gm';
@@ -2178,7 +2179,7 @@ const GameTable = (function(){
   }
   // Подсказки Мастеру: способности участников, которые срабатывают «в начале/в конце круга»
   function roundHints(c, when){
-    const re = when==='start' ? /в начал\S* (?:каждого |нового |своего )?(?:круга|хода)/i : /в конц\S* (?:каждого |своего )?(?:круга|хода)/i, items = [];
+    const re = when==='start' ? (c.round===1 ? /в начал\S* (?:каждого |нового |своего )?(?:круга|хода)|в начале боя|перед (?:сценой )?боя|до начала боя|\d+ реакци\S* в круг/i : /в начал\S* (?:каждого |нового |своего )?(?:круга|хода)/i) : /в конц\S* (?:каждого |своего )?(?:круга|хода)/i, items = [];
     Object.keys(c.parts).forEach(id=>{ const t = authState.tokens[id]; if(!t) return;
       abilityTextsOf(t).forEach(a=>{ if(re.test(a.x)) items.push(`${tokenName(t, vitalsFor(t))} — ${a.n || 'способность'}`); }); });
     return items.length ? {title:when==='start' ? `Начало круга ${c.round}` : `Конец круга ${c.round}`, items} : null;
@@ -2551,6 +2552,13 @@ const GameTable = (function(){
   // Черты — как у оружия (weaponHitPlan): «мощь» — раны = выпавший к12 (если раны не указаны); «пул» — [КУ существа] к12
   // на попадание, берётся наибольший пробивший; «разрыв» — +4 раны, если на к20 существа выпало 11+. h.cat, h.roll — бросок существа.
   // Способности цели: меньше/больше ран (в т. ч. по типу МУ), усиления защиты.
+  // Травмы — в таблицу травм (23-trauma-table.js): попадание в голову — пробившее с к12=12 (у «Бей в голову» при стрельбе —
+  // 11 и 12), черта оружия «травма» — бросок по таблице Осложнённо
+  function headFrom(att, w){ const re = /значени\S*\s+11\s+и\s+12\s+на\s+к12/i, c = att && att.kind==='player' ? attackerSheet(att) : null;
+    const has = (c && (c.abilities || []).some(a=>re.test(a.text || ''))) || (att && att.creature && (att.creature.abil || []).some(a=>re.test(a[1] || '')));
+    return has && w && w.dl!=null ? 11 : 12; }
+  function noteTraumas(tgt, hits, head, redAll){ if(typeof TraumaTable==='undefined' || !tgt || tgt.kind!=='gm') return;
+    TraumaTable.noteHits(tgt.id, hits.filter(x=>x.trauma).map(x=>({head:x.k12 >= head, red:!!(redAll || x.red)}))); }
   function applyHitsTo(id, h){
     const tgt = tok(id); if(!tgt || !isAuthority() || !(h && h.n > 0)) return null;
     let pa = null; try{ pa = typeof AbilityKit!=='undefined' ? AbilityKit.hitPassives(tgt) : null; }catch(e){ console.warn('[Способности]', e); }
@@ -2563,6 +2571,7 @@ const GameTable = (function(){
       const wounds = pen ? Math.max(0, Math.max(1, (h.moshh ? k12 : rollWoundsExpr(h.wounds || 1)) + rz) + adj) : 0;
       hits.push({k12, rolls12:per > 1 ? rolls12 : null, pen, wounds, trauma:pen && k12 > thr && nat!=='void'}); }
     const total = hits.reduce((a, x)=>a + x.wounds, 0), trN = hits.filter(x=>x.trauma).length, patch = {};
+    noteTraumas(tgt, hits, 12, h.travma);
     if(trN){ if(h.travma) patch.traumaRed = (tgt.traumaRed || 0) + trN; else patch.trauma = (tgt.trauma || 0) + trN; }
     if(total){ if(tgt.kind==='gm'){ if(tgt.hp!==null && tgt.hp!==undefined) patch.hp = tgt.hp - total; } else changeCharacterHp(tgt.ownerId, -total); }
     if(Object.keys(patch).length) execCommand({c:'token-update', id, patch});
@@ -2625,11 +2634,12 @@ const GameTable = (function(){
       const prev = attackRecords.find(r=>r.attackId===req.rerollOf);
       if(prev && prev.attackerOwner===(from||null)) undoAttack(prev.attackId, true);
     }
-    const pa = passiveAtk(att, tgt, w, true) || {mod:0, tags:[], adj:{}, adjAll:0, shield:false, defMod:0, muMod:0, firstDmg:0};
+    const pa = passiveAtk(att, tgt, w, true) || {mod:0, tags:[], adj:{}, adjAll:0, shield:false, defMod:0, muMod:0, firstDmg:0, catPlus:0};
     const fullMax = attackKnownPart(c, w, fireMode, range, !!req.optikaOn, att.kind==='gm').base + chosenMod + secretPart(tgt, !!req.unprotected).v + pa.mod;
     let max12Shown = null; // для подробного вида лога (пороги видят только допущенные Мастером)
     const roll = pickD20ForMode(rolls[0], rolls[1], fullMax, mode);
     const ev = evaluateD20Check(roll, fullMax);
+    if(ev.success && pa.catPlus) ev.category += pa.catPlus; // «Мастер»: успешная атака из ружья — категория выше
     const jammed = !!(w.klinit && roll===13);
     const unprotected = !!(req.unprotected && tgt.unprotectedEnabled);
     const hits = [];
@@ -2653,9 +2663,13 @@ const GameTable = (function(){
         hits.push(h);
       }
       if(pa.shield && hits.length > 1){ const k = randInt(12), drop = Math.min(k, hits.length - 1); hits.splice(hits.length - drop, drop); pa.tags.push(`щит: к12=${k}, отменено ${drop}`); }
+      if(pa.ignore && hits.length){ hits.length = 0; pa.tags.push('атака проигнорирована (сценарная броня)'); }
+      if(pa.cancelHits > 0 && hits.some(h=>h.pen)){ const off = hits.filter(h=>h.pen).sort((x, y)=>y.wounds - x.wounds).slice(0, pa.cancelHits); // отклоняются самые тяжёлые
+        off.forEach(h=>{ h.pen = false; h.wounds = 0; h.trauma = false; h.red = false; }); pa.tags.push(`отклонено попаданий: ${off.length}`); }
     }
     const total = hits.reduce((a,h)=>a+h.wounds, 0);
     const traumaN = hits.filter(h=>h.trauma && !h.red).length, traumaRedN = hits.filter(h=>h.red).length;
+    noteTraumas(tgt, hits, headFrom(att, w), false);
     const targetName = tokenName(tgt, vitalsFor(tgt));
     const rec = { attackId, attackerOwner: from||null, targetId:tgt.id, targetKind:tgt.kind, ownerId:tgt.ownerId||null,
                   total, traumaN, traumaRedN, hpApplied:false, label:`${attackerName} → ${targetName}, «${w.name}»: ${total} ${woundsWord(total)}`, undone:false };
@@ -2858,6 +2872,7 @@ const GameTable = (function(){
       const t = v.t, hits = v.blast.concat(v.frag);
       const total = hits.reduce((a,h)=>a+h.wounds, 0) + v.thermal;
       const traumaN = hits.filter(h=>h.trauma).length;
+      noteTraumas(t, hits, 12, false);
       const rv = {targetId:t.id, targetKind:t.kind, ownerId:t.ownerId||null, hpApplied:false, hpDelta:0, traumaN, burn:v.burn, slowSet:false};
       const patch = {};
       if(traumaN) patch.trauma = (t.trauma||0) + traumaN;
@@ -3024,6 +3039,14 @@ const GameTable = (function(){
            // переброс атаки с карты (способность существа): прежняя отменяется целиком (rerollOf), новый к20 — здесь
            rerollAttack(attackId){ const r = lastAttackReqs[attackId]; if(!r || !isAuthority()) return {ok:false, reason:'Атака не найдена'};
              const n = r.req.mode==='plain' || !r.req.mode ? 1 : 2, req = Object.assign({}, r.req, {attackId:newId('atk'), rolls:Array.from({length:n}, ()=>randInt(20)), rerollOf:attackId});
+             return resolveAttack(req, r.from); },
+           // оружие атаки («Охрана»: попадание приходится в защитника тем же оружием)
+           attackWeapon(attackId){ const r = lastAttackReqs[attackId], att = r && tok(r.req.attackerId); if(!att) return null;
+             const w = att.kind==='player' ? sheetWeapon(attackerSheet(att), r.req.weaponIdx) : npcWeapon(att);
+             return w ? {name:w.name, mu:w.mu || 0, muType:w.muType || 'удар', wounds:String(w.wounds || 1), travma:!!w.travma, moshh:!!w.moshh} : null; },
+           // та же атака с другим к20 («Родство с оружием»: +к6 к выпавшему), прежняя отменяется
+           redoAttackRoll(attackId, roll){ const r = lastAttackReqs[attackId]; if(!r || !isAuthority()) return {ok:false, reason:'Атака не найдена'};
+             const v = Math.max(1, Math.min(20, Math.round(+roll || 1))), req = Object.assign({}, r.req, {attackId:newId('atk'), rolls:[v], mode:'plain', rerollOf:attackId});
              return resolveAttack(req, r.from); },
            // та же атака с теми же к20, но с поправкой к Максимуму («Нечеловеческая изворотливость»: −3 к этой атаке)
            redoAttack(attackId, modDelta){ const r = lastAttackReqs[attackId]; if(!r || !isAuthority()) return {ok:false, reason:'Атака не найдена'};

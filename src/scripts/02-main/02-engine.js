@@ -124,7 +124,7 @@ function describeBundle(bundle){
     else if(m.t==='fixed') parts.push(`${STAT_LABELS[m.stat]} ${m.delta>0?'+':''}${m.delta}`);
     else if(m.t==='note') parts.push(m.text);
     else if(m.t==='appearance') parts.push(`Внешний вид ${m.delta>0?'+':''}${m.delta}`);
-    else if(m.t==='size') parts.push(`Размер ${m.delta>0?'+':''}${m.delta}`);
+    else if(m.t==='size') parts.push(`Размер ${m.delta>0?'+':''}${m.delta} (${sizeStatsText(m.delta)})`);
     else if(m.t==='item') parts.push(m.text);
     else if(m.t==='credits') parts.push(m.label || 'Кредиты');
     else if(m.t==='choice') parts.push(m.options.map(o=>`${STAT_LABELS[o.stat]} ${o.delta>0?'+':''}${o.delta}`).join('/'));
@@ -666,11 +666,25 @@ function applyModifier(c, mod, source, auto){
       break;
     }
     case 'size': {
-      // в журнал источника — сколько реально прибавилось в пределах −4…+4, чтобы его снятие вернуло ровно столько же
-      const d = clampSize(c.size + mod.delta) - c.size;
-      c.sizeLog.push({source, delta: d});
-      c.size += d;
-      logEvent(c, `Размер ${mod.delta>0?'+':''}${mod.delta} (${source}) → сейчас ${c.size}${d!==mod.delta ? ` (предел ${SIZE_MIN}…+${SIZE_MAX})` : ''}.`);
+      // в журнал источника — сколько реально прибавилось (пределы −4…+4 и потолок источника), чтобы снятие вернуло ровно столько же
+      const d = shiftSize(c, mod.delta, source, mod.max);
+      logEvent(c, `Размер ${mod.delta>0?'+':''}${mod.delta} (${source}) → сейчас ${c.size}${d ? ` (${sizeStatsText(d)})` : ''}${d!==mod.delta ? ` (предел ${mod.max!=null ? 'источника: не более ' + mod.max : SIZE_MIN + '…+' + SIZE_MAX})` : ''}.`);
+      break;
+    }
+    case 'sizeOption': {
+      // Всегда настоящий выбор, и в случайном режиме (как разовый бонус размера): размер двигает силу и скрытность в разные стороны.
+      if(clampSize(c.size + mod.delta) === c.size) break;
+      const dTxt = (mod.delta>0 ? '+' : '−') + Math.abs(mod.delta);
+      pendingChoices.push({
+        id: uid(), source, title: `${source}: можно изменить размер тела на ${dTxt}`,
+        options: [
+          { label: `Да: размер ${dTxt} (${sizeStatsText(mod.delta)})`, apply: ch => {
+            const d = shiftSize(ch, mod.delta, source);
+            logEvent(ch, `Размер ${dTxt} (${source}) → сейчас ${ch.size}${d ? ` (${sizeStatsText(d)})` : ' (предел)'}.`);
+          }},
+          { label: 'Нет, оставить размер', apply: ch => logEvent(ch, `Изменение размера на ${dTxt} (${source}) — отклонено.`) }
+        ]
+      });
       break;
     }
     case 'psiSoprot': {
@@ -932,11 +946,8 @@ function offerSizeBonusIfEligible(c){
     id: uid(), source: `Уровень ${c.level}`,
     title: `${STAT_LABELS[eligible]} достигла ${c.stats[eligible]} — разовый шанс увеличить размер персонажа`,
     options: [
-      { label: 'Да, увеличить размер на 1', apply: ch => {
-        ch.sizeLog.push({source:'Разовый бонус размера (рост характеристик)', delta:1});
-        ch.size += 1;
-        addLog(ch, 'sila', 1, 'Увеличение размера (бонус характеристик)');
-        addLog(ch, 'skrytnost', -1, 'Увеличение размера (бонус характеристик)');
+      { label: `Да, увеличить размер на 1 (${sizeStatsText(1)})`, apply: ch => {
+        shiftSize(ch, 1, 'Разовый бонус размера (рост характеристик)');
         logEvent(ch, `Размер увеличен на 1 (разовый бонус за характеристику «${STAT_LABELS[eligible]}»): сила +1, скрытность −1. Теперь размер ${ch.size}.`);
       }},
       { label: 'Нет, оставить размер как есть', apply: ch => {
@@ -1151,6 +1162,25 @@ function applyStartingGear(c){
 // Размер персонажа — от −4 до +4: ни бонусы, ни ручная правка не выводят за эти пределы.
 const SIZE_MIN = -4, SIZE_MAX = 4;
 function clampSize(v){ return Math.max(SIZE_MIN, Math.min(SIZE_MAX, v)); }
+// Размер и характеристики (стр. 81): каждая единица размера вверх — сила +1 и скрытность −1, вниз — наоборот.
+// Всё, что меняет размер (карьера, происхождение, мутация, бонус уровня, ручная правка), идёт через shiftSize:
+// размер и сдвиг силы / скрытности пишутся с одним источником — смена карьеры / происхождения снимает их вместе.
+// cap — потолок источника («не более 3»). Полные ОЗ остаются полными: размер входит в их максимум.
+function shiftSize(c, delta, source, cap){
+  let to = clampSize(c.size + delta);
+  if(cap != null && delta > 0) to = Math.max(c.size, Math.min(to, cap));
+  const d = to - c.size;
+  if(!d) return 0;
+  const full = typeof c.hpCurrent === 'number' && c.hpCurrent >= hpMax(c);
+  c.sizeLog.push({source, delta:d});
+  c.size = to;
+  const why = /размер/i.test(source) ? source : `${source} (размер ${d>0?'+':'−'}${Math.abs(d)})`; // тот же префикс — снимается вместе с источником
+  addLog(c, 'sila', d, why);
+  addLog(c, 'skrytnost', -d, why);
+  if(full) c.hpCurrent += d;
+  return d;
+}
+function sizeStatsText(d){ return `сила ${d>0?'+':'−'}${Math.abs(d)}, скрытность ${d>0?'−':'+'}${Math.abs(d)}`; }
 function hpMax(c){ return 3 + c.stats.vynoslivost + c.size + c.bonusHpMax; } // book: "выносливость + размер + 3" (стр. 80) + any bonusHpMax abilities (e.g. Боец «Живучий»)
 function psiMax(c){ return 3 + c.stats.duh + c.bonusPsiMax; }
 function reclampVitals(c){

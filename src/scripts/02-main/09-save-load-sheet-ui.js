@@ -512,7 +512,12 @@ document.getElementById('fSizeNum').addEventListener('change', async (e)=>{
   const c = character, newMax = hpMax(Object.assign({}, c, {size:v}));
   if(v !== c.size && newMax <= 0 && !(await uiConfirm(`Размер ${v}: максимум ОЗ станет ${newMax}. Оставить такой размер?`, {title:'Размер', ok:'Оставить', cancel:'Вернуть ' + c.size, icon:'⚠'}))){ renderAll(); return; }
   if(c !== character) return;
-  if(v !== character.size){ logEvent(character, `Размер изменён вручную: ${character.size} → ${v}.`); character.size = v; reclampVitals(character); }
+  if(v !== character.size){ // сила и скрытность сдвигаются вместе с размером (shiftSize)
+    const d = v - character.size;
+    logEvent(character, `Размер изменён вручную: ${character.size} → ${v} (${sizeStatsText(d)}).`);
+    shiftSize(character, d, 'Размер (вручную)'); reclampVitals(character);
+    uiToast(`Размер ${v}: ${sizeStatsText(d)}`, {icon:'⇕'});
+  }
   renderAll();
 });
 document.getElementById('fLuckNum').addEventListener('change', (e)=>{

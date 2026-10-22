@@ -884,7 +884,7 @@ const Bestiary = (function(){
       name:S(t.name, 60).trim(), group:S(t.group, 60).trim() || 'Мои существа', faction:S(t.faction, 60).trim(), desc:S(t.desc, 3000),
       oz:S(t.oz, 30), def:S(t.def, 60), run:S(t.run, 20), rz:int(t.rz, 0, -5, 30), squad:int(t.squad, 0, 0, 200), seals:!!t.seals,
       body:S(t.body, 600), mind:S(t.mind, 600), skills:S(t.skills, 1500), know:S(t.know, 1500),
-      abil:arr(t.abil, 40).map(a=>Array.isArray(a) ? [S(a[0], 120), S(a[1], 3000)] : null).filter(a=>a && (a[0] || a[1])),
+      abil:arr(t.abil, 60).map(a=>Array.isArray(a) ? [S(a[0], 120), S(a[1], 3000)] : null).filter(a=>a && (a[0] || a[1])),
       gear:arr(t.gear, 30).map(g=>S(g, 2000)).filter(Boolean),
       extra:arr(t.extra, 30).map(g=>S(g, 2000)).filter(Boolean), // добавлено из каталога книги (можно убрать)
       chances:arr(t.chances, 10).map(c=>Array.isArray(c) ? [int(c[0], 1, 1, 100), int(c[1], 6, 1, 100), S(c[2], 600),
@@ -1178,6 +1178,7 @@ const Bestiary = (function(){
         ${c.quick ? `<label class="bst-chk"><input type="checkbox" data-act="strong" ${inst.strong ? 'checked' : ''}> Сильная сторона / невыгодная позиция (Помеха 6)</label>` : ''}
         <span class="bst-muted">Защита ${tok.defense||0}${subs ? ' (' + esc(subs) + ')' : ''} · в руке: ${esc(w)}</span></div>
       ${inst.ozText && /к/.test(inst.ozText) ? `<div class="bst-muted">ОЗ брошены: ${esc(inst.ozText)}</div>` : ''}
+      ${typeof TraumaTable!=='undefined' ? TraumaTable.cardHtml(tok) : ''}
       <div class="bst-inst-row">${c.quick ? '' : '<button type="button" class="bst-mini" data-act="reroll-all" title="Заново бросить снаряжение и шансы">🎲 Снаряжение заново</button>'}
         <button type="button" class="bst-mini" data-act="edit-token" title="Обычная форма жетона">✎ Жетон</button>
         <label class="bst-chk"><input type="checkbox" data-act="public" ${prefs.publicRolls ? 'checked' : ''}> броски видны игрокам</label></div>
@@ -1470,9 +1471,11 @@ const Bestiary = (function(){
       const i = it.name.indexOf(' — '); gear.push(i > 0 ? `${cap(it.name.slice(0, i))} [${it.name.slice(i + 3).replace(/\[/g, '(').replace(/\]/g, ')').replace(/\.\s*$/, '')}]` : it.name); used.add(it.id); });
     const rest = items.filter(it=>!used.has(it.id)).map(it=>itemName(it.name)).filter(Boolean);
     if(rest.length) gear.push(('Снаряжение: ' + rest.join(', ') + '.').slice(0, 1800));
-    const abil = (c.abilities || []).map(a=>[S(a.name, 120), S((a.text || '') + (a.enhancedText ? ` Усилено (${a.enhancedSource || ''}): ${a.enhancedText}` : ''), 3000)]).filter(a=>a[0] || a[1]);
+    // техники дисциплины — по строке («Архивация плоти (Психоконструкция)»), усиление — к своей технике (AbilityKit.pcRows)
+    const abil = (typeof AbilityKit!=='undefined' ? AbilityKit.pcRows(c) : (c.abilities || []).map(a=>[a.name, (a.text || '') + (a.enhancedText ? ` Усилено (${a.enhancedSource || ''}): ${a.enhancedText}` : '')]))
+      .map(a=>[S(a[0], 120), S(a[1], 3000)]).filter(a=>a[0] || a[1]);
     if((+c.psiSoprot || 12) > 12) abil.unshift(['Пси-сопротивление', `пси-сопротивление +${+c.psiSoprot - 12}.`]); // так его прочитает «Бросок цели»
-    if(abil.length > 40){ const n = abil.length - 39; abil.length = 39; abil.push(['Ещё способности', `ещё ${n} — в листе персонажа.`]); }
+    if(abil.length > 60){ const n = abil.length - 59; abil.length = 59; abil.push(['Ещё способности', `ещё ${n} — в листе персонажа.`]); }
     const list = (xs)=>(xs || []).map(x=>x && String(x.text || '').trim().replace(/\.+$/, '')).filter(Boolean).join('; ');
     const notes = [`Из листа персонажа${hint.player ? ` (игрок ${hint.player})` : ''}, ${new Date().toLocaleDateString()}.`,
       `Пси ${psi}, пси-сопротивление ${+c.psiSoprot || 12}, удача ${c.luck==null ? 1 : c.luck}${c.appearance ? `, внешность ${signed(c.appearance)}` : ''}${c.siz ? `, СИЗ ${signed(c.siz)}` : ''}.`,

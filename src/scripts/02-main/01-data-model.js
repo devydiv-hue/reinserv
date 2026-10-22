@@ -77,7 +77,8 @@ const M = {
   abilityPool: (source, group, options, count=1, meta={}) => ({t:'abilityPool', source, group, options, count, meta}),
   mysticPick: (kind, data={}) => ({t:'mysticPick', kind, data}),
   appearance: (delta) => ({t:'appearance', delta}), // definite (non-optional) shift to the внешний вид tracker
-  size: (delta) => ({t:'size', delta}), // definite (non-optional) shift to the размер tracker
+  size: (delta, max) => ({t:'size', delta, max}), // definite (non-optional) shift to the размер tracker; max — потолок источника («не более 3»)
+  sizeOption: (delta) => ({t:'sizeOption', delta}), // «может взять размер −1 / поднять на +1» — вопрос игроку (shiftSize: сила и скрытность сдвигаются вместе с размером)
   psiSoprot: (delta) => ({t:'psiSoprot', delta}), // definite shift to пси-сопротивление (e.g. подтип "Мастер плоти")
   bonusHpMax: (delta) => ({t:'bonusHpMax', delta}), // e.g. "Живучий: максимум ОЗ повышается на 1"
   bonusPsiMax: (delta) => ({t:'bonusPsiMax', delta}), // e.g. Боевой психоник's "Душевная стойкость" (+2 max пси)
@@ -1574,7 +1575,7 @@ const ORIGINS = {
       M.fixed('opyt_diggera',1), M.fixed('putnik_na_ravnine',2),
       M.ability('Неприхотливый','Проверка отдыха персонажа +2.'),
       M.table('Уродство (взять меньшее из 2к20)', 20, DEFORMITY_TABLE),
-      M.note('Персонаж может взять размер тела −1 (небольшой).'),
+      M.sizeOption(-1), // книга: «может взять размер тела −1 (небольшой)»
       M.religion(['auto'])
     ]
   },
@@ -1642,7 +1643,8 @@ const ORIGINS = {
       M.note('Технофобия: проверки знаний старого мира Осложнены.'),
       M.ability('Неприхотливый','Проверка отдыха персонажа +2.'),
       M.ability('Стойкость жителя Равнины','+4 на спасброски от материальной вредной среды.'),
-      M.note('Религия: вера в духов Асу (фиксирована). Размер тела можно поднять на +1.')
+      M.note('Религия: вера в духов Асу (фиксирована).'),
+      M.sizeOption(1) // книга: «размер тела можно поднять на +1»
     ]
   }
 };
@@ -3306,7 +3308,7 @@ const CULT_GROUP_LEVEL = { 'Послушание':1, 'Молитва':2, 'Кул
 // actually gets a real pick (see reconcileMysticUnlocks) instead of a "resolve this yourself" note.
 const MOTHER_NATURE_CATHARSIS_BUNDLES = [
   [ // Мутировать в чудовище Бриарея
-    M.size(2),
+    M.size(2, 3),
     M.note('Мутация в чудовище Бриарея: внешний вид, если уже был «Отталкивающий» или хуже, ухудшается ещё на 1 категорию (размер не может превышать 3 — стр. 206).'),
     M.ability('Чудовищная сила', "В рамках своего хода, потратив 1 пси, персонаж может совершить следующее: пройти Упрощённо проверку силы или в качестве движения прыгнуть на дистанцию до 12 метров; до конца круга поднимать и без перегрузки нести объект размера персонажа или менее; во время бега проламывать преграды не прочнее обычной бетонной стены и раскидывать предметы не превышающие персонажа по размеру; затратив действие, оторвать от земли и метнуть не превышающий его по размеру объект на дистанцию до 12 метров. Чтобы попасть в цель, персонаж должен преуспеть в Броске лёгкой атлетики против рефлексов цели (наносит попадание с МУ 12 удар, раны [1 + категория успеха])."),
     M.ability('Неуязвимое тело', "Реакцией персонаж тратит 3 пси и совершает Бросок мистики (−6), до конца сцены получая [5 за категорию успеха] временных ОЗ и иммунитет к [категория успеха] воздействиям на свой выбор из списка: химии, кислотности, радиации, низким температурам.")
@@ -3533,7 +3535,7 @@ const CREATURE_NATURES = {living:'гуманоид / животное', void:'п
 function creatureNature(c){
   if(!c) return 'living';
   if(CREATURE_NATURES[c.nature]) return c.nature;
-  if((c.abil || []).some(a=>/^\s*робот\s*$/i.test(String(a && a[0] || ''))) || /(?:^|[^а-яё])(?:робот|андроид)/i.test(c.name || '')) return 'robot';
+  if((c.abil || []).some(a=>/^\s*робот\s*$/i.test(String(a && a[0] || ''))) || /(?:^|[^а-яё])(?:робот|андроид|гумоид)/i.test(c.name || '')) return 'robot'; // гумоид — робот: поломки вместо травм
   if(/одержим/i.test(c.name || '')) return 'living';
   return /пустот/i.test([c.group, c.faction, c.name].join(' ')) ? 'void' : 'living';
 }
