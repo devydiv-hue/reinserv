@@ -1591,7 +1591,8 @@ const ORIGINS = {
       M.choice([{stat:'peresudy_lyuda',delta:1},{stat:'putnik_na_ravnine',delta:1}]),
       M.fixed('skrytnost',1),
       M.choice([{stat:'vospriyatie',delta:1},{stat:'skrytnost',delta:1}]),
-      M.choice([{stat:'lovkost_ruk',delta:1},{stat:'arhaichnoe_oruzhie',delta:1}])
+      M.choice([{stat:'lovkost_ruk',delta:1},{stat:'arhaichnoe_oruzhie',delta:1}]),
+      M.sizeOption(-1) // книга: «размер небольшой» — по выбору, как у жителя села
     ]
   },
   strannik: {
