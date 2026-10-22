@@ -41,12 +41,16 @@ function showRerollPopup(statKey, mod, mode){
   const careerKey = genericCostAvailable ? character.careerKey : null;
   const career = careerKey && CAREERS[careerKey] ? CAREERS[careerKey] : null;
   const luckAvailable = (character.luck||0) > 0; // удача — универсальный источник, годится для ЛЮБОГО броска, независимо от способностей/бодрости
-  if(!abilities.length && !bodrostActive && !advantages.length && !career && !luckAvailable) return; // нечем перебрасывать — не показываем пустую подсказку
+  // шаман: раз в сцену повысить кость духов на 1 и перебросить проверку мистики (своя или способность с Броском мистики)
+  const isMist = statKey==='mistika' || (statKey==='map_ability' && _mapAbilityCtx && _mapAbilityCtx.stat==='mistika' && !_mapAbilityCtx.opp);
+  const spiritAvailable = isShaman(character) && isMist && !character.spiritSceneUsed;
+  if(!abilities.length && !bodrostActive && !advantages.length && !career && !luckAvailable && !spiritAvailable) return; // нечем перебрасывать — не показываем пустую подсказку
 
   const doReroll = (spendFn)=>{
     spendFn();
     renderAll();
     closeRerollPopup();
+    _rerollingKey = {key:statKey==='map_ability' && isMist ? 'mistika' : statKey, at:Date.now()}; // исход нового броска заменит прежний (кость духов, саматха)
     openRollPicker(statKey, window.innerWidth/2, window.innerHeight/2, mod); // тот же модификатор, что и у перебрасываемого броска
   };
   const el = document.createElement('div');
@@ -54,6 +58,9 @@ function showRerollPopup(statKey, mod, mode){
   let html = `<div class="reroll-title">🔄 Перебросить «${escapeHtml(STAT_LABELS[statKey]||statKey)}»?</div>`;
   if(luckAvailable){
     html += `<div class="reroll-option"><button class="small" id="rerollLuckBtn">Удача (−1, сейчас ${character.luck})</button></div>`;
+  }
+  if(spiritAvailable){
+    html += `<div class="reroll-option"><button class="small" id="rerollSpiritBtn">Кость духов +1 (сейчас ${spiritDieOf(character)})</button><div class="reroll-desc">Раз в сцену шаман сам повышает кость духов на 1 и перебрасывает проверку мистики.</div></div>`;
   }
   if(bodrostActive){
     html += `<div class="reroll-option"><button class="small" id="rerollBodrostBtn">Бодрость (снять флажок)</button></div>`;
@@ -80,6 +87,9 @@ function showRerollPopup(statKey, mod, mode){
       character.luck -= 1;
       logEvent(character, `Удача потрачена на переброс — осталось ${character.luck}.`);
     });
+  }
+  if(spiritAvailable){
+    el.querySelector('#rerollSpiritBtn').onclick = ()=>doReroll(()=>{ character.spiritSceneUsed = true; bumpSpiritDie(character, 'переброс мистики, раз в сцену'); });
   }
   if(bodrostActive){
     el.querySelector('#rerollBodrostBtn').onclick = ()=>doReroll(()=>{
@@ -127,6 +137,96 @@ function showRerollPopup(statKey, mod, mode){
   _rerollDismissCleanup = ()=>window.removeEventListener('mousemove', onMove);
 }
 
+/* ---- Кость духов шамана (стр. 208, «Саматха») ----
+   В начале игровой встречи к6 ставится на 1; каждый проваленный Бросок мистики шамана — +1 (переброс той же проверки —
+   не новый провал). Дошла до 6 — снова 1, а шаман в саматхе (к6 часов в мире Нарра-Ка): Бросок духа (−3) — провал: −2 пси,
+   успех: +[категория успеха] пси и ОЗ. Провал с 13 на к20 — «Врата для демона»: из шамана исторгается случайная пустота (к6),
+   даже если бросок потом перебросят. Раз в сцену шаман сам повышает кость на 1 и перебрасывает проверку мистики (окно переброса). */
+const VOID_GATE_TABLE = [['Удильщик', 295], ['Пустотник', 298], ['Зубная фея', 296], ['Идол', 300], ['Скорбящий', 297], ['Собиратель', 301]]; // к6
+let _rerollingKey = null; // {key, at}: какой бросок сейчас перебрасывается (doReroll) — его исход заменяет прежний
+function isShaman(c){ return !!(c && c.archetypeKey==='shaman'); }
+function spiritDieOf(c){ return Math.max(1, Math.min(6, Math.round(+c.spiritDie || 1))); }
+const sheetName = ()=>{ const el = document.getElementById('fName'); return (el && el.value.trim()) || 'Шаман'; };
+function bumpSpiritDie(c, why){
+  const was = spiritDieOf(c), v = was + 1;
+  if(v < 6){ c.spiritDie = v; logEvent(c, `Кость духов: ${was} → ${v} (${why}).`); return; }
+  c.spiritDie = 1;
+  const hours = randInt(6);
+  c.samatha = {hours};
+  logEvent(c, `Кость духов дошла до 6 (${why}) — снова 1. Саматха: ${hours} ч (к6) в мире Нарра-Ка, Бросок духа (−3).`);
+  recordAndShareQuickRoll({abilityUse:true, text:`${sheetName()}: саматха — кость духов дошла до 6, духи застилают разум на ${hours} ч (к6). Нужен Бросок духа (−3).`});
+  uiToast('Саматха: кость духов дошла до 6 — Бросок духа (−3) в «Самочувствии»', {icon:'🜂', ms:7000});
+}
+STAT_LABELS['samatha_duh'] = 'Саматха — Бросок духа';
+SAVE_ROLL_DEFS['samatha_duh'] = {
+  label:'Саматха — Бросок духа (−3)', anchorMod:-3,
+  base(){ return 10 + ((character && character.stats.duh) || 0); },
+  tags(){ return [`Дух: ${10 + ((character && character.stats.duh) || 0)}`, 'Саматха: −3']; },
+  formula(){ return '10 + дух − 3; провал — −2 пси, успех — +[КУ] пси и ОЗ, провал с 13 — «Врата для демона»'; }
+};
+// Исход броска для кости духов: провал мистики — +1; Бросок духа в саматхе — пси/ОЗ и «Врата для демона». Переброс заменяет прежний исход.
+function resolveSpiritOutcome(statKey, roll, success, category){
+  const reroll = !!(_rerollingKey && _rerollingKey.key===statKey && Date.now() - _rerollingKey.at < 120000); if(reroll) _rerollingKey = null;
+  if(!character || !isShaman(character)) return;
+  if(statKey==='mistika'){ if(!success && !reroll) bumpSpiritDie(character, 'провал мистики'); return; }
+  if(statKey!=='samatha_duh') return;
+  const c = character, prev = reroll ? c._samathaLast : null;
+  if(!c.samatha && !prev) return;
+  if(prev){ c.psiCurrent = (+c.psiCurrent || 0) - prev.psi; c.hpCurrent = (+c.hpCurrent || 0) - prev.hp; } // переброс: прежний исход отменяется
+  const p0 = +c.psiCurrent || 0, h0 = +c.hpCurrent || 0;
+  let gate = prev ? prev.gate : null, text;
+  if(success){
+    c.psiCurrent = Math.max(p0, Math.min(psiMax(c), p0 + category)); c.hpCurrent = Math.max(h0, Math.min(hpMax(c), h0 + category));
+    text = `духи научили новому — +${c.psiCurrent - p0} пси, +${c.hpCurrent - h0} ОЗ`;
+  } else {
+    c.psiCurrent = clampLower(p0 - 2, psiMax(c));
+    text = 'кошмар саматхи — −2 пси';
+    if(roll===13 && !gate){ const k = randInt(6); gate = {k, name:VOID_GATE_TABLE[k - 1][0], page:VOID_GATE_TABLE[k - 1][1]}; }
+  }
+  c._samathaLast = {psi:c.psiCurrent - p0, hp:c.hpCurrent - h0, gate};
+  c.samatha = null;
+  if(gate && !(prev && prev.gate)) text += `. ВРАТА ДЛЯ ДЕМОНА: шаман поднимается в воздух, тело выворачивается — исторгается пустота «${gate.name}» (к6 = ${gate.k}, стр. ${gate.page})`;
+  else if(gate) text += `. Пустота «${gate.name}» уже исторглась — она знает о первом результате 13`;
+  logEvent(c, `Саматха, Бросок духа: к20=${roll} — ${text}.`);
+  recordAndShareQuickRoll({abilityUse:true, text:`${sheetName()}: саматха, Бросок духа (к20=${roll}${reroll ? ', переброс' : ''}) — ${text}.`});
+  renderAll();
+}
+// Способности, двигающие кость духов (по тексту): «Песнь мира» — при успехе −1, «Лечащий ритуал» — при провале +1
+function spiritAbilityOutcome(text, success){
+  if(!character || !isShaman(character)) return;
+  const t = String(text || '');
+  if(success && /(?:снижая|снижает)\s+значение\s+кости\s+духов\s+на\s+1/i.test(t)){
+    const was = spiritDieOf(character); character.spiritDie = Math.max(1, was - 1);
+    if(character.spiritDie!==was) logEvent(character, `Кость духов: ${was} → ${character.spiritDie} (способность: успех).`);
+    renderAll();
+  }
+  if(!success && /при\s+провале[^.]*повышает\s+кость\s+духов\s+на\s+1/i.test(t)){ bumpSpiritDie(character, 'провал способности'); renderAll(); }
+}
+window.spiritDieAct = function(act){
+  if(!character || !isShaman(character)) return;
+  const c = character;
+  if(act==='plus') bumpSpiritDie(c, 'вручную');
+  else if(act==='minus'){ const was = spiritDieOf(c); c.spiritDie = Math.max(1, was - 1); if(c.spiritDie!==was) logEvent(c, `Кость духов: ${was} → ${c.spiritDie} (вручную).`); }
+  else if(act==='meeting'){ c.spiritDie = 1; c.spiritSceneUsed = false; logEvent(c, 'Кость духов: новая игровая встреча — 1.'); }
+  else if(act==='scene'){ c.spiritSceneUsed = false; }
+  else if(act==='samatha'){ const r = document.getElementById('spiritDieBox').getBoundingClientRect(); openRollPicker('samatha_duh', r.left + r.width/2, r.top + 20, -3); return; }
+  else if(act==='samatha-off'){ c.samatha = null; logEvent(c, 'Саматха снята вручную.'); }
+  renderAll();
+};
+function renderSpiritDie(){
+  const box = document.getElementById('spiritDieBox'); if(!box) return;
+  if(!character || !isShaman(character)){ box.style.display = 'none'; box.innerHTML = ''; return; }
+  const c = character, v = spiritDieOf(c);
+  box.style.display = '';
+  box.innerHTML = `<h3 style="margin-top:14px;">Кость духов</h3>
+    <div class="spirit-die-row"><span class="spirit-die-face" title="к6 духов: каждый проваленный Бросок мистики +1, на 6 — саматха">${v}</span>
+      <button class="small" onclick="spiritDieAct('minus')" title="−1 (например, «Песнь мира»)">−</button><button class="small" onclick="spiritDieAct('plus')">+</button>
+      <button class="small" onclick="spiritDieAct('meeting')" title="Начало игровой встречи: кость на 1">Новая встреча</button>
+      <span class="muted">${c.spiritSceneUsed ? '+1 и переброс мистики — уже в этой сцене <button class="small" onclick="spiritDieAct(\'scene\')" title="Новая сцена">↺</button>' : '+1 и переброс мистики — в окне переброса (раз в сцену)'}</span></div>
+    ${c.samatha ? `<div class="spirit-samatha">🜂 <b>Саматха</b> — ${c.samatha.hours} ч в мире Нарра-Ка, тело прорастает псевдоплотью.
+      <button class="small" onclick="spiritDieAct('samatha')">🎲 Бросок духа (−3)</button> <button class="small" onclick="spiritDieAct('samatha-off')" title="Снять вручную">✕</button></div>` : ''}`;
+}
+
 // mode: 'plain' (один к20, как раньше) | 'advantage' | 'disadvantage' (см. openRollPicker — зона
 // жеста вне поля гексов, справа/слева) — два к20, выбор лучшего/худшего через pickD20ForMode (тем же
 // правилом, что и у боковой панели бросков кубов, см. compareD20Outcomes выше).
@@ -140,6 +240,7 @@ function executeRoll(statKey, base, mod, popup, mode){
   const {success, category, natConsequences} = evaluateD20Check(roll, max);
   if(statKey==='creature_roll' && !success) if(typeof GmAdvice!=='undefined') GmAdvice.event('miss'); // проваленный бросок существа
   if(typeof recordAndShareRoll==='function') recordAndShareRoll(statKey, mod, roll, max, success, category, mode, rolls); // общий лог сессии, см. её раздел внизу файла
+  resolveSpiritOutcome(statKey, roll, success, category); // кость духов шамана: провал мистики, саматха
   if(statKey!=='creature_roll' && session.role==='player' && secretRollActive()){ // тайный бросок: результат знает только Мастер
     popup.querySelector('.hex-field').remove(); popup.querySelector('.roll-max-preview').remove(); popup.querySelector('.roll-tags').remove();
     const st = document.createElement('div'); st.innerHTML = '<div class="roll-outcome secret"><span class="verdict">🤫 Тайный бросок</span>ушёл Мастеру — результат знает только он</div>';
@@ -374,7 +475,7 @@ function renderAll(){
     document.getElementById('fArmorBody').value=''; document.getElementById('fArmorHelmet').value=''; document.getElementById('fArmorProps').value='';
     document.getElementById('fConditionsNotes').value='';
     ['stBodrost','stIstoshenie','stIspug','stStress'].forEach(id=>{ document.getElementById(id).checked=false; document.getElementById(id).disabled=true; });
-    renderAdvFlaw(); renderAbilities(); renderInventory(); renderHistory(); renderSaves(); renderRest(); renderWeapons();
+    renderAdvFlaw(); renderAbilities(); renderInventory(); renderHistory(); renderSaves(); renderRest(); renderWeapons(); renderSpiritDie();
     return;
   }
   renderStatBlock('statsBody', BODY);
@@ -449,6 +550,7 @@ function renderAll(){
   renderSaves();
   renderRest();
   renderWeapons();
+  renderSpiritDie();
 
   // progression display
   const progArch = currentArchetype(character);
@@ -713,6 +815,8 @@ function summarizeSpecTier(spec, tier){
     if(m.t==='fixed') return `${STAT_LABELS[m.stat]} ${m.delta>0?'+':''}${m.delta}`;
     if(m.t==='note') return m.text;
     if(m.t==='roleplay') return `${m.label} <span class="pill">выбор игрока</span>`;
+    if(m.t==='hpBySize') return `Максимум ОЗ +[размер${m.plus ? ' + ' + m.plus : ''}]`;
+    if(m.t==='sturdyWeapon') return '«Любимое оружие», а если уже есть — навык боя +2 (не выше 4)';
     return '';
   }).filter(Boolean).join('; ');
 }
@@ -754,11 +858,18 @@ function invRowHtml(item, category){
   // (Ат.../МУ..., см. parseWeaponStats) — тот же принцип, что и isArmorLike выше для "Надеть".
   const weaponStats = parseWeaponStats(item.name);
   const weaponBtn = weaponStats ? weaponEquipButtonHtml(category, item, weaponStats) : '';
+  // Щиты-приборы («Кинетический щит», «Генератор щита») — стол учитывает их в атаках, пока включены (characterGearEffects);
+  // «Кинезис-латы» (надетые) — кнопка «+2 временных ОЗ», раз в бой
+  const gearBtn = !GEAR_TOGGLE_RE.test(item.name) ? '' : `<button class="small" onclick="toggleGearActive('${category}','${item.id}')" title="Пока включено, стол снижает МУ атак по персонажу и его собственных атак (см. текст предмета)">${item.gearActive?'🛡 Убрать':'🛡 Использовать'}</button>`;
+  const tempHpM = worn ? /даёт\s+(\d+)\s+временн\S*\s+ОЗ/i.exec(item.name) : null;
+  const tempHpBtn = !tempHpM ? '' : `<button class="small" onclick="useItemTempHp('${category}','${item.id}')" title="Раз в бой, в свой ход">⚡ +${tempHpM[1]} врем. ОЗ</button>`;
   return `<div class="item-line" draggable="true" ondragstart="onInvDragStart(event,'${category}','${item.id}')">
-    <b>${item.name}</b> <span class="muted">(вес: ${item.weight})</span> <span class="tag">${item.source}</span>${worn?` <span class="tag worn-tag">Надето: ${item.wornZones.map(z=>ARMOR_ZONE_LABELS[z]).join(', ')}</span>`:''}${item.wornBoots?` <span class="tag worn-tag">Надето (сапоги)</span>`:''}${item.restModActive?` <span class="tag worn-tag">Отдых ${restMod>=0?'+':''}${restMod} включён</span>`:''}
+    <b>${item.name}</b> <span class="muted">(вес: ${item.weight})</span> <span class="tag">${item.source}</span>${worn?` <span class="tag worn-tag">Надето: ${item.wornZones.map(z=>ARMOR_ZONE_LABELS[z]).join(', ')}</span>`:''}${item.wornBoots?` <span class="tag worn-tag">Надето (сапоги)</span>`:''}${item.restModActive?` <span class="tag worn-tag">Отдых ${restMod>=0?'+':''}${restMod} включён</span>`:''}${item.gearActive && gearBtn?` <span class="tag worn-tag">Используется</span>`:''}
     <div class="choice-btns" style="margin-top:4px;">
       <button class="small" onclick="editInventoryItem('${category}','${item.id}')">✎ Изменить</button>
       ${wearBtn}
+      ${gearBtn}
+      ${tempHpBtn}
       ${bootBtn}
       ${restModBtn}
       ${weaponBtn}

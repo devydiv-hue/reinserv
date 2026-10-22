@@ -25,7 +25,7 @@ const TableLive = (function(){
     if(e.kind==='quick'){
       const f = formatQuickRollEntry(e), d = document.createElement('div'); d.innerHTML = f.html;
       const who = (d.querySelector('.who') || {}).textContent || e.player || '?', rest = txt((d.querySelector('.rest') || {}).innerHTML || '');
-      const d20 = e.mapAttack || e.mapGrenade || e.diceType==='d20';
+      const d20 = e.mapAttack || e.mapGrenade || e.mapManeuver || e.diceType==='d20';
       const big = e.loot ? '⛏' : e.initiative ? '⚔' : e.itemCheck ? '' : (d20 || e.mode==='max') ? e.roll : (e.sum!=null ? e.sum : '');
       const n13 = d20 && e.roll===13 && (e.jammed || e.success===false || e.outcome==='none');
       return {who, text:rest, big, cls:f.cls, nat:d20 && e.roll===12 ? 12 : n13 ? 13 : 0};
@@ -166,8 +166,8 @@ const Chronicle = (function(){
     if(!e || e.mapAttackUndo || e.weaponHits || e.chat || e.secretStub) return;
     let line = ''; try{ const d = document.createElement('div'); d.innerHTML = renderRollLogEntry(e, null);
       const w = d.querySelector('.who'), r = d.querySelector('.rest'); line = w && r ? `${strip(w.innerHTML)}: ${strip(r.innerHTML)}` : strip(d.innerHTML); }catch(err){ return; }
-    const k = e.mapAttack || e.mapGrenade ? 'atk' : e.loot ? 'loot' : e.initiative ? 'init' : 'roll';
-    const d20 = e.kind!=='quick' || e.mapAttack || e.mapGrenade || e.diceType==='d20';
+    const k = e.mapAttack || e.mapGrenade || e.mapManeuver ? 'atk' : e.loot ? 'loot' : e.initiative ? 'init' : 'roll';
+    const d20 = e.kind!=='quick' || e.mapAttack || e.mapGrenade || e.mapManeuver || e.diceType==='d20';
     const n = d20 && e.roll===12 ? 12 : d20 && e.roll===13 && (e.success===false || e.jammed || e.outcome==='none') ? 13 : 0;
     add(k, line, n);
   }

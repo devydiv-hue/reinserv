@@ -204,10 +204,10 @@ const PcAbilities = (function(){
     else uiToast(`«${p.name}» при провале расходуется — отметьте у игрока`, {icon:'✦'});
   }
   // бросок персонажа: свой — окном с гексами (как в листе), за чужого персонажа (Мастер) — приложение
-  function rollFor(t, c, rs, title, done, st){
+  function rollFor(t, c, rs, title, done, st, text){
     const label = `${title}: ${rs.label}`, plus = st ? st.adj.max : 0, rl = rs.label + tagsText(st);
     if(ownSheet(t) && character===c && typeof openRollPicker==='function'){
-      _mapAbilityCtx = {label, base:baseOf(c, rs.stat) + plus, opp:rs.opp, tags:[label].concat(st ? st.adj.tags.concat(st.adj.dice) : []), done:(r)=>done(Object.assign({label:rl, opp:rs.opp}, r))};
+      _mapAbilityCtx = {label, stat:rs.stat, abilText:text || '', base:baseOf(c, rs.stat) + plus, opp:rs.opp, tags:[label].concat(st ? st.adj.tags.concat(st.adj.dice) : []), done:(r)=>done(Object.assign({label:rl, opp:rs.opp}, r))};
       openRollPicker('map_ability', innerWidth/2, innerHeight/2, Math.max(-21, Math.min(21, rs.mod)));
       uiToast(`Нажмите на модификатор — подсвечен ${sgn(rs.mod)}`, {icon:'🎲', ms:4000});
       return;
@@ -234,7 +234,7 @@ const PcAbilities = (function(){
       sendMsg({type:'pc-abil', req:{tokId:t.id, key, name:p.name, text:p.text.slice(0, 4000), ids:ids.slice(0, 40), roll:pr, adj:adjOut(st.adj)}}, session.gmId);
       uiToast('Ушло Мастеру — итог появится в общем логе', {icon:'✦'});
     };
-    if(rs) rollFor(t, c, rs, title, deliver, st); else deliver(null);
+    if(rs) rollFor(t, c, rs, title, deliver, st, p.text); else deliver(null);
   }
   function rollOnly(tokId, key){
     const f = find(tokId, key); if(!f) return;
@@ -247,7 +247,7 @@ const PcAbilities = (function(){
         if(pr.byGm) recordAndShareQuickRoll({abilityUse:true, text:`${charName(t, c)} — «${title}»: ${pr.label}: к20=${pr.roll} / Макс.${pr.base} — ${pr.success ? 'успех, КУ' + pr.cat : 'провал'}${paid ? '. ' + paid : ''}`});
         else if(pr.success && st.adj.cat) uiToast(`«${title}»: категория успеха +${st.adj.cat} — КУ${pr.cat}`, {icon:'✦'});
         if(!pr.success) afterFail(t, p);
-      }, st); });
+      }, st, p.text); });
   }
   // ★ — форма «Бросок цели» по тексту способности; цели — выделенные жетоны
   function creative(tokId, key){

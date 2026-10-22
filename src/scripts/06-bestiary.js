@@ -138,7 +138,8 @@ const Bestiary = (function(){
       abil:[['Головоногий гибрид', 'реакцией шаман может с хрустом на 10 минут поглотить хрящи, кости и плоть своего куато, наращивая поверх головы (включая шлем) пучок толстых трёхметровых щупалец. Щупальца способны бегать, цепляться за стены и потолки, перенося свисающее вниз тело шамана паукообразным образом, Упрощая проверки акробатики и захвата. Кроме того, они бесконтрольно атакуют каждое существо, которое впервые за круг оказывается в пределах их досягаемости и которое шаман расценивает как враждебное — цель совершает Бросок рефлексов (−9), получая 2 попадания с МУ 13, удар, раны 3. Атаки щупалец не зависят от дееспособности шамана и продолжаются, пока не окончится эффект или пока ОЗ шамана не станет −3 и ниже.'],
             ['Мастер плоти', 'владеет способностями сумка плоти, ритуал вживления, заговор плоти, ритуал куато (см. стр. 118).'],
             ['Мутация куато', 'небольшой и уродливый сиамский близнец на теле. Прикрывает жреца пси-щитом (см. стр. 193) с Максимумом 16, при успехе щит расходуется до конца дня.'],
-            ['Ужасный морок Нара', 'как морок Нара (см. способности Изувера-аколита Нара), но накладывается сразу на 2 цели.']] },
+            ['Ужасный морок Нара', 'как морок Нара (см. способности Изувера-аколита Нара), но накладывается сразу на 2 цели.']],
+      gear:[KOSTYUM_CHU] }, // защита 2 — тот же костюм из веток чу, что у аколита (решение Мастера)
 
     { id:'sv_vizgun', name:'Визгун (оружие одичалых)', group:G_SV, faction:'Одичалые',
       desc:'Мутированный псионик-раб клана Ок’х’ыфаг (Кормящие Духов). Визгунов создают через ритуал: их опаивают смесью из синего шляпника и псевдокорня забывших, вгоняя в бесконечную агонию путём череды мучительных смертей. В конечной стадии визгун представляет собой пси-мутанта с деградировавшим сознанием. У всех визгунов устоявшиеся увечья: удалённые и зашитые глазницы, а рот стянут кляпом. Их держат в защитных паланкинах или шкафах, которые таскает расчёт из наводчика и четырёх рядовых одичалых.',
@@ -981,6 +982,7 @@ const Bestiary = (function(){
     tpl.tables.forEach((tb, i)=>{ if(tb.kind!=='armor') return; const sel = inst.tbl[i], row = sel && tb.rows[sel.idx]; if(!row) return;
       const a = itemsIn(row[1]).find(it=>it.kind==='armor'); if(!a) return; const pd = parseDef(a.stats.replace(/^.*?защита/i, '')); def = pd.def; subs = pd.subs; armorName = cap(a.name); });
     tpl.chances.forEach((c, i)=>{ if(inst.ch[i] && c[3] && c[3].def!=null){ def = c[3].def; subs = {}; armorName = ''; } });
+    if(inst.armorOff){ def = 0; subs = {}; armorName = ''; } // «сделать нулевой» в карточке (броня паланкина разбита и т.п.)
     (tpl.extra || []).forEach(g=>itemsIn(g).forEach(it=>{ // броня из каталога на торс / всё тело — заменяет защиту жетона
       if(it.kind!=='armor' || !/торс|вс[её] тело/i.test(it.stats)) return;
       const pd = parseDef(it.stats.replace(/^.*?защита/i, '')); def = pd.def; subs = pd.subs; armorName = cap(it.name); }));
@@ -989,6 +991,44 @@ const Bestiary = (function(){
             strength:Math.max(0, Math.min(20, statFrom(tpl.body, 'сила'))), reflexes:Math.max(0, Math.min(20, statFrom(tpl.body, 'рефлексы'))),
             attackMod:tpl.quick ? -(inst.strong ? 6 : tpl.pen) : 0};
   }
+  // Броня существа по зонам тела (прицельная атака, стр. 39) — как у персонажа: предметы «[защита N (…) / зоны / …]» из снаряжения,
+  // выбранной строки таблицы брони и добавленного из каталога; «У шлема защита N (…)» после предмета — у головы. Зона не подписана —
+  // по каталогу предметов или по названию (armorZonesGuess). Шанс «нет никакой брони» — его защита везде. Предметов брони нет
+  // (пустоты, звери: «Защита 5», «0 (Уд 6)») — защита карточки на всё тело. null — жетон без карточки (зон не знаем).
+  function armorLines(tpl){
+    const inst = tpl.inst || {}, lines = (tpl.gear || []).concat(tpl.extra || []).map(String);
+    (tpl.tables || []).forEach((tb, i)=>{ if(tb.kind!=='armor') return; const sel = inst.tbl && inst.tbl[i], row = sel && tb.rows[sel.idx]; if(row) lines.push(String(row[1])); });
+    return lines;
+  }
+  function zoneDefense(t, zone, muType){
+    const tpl = t && t.creature; if(!tpl) return null;
+    const inst = tpl.inst || {}, ch = (tpl.chances || []).find((c, i)=>inst.ch && inst.ch[i] && c[3] && c[3].def!=null);
+    if(inst.armorOff) return 0;
+    if(ch) return ch[3].def;
+    let best = null, any = false;
+    armorLines(tpl).forEach(line=>itemsIn(line).forEach(it=>{
+      if(it.kind!=='armor') return; any = true;
+      const st = it.stats.replace(/^.*?защита/i, ''), zones = parseArmorZones('Защита' + st + ']');
+      if((zones.length ? zones : armorZonesGuess(it.name)).indexOf(zone) < 0) return;
+      const pd = parseDef(st); let d = defenseAgainst(pd.def, pd.subs, muType);
+      if(zone==='golova'){ const h = /^[^\[]*?У шлема защита\s*(\d+)\s*(\([^)]*\))?/i.exec(line.slice(it.end)); if(h){ const hp = parseDef(h[1] + ' ' + (h[2] || '')); d = defenseAgainst(hp.def, hp.subs, muType); } }
+      if(best===null || d > best) best = d; }));
+    if(best!==null) return best;
+    if(!any){ const pd = parseDef(tpl.def); return defenseAgainst(pd.def, pd.subs, muType); }
+    return 0; // броня есть, но эту зону не закрывает
+  }
+  // броня существа, которая его сковывает (armorEncumbers, сила жетона): название или null — пометка «Скован» под жетоном
+  function encumbrance(t){
+    const tpl = t && t.creature; if(!tpl) return null;
+    const inst = tpl.inst || {};
+    if(inst.armorOff || (tpl.chances || []).some((c, i)=>inst.ch && inst.ch[i] && c[3] && c[3].def!=null)) return null; // брони нет
+    const sila = t.strength==null ? statFrom(tpl.body, 'сила') : +t.strength; let hit = null;
+    armorLines(tpl).some(line=>{ const a = itemsIn(line).find(it=>it.kind==='armor'); if(!a || !armorEncumbers(line, sila)) return false; hit = cap(a.name); return true; });
+    return hit;
+  }
+  // броня существа «если персонаж в укрытии, то +1 к защите» — с отметкой «В укрытии» на жетоне
+  function coverBonus(t){ const tpl = t && t.creature; if(!tpl) return 0; let v = 0;
+    armorLines(tpl).forEach(line=>{ const m = /в укрытии,?\s*то\s*\+\s*(\d+)\s*к защите/i.exec(line); if(m) v = Math.max(v, +m[1]); }); return v; }
   function makeTokenFields(tpl, tokens){
     let n = 0;
     Object.values(tokens||{}).forEach(t=>{ if(t.creature && t.creature.id===tpl.id){ const m = String(t.name||'').match(/(\d+)\)?\s*$/); n = Math.max(n, m ? +m[1] : 1); } });
@@ -1176,7 +1216,7 @@ const Bestiary = (function(){
         ${tokenNature(tok)==='void' ? '<span class="bst-sep"></span><span class="bst-muted" title="У пустот травм не бывает">без травм</span>' : `<span class="bst-sep"></span><span title="${tokenNature(tok)==='robot' ? 'Поломки' : 'Травмы'}">${tokenNature(tok)==='robot' ? '🔧' : '🦴'}</span> <b>${tok.trauma||0}</b><button type="button" class="bst-mini" data-act="tr" data-d="1">+</button><button type="button" class="bst-mini" data-act="tr" data-d="-1">−</button>`}</div>
       <div class="bst-inst-row"><label class="bst-chk"><input type="checkbox" data-act="bodrost" ${inst.bodrost ? 'checked' : ''}> Бодрость</label>
         ${c.quick ? `<label class="bst-chk"><input type="checkbox" data-act="strong" ${inst.strong ? 'checked' : ''}> Сильная сторона / невыгодная позиция (Помеха 6)</label>` : ''}
-        <span class="bst-muted">Защита ${tok.defense||0}${subs ? ' (' + esc(subs) + ')' : ''} · в руке: ${esc(w)}</span></div>
+        <span class="bst-muted">Защита ${tok.defense||0}${subs ? ' (' + esc(subs) + ')' : ''} · в руке: ${esc(w)}</span>${inst.armorOff || /\([^)]*брон[^)]*\)/i.test(c.def || '') ? ` <button type="button" class="bst-mini" data-act="armor-off" title="Защита существа ${inst.armorOff ? 'снова по карточке' : 'становится 0 (броня разбита, снята)'}">${inst.armorOff ? 'вернуть защиту' : 'сделать нулевой'}</button>` : ''}</div>
       ${inst.ozText && /к/.test(inst.ozText) ? `<div class="bst-muted">ОЗ брошены: ${esc(inst.ozText)}</div>` : ''}
       ${typeof TraumaTable!=='undefined' ? TraumaTable.cardHtml(tok) : ''}
       <div class="bst-inst-row">${c.quick ? '' : '<button type="button" class="bst-mini" data-act="reroll-all" title="Заново бросить снаряжение и шансы">🎲 Снаряжение заново</button>'}
@@ -1250,6 +1290,7 @@ const Bestiary = (function(){
     const keep = t.weaponText;
     const refit = (c, inst)=>{ const f = combatFields(c, inst, keep); delete f.attackMod; return f; };
     if(act==='chance'){ patchCreature(t, (c, inst)=>{ inst.ch[+b.dataset.i] = !inst.ch[+b.dataset.i]; }, refit); return; }
+    if(act==='armor-off'){ patchCreature(t, (c, inst)=>{ inst.armorOff = !inst.armorOff; }, refit); return; }
     if(act==='tbl-roll'){ patchCreature(t, (c, inst)=>{ const tb = c.tables[+b.dataset.i], res = rollTable(tb); inst.tbl[+b.dataset.i] = res; note(`🎲 к${tb.die} = ${res.roll}`); }, (c, inst)=>{ const f = combatFields(c, inst); delete f.attackMod; return f; }); return; }
     if(act==='tbl-pick'){ patchCreature(t, (c, inst)=>{ const i = +b.dataset.i, ri = +b.dataset.r, g = rangeOf(c.tables[i].rows[ri][0]); inst.tbl[i] = {roll:g ? g[0] : 0, idx:ri}; }, (c, inst)=>{ const f = combatFields(c, inst); delete f.attackMod; return f; }); return; }
     if(act==='reroll-all'){ patchCreature(t, (c, inst)=>{ const fresh = makeInstance(c); inst.tbl = fresh.tbl; inst.ch = fresh.ch; }, (c, inst)=>{ const f = combatFields(c, inst); delete f.attackMod; return f; }); return; }
@@ -1437,12 +1478,12 @@ const Bestiary = (function(){
     return `${signed(base)} (${10 + base}): ${diff.length ? sheetStatList(c, diff) : 'нет'}.`;
   }
   const itemName = (s)=>cap(String(s || '').split(/\s+—\s+|[,;(]/)[0].trim()); // «Огниво и 2 факела, горят 15 минут…» → «Огниво и 2 факела»
-  // строка оружия книги: Максимум атаки = 10 + навык боя + Ат (если в тексте его ещё нет)
+  // строка оружия книги: Максимум атаки = 10 + навык боя + Ат (если в тексте его ещё нет), «Любимое оружие» +3 — сразу в Максимуме
   function sheetWeaponLine(c, text){
     const p = parseWeaponStats(text); if(!p) return null;
-    const sk = weaponCombatSkill({name:p.cleanName, dl:p.dl, sl:p.sl}), v = sk ? (c.stats[sk] || 0) : 0;
+    const wq = {name:p.cleanName, dl:p.dl, sl:p.sl}, sk = weaponCombatSkill(wq), v = sk ? (c.stats[sk] || 0) : 0, fav = favoriteWeaponBonus(c, wq);
     let st = p.statText.replace(/\[/g, '(').replace(/\]/g, ')').replace(/\.\s*$/, '');
-    if(!/Ат\s*[+−-]\s*\d+\s*\(\d+\)/.test(st)) st = st.replace(WEAPON_AT_RE, (m)=>`${m} (${10 + v + p.at})`);
+    if(!/Ат\s*[+−-]\s*\d+\s*\(\d+\)/.test(st)) st = st.replace(WEAPON_AT_RE, (m)=>`${m} (${10 + v + fav + p.at})`);
     if(p.pr!=null && !/Пр\s*[+−-]\s*\d+\s*\(\d+\)/.test(st)) st = st.replace(WEAPON_PR_RE, (m)=>`${m} (${10 + v + p.pr})`);
     return `${cap(p.cleanName)} [${st}]`;
   }
@@ -1460,7 +1501,7 @@ const Bestiary = (function(){
     const name = String(hint.name || c.name || '').trim() || 'Персонаж';
     const arch = typeof ARCHETYPES!=='undefined' && ARCHETYPES[c.archetypeKey], sub = arch && arch.subtypes && arch.subtypes[c.subtypeKey];
     const origin = typeof ORIGINS!=='undefined' && ORIGINS[c.originKey], career = typeof CAREERS!=='undefined' && CAREERS[c.careerKey];
-    const hp = 3 + (st.vynoslivost || 0) + (c.size || 0) + (c.bonusHpMax || 0), psi = 3 + (st.duh || 0) + (c.bonusPsiMax || 0), la = st.legkaya_atletika || 0;
+    const hp = hpMax(Object.assign({bonusHpMax:0}, c, {stats:Object.assign({vynoslivost:0}, st), size:c.size || 0})), psi = 3 + (st.duh || 0) + (c.bonusPsiMax || 0), la = st.legkaya_atletika || 0;
     // защита: лучшая надетая броня на торсе
     let def = null;
     items.forEach(it=>{ if(!it.wornZones || it.wornZones.indexOf('tors') < 0) return; const a = parseArmorStats(it.name); if(a && (!def || a.base > def.base)) def = a; });
@@ -1779,7 +1820,7 @@ const Bestiary = (function(){
     if(sb) sb.addEventListener('click', ()=>fromSheet(typeof character!=='undefined' ? character : null, {name:(document.getElementById('fName') || {}).value, player:(document.getElementById('fPlayer') || {}).value})); }
   return { init, setVisible, refreshRole, onTableShown, onTableChanged, toggleDock, openFloat, closeFloat,
            tokenWeapons:(t)=>t && t.creature ? instWeapons(t.creature, t.creature.inst) : [], get dockOpen(){ return !!prefs.dock; },
-           list:all, byId, makeTokenFields, sanitizeTpl, parseDef, itemsIn, selId:()=>prefs.sel, fromSheet, sheetToTpl, refreshFloat:()=>{ renderFloat(); try{ render(); }catch(e){} } };
+           list:all, byId, makeTokenFields, sanitizeTpl, parseDef, itemsIn, zoneDefense, coverBonus, encumbrance, selId:()=>prefs.sel, fromSheet, sheetToTpl, refreshFloat:()=>{ renderFloat(); try{ render(); }catch(e){} } };
 })();
 try{ Bestiary.init(); }catch(e){ console.error('[Бестиарий] не удалось запустить', e);
   const v = document.getElementById('bestiaryTabView');

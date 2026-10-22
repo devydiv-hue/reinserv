@@ -187,12 +187,22 @@ function sanitizeRollEntry(e){
         weaponName:str(e.weaponName, 120), fireMode: ['attack','burst','suppress'].indexOf(e.fireMode)>=0 ? e.fireMode : 'attack',
         rolls:ints(e.rolls, 2), roll:int(e.roll, 0), mode:rollMode(e.mode), success:bool(e.success), category:int(e.category, null),
         jammed:!!e.jammed, unprotected:!!e.unprotected, outOfRange:!!e.outOfRange, slow:!!e.slow, total:Math.max(0, int(e.total, 0)), robot:!!e.robot,
+        aim: ['golova','plechi','ruki','bedra','nogi'].indexOf(e.aim)>=0 ? e.aim : null, dual:!!e.dual, line:!!e.line, parried:!!e.parried, series:Math.max(0, Math.min(5, int(e.series, 0))),
         hits:(Array.isArray(e.hits) ? e.hits : []).slice(0, 60).map(h=>{
           const o = { k12:int(h && h.k12, 0), pen:!!(h && h.pen), wounds:Math.max(0, int(h && h.wounds, 0)), trauma:!!(h && h.trauma), red:!!(h && h.red) };
           if(h && Array.isArray(h.rolls12)) o.rolls12 = ints(h.rolls12, 30);
+          if(h && h.zap) o.zap = true; // разряд («Электропрут»)
+          if(h && h.aim) o.aim = true; // прицельное попадание — по защите зоны
           return o;
         }) });
-      if(e.sec && typeof e.sec==='object') out.sec = { max:int(e.sec.max, 0), max12: e.sec.max12==null ? null : int(e.sec.max12, 0) }; // пороги — только допущенным Мастером
+      if(e.sec && typeof e.sec==='object') out.sec = { max:int(e.sec.max, 0), max12: e.sec.max12==null ? null : int(e.sec.max12, 0), aim12: e.sec.aim12==null ? null : int(e.sec.aim12, 0) }; // пороги — только допущенным Мастером
+      return out;
+    }
+    if(e.mapManeuver){ // манёвр с игрового стола: схватить / толкнуть / освободиться (GameTable.resolveManeuver)
+      Object.assign(out, { mapManeuver:true, attackId:str(e.attackId, 64), attacker:str(e.attacker, 60), target:str(e.target, 60),
+        mv: ['grab','push','escape','parry'].indexOf(e.mv)>=0 ? e.mv : 'grab', rolls:ints(e.rolls, 2), roll:int(e.roll, 0), mode:rollMode(e.mode),
+        success:bool(e.success), category:int(e.category, null), sizeCmp:Math.max(-1, Math.min(1, int(e.sizeCmp, 0))) });
+      if(e.sec && typeof e.sec==='object') out.sec = { max:int(e.sec.max, 0) };
       return out;
     }
     if(e.mapGrenade){ // итог броска гранаты с игрового стола (см. GameTable.resolveGrenade)
@@ -311,22 +321,30 @@ function detailedQuickEntry(e, undoneAttacks){
     if(!e.sec) return null;
     const undone = undoneAttacks && undoneAttacks.has(e.attackId);
     const modeName = e.fireMode==='burst' ? 'очередь' : e.fireMode==='suppress' ? 'подавление' : 'атака';
-    let body = `→ ${escapeHtml(e.target)}: «${escapeHtml(e.weaponName)}» (${modeName}${e.unprotected?', по незащищённым':''}${modeTxt}): ${d20Part(e.sec.max, e.rolls, e.roll)} — `;
+    let body = `→ ${escapeHtml(e.target)}: «${escapeHtml(e.weaponName)}» (${modeName}${e.unprotected?', по незащищённым':''}${mapAttackExtras(e)}${modeTxt}): ${d20Part(e.sec.max, e.rolls, e.roll)} — `;
     if(e.jammed) body += 'оружие заклинило (нат.13)';
     else if(!e.success) body += 'промах';
     else {
       const many = e.hits.length > 1; // вариант «Б»: порог один раз, дальше — броски попаданий
       const hitsTxt = e.hits.map(h=>{
-        const k = h.rolls12 ? `[${h.rolls12.join(', ')}]→${h.k12}` : String(h.k12);
+        const k = hitPrefix(h) + (h.rolls12 ? `[${h.rolls12.join(', ')}]→${h.k12}` : String(h.k12));
         const bone = h.trauma ? ' ' + traumaIconHtml(e.robot, h.red) : '';
         return `${k} ${h.pen ? 'пробило' : 'не пробило'}${many && h.pen ? ` (${h.wounds} ${woundsWord(h.wounds)})` : ''}${bone}`;
       }).join('; ');
-      body += `Успех, КУ${e.category}` + (e.hits.length ? ` · к12≤${e.sec.max12==null ? '?' : e.sec.max12} → ${hitsTxt}` : '') + ` · итого ${e.total} ${woundsWord(e.total)}`;
+      body += `Успех, КУ${e.category}` + (e.hits.length ? ` · к12≤${e.sec.max12==null ? '?' : e.sec.max12}${e.aim && e.sec.aim12!=null ? ` (🎯 прицельное ≤${e.sec.aim12})` : ''} → ${hitsTxt}` : '') + ` · итого ${e.total} ${woundsWord(e.total)}`;
     }
     if(e.success && !e.jammed) body += natTagText(e.roll, e.success, evaluateD20Check(e.roll, e.sec.max).natConsequences);
     if(e.slow) body += ' · ⚡ медленное — цель может отреагировать';
     if(undone) body += ' · <b>отменено Мастером</b>';
     return {cls:(e.success && !e.jammed ? 'success' : 'failure') + (undone ? ' undone' : ''),
+      html:`<span class="who">${escapeHtml(e.attacker||e.player||'?')}</span><span class="rest">${body}</span>`, undoable:!undone};
+  }
+  if(e.mapManeuver){
+    if(!e.sec) return null;
+    const undone = undoneAttacks && undoneAttacks.has(e.attackId);
+    const md = e.mode==='advantage' ? ', Упрощённо' : e.mode==='disadvantage' ? ', Осложнённо' : '';
+    const body = `🤼 → ${escapeHtml(e.target)}: ${MANEUVER_WHAT[e.mv]}${md}${e.sizeCmp>0 ? ' (крупнее цели)' : e.sizeCmp<0 ? ' (мельче цели)' : ''}: ${d20Part(e.sec.max, e.rolls, e.roll)} — ${maneuverOutcome(e)}${undone ? ' · <b>отменено Мастером</b>' : ''}`;
+    return {cls:(e.success ? 'success' : 'failure') + (undone ? ' undone' : ''),
       html:`<span class="who">${escapeHtml(e.attacker||e.player||'?')}</span><span class="rest">${body}</span>`, undoable:!undone};
   }
   if(e.mapGrenade){
@@ -457,6 +475,11 @@ const _rollLogSeenIds = new Set(session.log.map(e=>e.id));
 // Формат для бросков боковой панели кубов (DicePanel, см. её раздел ниже) — отдельная ветка формата
 // строки лога, но ТОТ ЖЕ массив session.log/тот же рендер-цикл, не второй лог. Записи основного
 // броска характеристики (без поля kind) продолжают форматироваться старой веткой ниже без изменений.
+// подписи атаки с карты: прицельно (зона), двумя оружиями, номер атаки в серии одного действия; у попаданий — разряд и прицельное
+function mapAttackExtras(e){ return (e.aim ? `, прицельно: ${String(ARMOR_ZONE_LABELS[e.aim] || e.aim).toLowerCase()}` : '') + (e.dual ? ', двумя оружиями' : '') + (e.series > 1 ? `, ${e.series}-я атака действия` : '') + (e.line ? ', по линии' : '') + (e.parried ? ', цель парировала — Осложнено' : ''); }
+function hitPrefix(h){ return h.zap ? '⚡разряд ' : h.aim ? '🎯' : ''; }
+const MANEUVER_WHAT = {grab:'схватить', push:'толкнуть', escape:'освободиться из захвата', parry:'парировать атаку'};
+function maneuverOutcome(e){ return e.success ? `Успех, КУ${e.category} — ${e.mv==='grab' ? 'цель схвачена: обездвижена, простые действия одной рукой Осложнены' : e.mv==='push' ? 'цель отброшена на 3 м' : e.mv==='parry' ? 'его рукопашные атаки по парирующему в этом ходу Осложнены' : 'освободился'}` : 'провал'; }
 function woundsWord(n){ const a = n%10, b = n%100; return a===1 && b!==11 ? 'рана' : (a>=2 && a<=4 && (b<12 || b>14)) ? 'раны' : 'ран'; }
 function formatQuickRollEntry(e, undoneAttacks){
   if(e.chat){ // сообщение в логе: всем или лично
@@ -473,12 +496,12 @@ function formatQuickRollEntry(e, undoneAttacks){
     const modeName = e.fireMode==='burst' ? 'очередь' : e.fireMode==='suppress' ? 'подавление' : 'атака';
     const modeTxt = e.mode==='advantage' ? ', Преимущество' : e.mode==='disadvantage' ? ', Помеха' : '';
     const rollsTxt = e.rolls && e.rolls.length>1 ? ` [${e.rolls.join(', ')}]` : '';
-    let body = `→ ${escapeHtml(e.target)}: «${escapeHtml(e.weaponName)}» (${modeName}${e.unprotected?', по незащищённым':''}${modeTxt}) — к20=${e.roll}${rollsTxt} — `;
+    let body = `→ ${escapeHtml(e.target)}: «${escapeHtml(e.weaponName)}» (${modeName}${e.unprotected?', по незащищённым':''}${mapAttackExtras(e)}${modeTxt}) — к20=${e.roll}${rollsTxt} — `;
     if(e.jammed) body += 'оружие заклинило (нат.13)';
     else if(!e.success) body += 'промах';
     else {
       const hitsTxt = e.hits.map(h=>{
-        const k = h.rolls12 ? `к12=[${h.rolls12.join(', ')}]→${h.k12}` : `к12=${h.k12}`;
+        const k = hitPrefix(h) + (h.rolls12 ? `к12=[${h.rolls12.join(', ')}]→${h.k12}` : `к12=${h.k12}`);
         if(!h.pen) return `${k} не пробило`;
         const bone = h.trauma ? ' ' + traumaIconHtml(e.robot, h.red) : '';
         return `${k} пробило (${h.wounds} ${woundsWord(h.wounds)})${bone}`;
@@ -489,6 +512,14 @@ function formatQuickRollEntry(e, undoneAttacks){
     if(undone) body += ' · <b>отменено Мастером</b>';
     return {cls: (e.success && !e.jammed ? 'success' : 'failure') + (undone ? ' undone' : ''),
       html:`<span class="who">${escapeHtml(e.attacker||e.player||'?')}</span><span class="rest">${body}</span>`, undoable: !undone};
+  }
+  if(e.mapManeuver){
+    const undone = undoneAttacks && undoneAttacks.has(e.attackId);
+    const md = e.mode==='advantage' ? ', Упрощённо' : e.mode==='disadvantage' ? ', Осложнённо' : '';
+    const rollsTxt = e.rolls && e.rolls.length>1 ? ` [${e.rolls.join(', ')}]` : '';
+    const body = `🤼 → ${escapeHtml(e.target)}: ${MANEUVER_WHAT[e.mv]}${md}${e.sizeCmp>0 ? ' (крупнее цели)' : e.sizeCmp<0 ? ' (мельче цели)' : ''} — к20=${e.roll}${rollsTxt} — ${maneuverOutcome(e)}${undone ? ' · <b>отменено Мастером</b>' : ''}`;
+    return {cls:(e.success ? 'success' : 'failure') + (undone ? ' undone' : ''),
+      html:`<span class="who">${escapeHtml(e.attacker||e.player||'?')}</span><span class="rest">${body}</span>`, undoable:!undone};
   }
   if(e.mapGrenade){
     const undone = undoneAttacks && undoneAttacks.has(e.attackId);
@@ -574,7 +605,7 @@ function renderRollLogEntry(e, undoneAttacks){
   if(e.kind!=='quick' && logDetailed()){ const d = detailedRegularEntry(e); if(d) return d; }
   if(e.kind==='quick'){
     const f = formatQuickRollEntry(e, undoneAttacks);
-    const canUndo = (e.mapAttack || e.mapGrenade) && f.undoable && session.role==='gm' && typeof GameTable!=='undefined' && GameTable.canUndoAttack(e.attackId);
+    const canUndo = (e.mapAttack || e.mapGrenade || e.mapManeuver) && f.undoable && session.role==='gm' && typeof GameTable!=='undefined' && GameTable.canUndoAttack(e.attackId);
     const undoBtn = canUndo ? `<button type="button" class="small log-undo" data-undo-attack="${escapeHtml(e.attackId)}" title="Отменить эту атаку: вернуть раны и травмы">↶</button>` : '';
     return `<div class="roll-log-entry ${f.cls}${e.secret ? ' secret' : ''}">${e.secret ? f.html.replace('<span class="rest">', '<span class="rest">🤫 ') : f.html}${undoBtn}</div>`;
   }

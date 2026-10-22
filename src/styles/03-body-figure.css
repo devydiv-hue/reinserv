@@ -234,6 +234,11 @@
     border:1.5px solid var(--ink); border-radius:6px; padding:6px 8px; font-size:13px; width:100%; resize:vertical;
   }
   .states-row{ display:flex; gap:14px; flex-wrap:wrap; }
+  /* Кость духов шамана (renderSpiritDie): грань к6 и кнопки; саматха — плашка с броском духа */
+  .spirit-die-row{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+  .spirit-die-face{ display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px; border:2px solid var(--ink); border-radius:7px;
+    background:var(--paper); color:var(--ink); font-size:18px; font-weight:800; }
+  .spirit-samatha{ margin-top:8px; padding:6px 8px; border:1.5px solid var(--stamp); border-radius:6px; background:var(--stamp-bg); color:var(--ink); font-size:13px; }
   .state-toggle{ display:flex; align-items:center; gap:6px; font-size:12px; text-transform:uppercase; letter-spacing:.02em; cursor:pointer; }
   .state-toggle input{ width:16px; height:16px; accent-color: var(--stamp); }
   #historyBox{ max-height:260px; overflow-y:auto; }

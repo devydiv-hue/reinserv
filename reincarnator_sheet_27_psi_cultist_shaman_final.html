@@ -869,6 +869,11 @@ var Theme = (function(){
     border:1.5px solid var(--ink); border-radius:6px; padding:6px 8px; font-size:13px; width:100%; resize:vertical;
   }
   .states-row{ display:flex; gap:14px; flex-wrap:wrap; }
+  /* Кость духов шамана (renderSpiritDie): грань к6 и кнопки; саматха — плашка с броском духа */
+  .spirit-die-row{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+  .spirit-die-face{ display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px; border:2px solid var(--ink); border-radius:7px;
+    background:var(--paper); color:var(--ink); font-size:18px; font-weight:800; }
+  .spirit-samatha{ margin-top:8px; padding:6px 8px; border:1.5px solid var(--stamp); border-radius:6px; background:var(--stamp-bg); color:var(--ink); font-size:13px; }
   .state-toggle{ display:flex; align-items:center; gap:6px; font-size:12px; text-transform:uppercase; letter-spacing:.02em; cursor:pointer; }
   .state-toggle input{ width:16px; height:16px; accent-color: var(--stamp); }
   #historyBox{ max-height:260px; overflow-y:auto; }
@@ -2620,6 +2625,7 @@ html[data-theme="dark"] .gs-dock-btn.active{ color:#ff9b7f; }
             <div class="lbl">Пси-запас (3+дух)</div>
           </div>
         </div>
+        <div id="spiritDieBox" class="spirit-die" style="display:none"></div>
         <h3 style="margin-top:14px;">Состояния</h3>
         <div class="muted" style="margin-bottom:6px;">Если хоть одно активно — проверка Осложнена.</div>
         <div class="states-row">
@@ -2996,6 +3002,8 @@ const M = {
   size: (delta, max) => ({t:'size', delta, max}), // definite (non-optional) shift to the размер tracker; max — потолок источника («не более 3»)
   sizeOption: (delta) => ({t:'sizeOption', delta}), // «может взять размер −1 / поднять на +1» — вопрос игроку (shiftSize: сила и скрытность сдвигаются вместе с размером)
   psiSoprot: (delta) => ({t:'psiSoprot', delta}), // definite shift to пси-сопротивление (e.g. подтип "Мастер плоти")
+  hpBySize: (plus) => ({t:'hpBySize', plus}), // «Здоровяк»: максимум ОЗ +[размер + plus] — пересчитывается вместе с размером (hpMax)
+  sturdyWeapon: () => ({t:'sturdyWeapon'}), // «Крепкий середнячок»: «Любимое оружие», а если уже есть — навык боя +2 (не выше 4)
   bonusHpMax: (delta) => ({t:'bonusHpMax', delta}), // e.g. "Живучий: максимум ОЗ повышается на 1"
   bonusPsiMax: (delta) => ({t:'bonusPsiMax', delta}), // e.g. Боевой психоник's "Душевная стойкость" (+2 max пси)
   item: (text) => ({t:'item', text}),
@@ -3593,7 +3601,7 @@ const ITEM_CATALOG = {
       {name:'Ружьё расхитителей', weight:'2 Вещи', price:4500, avail:'Дефицитная', desc:'Широко распространено во всех Княжествах. Дл75, Ат−5, МУ14 патрон, ПР2/7,62мм, Сл3, пул, мощь, травма.'},
       {name:'Силовой молот', weight:'4 Вещи', price:12000, avail:'Дефицитная', desc:'Ат+3, Пр−3, МУ15 удар, ПР4/«искра», Сл2, мощь, травма. Если сила не 6+, то медленное.'},
       {name:'Термическая граната', weight:'1 Вещь', price:2100, avail:'Дефицитная', desc:'По 4 раны целям с защитой от температуры 6- в радиусе 6м, поджигая на [размер цели, min 1] круг.'},
-      {name:'Шрапнельная пушка', weight:'3 Вещи', price:6000, avail:'Дефицитная', desc:'Дл15, Ат+3, МУ13 патрон, ПР1/картечь, Сл2. Проверьте атаку по каждой цели в радиусе 3м.'},
+      {name:'Шрапнельная пушка', weight:'3 Вещи', price:6000, avail:'Дефицитная', desc:'Дл15, Ат+3, МУ13 патрон, ПР1/картечь, Сл2. Проверьте атаку по каждой цели на линии шириной 3 м.'},
       {name:'Щитовой излучатель', weight:'3 Вещи', price:12000, avail:'Дефицитная', desc:'Успехом Броска техники (−6) на круг даёт щит, снижающий попадания МУ на 2 и раны на 1. ПР5/МАБ/круг.'},
       {name:'Электропрут', weight:'2 Вещи', price:4500, avail:'Дефицитная', desc:'Ат+3, Пр−3, МУ9 удар, ПР5/«искра», Сл2. Каждое попадание даёт разряд с МУ14 энергия, раны 2.'},
       {name:'Бронебой', weight:'3 Вещи', price:15000, avail:'Редкая', desc:'Снайперское ружьё. Дл150, Ат−7, МУ17 патрон, ПР2/10,2мм, Сл3, оптика, раны 4.'},
@@ -4337,8 +4345,8 @@ const SPECIALIZATIONS = {
     tier1:[M.ability('Охрана','Персонаж выбирает одну не превосходящую его более чем на 2 размера цель рядом и выступает её защитником от любых атак, направленных с его стороны. Защитник — укрытие для цели, штраф −4 на такие атаки. При промахе по цели с первой категорией провала 1 попадание приходится в защитника.'), M.ability('Активная защита','Раз в день, если охраняемая цель должна быть атакована, персонаж может реакцией атаковать этого противника или применить в него способность.')],
     tier2:[M.note('Потраченная «активная защита» восстанавливается в начале нового круга.'), M.ability('Я должен защитить','Каждый раз, теряя ОЗ за границей обморока или получая шок в бою (если охрана выбранной цели имеет смысл), персонаж проходит спасбросок воли; при успехе остаётся в сознании до конца сцены.')] },
   zdorovyak: { name:'Здоровяк', requirement:{ check:c=>c.size>=1, label:'требуется размер 1+' },
-    tier1:[M.fixed('vynoslivost',1), M.note('Добавьте [размер +2] к максимуму ОЗ.')],
-    tier2:[M.fixed('vynoslivost',1), M.note('Получите ещё [размер] к максимуму ОЗ.'), M.ability('Прилив сил','Раз за встречу за 1 пси можно Упростить проверку выносливости и исцелиться на 2 ОЗ.')] },
+    tier1:[M.fixed('vynoslivost',1), M.hpBySize(2)], // книга: «добавьте [размер +2] к максимуму ОЗ»
+    tier2:[M.fixed('vynoslivost',1), M.hpBySize(0), M.ability('Прилив сил','Раз за встречу за 1 пси можно Упростить проверку выносливости и исцелиться на 2 ОЗ.')] },
   inzheneriya: { name:'Инженерия',
     tier1:[M.fixed('tehnika',1), M.fixed('uchenost',1), M.ability('Электромеханика','Персонаж может добавить 1к6 к Максимуму проверки техники. При успехе расходуется до конца дня, при провале — до конца встречи.')],
     tier2:[M.fixed('tehnika',1), M.fixed('uchenost',1), M.fixed('cifrovye_sistemy',1), M.note('Первый провал «электромеханики» расходует её до конца дня, а не до конца встречи.')] },
@@ -4350,7 +4358,7 @@ const SPECIALIZATIONS = {
       M.ability('Одарённый','Авантюрист может уже сейчас изучить одну способность своего подтипа 16-го или 12-го уровня. Когда персонаж достигнет уровня этой способности, повышает на +1 одну из: лёгкую атлетику, рефлексы, артистизм, искажения и реликвии.')],
     tier2:[M.ability('Импровизация','За 1 пси персонаж может реакцией совершить полное действие, если тратит его на хитрое или необычное использование объектов окружающей локации.')] },
   krepky_srednyachok: { name:'Крепкий среднячок',
-    tier1:[M.ability('Крепкий середнячок','Персонаж получает способность «любимое оружие» (если ещё не имеет), а если уже обладает ею — повышает один навык боя на 2. Ни один навык боя не может быть выше 4 за счёт этой способности.')],
+    tier1:[M.ability('Крепкий середнячок','Персонаж получает способность «любимое оружие» (если ещё не имеет), а если уже обладает ею — повышает один навык боя на 2. Ни один навык боя не может быть выше 4 за счёт этой способности (уже учтено).'), M.sturdyWeapon()],
     tier2:[M.ability('Превозмогание','Используя оружие, повышенное этой специализацией, персонаж может перебросить итог проверки атаки. Если переброс успешен, расходуется до конца дня.')] },
   lider: { name:'Лидер',
     tier1:[M.fixed('volya',1), M.ability('Раздать приказы','Реакцией лидер совершает Бросок воли, раздавая приказы [категория успеха] слышащим и понимающим его союзникам — в ближайшие 2 круга следующий приказу получает +1к6 к первой связанной проверке атаки/манёвра (не суммируется с помощью союзника в бою). При провале расходуется до конца дня.')],
@@ -5853,7 +5861,7 @@ const ARCHETYPE_CULTIST = { // page 107-110
     2:[M.roleplay('Знания культуры: +1 к не самому высокому знанию в зависимости от отыгрыша', CULTURE),
        M.fixed('mistika',1), M.roleplay('Знания и навыки: +1 к знанию старого/нового мира (кроме мистики) или навыку в зависимости от отыгрыша', CULTIST_KNOW_SKILL_POOL),
        M.ability('Не последний человек','Культист знает, как связаться с представителями своей церкви в крупном городе Свалки и Феодальных Княжеств. Связавшись со своей церковью, раз за встречу культист может получить посильную помощь от неё и должен совершить Бросок убеждения, при провале мастер назначает Невзгоды: культ попросит ответную услугу, помощь потребует времени или риска и т.д.'),
-       M.note('Яростная молитва: персонаж получает молитву согласно исповедуемой религии (см. стр. 198) — система религий не смоделирована, внесите вручную по книге.')],
+       M.note('Яростная молитва: молитва исповедуемой религии (см. стр. 198) добавлена в способности автоматически.')],
     3:[M.choice(PERSONALITY.map(s=>({stat:s,delta:1}))),
        M.roleplay('Знания культуры: +1 к одному знанию в зависимости от отыгрыша', CULTURE),
        M.fixed('mistika',1), M.roleplay('Знания и навыки: +1 к знанию старого/нового мира (кроме мистики) или навыку в зависимости от отыгрыша', CULTIST_KNOW_SKILL_POOL),
@@ -5867,7 +5875,7 @@ const ARCHETYPE_CULTIST = { // page 107-110
        M.fixed('mistika',1), M.roleplay('Знания и навыки: +1 к знанию старого/нового мира (кроме мистики) или навыку в зависимости от отыгрыша', CULTIST_KNOW_SKILL_POOL),
        M.choice(THEOLOGY_STATS.map(s=>({stat:s,delta:1}))), M.note(THEOLOGY_NOTE)],
     11:[M.fixed('mistika',1),
-        M.note('Культовый символ: на этом уровне персонаж получает культовый символ своей религии и может использовать его способности два раза в день (см. стр. 198) — система религий не смоделирована, внесите вручную по книге.'),
+        M.note('Культовый символ: на этом уровне персонаж получает культовый символ своей религии и может использовать его способности два раза в день (см. стр. 198) — способности символа добавлены в лист автоматически.'),
         M.note('Улучшенная молитва: теперь персонаж может совершать молитву действием, а не затратив 5 минут.')],
     14:[M.choice(BODY.map(s=>({stat:s,delta:1}))),
         M.fixed('mistika',1), M.roleplay('Знания и навыки: +1 к знанию старого/нового мира (кроме мистики) или навыку в зависимости от отыгрыша', CULTIST_KNOW_SKILL_POOL),
@@ -5875,7 +5883,7 @@ const ARCHETYPE_CULTIST = { // page 107-110
     15:[M.choice(PERSONALITY.map(s=>({stat:s,delta:1}))),
         M.fixed('mistika',1),
         M.note('Идеальная молитва: персонаж может совершать молитву свободным действием.'),
-        M.note('Катарсис: раз в день персонаж может применять катарсис, связанный со своей религией (см. стр. 198) — не смоделировано, внесите вручную по книге.')],
+        M.note('Катарсис: раз в день персонаж может применять катарсис, связанный со своей религией (см. стр. 198) — способность катарсиса добавлена в лист автоматически.')],
     18:[M.fixed('vynoslivost',1),
         M.fixed('mistika',1), M.roleplay('Знания и навыки: +1 к знанию старого/нового мира (кроме мистики) или навыку в зависимости от отыгрыша', CULTIST_KNOW_SKILL_POOL),
         M.choice(THEOLOGY_STATS.map(s=>({stat:s,delta:1}))), M.note(THEOLOGY_NOTE)],
@@ -5920,7 +5928,7 @@ const ARCHETYPE_CULTIST = { // page 107-110
          M.ability('Усердие','Если при проверке способности культового символа на к20 жрец получил значение, равное или ниже, чем его теология, он тратит на 1 пси меньше.')],
       12:[M.roleplay('Знания культуры: +1 к не самому высокому знанию в зависимости от отыгрыша', CULTURE),
           M.fixed('mistika',1),
-          M.note('Жрец может использовать катарсис (см. стр. 198) уже сейчас. Стоимость применения катарсиса снижается на 1 пси. На 15-м уровне персонаж применяет катарсис и все связанные с ним способности Упрощённо. Система катарсиса не смоделирована, внесите вручную по книге.')],
+          M.note('Жрец может использовать катарсис (см. стр. 198) уже сейчас — способность катарсиса добавлена в лист. Стоимость применения катарсиса снижается на 1 пси. На 15-м уровне персонаж применяет катарсис и все связанные с ним способности Упрощённо.')],
       16:[M.roleplay('Знания культуры: +1 к одному знанию в зависимости от отыгрыша', CULTURE),
           M.ability('Дар молитвы','Теперь молитва приносит персонажу на 1 пси больше.'),
           M.ability('Глубины учения','Если, применяя катарсис, на к20 жрец выбросил значение, равное или ниже теологии, то катарсис не расходуется до конца дня.'),
@@ -6128,7 +6136,7 @@ const ARCHETYPE_SHAMAN = { // page 115-118
          M.ability('Символ духа','Затратив 8 часов концентрации над любым предметом обычного размера (корявая палка, стеклянный шарик, древняя кукла и т.д.), шаман может вживить в него духа Асу. Для этого он должен потратить 2 пси и преуспеть в Броске мистики (−6). Если предмет что-то значит для шамана, он получает +6 на эту проверку. В случае успеха предмет способен применять способность луч эманаций. Одновременно шаман может иметь лишь один такой предмет.'),
          M.ability('Луч эманаций','Затратив 1 пси, шаман действием концентрирует над символом духа в своих руках и совершает Бросок мистики (−3), в случае успеха исторгая из символа луч реальности, выглядящий для непосвящённых как направленный поток шевелящегося воздуха. Луч поражает цель в пределах 30 м, стремясь разорвать её и нанося [категория успеха] попаданий с МУ 16 взрыв.')],
       12:[M.roleplay('Знания культуры: +1 к не самому высокому знанию в зависимости от отыгрыша', CULTURE),
-          M.note('Культовый символ: знахарь может использовать культовый символ веры в духов Асу и дарованные им способности так, словно он культист (см. стр. 200) — система религий не смоделирована, внесите вручную по книге.'),
+          M.note('Культовый символ: знахарь может использовать культовый символ веры в духов Асу и дарованные им способности так, словно он культист (см. стр. 200) — у шамана религия в приложении не ведётся, способности символа внесите вручную по книге.'),
           M.ability('Вопросы духам','Затратив 1 удачу и 1 пси, шаман может сконцентрироваться над любимым гадальным инструментом в течение 1 минуты с обращением к духам с простым вопросом, на который можно ответить «да», «нет» или «не знаю». Мастер должен сделать скрытый Бросок мистики знахаря (−3) и в случае успеха дать честный ответ, а в случае провала с Невзгодами — неверный. Духи могут владеть информацией относительно существ, не обладающих пси-сопротивлением 6+. Асу понимают их физическое состояние и положение, и в намерении причинить кому-то конкретному вред их эмоции, конкретному вред и их эмоции, Асу видят и помнят прошлое и возможное будущее в рамках текущих суток.')],
       16:[M.fixed('uchenie_dikarey',1), M.roleplay('Знания культуры: +1 к другому знанию в зависимости от отыгрыша', CULTURE.filter(s=>s!=='uchenie_dikarey')),
           M.ability('Маска духов','Затратив 1 удачу, 3 пси и суммарно 8 часов концентрации над грубой устрашающей маской, знахарь совершает Бросок мистики (−6), в случае успеха наделяя ту способностью скрывать носящего её от мира духов. Теперь раз в день, надев маску и вложив в неё 1 пси, знахарь становится невидим для Асу, теней, пустот и искажений на [мистика] минут, любые применённые против него мистические способности получают модификатор −3. Эффект невидимости закончится, если шаман совершит враждебные действия против указанных существ. Однако даже тогда шамана будут атаковать в последнюю очередь, выбирая других противников. Одновременно шаман может иметь лишь 1 маску, и лишь он лично может её активировать.')],
@@ -6219,6 +6227,11 @@ const RELIGION_DESCRIPTIONS = {
   'Поклонение Матери-Природе': 'Обитающие в подземных норах и катакомбах Зелёные с фанатичной жестокостью следуют идее очищения окружающей среды и несут свои дары к фигурам Матери Природы.'
 };
 const CULT_GROUP_LEVEL = { 'Послушание':1, 'Молитва':2, 'Культовый символ':11, 'Катарсис':15 }; // page 107 archetype table
+// Жрец получает культовый символ на 8-м уровне («Молитвенное усердие»), катарсис — на 12-м (стр. 109)
+function cultGroupLevel(c, group){
+  if(c && c.archetypeKey==='kultist' && c.subtypeKey==='zhrec'){ if(group==='Культовый символ') return 8; if(group==='Катарсис') return 12; }
+  return CULT_GROUP_LEVEL[group];
+}
 // Катарсис religion «Поклонение Матери-Природе» (стр. 206-207): unlike every other религия's Катарсис
 // (a flat list of abilities), this one is a one-time choice of 3 distinct mutation paths, each granting
 // its own bundle of stat changes and named abilities — modeled here as a choiceMixed so the player
@@ -6744,7 +6757,7 @@ function reconcileMysticUnlocks(c, source){
     const cat = CULTIST_ABILITY_CATALOG[c.cultReligion] || {};
     const src = c.cultReligionSource || source;
     Object.entries(cat).forEach(([group,names])=>{
-      const reqLevel = CULT_GROUP_LEVEL[group];
+      const reqLevel = cultGroupLevel(c, group);
       if(reqLevel!==undefined && c.level>=reqLevel){
         const granted = names.filter(n=>addCatalogAbility(c,n,src,c.cultReligion,group));
         if(granted.length) logEvent(c, `Способности культа открыты (${c.cultReligion} → ${group}, ур.${reqLevel}): ${granted.join(', ')}.`);
@@ -6756,7 +6769,7 @@ function reconcileMysticUnlocks(c, source){
     // level/career batch doesn't queue the choice again. Uses its own source suffix (still prefixed by
     // src, so a full religion/archetype switch's removeBonusesBySource(src) still cleans it up too) so
     // a level-down can prune just this mutation without touching Послушание/Молитва/Культовый символ.
-    if(c.cultReligion==='Поклонение Матери-Природе' && c.level>=CULT_GROUP_LEVEL['Катарсис'] && !c._motherNatureCatharsisTriggered){
+    if(c.cultReligion==='Поклонение Матери-Природе' && c.level>=cultGroupLevel(c, 'Катарсис') && !c._motherNatureCatharsisTriggered){
       c._motherNatureCatharsisTriggered = true;
       applyModifier(c, M.choiceMixed(MOTHER_NATURE_CATHARSIS_BUNDLES), src+' → катарсис-мутация', randomMode);
     }
@@ -7156,6 +7169,23 @@ function applyModifier(c, mod, source, auto){
       logEvent(c, `Пси-сопротивление ${mod.delta>0?'+':''}${mod.delta} (${source}) → сейчас ${c.psiSoprot}.`);
       break;
     }
+    case 'hpBySize': { // «Здоровяк»: максимум ОЗ +[размер + plus], пересчитывается с размером (hpMax)
+      c.hpBySizeLog = (c.hpBySizeLog || []).concat([{source, plus: mod.plus || 0}]);
+      logEvent(c, `Максимум ОЗ +[размер${mod.plus ? ' + ' + mod.plus : ''}] (${source}) → сейчас +${Math.max(0, c.size + (mod.plus || 0))}, максимум ОЗ ${hpMax(c)}.`);
+      break;
+    }
+    case 'sturdyWeapon': { // «Крепкий середнячок» (стр. 120): «любимое оружие», а если уже есть — один навык боя +2, но не выше 4
+      const fav = c.abilities.find(a=>a.name==='Любимое оружие');
+      if(!fav){ applyModifier(c, M.weaponChoice(COMBAT_SKILLS), source, auto); break; }
+      const opts = COMBAT_SKILLS.map(s=>({stat:s, delta:Math.min(2, 4 - (c.stats[s] || 0))})).filter(o=>o.delta > 0);
+      if(!opts.length){ logEvent(c, `«Крепкий середнячок» (${source}): все навыки боя уже 4+ — повышать нечего.`); break; }
+      const favStat = COMBAT_SKILLS.find(s=>String(fav.text || '').indexOf(`«${STAT_LABELS[s]}»`) >= 0);
+      const raise = (ch, o)=>{ addLog(ch, o.stat, o.delta, source); logEvent(ch, `«Крепкий середнячок» (${source}): ${STAT_LABELS[o.stat]} +${o.delta} → ${ch.stats[o.stat]}.`); };
+      if(auto) raise(c, opts.find(o=>o.stat===favStat) || pick(opts));
+      else pendingChoices.push({ id: uid(), source, title: `«Крепкий середнячок»: навык боя +2, не выше 4 (${source})`,
+        options: opts.map(o=>({ label: `${STAT_LABELS[o.stat]} +${o.delta}${o.stat===favStat ? ' (любимое оружие)' : ''}`, apply: ch=>raise(ch, o) })) });
+      break;
+    }
     case 'bonusHpMax': {
       c.bonusHpMaxLog.push({source, delta: mod.delta});
       c.bonusHpMax += mod.delta;
@@ -7317,6 +7347,7 @@ function removeBonusesBySource(c, sourcePrefix){
   { let removed = 0; c.appearanceLog = c.appearanceLog.filter(e=>{ if(e.source.startsWith(sourcePrefix)){ removed += e.delta; return false; } return true; }); c.appearance -= removed; }
   { let removed = 0; c.sizeLog = c.sizeLog.filter(e=>{ if(e.source.startsWith(sourcePrefix)){ removed += e.delta; return false; } return true; }); c.size = clampSize(c.size - removed); }
   { let removed = 0; c.psiSoprotLog = c.psiSoprotLog.filter(e=>{ if(e.source.startsWith(sourcePrefix)){ removed += e.delta; return false; } return true; }); c.psiSoprot -= removed; }
+  if(c.hpBySizeLog) c.hpBySizeLog = c.hpBySizeLog.filter(e=>!e.source.startsWith(sourcePrefix));
   { let removed = 0; c.bonusHpMaxLog = c.bonusHpMaxLog.filter(e=>{ if(e.source.startsWith(sourcePrefix)){ removed += e.delta; return false; } return true; }); c.bonusHpMax -= removed; }
   { let removed = 0; c.bonusPsiMaxLog = c.bonusPsiMaxLog.filter(e=>{ if(e.source.startsWith(sourcePrefix)){ removed += e.delta; return false; } return true; }); c.bonusPsiMax -= removed; }
   { let removed = 0; c.creditsLog = c.creditsLog.filter(e=>{ if(e.source.startsWith(sourcePrefix)){ removed += e.amount; return false; } return true; }); c.credits -= removed; }
@@ -7634,17 +7665,19 @@ function shiftSize(c, delta, source, cap){
   if(cap != null && delta > 0) to = Math.max(c.size, Math.min(to, cap));
   const d = to - c.size;
   if(!d) return 0;
-  const full = typeof c.hpCurrent === 'number' && c.hpCurrent >= hpMax(c);
+  const before = hpMax(c), full = typeof c.hpCurrent === 'number' && c.hpCurrent >= before;
   c.sizeLog.push({source, delta:d});
   c.size = to;
   const why = /размер/i.test(source) ? source : `${source} (размер ${d>0?'+':'−'}${Math.abs(d)})`; // тот же префикс — снимается вместе с источником
   addLog(c, 'sila', d, why);
   addLog(c, 'skrytnost', -d, why);
-  if(full) c.hpCurrent += d;
+  if(full) c.hpCurrent += hpMax(c) - before; // размер входит в максимум ОЗ и сам, и через «Здоровяка»
   return d;
 }
 function sizeStatsText(d){ return `сила ${d>0?'+':'−'}${Math.abs(d)}, скрытность ${d>0?'−':'+'}${Math.abs(d)}`; }
-function hpMax(c){ return 3 + c.stats.vynoslivost + c.size + c.bonusHpMax; } // book: "выносливость + размер + 3" (стр. 80) + any bonusHpMax abilities (e.g. Боец «Живучий»)
+function hpMax(c){ return 3 + c.stats.vynoslivost + c.size + c.bonusHpMax + hpBySizeBonus(c); } // book: "выносливость + размер + 3" (стр. 80) + any bonusHpMax abilities (e.g. Боец «Живучий»)
+// «Здоровяк» (hpBySizeLog): +[размер + 2] и ещё +[размер] — от текущего размера, не меньше 0
+function hpBySizeBonus(c){ return (c.hpBySizeLog || []).reduce((a, x)=>a + Math.max(0, (c.size || 0) + (+x.plus || 0)), 0); }
 function psiMax(c){ return 3 + c.stats.duh + c.bonusPsiMax; }
 function reclampVitals(c){
   c.hpCurrent = clampLower(c.hpCurrent, hpMax(c));
@@ -7710,11 +7743,11 @@ function applyLevelDown(c, newLevel){
   if(c.cultReligion){
     const cat = CULTIST_ABILITY_CATALOG[c.cultReligion] || {};
     Object.entries(cat).forEach(([group,names])=>{
-      if(c.level < (CULT_GROUP_LEVEL[group]||0)){
+      if(c.level < (cultGroupLevel(c, group)||0)){
         c.abilities = c.abilities.filter(a=>!names.includes(a.name));
       }
     });
-    if(c.cultReligion==='Поклонение Матери-Природе' && c.level < CULT_GROUP_LEVEL['Катарсис']){
+    if(c.cultReligion==='Поклонение Матери-Природе' && c.level < cultGroupLevel(c, 'Катарсис')){
       removeBonusesBySource(c, (c.cultReligionSource||'')+' → катарсис-мутация');
       c._motherNatureCatharsisTriggered = false; // allow it to re-trigger if the player levels back up
     }
@@ -8774,19 +8807,36 @@ const ARMOR_ZONE_COLORS = {
 // зона1, зона2 / СК..." — если распознать не удалось (свободная формулировка, кастомный предмет
 // игрока и т.п.), возвращает пустой список, а не гадает: при надевании игрок увидит пустые галочки
 // и отметит зоны сам, вместо того чтобы молча приписать предмету неверное покрытие.
+// Тот же разбор — у брони существ бестиария («[защита 2 / всё тело, кроме головы / СК 19]»): регистр не важен, зона может
+// стоять последней перед «]», «кроме головы» исключает голову; «защита 6 (…) / СК 18» — зона не подписана (пусто).
 function parseArmorZones(name){
-  const m = /Защита[^/]*\/\s*([^/]+)\s*\//.exec(name||'');
+  const m = /Защита[^/]*\/\s*([^/\]]+)\s*[\/\]]/i.exec(name||'');
   if(!m) return [];
-  const text = m[1].toLowerCase();
-  if(text.includes('всё тело')) return ARMOR_ZONES.slice();
-  const found = [];
-  if(/голов/.test(text)) found.push('golova');
-  if(/плеч/.test(text)) found.push('plechi');
-  if(/торс/.test(text)) found.push('tors');
-  if(/рук/.test(text)) found.push('ruki');
-  if(/бёдр|бедр/.test(text)) found.push('bedra');
-  if(/ног/.test(text)) found.push('nogi');
+  const text = m[1].toLowerCase().replace(/ё/g, 'е');
+  if(/^\s*(?:ск|сл)\s*\d/.test(text)) return [];
+  let found = [];
+  if(text.includes('все тело')) found = ARMOR_ZONES.slice();
+  else {
+    if(/голов/.test(text)) found.push('golova');
+    if(/плеч/.test(text)) found.push('plechi');
+    if(/торс/.test(text)) found.push('tors');
+    if(/рук/.test(text)) found.push('ruki');
+    if(/бедр/.test(text)) found.push('bedra');
+    if(/ног/.test(text)) found.push('nogi');
+  }
+  if(/кроме\s+голов/.test(text)) found = found.filter(z=>z!=='golova');
   return found;
+}
+// Зона брони не подписана («мотошлем [защита 1 (Уд 3) / СК 17]»): по предмету каталога с тем же названием, иначе шлем, каска,
+// маска, противогаз, пузырь — голова
+function armorZonesGuess(itemName){
+  const n = String(itemName||'').toLowerCase().replace(/ё/g, 'е').trim();
+  if(!n) return [];
+  for(const gen of Object.values(ITEM_CATALOG)) for(const cat of Object.values(gen.categories || {})) for(const it of (cat.items || [])){
+    if(it.name.toLowerCase().replace(/ё/g, 'е')!==n) continue;
+    const z = parseArmorZones(it.name + ' — ' + it.desc); if(z.length) return z;
+  }
+  return /шлем|каск|маск|противогаз|пузыр/.test(n) ? ['golova'] : [];
 }
 // Цвета для типовых сокращений урона в скобках у "Защита N (Эн6, Уд5...)" — сами названия типов
 // (Эн/Уд/Вз/Пт/Тм и т.д.) не расшифровываем и не придумываем: в книге они не разжёваны, показываем
@@ -8915,9 +8965,15 @@ const WEAPON_SL_RE = /Сл\s*(\d+)/;
 // "раны N" — базовое число ран за попадание (см. черту "Раны Х" в памятке: без неё — 1 рана за
 // попадание, с ней — указанное число). Используется в резолве попаданий (см. resolveWeaponAttackOutcome).
 const WEAPON_WOUNDS_RE = /раны\s*(\d+)/i;
+// «МУ[15+категория успеха атаки]» («Лазерное ружьё») — МУ растёт на категорию успеха атаки. В карточке существа из листа
+// квадратные скобки заменены круглыми — годятся обе.
+const WEAPON_MU_CAT_RE = /МУ\s*[\[(]\s*(\d+)\s*\+\s*категори[^\])]*[\])]\s*(удар|патрон|энергия|температура)?/;
+// Раны, которые наносит не каждое попадание, а особый случай: «Первый урон (в бою) наносит раны 2», «разряд с МУ14 энергия,
+// раны 2» («Электропрут»), «при силе 4 и менее … наносит раны 2». Базовые «раны N» ищутся в тексте без этих фраз.
+const woundsBaseText = (statText)=>String(statText||'').replace(/[^.]*(?:[Пп]ервый\s+урон|разряд)[^.]*\.?/g, '').replace(/наносит\s+раны\s*\d+/gi, '');
 function parseWeaponStats(fullName){
   if(!fullName) return null;
-  const atM = WEAPON_AT_RE.exec(fullName), muM = WEAPON_MU_RE.exec(fullName);
+  const atM = WEAPON_AT_RE.exec(fullName), muM = WEAPON_MU_RE.exec(fullName) || WEAPON_MU_CAT_RE.exec(fullName);
   if(!atM || !muM) return null;
   const normSigned = s => parseInt(s.replace(/\s+/g,'').replace('−','-'),10);
   // Имя vs. текст свойств — два формата, встречающихся в данных: "Имя — текст." (предмет добавлен из
@@ -8934,7 +8990,7 @@ function parseWeaponStats(fullName){
     else { cleanName = fullName.trim(); statText = fullName.trim(); }
   }
   const prM = WEAPON_PR_RE.exec(fullName), dlM = WEAPON_DL_RE.exec(fullName), slM = WEAPON_SL_RE.exec(fullName);
-  const woundsM = WEAPON_WOUNDS_RE.exec(statText);
+  const woundsM = WEAPON_WOUNDS_RE.exec(woundsBaseText(statText));
   return {
     cleanName, statText,
     at: normSigned(atM[1]), mu: parseInt(muM[1],10), hitType: muM[2]||null,
@@ -8994,11 +9050,51 @@ function blankWeaponSlot(){
 // комментарий у parseWeaponStats выше про его роль как чисто информационного стата — штраф к МУ поэтому
 // только упоминается тегом-предупреждением на карточке, не пересчитывает что-либо).
 // (штраф Высоких технологий/Ксенотеха — Ат −2 и МУ −1 — считает applyWielder ниже по файлу)
+// «Любимое оружие» (карьеры бойцов): «Атака оружием категории «X» получает модификатор +3» — X сверяется с навыком боя
+// оружия (weaponCombatSkill). Считается и в броске из листа, и в атаке с карты, и в карточке существа из листа.
+function favoriteWeaponBonus(c, w){
+  const sk = w && weaponCombatSkill(w);
+  if(!c || !sk) return 0;
+  const a = (c.abilities || []).find(x=>x.name==='Любимое оружие' && String(x.text || '').indexOf(`«${STAT_LABELS[sk]}»`) >= 0);
+  const m = a && /модификатор\s*\+\s*(\d+)/.exec(a.text);
+  return m ? +m[1] : 0;
+}
+// Уровень взятой специализации: 0 — не взята, иначе наибольший из взятых (1 или 2)
+function specTier(c, key){ return ((c && c.specializationPicks) || []).reduce((a, p)=>p && p.key===key ? Math.max(a, +p.tier || 0) : a, 0); }
+// Одной ли рукой держится оружие слота. «Одной рукой нужна Сл5 / сила 5+», «требует силу 4+, чтобы держать одной рукой» — одной
+// рукой при такой силе, иначе двуручное; без такой фразы — двуручное, если весит 3 Вещи и больше (или Огромную), иначе одноручное.
+// need — сила, чтобы держать одной рукой: из фразы, иначе Сл + 3 («Две пушки»: «требование силы +3 на каждое»).
+function weaponHands(c, idx){
+  const slot = c && c.weapons && c.weapons[idx], e = slot && slot.name ? sheetWeaponEffective(c, idx) : null;
+  if(!e) return null;
+  const text = e.statText || '', sila = (c.stats && c.stats.sila) || 0;
+  const m = /одной\s+рукой\s+нужн\S*\s+(?:сил\S*|Сл)\s*(\d+)/i.exec(text) || /требует\s+сил\S*\s*(\d+)\+?,?\s*чтобы\s+держать\s+одной\s+рукой/i.exec(text);
+  if(m) return {name:e.name, two:sila < +m[1], need:+m[1], phrase:true};
+  let weight = '';
+  ['on_body','pockets','backpack','tiny'].some(cat=>((c.inventory && c.inventory[cat]) || []).some(it=>{ if(it.id===slot.itemId){ weight = String(it.weight || ''); return true; } return false; }));
+  const wm = /(\d+)\s*Вещ/i.exec(weight), heavy = /Огр/i.test(weight) || (wm && +wm[1] >= 3);
+  return {name:e.name, two:!!heavy, need:(e.sl || 0) + 3, phrase:false};
+}
+// Можно ли атаковать двумя оружиями (стр. 39): два одноручных — да; двуручное в паре — только со способностью «Две пушки» (Тварь),
+// при размере 1+ и силе не ниже требования одной рукой на каждое двуручное. null — можно, иначе — почему нельзя.
+function dualWieldBlock(c){
+  const h = [0, 1].map(i=>weaponHands(c, i));
+  if(!h[0] || !h[1]) return 'Нужно два экипированных оружия';
+  const two = h.filter(x=>x.two);
+  if(!two.length) return null;
+  if(two.some(x=>x.phrase)){ const x = two.find(y=>y.phrase); return `«${x.name}» одной рукой — нужна сила ${x.need}`; }
+  if(!(c.abilities || []).some(a=>a.name==='Две пушки')) return `«${two[0].name}» — двуручное: парой только со способностью «Две пушки»`;
+  if((c.size || 0) < 1) return '«Две пушки» — только при размере 1+';
+  const weak = two.find(x=>((c.stats && c.stats.sila) || 0) < x.need);
+  return weak ? `«${weak.name}» одной рукой («Две пушки») — нужна сила ${weak.need}` : null;
+}
 // Подписи броска атаки из листа: навык, Ат (уже с чертами) и что именно его изменило
 function weaponAttackTags(idx, extraFn){
   const e = sheetWeaponEffective(character, idx), sk = weaponCombatSkill(e);
   if(!sk) return [];
   const t = [`${STAT_LABELS[sk]}: ${10 + character.stats[sk]}`, `Ат оружия: ${e.at>=0?'+':''}${e.at}`];
+  const fav = favoriteWeaponBonus(character, e);
+  if(fav) t.push(`Любимое оружие: +${fav}`);
   e.techNotes.concat(e.condNotes.filter(n=>/Ат/.test(n))).forEach(n=>t.push(n));
   return t.concat(extraFn(e));
 }
@@ -9010,7 +9106,7 @@ function weaponAttackTags(idx, extraFn){
       const e = sheetWeaponEffective(character, idx), sk = weaponCombatSkill(e);
       if(!sk) return 10;
       const optikaOn = e.optika && checkboxOn('weaponOptika'+idx);
-      return 10 + character.stats[sk] + e.at + (optikaOn?6:0); // e.at — уже с тех-штрафом и условными чертами
+      return 10 + character.stats[sk] + e.at + favoriteWeaponBonus(character, e) + (optikaOn?6:0); // e.at — уже с тех-штрафом и условными чертами
     },
     tags(){ return weaponAttackTags(idx, (e)=> e.optika && checkboxOn('weaponOptika'+idx) ? ['Оптика (30м+, реакция): +6'] : []); },
     blocked(){ return weaponBlockedReason(character, idx); },
@@ -9025,11 +9121,11 @@ function weaponAttackTags(idx, extraFn){
       const e = sheetWeaponEffective(character, idx), sk = weaponCombatSkill(e);
       if(!sk) return 10;
       const far = checkboxOn('weaponBurstFar'+idx);
-      return 10 + character.stats[sk] + e.at + (far?-6:0);
+      return 10 + character.stats[sk] + e.at + favoriteWeaponBonus(character, e) + (far?-6:0);
     },
     tags(){ return weaponAttackTags(idx, ()=> checkboxOn('weaponBurstFar'+idx) ? ['Дистанция >12м: −6'] : []); },
     blocked(){ return weaponBlockedReason(character, idx); },
-    formula(){ return 'Навык боя + Ат оружия (−6, если дистанция >12м); успех даёт [КУ+3] попаданий'; }
+    formula(){ return 'Навык боя + Ат оружия (+3 «Любимое оружие»; −6, если дистанция >12м); успех даёт [КУ+3] попаданий'; }
   };
   // Подавляющий огонь — отдельный спасброс атаки с ФИКСИРОВАННЫМ Максимумом 12 (книга прямо говорит
   // "фиксированным" — ни навык боя, ни Ат оружия сюда не идут, в отличие от обычной атаки/очереди выше).
@@ -9229,7 +9325,7 @@ function weaponHitPlan(w, fireMode, roll, category, opts){
   // но [КУ] бросков к12 за него. Пул+Мощь: тот же лучший бросок идёт и на раны.
   const pulShot = !!(fireMode==='attack' && w.pul);
   return {
-    hits: pulShot ? 1 : Math.max(1, hitCount || 0), // успешная атака — хотя бы одно попадание
+    hits: (pulShot ? 1 : Math.max(1, hitCount || 0)) + Math.max(0, Math.round(+w.extraHits || 0)), // успешная атака — хотя бы одно попадание; «наносит +1 попадание» — сверху
     rollsPerHit: pulShot ? Math.max(1, category || 0) : 1,
     pulShot, speedUsed,
     woundsFor: (k12)=> Math.max(1, (moshhActive ? k12 : rollBaseWounds()) + razryvBonus)
@@ -9237,6 +9333,7 @@ function weaponHitPlan(w, fireMode, roll, category, opts){
   // «Раны N» — число; «раны 2к6» — кубики на каждое попадание; «раны 4 (6, если у цели 10+ ОЗ)» — по HP цели
   // (известно только при атаке с игрового стола — opts.targetHp)
   function rollBaseWounds(){
+    if(w.woundsPerCat) return w.woundsPerCat * Math.max(1, category || 1); // «раны [4 за категорию успеха атаки]»
     if(w.woundsVsHp && opts && opts.targetHp!=null && opts.targetHp >= w.woundsVsHp.hp) return w.woundsVsHp.wounds;
     if(w.woundsDice){ let sum = 0; for(let i=0;i<w.woundsDice.n;i++) sum += randInt(w.woundsDice.sides); return sum; }
     return baseWounds;
@@ -9261,30 +9358,85 @@ function armorSubsObject(list){
   (list||[]).forEach(s=>{ const m = /^([А-Яа-яЁё]+)\s*([+\-−]?\d+)$/.exec(String(s).trim()); if(m) out[m[1]] = parseInt(m[2].replace('−','-'),10); });
   return out;
 }
-// Защита торса персонажа игрока (c — его лист: у Мастера это копия из session.players): наибольшая защита
-// среди надетой брони, покрывающей торс (по типу урона, если указан), иначе ручное поле «Защита (тело)».
-function characterTorsoDefense(c, muType){
+// Защита зоны тела персонажа игрока (c — его лист: у Мастера это копия из session.players): наибольшая защита среди
+// надетой брони, покрывающей зону (по типу урона, если указан). Голова — с отдельной защитой шлема («У шлема защита 7»,
+// «Защита шлема +2»). Обычная атака бьёт по торсу (защита тела), прицельная — по выбранной зоне (стр. 39).
+function characterZoneDefense(c, zone, muType){
   if(!c) return 0;
   let best = null;
   ['on_body','pockets','backpack','tiny'].forEach(cat=>{
     ((c.inventory && c.inventory[cat]) || []).forEach(it=>{
-      if(!it.wornZones || it.wornZones.indexOf('tors')<0) return;
+      if(!it.wornZones || it.wornZones.indexOf(zone)<0) return;
       const st = parseArmorStats(it.name);
       if(!st) return;
-      const d = defenseAgainst(st.base, armorSubsObject(st.subs), muType);
+      let d = defenseAgainst(st.base, armorSubsObject(st.subs), muType);
+      if(zone==='golova' && st.helmet) d = st.helmet.mode==='abs' ? defenseAgainst(st.helmet.value, armorSubsObject(st.helmet.subs), muType) : d + st.helmet.value;
       if(best===null || d>best) best = d;
     });
   });
   if(best!==null) return best;
-  return (c.armor && Number(c.armor.body)) || 0;
+  return zone==='tors' ? ((c.armor && Number(c.armor.body)) || 0) : zone==='golova' ? ((c.armor && Number(c.armor.helmet)) || 0) : 0; // ручные поля «Защита (тело)» и «Шлем»
 }
+function characterTorsoDefense(c, muType){ return characterZoneDefense(c, 'tors', muType); }
+// Защитные вещи листа, которые стол учитывает сам: «Кинетический щит» (МУ атаки −[её попадания]) и «Генератор щита»
+// (−4 МУ энергии, температуры и взрыва при стрельбе) — если включены кнопкой «Использовать» в инвентаре; оба режут и
+// входящие, и исходящие атаки. Надетые на торс: «Гаситель кинетики» (раны от каждого попадания −1) и броня
+// «если персонаж в укрытии, то +1 к защите» (отметка «В укрытии» на жетоне).
+const GEAR_TOGGLE_RE = /МУ входящей и исходящей атаки|МУ входящих и исходящих попаданий/i;
+// «Сковывает» у брони: «если сила не 2+, то сковывает» / «сковывает, если сила не 2+» — при силе ниже; голое «сковывает»
+// («Паровоз», «Полная броня») — всегда. Пока только пометка «Скован» под жетоном (механики в листе нет).
+function armorEncumbers(text, sila){
+  const t = String(text || ''); let m;
+  if((m = /если\s+сила\s+(?:персонажа\s+)?не\s+(\d+)\+,?\s*то\s+(?:броня\s+)?сковывает/i.exec(t)) || (m = /сковывает,?\s*если\s+сила\s+не\s+(\d+)\+/i.exec(t))) return (+sila || 0) < +m[1];
+  return /(?:^|[,.;]\s*)сковывает\s*(?:[,.;\]]|$)/i.test(t);
+}
+// надетая броня персонажа (зоны отмечены), которая его сковывает: название или null
+function characterEncumbrance(c){
+  if(!c || !c.inventory) return null;
+  const sila = (c.stats && c.stats.sila) || 0; let hit = null;
+  ['on_body','pockets','backpack','tiny'].some(cat=>((c.inventory[cat]) || []).some(it=>{
+    if(!(it.wornZones && it.wornZones.length) || !armorEncumbers(it.name, sila)) return false;
+    hit = String(it.name).split(' — ')[0]; return true; }));
+  return hit;
+}
+function characterGearEffects(c){
+  const out = {kinetic:null, shieldGen:null, woundsMinus:0, woundsMinusName:'', coverDef:0};
+  if(!c || !c.inventory) return out;
+  ['on_body','pockets','backpack','tiny'].forEach(cat=>((c.inventory[cat]) || []).forEach(it=>{
+    const t = String(it.name || ''), nm = t.split(' — ')[0], torso = !!(it.wornZones && it.wornZones.indexOf('tors') >= 0);
+    let m;
+    if(it.gearActive && /МУ входящей и исходящей атаки на\s*\[\s*количество попаданий/i.test(t)) out.kinetic = nm;
+    if(it.gearActive && (m = /снижает на\s*[−-]?\s*(\d+)\s*МУ входящих и исходящих попаданий типа\s+([^.]+)/i.exec(t))) out.shieldGen = {v:+m[1], types:m[2].toLowerCase(), name:nm};
+    if(torso && (m = /Раны от каждого попадания\s*[−-]\s*(\d+)/i.exec(t)) && +m[1] > out.woundsMinus){ out.woundsMinus = +m[1]; out.woundsMinusName = nm; }
+    if(torso && (m = /в укрытии,?\s*то\s*\+\s*(\d+)\s*к защите/i.exec(t))) out.coverDef = Math.max(out.coverDef, +m[1]);
+  }));
+  return out;
+}
+window.toggleGearActive = function(category, itemId){
+  const it = character && character.inventory[category] && character.inventory[category].find(x=>x.id===itemId);
+  if(!it) return;
+  it.gearActive = !it.gearActive;
+  logEvent(character, `«${it.name.split(' — ')[0]}»: ${it.gearActive ? 'используется — стол учитывает его в атаках' : 'убран'}.`);
+  renderAll();
+};
+// «Раз в бой в свой ход даёт 2 временных ОЗ» («Кинезис-латы», надетые): ОЗ сверх максимума — как временные
+window.useItemTempHp = function(category, itemId){
+  const it = character && character.inventory[category] && character.inventory[category].find(x=>x.id===itemId);
+  const m = it && /даёт\s+(\d+)\s+временн\S*\s+ОЗ/i.exec(it.name);
+  if(!m) return;
+  const b = +character.hpCurrent || 0;
+  character.hpCurrent = b + (+m[1]);
+  logEvent(character, `«${it.name.split(' — ')[0]}»: +${m[1]} временных ОЗ (${b} → ${character.hpCurrent}). Раз в бой.`);
+  uiToast(`+${m[1]} временных ОЗ — раз в бой`, {icon:'🛡'});
+  renderAll();
+};
 // Слот оружия листа → те же поля плюс тип урона МУ и черта «травма» (для атаки с карты): берём из полного
 // текста предмета, с которого слот экипирован; у вручную заполненного слота — из его текста свойств.
 function weaponFullStats(w){
   if(!w || !w.name) return null;
   const parsed = w.itemNameSnapshot ? parseWeaponStats(w.itemNameSnapshot) : null;
   const text = parsed ? parsed.statText : String(w.properties||'').replace(/<[^>]*>/g,'');
-  const muM = WEAPON_MU_RE.exec(text);
+  const muM = WEAPON_MU_RE.exec(text) || WEAPON_MU_CAT_RE.exec(text);
   return Object.assign({}, w, { statText:text, muType: parsed ? parsed.hitType : (muM && muM[2]) || null, travma: hasWeaponTag(text, 'травма') });
 }
 /* ======================================================================
@@ -9337,6 +9489,23 @@ function applyWielder(w, st, gmIssued){
   if(dm && cond.woundsOverride==null){ e.woundsDice = {n: parseInt(dm[1],10) || 1, sides: parseInt(dm[2],10)}; e.hasExplicitWounds = true; }
   const hm = /раны\s*(\d+)\s*\((\d+),?\s*если у цели (\d+)\+\s*ОЗ\)/i.exec(text);
   if(hm) e.woundsVsHp = {wounds:+hm[2], hp:+hm[3]};
+  // Особые строки оружия: «МУ[15+категория успеха]», «раны [4 за категорию успеха]», «(успешная атака) наносит +1 попадание»,
+  // «за одно действие может атаковать дважды» / «до трёх атак», «каждое попадание даёт разряд с МУ14 энергия, раны 2»,
+  // «первый урон (в бою) наносит раны N»
+  if(WEAPON_MU_CAT_RE.test(text)) e.muPlusCat = true;
+  const wc = /раны\s*[\[(]\s*(\d+)\s+за\s+категори/i.exec(text);
+  if(wc && cond.woundsOverride==null){ e.woundsPerCat = +wc[1]; e.hasExplicitWounds = true; }
+  const xh = /наносит\s+\+\s*(\d+)\s+попадани/i.exec(text);
+  if(xh) e.extraHits = +xh[1];
+  const ma = /до\s+(двух|трёх|\d+)\s+атак/i.exec(text);
+  e.attacksPerAction = /атаковать\s+дважды/i.test(text) ? 2 : ma ? ({'двух':2, 'трёх':3}[ma[1]] || Math.min(5, +ma[1] || 1)) : 1;
+  const zp = /разряд\s+с\s+МУ\s*(\d+)\s*(удар|патрон|энергия|температура)?,?\s*раны\s*(\d+)/i.exec(text);
+  if(zp) e.zap = {mu:+zp[1], muType:zp[2] || 'энергия', wounds:+zp[3]};
+  const fw = /[Пп]ервый\s+урон(\s+в\s+бою)?\s+наносит\s+раны\s*(\d+)/i.exec(text);
+  if(fw) e.firstWounds = {wounds:+fw[2], perFight:!!fw[1]};
+  // «Проверьте атаку по каждой цели на линии шириной 3 м» («Шрапнельная пушка»; в старых записях было «в радиусе 3м»)
+  const ln = /атаку\s+по\s+каждой\s+цели\s+(?:на\s+линии\s+шириной|в\s+радиусе)\s*(\d+)\s*м/i.exec(text);
+  if(ln) e.lineWidth = +ln[1];
   e.slow = hasWeaponTag(text, 'медленное') || cond.slow;
   const tech = [];
   if(w.highTech && !(st.uchenost>=2 || st.tehnika>=2)){ e.at -= 2; e.mu -= 1; tech.push('Высокие технологии: нет учёности/техники 2+ — Ат−2, МУ−1'); }
@@ -9428,12 +9597,12 @@ function consumeGrenade(c, itemId){
 // только известную ему часть Максимума: модификаторы цели секретны и добавляются у Мастера.
 let _mapAttackCtx = null;
 Object.defineProperty(STAT_LABELS, 'map_attack', { enumerable:true, configurable:true,
-  get(){ return _mapAttackCtx && _mapAttackCtx.fireMode==='grenade' ? 'Бросок гранаты' : 'Атака с карты'; } });
-SAVE_ROLL_DEFS['map_attack'] = {
-  get label(){ return _mapAttackCtx && _mapAttackCtx.fireMode==='grenade' ? 'Бросок гранаты (лёгкая атлетика)' : 'Атака с карты'; }, anchorMod: 0,
+  get(){ return _mapAttackCtx && _mapAttackCtx.label ? _mapAttackCtx.label : _mapAttackCtx && _mapAttackCtx.fireMode==='grenade' ? 'Бросок гранаты' : 'Атака с карты'; } });
+SAVE_ROLL_DEFS['map_attack'] = { // label/formula в контексте — у манёвров («Схватить» и т.п.)
+  get label(){ return _mapAttackCtx && _mapAttackCtx.label ? _mapAttackCtx.label : _mapAttackCtx && _mapAttackCtx.fireMode==='grenade' ? 'Бросок гранаты (лёгкая атлетика)' : 'Атака с карты'; }, anchorMod: 0,
   base(){ return _mapAttackCtx ? _mapAttackCtx.knownBase : 10; },
   tags(){ return _mapAttackCtx ? _mapAttackCtx.tags.slice() : []; },
-  formula(){ return _mapAttackCtx && _mapAttackCtx.fireMode==='grenade' ? '10 + лёгкая атлетика − рефлексы цели; дальше 12 м −6' : 'Навык боя + Ат оружия + дистанция; модификаторы цели учитывает Мастер'; }
+  formula(){ return _mapAttackCtx && _mapAttackCtx.formula ? _mapAttackCtx.formula : _mapAttackCtx && _mapAttackCtx.fireMode==='grenade' ? '10 + лёгкая атлетика − рефлексы цели; дальше 12 м −6' : 'Навык боя + Ат оружия + дистанция; модификаторы цели учитывает Мастер'; }
 };
 // Бросок существа из бестиария (клик по числу в скобках на карточке): Максимум — из книги. Переброс ресурсами
 // листа не предлагается (это не персонаж), в общий лог уходит, только если Мастер включил «броски видны игрокам».
@@ -9461,6 +9630,8 @@ function executeMapAbilityRoll(base, mod, popup, mode){
   const ctx = _mapAbilityCtx, max = base + mod, rolls = mode==='plain' ? [randInt(20)] : [randInt(20), randInt(20)];
   const roll = pickD20ForMode(rolls[0], rolls[1], max, mode), ev = evaluateD20Check(roll, max), opp = !!(ctx && ctx.opp);
   if(!opp && typeof recordAndShareRoll==='function') recordAndShareRoll('map_ability', mod, roll, max, ev.success, ev.category, mode, rolls); // встречную запишет Мастер — с итогом по целям
+  if(!opp && ctx && ctx.stat==='mistika' && typeof resolveSpiritOutcome==='function') resolveSpiritOutcome('mistika', roll, ev.success, ev.category); // кость духов шамана
+  if(!opp && ctx && ctx.abilText && typeof spiritAbilityOutcome==='function') spiritAbilityOutcome(ctx.abilText, ev.success); // «Песнь мира», «Лечащий ритуал»
   popup.querySelector('.hex-field').remove();
   popup.querySelector('.roll-max-preview').remove();
   popup.querySelector('.roll-tags').remove();
@@ -10587,12 +10758,16 @@ function showRerollPopup(statKey, mod, mode){
   const careerKey = genericCostAvailable ? character.careerKey : null;
   const career = careerKey && CAREERS[careerKey] ? CAREERS[careerKey] : null;
   const luckAvailable = (character.luck||0) > 0; // удача — универсальный источник, годится для ЛЮБОГО броска, независимо от способностей/бодрости
-  if(!abilities.length && !bodrostActive && !advantages.length && !career && !luckAvailable) return; // нечем перебрасывать — не показываем пустую подсказку
+  // шаман: раз в сцену повысить кость духов на 1 и перебросить проверку мистики (своя или способность с Броском мистики)
+  const isMist = statKey==='mistika' || (statKey==='map_ability' && _mapAbilityCtx && _mapAbilityCtx.stat==='mistika' && !_mapAbilityCtx.opp);
+  const spiritAvailable = isShaman(character) && isMist && !character.spiritSceneUsed;
+  if(!abilities.length && !bodrostActive && !advantages.length && !career && !luckAvailable && !spiritAvailable) return; // нечем перебрасывать — не показываем пустую подсказку
 
   const doReroll = (spendFn)=>{
     spendFn();
     renderAll();
     closeRerollPopup();
+    _rerollingKey = {key:statKey==='map_ability' && isMist ? 'mistika' : statKey, at:Date.now()}; // исход нового броска заменит прежний (кость духов, саматха)
     openRollPicker(statKey, window.innerWidth/2, window.innerHeight/2, mod); // тот же модификатор, что и у перебрасываемого броска
   };
   const el = document.createElement('div');
@@ -10600,6 +10775,9 @@ function showRerollPopup(statKey, mod, mode){
   let html = `<div class="reroll-title">🔄 Перебросить «${escapeHtml(STAT_LABELS[statKey]||statKey)}»?</div>`;
   if(luckAvailable){
     html += `<div class="reroll-option"><button class="small" id="rerollLuckBtn">Удача (−1, сейчас ${character.luck})</button></div>`;
+  }
+  if(spiritAvailable){
+    html += `<div class="reroll-option"><button class="small" id="rerollSpiritBtn">Кость духов +1 (сейчас ${spiritDieOf(character)})</button><div class="reroll-desc">Раз в сцену шаман сам повышает кость духов на 1 и перебрасывает проверку мистики.</div></div>`;
   }
   if(bodrostActive){
     html += `<div class="reroll-option"><button class="small" id="rerollBodrostBtn">Бодрость (снять флажок)</button></div>`;
@@ -10626,6 +10804,9 @@ function showRerollPopup(statKey, mod, mode){
       character.luck -= 1;
       logEvent(character, `Удача потрачена на переброс — осталось ${character.luck}.`);
     });
+  }
+  if(spiritAvailable){
+    el.querySelector('#rerollSpiritBtn').onclick = ()=>doReroll(()=>{ character.spiritSceneUsed = true; bumpSpiritDie(character, 'переброс мистики, раз в сцену'); });
   }
   if(bodrostActive){
     el.querySelector('#rerollBodrostBtn').onclick = ()=>doReroll(()=>{
@@ -10673,6 +10854,96 @@ function showRerollPopup(statKey, mod, mode){
   _rerollDismissCleanup = ()=>window.removeEventListener('mousemove', onMove);
 }
 
+/* ---- Кость духов шамана (стр. 208, «Саматха») ----
+   В начале игровой встречи к6 ставится на 1; каждый проваленный Бросок мистики шамана — +1 (переброс той же проверки —
+   не новый провал). Дошла до 6 — снова 1, а шаман в саматхе (к6 часов в мире Нарра-Ка): Бросок духа (−3) — провал: −2 пси,
+   успех: +[категория успеха] пси и ОЗ. Провал с 13 на к20 — «Врата для демона»: из шамана исторгается случайная пустота (к6),
+   даже если бросок потом перебросят. Раз в сцену шаман сам повышает кость на 1 и перебрасывает проверку мистики (окно переброса). */
+const VOID_GATE_TABLE = [['Удильщик', 295], ['Пустотник', 298], ['Зубная фея', 296], ['Идол', 300], ['Скорбящий', 297], ['Собиратель', 301]]; // к6
+let _rerollingKey = null; // {key, at}: какой бросок сейчас перебрасывается (doReroll) — его исход заменяет прежний
+function isShaman(c){ return !!(c && c.archetypeKey==='shaman'); }
+function spiritDieOf(c){ return Math.max(1, Math.min(6, Math.round(+c.spiritDie || 1))); }
+const sheetName = ()=>{ const el = document.getElementById('fName'); return (el && el.value.trim()) || 'Шаман'; };
+function bumpSpiritDie(c, why){
+  const was = spiritDieOf(c), v = was + 1;
+  if(v < 6){ c.spiritDie = v; logEvent(c, `Кость духов: ${was} → ${v} (${why}).`); return; }
+  c.spiritDie = 1;
+  const hours = randInt(6);
+  c.samatha = {hours};
+  logEvent(c, `Кость духов дошла до 6 (${why}) — снова 1. Саматха: ${hours} ч (к6) в мире Нарра-Ка, Бросок духа (−3).`);
+  recordAndShareQuickRoll({abilityUse:true, text:`${sheetName()}: саматха — кость духов дошла до 6, духи застилают разум на ${hours} ч (к6). Нужен Бросок духа (−3).`});
+  uiToast('Саматха: кость духов дошла до 6 — Бросок духа (−3) в «Самочувствии»', {icon:'🜂', ms:7000});
+}
+STAT_LABELS['samatha_duh'] = 'Саматха — Бросок духа';
+SAVE_ROLL_DEFS['samatha_duh'] = {
+  label:'Саматха — Бросок духа (−3)', anchorMod:-3,
+  base(){ return 10 + ((character && character.stats.duh) || 0); },
+  tags(){ return [`Дух: ${10 + ((character && character.stats.duh) || 0)}`, 'Саматха: −3']; },
+  formula(){ return '10 + дух − 3; провал — −2 пси, успех — +[КУ] пси и ОЗ, провал с 13 — «Врата для демона»'; }
+};
+// Исход броска для кости духов: провал мистики — +1; Бросок духа в саматхе — пси/ОЗ и «Врата для демона». Переброс заменяет прежний исход.
+function resolveSpiritOutcome(statKey, roll, success, category){
+  const reroll = !!(_rerollingKey && _rerollingKey.key===statKey && Date.now() - _rerollingKey.at < 120000); if(reroll) _rerollingKey = null;
+  if(!character || !isShaman(character)) return;
+  if(statKey==='mistika'){ if(!success && !reroll) bumpSpiritDie(character, 'провал мистики'); return; }
+  if(statKey!=='samatha_duh') return;
+  const c = character, prev = reroll ? c._samathaLast : null;
+  if(!c.samatha && !prev) return;
+  if(prev){ c.psiCurrent = (+c.psiCurrent || 0) - prev.psi; c.hpCurrent = (+c.hpCurrent || 0) - prev.hp; } // переброс: прежний исход отменяется
+  const p0 = +c.psiCurrent || 0, h0 = +c.hpCurrent || 0;
+  let gate = prev ? prev.gate : null, text;
+  if(success){
+    c.psiCurrent = Math.max(p0, Math.min(psiMax(c), p0 + category)); c.hpCurrent = Math.max(h0, Math.min(hpMax(c), h0 + category));
+    text = `духи научили новому — +${c.psiCurrent - p0} пси, +${c.hpCurrent - h0} ОЗ`;
+  } else {
+    c.psiCurrent = clampLower(p0 - 2, psiMax(c));
+    text = 'кошмар саматхи — −2 пси';
+    if(roll===13 && !gate){ const k = randInt(6); gate = {k, name:VOID_GATE_TABLE[k - 1][0], page:VOID_GATE_TABLE[k - 1][1]}; }
+  }
+  c._samathaLast = {psi:c.psiCurrent - p0, hp:c.hpCurrent - h0, gate};
+  c.samatha = null;
+  if(gate && !(prev && prev.gate)) text += `. ВРАТА ДЛЯ ДЕМОНА: шаман поднимается в воздух, тело выворачивается — исторгается пустота «${gate.name}» (к6 = ${gate.k}, стр. ${gate.page})`;
+  else if(gate) text += `. Пустота «${gate.name}» уже исторглась — она знает о первом результате 13`;
+  logEvent(c, `Саматха, Бросок духа: к20=${roll} — ${text}.`);
+  recordAndShareQuickRoll({abilityUse:true, text:`${sheetName()}: саматха, Бросок духа (к20=${roll}${reroll ? ', переброс' : ''}) — ${text}.`});
+  renderAll();
+}
+// Способности, двигающие кость духов (по тексту): «Песнь мира» — при успехе −1, «Лечащий ритуал» — при провале +1
+function spiritAbilityOutcome(text, success){
+  if(!character || !isShaman(character)) return;
+  const t = String(text || '');
+  if(success && /(?:снижая|снижает)\s+значение\s+кости\s+духов\s+на\s+1/i.test(t)){
+    const was = spiritDieOf(character); character.spiritDie = Math.max(1, was - 1);
+    if(character.spiritDie!==was) logEvent(character, `Кость духов: ${was} → ${character.spiritDie} (способность: успех).`);
+    renderAll();
+  }
+  if(!success && /при\s+провале[^.]*повышает\s+кость\s+духов\s+на\s+1/i.test(t)){ bumpSpiritDie(character, 'провал способности'); renderAll(); }
+}
+window.spiritDieAct = function(act){
+  if(!character || !isShaman(character)) return;
+  const c = character;
+  if(act==='plus') bumpSpiritDie(c, 'вручную');
+  else if(act==='minus'){ const was = spiritDieOf(c); c.spiritDie = Math.max(1, was - 1); if(c.spiritDie!==was) logEvent(c, `Кость духов: ${was} → ${c.spiritDie} (вручную).`); }
+  else if(act==='meeting'){ c.spiritDie = 1; c.spiritSceneUsed = false; logEvent(c, 'Кость духов: новая игровая встреча — 1.'); }
+  else if(act==='scene'){ c.spiritSceneUsed = false; }
+  else if(act==='samatha'){ const r = document.getElementById('spiritDieBox').getBoundingClientRect(); openRollPicker('samatha_duh', r.left + r.width/2, r.top + 20, -3); return; }
+  else if(act==='samatha-off'){ c.samatha = null; logEvent(c, 'Саматха снята вручную.'); }
+  renderAll();
+};
+function renderSpiritDie(){
+  const box = document.getElementById('spiritDieBox'); if(!box) return;
+  if(!character || !isShaman(character)){ box.style.display = 'none'; box.innerHTML = ''; return; }
+  const c = character, v = spiritDieOf(c);
+  box.style.display = '';
+  box.innerHTML = `<h3 style="margin-top:14px;">Кость духов</h3>
+    <div class="spirit-die-row"><span class="spirit-die-face" title="к6 духов: каждый проваленный Бросок мистики +1, на 6 — саматха">${v}</span>
+      <button class="small" onclick="spiritDieAct('minus')" title="−1 (например, «Песнь мира»)">−</button><button class="small" onclick="spiritDieAct('plus')">+</button>
+      <button class="small" onclick="spiritDieAct('meeting')" title="Начало игровой встречи: кость на 1">Новая встреча</button>
+      <span class="muted">${c.spiritSceneUsed ? '+1 и переброс мистики — уже в этой сцене <button class="small" onclick="spiritDieAct(\'scene\')" title="Новая сцена">↺</button>' : '+1 и переброс мистики — в окне переброса (раз в сцену)'}</span></div>
+    ${c.samatha ? `<div class="spirit-samatha">🜂 <b>Саматха</b> — ${c.samatha.hours} ч в мире Нарра-Ка, тело прорастает псевдоплотью.
+      <button class="small" onclick="spiritDieAct('samatha')">🎲 Бросок духа (−3)</button> <button class="small" onclick="spiritDieAct('samatha-off')" title="Снять вручную">✕</button></div>` : ''}`;
+}
+
 // mode: 'plain' (один к20, как раньше) | 'advantage' | 'disadvantage' (см. openRollPicker — зона
 // жеста вне поля гексов, справа/слева) — два к20, выбор лучшего/худшего через pickD20ForMode (тем же
 // правилом, что и у боковой панели бросков кубов, см. compareD20Outcomes выше).
@@ -10686,6 +10957,7 @@ function executeRoll(statKey, base, mod, popup, mode){
   const {success, category, natConsequences} = evaluateD20Check(roll, max);
   if(statKey==='creature_roll' && !success) if(typeof GmAdvice!=='undefined') GmAdvice.event('miss'); // проваленный бросок существа
   if(typeof recordAndShareRoll==='function') recordAndShareRoll(statKey, mod, roll, max, success, category, mode, rolls); // общий лог сессии, см. её раздел внизу файла
+  resolveSpiritOutcome(statKey, roll, success, category); // кость духов шамана: провал мистики, саматха
   if(statKey!=='creature_roll' && session.role==='player' && secretRollActive()){ // тайный бросок: результат знает только Мастер
     popup.querySelector('.hex-field').remove(); popup.querySelector('.roll-max-preview').remove(); popup.querySelector('.roll-tags').remove();
     const st = document.createElement('div'); st.innerHTML = '<div class="roll-outcome secret"><span class="verdict">🤫 Тайный бросок</span>ушёл Мастеру — результат знает только он</div>';
@@ -10920,7 +11192,7 @@ function renderAll(){
     document.getElementById('fArmorBody').value=''; document.getElementById('fArmorHelmet').value=''; document.getElementById('fArmorProps').value='';
     document.getElementById('fConditionsNotes').value='';
     ['stBodrost','stIstoshenie','stIspug','stStress'].forEach(id=>{ document.getElementById(id).checked=false; document.getElementById(id).disabled=true; });
-    renderAdvFlaw(); renderAbilities(); renderInventory(); renderHistory(); renderSaves(); renderRest(); renderWeapons();
+    renderAdvFlaw(); renderAbilities(); renderInventory(); renderHistory(); renderSaves(); renderRest(); renderWeapons(); renderSpiritDie();
     return;
   }
   renderStatBlock('statsBody', BODY);
@@ -10995,6 +11267,7 @@ function renderAll(){
   renderSaves();
   renderRest();
   renderWeapons();
+  renderSpiritDie();
 
   // progression display
   const progArch = currentArchetype(character);
@@ -11259,6 +11532,8 @@ function summarizeSpecTier(spec, tier){
     if(m.t==='fixed') return `${STAT_LABELS[m.stat]} ${m.delta>0?'+':''}${m.delta}`;
     if(m.t==='note') return m.text;
     if(m.t==='roleplay') return `${m.label} <span class="pill">выбор игрока</span>`;
+    if(m.t==='hpBySize') return `Максимум ОЗ +[размер${m.plus ? ' + ' + m.plus : ''}]`;
+    if(m.t==='sturdyWeapon') return '«Любимое оружие», а если уже есть — навык боя +2 (не выше 4)';
     return '';
   }).filter(Boolean).join('; ');
 }
@@ -11300,11 +11575,18 @@ function invRowHtml(item, category){
   // (Ат.../МУ..., см. parseWeaponStats) — тот же принцип, что и isArmorLike выше для "Надеть".
   const weaponStats = parseWeaponStats(item.name);
   const weaponBtn = weaponStats ? weaponEquipButtonHtml(category, item, weaponStats) : '';
+  // Щиты-приборы («Кинетический щит», «Генератор щита») — стол учитывает их в атаках, пока включены (characterGearEffects);
+  // «Кинезис-латы» (надетые) — кнопка «+2 временных ОЗ», раз в бой
+  const gearBtn = !GEAR_TOGGLE_RE.test(item.name) ? '' : `<button class="small" onclick="toggleGearActive('${category}','${item.id}')" title="Пока включено, стол снижает МУ атак по персонажу и его собственных атак (см. текст предмета)">${item.gearActive?'🛡 Убрать':'🛡 Использовать'}</button>`;
+  const tempHpM = worn ? /даёт\s+(\d+)\s+временн\S*\s+ОЗ/i.exec(item.name) : null;
+  const tempHpBtn = !tempHpM ? '' : `<button class="small" onclick="useItemTempHp('${category}','${item.id}')" title="Раз в бой, в свой ход">⚡ +${tempHpM[1]} врем. ОЗ</button>`;
   return `<div class="item-line" draggable="true" ondragstart="onInvDragStart(event,'${category}','${item.id}')">
-    <b>${item.name}</b> <span class="muted">(вес: ${item.weight})</span> <span class="tag">${item.source}</span>${worn?` <span class="tag worn-tag">Надето: ${item.wornZones.map(z=>ARMOR_ZONE_LABELS[z]).join(', ')}</span>`:''}${item.wornBoots?` <span class="tag worn-tag">Надето (сапоги)</span>`:''}${item.restModActive?` <span class="tag worn-tag">Отдых ${restMod>=0?'+':''}${restMod} включён</span>`:''}
+    <b>${item.name}</b> <span class="muted">(вес: ${item.weight})</span> <span class="tag">${item.source}</span>${worn?` <span class="tag worn-tag">Надето: ${item.wornZones.map(z=>ARMOR_ZONE_LABELS[z]).join(', ')}</span>`:''}${item.wornBoots?` <span class="tag worn-tag">Надето (сапоги)</span>`:''}${item.restModActive?` <span class="tag worn-tag">Отдых ${restMod>=0?'+':''}${restMod} включён</span>`:''}${item.gearActive && gearBtn?` <span class="tag worn-tag">Используется</span>`:''}
     <div class="choice-btns" style="margin-top:4px;">
       <button class="small" onclick="editInventoryItem('${category}','${item.id}')">✎ Изменить</button>
       ${wearBtn}
+      ${gearBtn}
+      ${tempHpBtn}
       ${bootBtn}
       ${restModBtn}
       ${weaponBtn}
@@ -12492,12 +12774,22 @@ function sanitizeRollEntry(e){
         weaponName:str(e.weaponName, 120), fireMode: ['attack','burst','suppress'].indexOf(e.fireMode)>=0 ? e.fireMode : 'attack',
         rolls:ints(e.rolls, 2), roll:int(e.roll, 0), mode:rollMode(e.mode), success:bool(e.success), category:int(e.category, null),
         jammed:!!e.jammed, unprotected:!!e.unprotected, outOfRange:!!e.outOfRange, slow:!!e.slow, total:Math.max(0, int(e.total, 0)), robot:!!e.robot,
+        aim: ['golova','plechi','ruki','bedra','nogi'].indexOf(e.aim)>=0 ? e.aim : null, dual:!!e.dual, line:!!e.line, parried:!!e.parried, series:Math.max(0, Math.min(5, int(e.series, 0))),
         hits:(Array.isArray(e.hits) ? e.hits : []).slice(0, 60).map(h=>{
           const o = { k12:int(h && h.k12, 0), pen:!!(h && h.pen), wounds:Math.max(0, int(h && h.wounds, 0)), trauma:!!(h && h.trauma), red:!!(h && h.red) };
           if(h && Array.isArray(h.rolls12)) o.rolls12 = ints(h.rolls12, 30);
+          if(h && h.zap) o.zap = true; // разряд («Электропрут»)
+          if(h && h.aim) o.aim = true; // прицельное попадание — по защите зоны
           return o;
         }) });
-      if(e.sec && typeof e.sec==='object') out.sec = { max:int(e.sec.max, 0), max12: e.sec.max12==null ? null : int(e.sec.max12, 0) }; // пороги — только допущенным Мастером
+      if(e.sec && typeof e.sec==='object') out.sec = { max:int(e.sec.max, 0), max12: e.sec.max12==null ? null : int(e.sec.max12, 0), aim12: e.sec.aim12==null ? null : int(e.sec.aim12, 0) }; // пороги — только допущенным Мастером
+      return out;
+    }
+    if(e.mapManeuver){ // манёвр с игрового стола: схватить / толкнуть / освободиться (GameTable.resolveManeuver)
+      Object.assign(out, { mapManeuver:true, attackId:str(e.attackId, 64), attacker:str(e.attacker, 60), target:str(e.target, 60),
+        mv: ['grab','push','escape','parry'].indexOf(e.mv)>=0 ? e.mv : 'grab', rolls:ints(e.rolls, 2), roll:int(e.roll, 0), mode:rollMode(e.mode),
+        success:bool(e.success), category:int(e.category, null), sizeCmp:Math.max(-1, Math.min(1, int(e.sizeCmp, 0))) });
+      if(e.sec && typeof e.sec==='object') out.sec = { max:int(e.sec.max, 0) };
       return out;
     }
     if(e.mapGrenade){ // итог броска гранаты с игрового стола (см. GameTable.resolveGrenade)
@@ -12616,22 +12908,30 @@ function detailedQuickEntry(e, undoneAttacks){
     if(!e.sec) return null;
     const undone = undoneAttacks && undoneAttacks.has(e.attackId);
     const modeName = e.fireMode==='burst' ? 'очередь' : e.fireMode==='suppress' ? 'подавление' : 'атака';
-    let body = `→ ${escapeHtml(e.target)}: «${escapeHtml(e.weaponName)}» (${modeName}${e.unprotected?', по незащищённым':''}${modeTxt}): ${d20Part(e.sec.max, e.rolls, e.roll)} — `;
+    let body = `→ ${escapeHtml(e.target)}: «${escapeHtml(e.weaponName)}» (${modeName}${e.unprotected?', по незащищённым':''}${mapAttackExtras(e)}${modeTxt}): ${d20Part(e.sec.max, e.rolls, e.roll)} — `;
     if(e.jammed) body += 'оружие заклинило (нат.13)';
     else if(!e.success) body += 'промах';
     else {
       const many = e.hits.length > 1; // вариант «Б»: порог один раз, дальше — броски попаданий
       const hitsTxt = e.hits.map(h=>{
-        const k = h.rolls12 ? `[${h.rolls12.join(', ')}]→${h.k12}` : String(h.k12);
+        const k = hitPrefix(h) + (h.rolls12 ? `[${h.rolls12.join(', ')}]→${h.k12}` : String(h.k12));
         const bone = h.trauma ? ' ' + traumaIconHtml(e.robot, h.red) : '';
         return `${k} ${h.pen ? 'пробило' : 'не пробило'}${many && h.pen ? ` (${h.wounds} ${woundsWord(h.wounds)})` : ''}${bone}`;
       }).join('; ');
-      body += `Успех, КУ${e.category}` + (e.hits.length ? ` · к12≤${e.sec.max12==null ? '?' : e.sec.max12} → ${hitsTxt}` : '') + ` · итого ${e.total} ${woundsWord(e.total)}`;
+      body += `Успех, КУ${e.category}` + (e.hits.length ? ` · к12≤${e.sec.max12==null ? '?' : e.sec.max12}${e.aim && e.sec.aim12!=null ? ` (🎯 прицельное ≤${e.sec.aim12})` : ''} → ${hitsTxt}` : '') + ` · итого ${e.total} ${woundsWord(e.total)}`;
     }
     if(e.success && !e.jammed) body += natTagText(e.roll, e.success, evaluateD20Check(e.roll, e.sec.max).natConsequences);
     if(e.slow) body += ' · ⚡ медленное — цель может отреагировать';
     if(undone) body += ' · <b>отменено Мастером</b>';
     return {cls:(e.success && !e.jammed ? 'success' : 'failure') + (undone ? ' undone' : ''),
+      html:`<span class="who">${escapeHtml(e.attacker||e.player||'?')}</span><span class="rest">${body}</span>`, undoable:!undone};
+  }
+  if(e.mapManeuver){
+    if(!e.sec) return null;
+    const undone = undoneAttacks && undoneAttacks.has(e.attackId);
+    const md = e.mode==='advantage' ? ', Упрощённо' : e.mode==='disadvantage' ? ', Осложнённо' : '';
+    const body = `🤼 → ${escapeHtml(e.target)}: ${MANEUVER_WHAT[e.mv]}${md}${e.sizeCmp>0 ? ' (крупнее цели)' : e.sizeCmp<0 ? ' (мельче цели)' : ''}: ${d20Part(e.sec.max, e.rolls, e.roll)} — ${maneuverOutcome(e)}${undone ? ' · <b>отменено Мастером</b>' : ''}`;
+    return {cls:(e.success ? 'success' : 'failure') + (undone ? ' undone' : ''),
       html:`<span class="who">${escapeHtml(e.attacker||e.player||'?')}</span><span class="rest">${body}</span>`, undoable:!undone};
   }
   if(e.mapGrenade){
@@ -12762,6 +13062,11 @@ const _rollLogSeenIds = new Set(session.log.map(e=>e.id));
 // Формат для бросков боковой панели кубов (DicePanel, см. её раздел ниже) — отдельная ветка формата
 // строки лога, но ТОТ ЖЕ массив session.log/тот же рендер-цикл, не второй лог. Записи основного
 // броска характеристики (без поля kind) продолжают форматироваться старой веткой ниже без изменений.
+// подписи атаки с карты: прицельно (зона), двумя оружиями, номер атаки в серии одного действия; у попаданий — разряд и прицельное
+function mapAttackExtras(e){ return (e.aim ? `, прицельно: ${String(ARMOR_ZONE_LABELS[e.aim] || e.aim).toLowerCase()}` : '') + (e.dual ? ', двумя оружиями' : '') + (e.series > 1 ? `, ${e.series}-я атака действия` : '') + (e.line ? ', по линии' : '') + (e.parried ? ', цель парировала — Осложнено' : ''); }
+function hitPrefix(h){ return h.zap ? '⚡разряд ' : h.aim ? '🎯' : ''; }
+const MANEUVER_WHAT = {grab:'схватить', push:'толкнуть', escape:'освободиться из захвата', parry:'парировать атаку'};
+function maneuverOutcome(e){ return e.success ? `Успех, КУ${e.category} — ${e.mv==='grab' ? 'цель схвачена: обездвижена, простые действия одной рукой Осложнены' : e.mv==='push' ? 'цель отброшена на 3 м' : e.mv==='parry' ? 'его рукопашные атаки по парирующему в этом ходу Осложнены' : 'освободился'}` : 'провал'; }
 function woundsWord(n){ const a = n%10, b = n%100; return a===1 && b!==11 ? 'рана' : (a>=2 && a<=4 && (b<12 || b>14)) ? 'раны' : 'ран'; }
 function formatQuickRollEntry(e, undoneAttacks){
   if(e.chat){ // сообщение в логе: всем или лично
@@ -12778,12 +13083,12 @@ function formatQuickRollEntry(e, undoneAttacks){
     const modeName = e.fireMode==='burst' ? 'очередь' : e.fireMode==='suppress' ? 'подавление' : 'атака';
     const modeTxt = e.mode==='advantage' ? ', Преимущество' : e.mode==='disadvantage' ? ', Помеха' : '';
     const rollsTxt = e.rolls && e.rolls.length>1 ? ` [${e.rolls.join(', ')}]` : '';
-    let body = `→ ${escapeHtml(e.target)}: «${escapeHtml(e.weaponName)}» (${modeName}${e.unprotected?', по незащищённым':''}${modeTxt}) — к20=${e.roll}${rollsTxt} — `;
+    let body = `→ ${escapeHtml(e.target)}: «${escapeHtml(e.weaponName)}» (${modeName}${e.unprotected?', по незащищённым':''}${mapAttackExtras(e)}${modeTxt}) — к20=${e.roll}${rollsTxt} — `;
     if(e.jammed) body += 'оружие заклинило (нат.13)';
     else if(!e.success) body += 'промах';
     else {
       const hitsTxt = e.hits.map(h=>{
-        const k = h.rolls12 ? `к12=[${h.rolls12.join(', ')}]→${h.k12}` : `к12=${h.k12}`;
+        const k = hitPrefix(h) + (h.rolls12 ? `к12=[${h.rolls12.join(', ')}]→${h.k12}` : `к12=${h.k12}`);
         if(!h.pen) return `${k} не пробило`;
         const bone = h.trauma ? ' ' + traumaIconHtml(e.robot, h.red) : '';
         return `${k} пробило (${h.wounds} ${woundsWord(h.wounds)})${bone}`;
@@ -12794,6 +13099,14 @@ function formatQuickRollEntry(e, undoneAttacks){
     if(undone) body += ' · <b>отменено Мастером</b>';
     return {cls: (e.success && !e.jammed ? 'success' : 'failure') + (undone ? ' undone' : ''),
       html:`<span class="who">${escapeHtml(e.attacker||e.player||'?')}</span><span class="rest">${body}</span>`, undoable: !undone};
+  }
+  if(e.mapManeuver){
+    const undone = undoneAttacks && undoneAttacks.has(e.attackId);
+    const md = e.mode==='advantage' ? ', Упрощённо' : e.mode==='disadvantage' ? ', Осложнённо' : '';
+    const rollsTxt = e.rolls && e.rolls.length>1 ? ` [${e.rolls.join(', ')}]` : '';
+    const body = `🤼 → ${escapeHtml(e.target)}: ${MANEUVER_WHAT[e.mv]}${md}${e.sizeCmp>0 ? ' (крупнее цели)' : e.sizeCmp<0 ? ' (мельче цели)' : ''} — к20=${e.roll}${rollsTxt} — ${maneuverOutcome(e)}${undone ? ' · <b>отменено Мастером</b>' : ''}`;
+    return {cls:(e.success ? 'success' : 'failure') + (undone ? ' undone' : ''),
+      html:`<span class="who">${escapeHtml(e.attacker||e.player||'?')}</span><span class="rest">${body}</span>`, undoable:!undone};
   }
   if(e.mapGrenade){
     const undone = undoneAttacks && undoneAttacks.has(e.attackId);
@@ -12879,7 +13192,7 @@ function renderRollLogEntry(e, undoneAttacks){
   if(e.kind!=='quick' && logDetailed()){ const d = detailedRegularEntry(e); if(d) return d; }
   if(e.kind==='quick'){
     const f = formatQuickRollEntry(e, undoneAttacks);
-    const canUndo = (e.mapAttack || e.mapGrenade) && f.undoable && session.role==='gm' && typeof GameTable!=='undefined' && GameTable.canUndoAttack(e.attackId);
+    const canUndo = (e.mapAttack || e.mapGrenade || e.mapManeuver) && f.undoable && session.role==='gm' && typeof GameTable!=='undefined' && GameTable.canUndoAttack(e.attackId);
     const undoBtn = canUndo ? `<button type="button" class="small log-undo" data-undo-attack="${escapeHtml(e.attackId)}" title="Отменить эту атаку: вернуть раны и травмы">↶</button>` : '';
     return `<div class="roll-log-entry ${f.cls}${e.secret ? ' secret' : ''}">${e.secret ? f.html.replace('<span class="rest">', '<span class="rest">🤫 ') : f.html}${undoBtn}</div>`;
   }
@@ -15051,7 +15364,7 @@ function handleIncomingMessage(msg){
   } else if(msg.type==='roll-sec'){
     // Мастер допустил к порогам во время сессии — пороги уже прошедших атак
     if(fromGm && Array.isArray(msg.list)){ let n = 0; msg.list.slice(0, 200).forEach(x=>{ const e = x && session.log.find(y=>y.id===x.id);
-      if(e && (e.mapAttack || e.mapGrenade) && x.sec && typeof x.sec==='object'){ e.sec = {max:Math.round(+x.sec.max || 0), max12:x.sec.max12==null ? null : Math.round(+x.sec.max12 || 0)}; n++; } });
+      if(e && (e.mapAttack || e.mapGrenade || e.mapManeuver) && x.sec && typeof x.sec==='object'){ e.sec = {max:Math.round(+x.sec.max || 0), max12:x.sec.max12==null ? null : Math.round(+x.sec.max12 || 0), aim12:x.sec.aim12==null ? null : Math.round(+x.sec.aim12 || 0)}; n++; } });
       if(n){ saveRollLog(); renderRollLog(); } }
   } else if(msg.type==='sheet-restore-none'){
     if(fromGm) uiAlert('У Мастера нет сохранённых копий вашего листа. Создайте персонажа заново или загрузите из файла.', {title:'Вернуть у Мастера', icon:'↩'});
@@ -21249,7 +21562,7 @@ const GameTable = (function(){
   function safeColor(c, d){ return /^#[0-9a-f]{6}$/i.test(c||'') ? c.toLowerCase() : d; }
 
   // Отметки состояний на жетоне (способности существ, «Бросок цели»): r — осталось кругов, 0 — пока не снимут
-  const MARKS = {shock:'Шок', prone:'Сбит с ног', grabbed:'Схвачен', stunned:'Оглушён', blind:'Ослеплён', skipturn:'Пропускает ход', vanished:'Исчез', limit:'На пределе сил', fear:'Испуган',
+  const MARKS = {shock:'Шок', prone:'Сбит с ног', grabbed:'Схвачен', stunned:'Оглушён', blind:'Ослеплён', skipturn:'Пропускает ход', vanished:'Исчез', limit:'На пределе сил', fear:'Испуган', cover:'В укрытии', parry:'Парирует',
     exhausted:'Истощён', immobile:'Обездвижен', dead:'Погиб'}; // последние три — таблица травм и поломок (23-trauma-table.js), истощение существ
   function sanitizeToken(t){
     t = t || {};
@@ -21296,6 +21609,9 @@ const GameTable = (function(){
         if(/^[А-Яа-яЁё]{1,4}$/.test(k) && isFinite(v)) out.defenseSubs[k] = clamp(v, 0, 99);
       });
       out.armorName = String(t.armorName||'').slice(0,80);
+      // защита по зонам, вписанная Мастером (жетон без карточки или поправка к карточке): {golova:5, ruki:0, …}
+      out.zoneDef = {};
+      Object.keys((t.zoneDef && typeof t.zoneDef==='object') ? t.zoneDef : {}).forEach(k=>{ const v = Math.round(num(t.zoneDef[k], NaN)); if(ARMOR_ZONES.indexOf(k)>=0 && isFinite(v)) out.zoneDef[k] = clamp(v, 0, 99); });
       out.weaponText = String(t.weaponText||'').slice(0,400);
       out.unprotectedMod = Math.round(clamp(num(t.unprotectedMod,-6), -30, 30));
       out.strength = Math.round(clamp(num(t.strength,3), 0, 20)); // сила NPC — для условных черт оружия («если сила 4+, то пул» и т.п.)
@@ -21306,7 +21622,7 @@ const GameTable = (function(){
     }
     return out;
   }
-  const SECRET_TOKEN_FIELDS = ['defense','defenseSubs','armorName','attackMod','attackModEnabled','unprotectedMod','traumaThreshold','weaponText','strength','reflexes','grenade','atkSkill','creature'];
+  const SECRET_TOKEN_FIELDS = ['defense','defenseSubs','zoneDef','armorName','attackMod','attackModEnabled','unprotectedMod','traumaThreshold','weaponText','strength','reflexes','grenade','atkSkill','creature'];
   function publicToken(t){ const o = Object.assign({}, t); SECRET_TOKEN_FIELDS.forEach(k=>{ delete o[k]; });
     // ОЗ жетона Мастера скрыты (по умолчанию): игрокам — только доля для кольца, без числа и максимума
     if(t.kind==='gm' && !t.hpShown && t.hp!==null && t.hp!==undefined){ o.hpFrac = hpFraction(t.hp, t.hpMax); o.hp = null; o.hpMax = null; }
@@ -21604,7 +21920,7 @@ const GameTable = (function(){
         if(!t) return deny('Жетон не найден');
         const patch = {};
         ['name','hp','hpMax','hpShown','size','color','hidden','avatar','rotation','marks','nature',
-         'defense','defenseSubs','armorName','weaponText','attackMod','attackModEnabled','unprotectedEnabled','unprotectedMod','traumaThreshold','trauma','traumaRed','strength','slowReaction','burning','reflexes','grenade','atkSkill','creature']
+         'defense','defenseSubs','zoneDef','armorName','weaponText','attackMod','attackModEnabled','unprotectedEnabled','unprotectedMod','traumaThreshold','trauma','traumaRed','strength','slowReaction','burning','reflexes','grenade','atkSkill','creature']
           .forEach(k=>{ if(cmd.patch && k in cmd.patch) patch[k] = cmd.patch[k]; });
         ops.push({op:'token-upsert', token:sanitizeToken(Object.assign({}, t, patch))});
         break;
@@ -21659,6 +21975,7 @@ const GameTable = (function(){
     renderTokens();
     requestRender({draw, bg, fx:true});
     if(ops.some(op=>op.op==='combat-set')) renderCombat();
+    if(ops.some(op=>op.op==='combat-set' && !op.combat)) firstDmgSeen = {}; // бой закончен — «первый урон в бою» снова доступен
     if(typeof Bestiary!=='undefined') Bestiary.onTableChanged(); // открытая карточка существа — свежие ОЗ, травмы, оружие
   }
   // Своё действие: авторитет применяет сразу, игрок отправляет Мастеру
@@ -21750,10 +22067,12 @@ const GameTable = (function(){
         if(role()!=='gm' || !from || !msg.req || typeof msg.req!=='object') return;
         const res = resolveAttack(msg.req, from);
         if(!res.ok){ sendMsg({type:'gt-reject', reason:res.reason}, from); return; }
-        sendMsg({type:'gt-attack-result', attackId:String(msg.req.attackId), success:res.success, jammed:res.jammed, speedUsed:res.speedUsed}, from);
+        sendMsg({type:'gt-attack-result', attackId:String(msg.req.attackId), success:res.success, jammed:res.jammed, speedUsed:res.speedUsed,
+          extra:(res.extra || []).map(x=>({weaponIdx:x.weaponIdx, ok:!!x.ok, speedUsed:!!x.speedUsed, reason:String(x.reason || '').slice(0, 120)}))}, from);
         break;
       }
-      case 'gt-attack-result': if(fromGm(msg)) afterAttackResult(String(msg.attackId), {success:!!msg.success, jammed:!!msg.jammed, speedUsed:!!msg.speedUsed}); break;
+      case 'gt-attack-result': if(fromGm(msg)) afterAttackResult(String(msg.attackId), {success:!!msg.success, jammed:!!msg.jammed, speedUsed:!!msg.speedUsed,
+        extra:(Array.isArray(msg.extra) ? msg.extra : []).slice(0, 4).map(x=>({weaponIdx:x && (x.weaponIdx===0 || x.weaponIdx===1) ? x.weaponIdx : null, ok:!!(x && x.ok), speedUsed:!!(x && x.speedUsed), reason:String(x && x.reason || '').slice(0, 120)}))}); break;
     }
   }
 
@@ -21919,7 +22238,7 @@ const GameTable = (function(){
       el.classList.toggle('cb-noact', !!cbp && cbp.noAct); }
     const v = vitalsFor(t);
     const pf = portraitFor(t);
-    const key = JSON.stringify([t.name, t.color, t.avatar, pf ? pf.length + pf.slice(-16) : '', t.hp, t.hpMax, t.hpShown, t.hpFrac, isAuthority(), t.kind, t.hidden, t.size, t.rotation, t.trauma, t.traumaRed, t.nature, t.slowReaction, t.burning, JSON.stringify(t.marks || []), v && [v.name, v.hp, v.hpMax, v.psi, v.psiMax]]);
+    const key = JSON.stringify([t.name, t.color, t.avatar, pf ? pf.length + pf.slice(-16) : '', t.hp, t.hpMax, t.hpShown, t.hpFrac, isAuthority(), t.kind, t.hidden, t.size, t.rotation, t.trauma, t.traumaRed, t.nature, t.slowReaction, t.burning, JSON.stringify(t.marks || []), v && [v.name, v.hp, v.hpMax, v.psi, v.psiMax], tokenEncumbrance(t)]); // «Скован» зависит от листа / карточки
     if(el._gtKey===key) return;
     el._gtKey = key;
     const name = tokenName(t, v), sz = SIZE_CELLS[t.size]*CELL;
@@ -21942,11 +22261,24 @@ const GameTable = (function(){
       (t.hidden ? '<i class="gt-hidden-badge" title="Скрыт от игроков">⊘</i>' : '')+
       `<div class="gt-token-label"><b>${escapeHtml(name)}</b>${stats}${traumaBadgesHtml(t)}</div>`;
   }
+  // «Скован»: броня сковывает — у игрока надетая броня из листа, у существа — броня из карточки, у жетона без карточки — броня из
+  // каталога в поле «Броня»; считается при отрисовке там, где лист или карточка известны (у Мастера — всё, у игрока — свой жетон)
+  function tokenEncumbrance(t){
+    if(t.kind==='player') return typeof characterEncumbrance==='function' ? characterEncumbrance(attackerSheet(t)) : null;
+    if(t.creature) return typeof Bestiary!=='undefined' && Bestiary.encumbrance ? Bestiary.encumbrance(t) : null;
+    if(!t.armorName) return null;
+    const nm = String(t.armorName).toLowerCase();
+    for(const gen of Object.values(ITEM_CATALOG)) for(const it of ((gen.categories.armor || {}).items || [])){
+      if(nm.indexOf(it.name.toLowerCase())===0) return armorEncumbers(it.desc, t.strength==null ? 3 : t.strength) ? it.name : null; }
+    return null;
+  }
   // Травмы под жетоном: 🦴N — обычные, красная 🦴M — от оружия с чертой «травма» (см. resolveAttack)
   function traumaBadgesHtml(t){
-    if(!t.trauma && !t.traumaRed && !t.slowReaction && !t.burning && !(t.marks && t.marks.length)) return '';
+    const enc = tokenEncumbrance(t);
+    if(!t.trauma && !t.traumaRed && !t.slowReaction && !t.burning && !(t.marks && t.marks.length) && !enc) return '';
     const rb = tokenNature(t)==='robot';
-    const marks = (t.marks || []).map(m=>`<span class="gt-mark-badge" title="${MARKS[m.k]}${m.r ? ': ещё ' + m.r + ' кр.' : ' — пока не снимут'}">${MARKS[m.k]}${m.r ? ' ' + m.r : ''}</span>`).join('');
+    const marks = (t.marks || []).map(m=>`<span class="gt-mark-badge" title="${MARKS[m.k]}${m.r ? ': ещё ' + m.r + ' кр.' : ' — пока не снимут'}">${MARKS[m.k]}${m.r ? ' ' + m.r : ''}</span>`).join('')
+      + (enc ? `<span class="gt-mark-badge" title="Сковывает: ${escapeHtml(enc)} (сила ниже нужной)">Скован</span>` : '');
     return `<span class="gt-trauma-row">${marks}${t.burning?`<span class="gt-burn-badge" title="Горит (термическая граната): кругов">🔥${t.burning}</span>`:""}${t.slowReaction?'<span class="gt-slow-badge" title="Атакован медленным оружием — может отреагировать">⚡ реакция</span>':''}${t.trauma?`<span title="${rb ? 'Поломки' : 'Травмы'}">${rb ? '🔧' : '🦴'}${t.trauma}</span>`:''}${t.traumaRed?`<span class="bone-red" title="${rb ? 'Поломки' : 'Травмы'} от оружия с чертой «травма»">${rb ? '🔧' : '🦴'}</span><span class="gt-trauma-red-n">${t.traumaRed}</span>`:''}</span>`;
   }
   function refreshTokenPos(id){ const el = tokenEls.get(id), t = tok(id); if(el && t){ positionTokenEl(el, t); el.classList.toggle('dragging', !!dragPos[id]); } }
@@ -22880,6 +23212,8 @@ const GameTable = (function(){
       if(t.kind==='gm') items.push({id:'hide', label:t.hidden ? 'Показать игрокам' : 'Скрыть от игроков', run:()=>act({c:'token-update', id:t.id, patch:{hidden:!t.hidden}})});
       if(typeof Reactions!=='undefined' && Reactions.manualAllowed(t)) items.push({id:'rx', label:'🎞 Реакция…', run:()=>{ const r = viewport.getBoundingClientRect(); Reactions.pickForToken(t.id, r.left + p.x, r.top + p.y); }});
       if(typeof TargetRolls!=='undefined') items.push({id:'tr', label:t.kind==='gm' ? '🎯 Бросок цели…' : '🎯 Потребовать бросок…', run:()=>TargetRolls.open(t.kind==='gm' ? {src:t.id, targets:ids.filter(x=>x!==t.id)} : {targets:ids})});
+      { const cov = (t.marks || []).some(m=>m.k==='cover'); // укрытие: броня «если персонаж в укрытии, то +1 к защите» (characterGearEffects)
+        items.push({id:'cover', label:cov ? '🧱 Вышел из укрытия' : '🧱 В укрытии', run:()=>act({c:'token-update', id:t.id, patch:{marks:cov ? (t.marks || []).filter(m=>m.k!=='cover') : (t.marks || []).concat([{k:'cover', r:0}])}})}); }
       if((t.marks || []).length) items.push({id:'unmark', label:'✕ Снять отметки: ' + t.marks.map(m=>MARKS[m.k].toLowerCase()).join(', '), run:()=>act({c:'token-update', id:t.id, patch:{marks:[]}})});
       items.push('-', {id:'del', label: ids.length>1 ? `Удалить (${ids.length})` : 'Удалить', danger:true, run:()=>deleteTokens(ids)});
       openMenu(p, name, items);
@@ -23005,6 +23339,9 @@ const GameTable = (function(){
       `<div class="gt-f-row"><label class="gt-f">Рефлексы${n('reflexes', cur.reflexes==null?3:cur.reflexes, 0, 20)}</label>`+
       `<label class="gt-f">Граната<select name="grenade"><option value="">— нет —</option>${Object.keys(GRENADE_SPECS).map(k=>`<option value="${k}" ${cur.grenade===k?'selected':''}>${escapeHtml(GRENADE_SPECS[k].name)}</option>`).join('')}</select></label></div>`+
       `<div class="gt-pop-note" data-subs-note>${Object.keys(cur.defenseSubs||{}).length ? 'По типам урона: '+escapeHtml(Object.keys(cur.defenseSubs).map(k=>k+cur.defenseSubs[k]).join(', ')) : ''}</div>`+
+      // защита по зонам для прицельной атаки: пусто — как у карточки существа или как «Защита» (тело)
+      `<div class="gt-pop-note">Защита по зонам (прицельная атака): пусто — ${cur.creature ? 'по броне из карточки' : 'как «Защита»'}.</div><div class="gt-f-row gt-zone-row">${AIM_ZONES.map(z=>
+        `<label class="gt-f">${ARMOR_ZONE_LABELS[z]}<input type="number" name="zone_${z}" min="0" max="99" step="1" placeholder="—" value="${cur.zoneDef && cur.zoneDef[z]!=null ? cur.zoneDef[z] : ''}"></label>`).join('')}</div>`+
       `<label class="gt-f">Модификатор атаки по нему (−18…+18)${n('attackMod', cur.attackMod||0, -18, 18)}</label>`+
       `<div class="gt-f-row" style="align-items:flex-end"><label class="gt-check" style="flex:1"><input type="checkbox" name="unprotectedEnabled" ${cur.unprotectedEnabled?'checked':''}> По незащищённым частям</label>`+
       `<label class="gt-f" style="flex:0 0 70px">мод.${n('unprotectedMod', cur.unprotectedMod==null?-6:cur.unprotectedMod, -30, 30)}</label></div>`+
@@ -23023,6 +23360,7 @@ const GameTable = (function(){
     out.reflexes = int('reflexes', cur.reflexes==null?3:cur.reflexes);
     out.grenade = GRENADE_SPECS[fd.get('grenade')] ? fd.get('grenade') : '';
     out.defenseSubs = subsState.subs;
+    out.zoneDef = {}; AIM_ZONES.forEach(z=>{ const raw = String(fd.get('zone_' + z) || '').trim(), v = parseInt(raw, 10); if(raw!=='' && isFinite(v)) out.zoneDef[z] = v; });
     out.traumaThreshold = int('traumaThreshold', cur.traumaThreshold||5);
     out.unprotectedEnabled = fd.get('unprotectedEnabled')==='on';
     out.unprotectedMod = int('unprotectedMod', -6);
@@ -23518,6 +23856,7 @@ const GameTable = (function(){
   let targeting = null;        // {attackerId, weaponIdx, fireMode, w, cur} — выбор цели на карте
   const lastAttackReqs = {};   // attackId -> {req, from} — для переброса способностями существ (Малая цель, Уход техника СДК…)
   const pendingAttacks = {};   // attackId -> контекст своей атаки (для «Скорости» и переброса после ответа Мастера)
+  let firstDmgSeen = {};       // «первый урон в бою наносит раны N»: атакующий|оружие → уже был (сброс — когда бой трекера закончен)
 
   function npcWeapon(t){ // оружие жетона Мастера выдано Мастером — доступно всегда; условные черты — по силе NPC
     const p = t && t.weaponText ? parseWeaponStats(t.weaponText) : null;
@@ -23561,8 +23900,13 @@ const GameTable = (function(){
     if(!att || !tgt || att.id===tgt.id) return false;
     return isPlayer() ? tgt.kind==='gm' : true;
   }
-  // Известная атакующему часть Максимума (без модификаторов цели)
-  function attackKnownPart(c, w, fireMode, range, optikaOn, isNpc){
+  // Прицельная атака (стр. 39): по части тела −6; урон одного попадания — против защиты этой зоны (у NPC зон нет — защита тела)
+  const AIM_ZONES = ['golova', 'plechi', 'ruki', 'bedra', 'nogi'];
+  // Атака с двумя оружиями (стр. 39): одно действие, каждое оружие проверяется отдельно с −3; «Амбидекстр» 2-го уровня снимает штраф
+  function dualPenalty(c, isNpc){ return !isNpc && c && specTier(c, 'ambidekstr') >= 2 ? 0 : 3; }
+  // Известная атакующему часть Максимума (без модификаторов цели). opts: aim — зона прицельной атаки, dual — атака двумя оружиями
+  function attackKnownPart(c, w, fireMode, range, optikaOn, isNpc, opts){
+    opts = opts || {};
     const tags = [];
     let base;
     if(fireMode==='suppress'){ base = 12; tags.push('Подавляющий огонь: Максимум 12'); }
@@ -23572,8 +23916,12 @@ const GameTable = (function(){
       base = 10 + skillVal + (w.at||0);
       tags.push(isNpc ? `Навык NPC: ${10+skillVal}` : `${STAT_LABELS[sk]||'Навык'}: ${10+skillVal}`, `Ат оружия: ${w.at>=0?'+':''}${w.at}`);
       (w.techNotes||[]).concat((w.condNotes||[]).filter(n=>/Ат/.test(n))).forEach(n=>tags.push(n)); // Ат уже с ними (applyWielder)
+      const fav = !isNpc && c ? favoriteWeaponBonus(c, w) : 0;
+      if(fav){ base += fav; tags.push(`Любимое оружие: +${fav}`); }
       if(fireMode==='burst' && range.meters>12){ base -= 6; tags.push('Очередь дальше 12 м: −6'); }
       if(fireMode==='attack' && w.optika && optikaOn && range.meters>=30){ base += 6; tags.push('Оптика (30 м+): +6'); }
+      if(opts.aim){ base -= 6; tags.push(`Прицельно — ${String(ARMOR_ZONE_LABELS[opts.aim] || opts.aim).toLowerCase()}: −6`); }
+      if(opts.dual){ const p = dualPenalty(c, isNpc); base -= p; tags.push(p ? `Двумя оружиями: −${p}` : 'Двумя оружиями: без штрафа («Амбидекстр»)'); }
     }
     if(range.pen){ base += range.pen; tags.push(`Дистанция ${fmtNum(range.meters)} м: ${range.pen}`); }
     else tags.push(`Дистанция ${fmtNum(range.meters)} м`);
@@ -23646,7 +23994,7 @@ const GameTable = (function(){
     return act({c:'token-create', token:Object.assign({}, fields, {x:sn.x, y:sn.y})});
   }
   function startTargeting(att, weaponIdx, fireMode){
-    const w = fireMode==='grenade' ? grenadeWeapon(att, weaponIdx) : att.kind==='player' ? sheetWeapon(attackerSheet(att), weaponIdx) : npcWeapon(att);
+    const w = fireMode==='grenade' ? grenadeWeapon(att, weaponIdx) : MANEUVERS[fireMode] ? maneuverWeapon(fireMode) : att.kind==='player' ? sheetWeapon(attackerSheet(att), weaponIdx) : npcWeapon(att);
     if(!w){ toast('Нет оружия для атаки'); return; }
     cancelAll();
     targeting = {attackerId:att.id, weaponIdx, fireMode, w, cur:null};
@@ -23667,6 +24015,7 @@ const GameTable = (function(){
     const t = targeting;
     targeting = null; showHint(); requestRender({fx:true});
     if(t.w.grenade) openGrenadePopover(att, tgt, t, range, p);
+    else if(t.w.maneuver) openManeuverPopover(att, tgt, t, range, p);
     else openAttackPopover(att, tgt, t, range, p);
   }
   function openAttackPopover(att, tgt, t, range, p){
@@ -23677,8 +24026,19 @@ const GameTable = (function(){
       ? `<label class="gt-check"><input type="checkbox" name="unprot"> По незащищённым частям${auth ? ` (${tgt.unprotectedMod})` : ''} — защита цели не учитывается</label>` : '';
     const optikaNote = (t.fireMode==='attack' && t.w.optika && att.kind==='player' && range.meters>=30)
       ? '<div class="gt-pop-note">Оптика учтётся, если отмечена на карточке оружия (реакция).</div>' : '';
+    // прицельная атака — по зоне тела (−6); второе оружие — тем же действием (каждому −3); «до N атак одним действием» — серия
+    const aimHtml = t.fireMode==='suppress' ? '' : `<label class="gt-check">🎯 Прицельно: <select name="aim"><option value="">нет — по телу</option>${AIM_ZONES.map(z=>`<option value="${z}">${ARMOR_ZONE_LABELS[z]}</option>`).join('')}</select> −6</label>`;
+    const otherIdx = att.kind==='player' && c && (t.weaponIdx===0 || t.weaponIdx===1) && t.fireMode!=='suppress' ? 1 - t.weaponIdx : null;
+    const other = otherIdx!=null ? sheetWeapon(c, otherIdx) : null, otherOk = !!(other && !weaponBlockedReason(c, otherIdx));
+    const dualWhy = otherOk ? dualWieldBlock(c) : null; // двуручное парой — «Две пушки», размер, сила
+    const dualHtml = !otherOk ? '' : dualWhy ? `<div class="gt-pop-note">⚔⚔ Двумя оружиями нельзя: ${escapeHtml(dualWhy)}.</div>`
+      : `<label class="gt-check"><input type="checkbox" name="dual"> ⚔⚔ Двумя оружиями: ещё «${escapeHtml(other.name)}» — одно действие, каждому ${dualPenalty(c, false) ? '−3' : 'без штрафа («Амбидекстр»)'}</label>`;
+    const apa = t.fireMode==='attack' && t.w.attacksPerAction > 1 ? t.w.attacksPerAction : 0;
+    const multiHtml = !apa ? '' : `<label class="gt-check">Атак этим действием: <select name="multi">${Array.from({length:apa}, (_, i)=>`<option value="${i+1}"${i+1===apa ? ' selected' : ''}>${i+1}</option>`).join('')}</select></label>`;
+    const lineNote = t.w.lineWidth && t.fireMode!=='suppress' ? `<div class="gt-pop-note">Линия шириной ${t.w.lineWidth} м через цель до ${fmtNum(3*(t.w.dl || 0))} м: по каждому жетону на ней (и своим) — отдельная проверка, к20 бросает стол.</div>` : '';
+    const seriesNote = lineNote + (dualHtml || multiHtml ? '<div class="gt-pop-note">Следующие атаки действия бросаются сами (тот же жест — Преимущество/Помеха); переброс — только у первой. Двуручное оружие парой — с «Двумя пушками».</div>' : '');
     const html = `<div class="gt-pop-title">⚔ ${escapeHtml(t.w.name)} → ${escapeHtml(tokenName(tgt, vitalsFor(tgt)))}</div>`+
-      `<div class="gt-pop-note">${escapeHtml(modeName)} · ${fmtNum(range.meters)} м · ${escapeHtml(range.label)}</div>` + optikaNote + unprotHtml +
+      `<div class="gt-pop-note">${escapeHtml(modeName)} · ${fmtNum(range.meters)} м · ${escapeHtml(range.label)}</div>` + optikaNote + unprotHtml + aimHtml + dualHtml + multiHtml + seriesNote +
       `<div class="gt-pop-note">${auth ? 'Модификаторы цели уже в Максимуме.' : 'Модификаторы цели учтёт Мастер — итог появится в общем логе.'}</div>`+
       `<div class="gt-pop-actions"><button type="button" class="small" data-cancel>Отмена</button>`+
       `<button type="button" class="small primary" data-roll title="Нажмите и протяните — как бросок в листе">🎯 Бросок — нажмите и тяните</button></div>`;
@@ -23688,11 +24048,18 @@ const GameTable = (function(){
       const unEl = form.querySelector('[name=unprot]');
       const unprot = !!(unEl && unEl.checked);
       const optikaOn = att.kind==='player' && !!t.w.optika && checkboxOn('weaponOptika' + t.weaponIdx);
-      const known = attackKnownPart(c, t.w, t.fireMode, range, optikaOn, att.kind==='gm');
+      const aimEl = form.querySelector('[name=aim]'), aim = aimEl && AIM_ZONES.indexOf(aimEl.value) >= 0 ? aimEl.value : null;
+      const dualEl = form.querySelector('[name=dual]'), dual = !!(dualEl && dualEl.checked);
+      const multiEl = form.querySelector('[name=multi]'), multi = multiEl ? Math.max(1, Math.min(apa, +multiEl.value || 1)) : 1;
+      const known = attackKnownPart(c, t.w, t.fireMode, range, optikaOn, att.kind==='gm', {aim, dual});
       let knownBase = known.base, tags = known.tags;
       if(auth){ const sec = secretPart(tgt, unprot); knownBase += sec.v; tags = tags.concat(sec.tags);
         const pa = passiveAtk(att, tgt, t.w); if(pa && (pa.mod || pa.tags.length)){ knownBase += pa.mod; tags = tags.concat(pa.tags); } } // Мастер видит полный Максимум
-      _mapAttackCtx = { attackerId:att.id, targetId:tgt.id, weaponIdx:t.weaponIdx, fireMode:t.fireMode, unprotected:unprot, optikaOn,
+      const plan = []; // остальные атаки того же действия: ещё раз тем же оружием («атаковать дважды»), второе оружие
+      for(let i=1;i<multi;i++) plan.push({weaponIdx:t.weaponIdx, fireMode:t.fireMode});
+      if(dual) plan.push({weaponIdx:otherIdx, fireMode:weaponModes(other).some(m=>m[0]===t.fireMode) ? t.fireMode : 'attack'});
+      if(plan.length) tags = tags.concat([`Ещё ${plan.length} ${plan.length===1 ? 'атака' : 'атаки'} этим действием — бросятся сами`]);
+      _mapAttackCtx = { attackerId:att.id, targetId:tgt.id, weaponIdx:t.weaponIdx, fireMode:t.fireMode, unprotected:unprot, optikaOn, aim, dual, plan,
                         knownBase, tags, rerollOf:null };
       closePopover();
       openRollPicker('map_attack', ev.clientX, ev.clientY, 0);
@@ -23702,12 +24069,14 @@ const GameTable = (function(){
   function submitMapAttack(ctx, r){
     if(!ctx) return;
     const req = { attackId:newId('atk'), attackerId:ctx.attackerId, targetId:ctx.targetId, weaponIdx:ctx.weaponIdx, fireMode:ctx.fireMode,
-                  unprotected:!!ctx.unprotected, optikaOn:!!ctx.optikaOn, rolls:r.rolls, mode:r.mode, chosenMod:r.chosenMod, rerollOf:ctx.rerollOf||null };
+                  unprotected:!!ctx.unprotected, optikaOn:!!ctx.optikaOn, aim:ctx.aim||null, dual:!!ctx.dual, parryItem:ctx.parryItem||null,
+                  rolls:r.rolls, mode:r.mode, chosenMod:r.chosenMod, rerollOf:ctx.rerollOf||null };
     const att = tok(ctx.attackerId);
-    if(att && att.kind==='player'){
-      const c = attackerSheet(att), slot = c && c.weapons && c.weapons[ctx.weaponIdx];
-      req.speedAvailable = !!(slot && slot.skorost && slot.speedBonusAvailable);
-    }
+    const speedOf = (idx)=>{ const c = att && att.kind==='player' ? attackerSheet(att) : null, slot = c && c.weapons && c.weapons[idx]; return !!(slot && slot.skorost && slot.speedBonusAvailable); };
+    if(att && att.kind==='player') req.speedAvailable = speedOf(ctx.weaponIdx);
+    // остальные атаки того же действия: к20 бросаются здесь же, тем же режимом жеста (переброс — только первой атаки)
+    if(ctx.plan && ctx.plan.length && !ctx.rerollOf) req.series = ctx.plan.slice(0, 3).map(s=>({ weaponIdx:s.weaponIdx, fireMode:s.fireMode,
+      rolls: r.mode==='plain' ? [randInt(20)] : [randInt(20), randInt(20)], speedAvailable:speedOf(s.weaponIdx) }));
     pendingAttacks[req.attackId] = Object.assign({}, ctx, {chosenMod:r.chosenMod, mode:r.mode});
     if(isAuthority()){
       const res = resolveAttack(req, null);
@@ -23735,9 +24104,14 @@ const GameTable = (function(){
     let changed = false;
     if(res.speedUsed && slot && slot.speedBonusAvailable){ slot.speedBonusAvailable = false; changed = true; }
     if(slot && slot.odnozaryadnoe && slot.loaded!==false){ slot.loaded = false; changed = true; } // выстрел разрядил однозарядное
+    (res.extra || []).forEach(x=>{ // остальные атаки того же действия (второе оружие, «атаковать дважды»)
+      const s2 = character.weapons && character.weapons[x.weaponIdx];
+      if(!x.ok){ if(x.reason) toast(`${s2 && s2.name ? '«' + s2.name + '»: ' : ''}${x.reason}`); return; }
+      if(x.speedUsed && s2 && s2.speedBonusAvailable){ s2.speedBonusAvailable = false; changed = true; }
+      if(s2 && s2.odnozaryadnoe && s2.loaded!==false){ s2.loaded = false; changed = true; } });
     if(changed) renderAll();
     if(!res.jammed){
-      _mapAttackCtx = Object.assign({}, ctx, {rerollOf:attackId});
+      _mapAttackCtx = Object.assign({}, ctx, {rerollOf:attackId, plan:null}); // переброс — только этой атаки, без остальных атак серии
       showRerollPopup('map_attack', ctx.chosenMod||0, ctx.mode);
     }
   }
@@ -23755,7 +24129,7 @@ const GameTable = (function(){
     const has = (c && (c.abilities || []).some(a=>re.test(a.text || ''))) || (att && att.creature && (att.creature.abil || []).some(a=>re.test(a[1] || '')));
     return has && w && w.dl!=null ? 11 : 12; }
   function noteTraumas(tgt, hits, head, redAll){ if(typeof TraumaTable==='undefined' || !tgt || tgt.kind!=='gm') return;
-    TraumaTable.noteHits(tgt.id, hits.filter(x=>x.trauma).map(x=>({head:x.k12 >= head, red:!!(redAll || x.red)}))); }
+    TraumaTable.noteHits(tgt.id, hits.filter(x=>x.trauma).map(x=>({head:x.k12 >= head || !!x.headAim, red:!!(redAll || x.red)}))); } // headAim — прицельное в голову
   function applyHitsTo(id, h){
     const tgt = tok(id); if(!tgt || !isAuthority() || !(h && h.n > 0)) return null;
     let pa = null; try{ pa = typeof AbilityKit!=='undefined' ? AbilityKit.hitPassives(tgt) : null; }catch(e){ console.warn('[Способности]', e); }
@@ -23794,6 +24168,50 @@ const GameTable = (function(){
   // (Мастер/локальный стол) Итог атаки. from — id игрока для его атаки, пусто — своя.
   function resolveAttack(req, from){
     if(req && req.fireMode==='grenade') return resolveGrenade(req, from);
+    if(req && MANEUVERS[req.fireMode]) return resolveManeuver(req, from);
+    const res = resolveOne(req, from, 0);
+    if(!res.ok) return res;
+    // остальные атаки того же действия — отдельными записями в логе (своя отмена у каждой): ещё раз тем же оружием, пока
+    // позволяет «за одно действие может атаковать дважды / до трёх атак», и второе оружие при атаке двумя оружиями
+    const att = authState.tokens[req.attackerId];
+    let same = 0, others = 0, speedSpent = !!res.speedUsed;
+    res.extra = [];
+    (Array.isArray(req.series) ? req.series : []).slice(0, 3).forEach((x, i)=>{
+      if(!x || typeof x!=='object') return;
+      const idx = att && att.kind==='player' ? (x.weaponIdx===0 || x.weaponIdx===1 ? x.weaponIdx : -1) : null;
+      if(idx===-1) return;
+      const isSame = idx===(att && att.kind==='player' ? req.weaponIdx : null);
+      if(isSame ? ++same > Math.max(0, (res.w.attacksPerAction || 1) - 1) : (!req.dual || ++others > 1)) return;
+      if(!isSame){ // второе оружие: двуручное парой — «Две пушки», размер 1+, сила (dualWieldBlock)
+        const cAtt = from ? (session.players[from] && session.players[from].character) : attackerSheet(att), why = cAtt ? dualWieldBlock(cAtt) : null;
+        if(why){ res.extra.push({weaponIdx:idx, ok:false, success:false, jammed:false, speedUsed:false, reason:why}); return; } }
+      const sub = Object.assign({}, req, {attackId:String(req.attackId || '').slice(0, 60) + '~' + (i + 2), weaponIdx:idx, fireMode:x.fireMode, rolls:x.rolls,
+        rerollOf:null, series:null, speedAvailable:!!x.speedAvailable && !(isSame && speedSpent)});
+      const r = resolveOne(sub, from, i + 2);
+      if(r.speedUsed && isSame) speedSpent = true;
+      res.extra.push({weaponIdx:idx, ok:!!r.ok, success:!!r.success, jammed:!!r.jammed, speedUsed:!!r.speedUsed, reason:r.ok ? '' : r.reason});
+    });
+    // «Шрапнельная пушка»: «проверьте атаку по каждой цели на линии шириной 3 м» — линия от атакующего через цель до предела
+    // дальности (3×Дл); каждый жетон на ней (и свои тоже) — отдельная проверка: к20 бросает стол тем же режимом жеста, дистанция
+    // и защита у каждого свои. Переброс первой атаки линию заново не бросает.
+    if(res.w.lineWidth && att && !req.rerollOf && req.fireMode!=='suppress'){
+      const t0 = authState.tokens[req.targetId], dx = t0.x - att.x, dy = t0.y - att.y, len = Math.hypot(dx, dy) || 1, ux = dx/len, uy = dy/len;
+      const maxCells = 3*(res.w.dl || 0)/METERS_PER_CELL, half = res.w.lineWidth/2/METERS_PER_CELL;
+      const mode = req.mode==='advantage' || req.mode==='disadvantage' ? req.mode : 'plain';
+      Object.values(authState.tokens).filter(t=>t.id!==att.id && t.id!==t0.id).map(t=>{ const px = t.x - att.x, py = t.y - att.y;
+        return {t, along:px*ux + py*uy, across:Math.abs(px*uy - py*ux)}; })
+        .filter(x=>x.along > 0 && x.along <= maxCells && x.across < half + (SIZE_CELLS[x.t.size||'normal'] || 1)/2 - 1e-6) // только касается края — не задет
+        .sort((a, b)=>a.along - b.along).slice(0, 12).forEach((x, i)=>{
+          const sub = Object.assign({}, req, {attackId:String(req.attackId || '').slice(0, 60) + '~L' + (i + 1), targetId:x.t.id, aim:null, series:null, rerollOf:null,
+            rolls: mode==='plain' ? [randInt(20)] : [randInt(20), randInt(20)], speedAvailable:false});
+          resolveOne(sub, from, 0, {anyTarget:true, line:true}); });
+    }
+    return res;
+  }
+  // Одна атака оружием с карты. seriesNo — номер атаки в серии одного действия (0 — первая, 2, 3… — остальные);
+  // opts.anyTarget — цель выбрал стол (линия шрапнели): можно и свой жетон, и скрытый (имя в логе — «???»)
+  function resolveOne(req, from, seriesNo, opts){
+    opts = opts || {};
     const s = authState;
     const att = s.tokens[req.attackerId], tgt = s.tokens[req.targetId];
     if(!att || !tgt || att.id===tgt.id) return {ok:false, reason:'Атакующий или цель не найдены'};
@@ -23802,7 +24220,7 @@ const GameTable = (function(){
     let c = null, w = null, attackerName;
     if(from){
       if(!(att.kind==='player' && att.ownerId===from)) return {ok:false, reason:'Атаковать можно только своим жетоном'};
-      if(tgt.kind!=='gm' || tgt.hidden) return {ok:false, reason:'Эту цель атаковать нельзя'};
+      if(!opts.anyTarget && (tgt.kind!=='gm' || tgt.hidden)) return {ok:false, reason:'Эту цель атаковать нельзя'};
       const p = session.players[from]; c = p && p.character;
       if(!c) return {ok:false, reason:'Мастеру ещё не пришёл ваш лист'};
       w = sheetWeapon(c, req.weaponIdx);
@@ -23823,17 +24241,21 @@ const GameTable = (function(){
     if(fireMode!=='attack' && !w.avtomat) return {ok:false, reason:'У оружия нет автоматического огня'};
     const range = rangeInfo(att, tgt, w);
     if(!range.ok) return {ok:false, reason:'Цель ' + range.label};
-    const mode = (req.mode==='advantage' || req.mode==='disadvantage') ? req.mode : 'plain';
-    const rolls = (Array.isArray(req.rolls) ? req.rolls : []).slice(0, mode==='plain' ? 1 : 2).map(v=>Math.round(num(v,0)));
+    let mode = (req.mode==='advantage' || req.mode==='disadvantage') ? req.mode : 'plain';
+    let rolls = (Array.isArray(req.rolls) ? req.rolls : []).slice(0, mode==='plain' ? 1 : 2).map(v=>Math.round(num(v,0)));
     if(!rolls.length || rolls.some(v=>v<1 || v>20) || (mode!=='plain' && rolls.length<2)) return {ok:false, reason:'Некорректный бросок'};
     const chosenMod = Math.round(clamp(num(req.chosenMod,0), -30, 30));
+    // цель парировала этого противника: его рукопашные атаки по ней в этом ходу Осложнены (нет второго к20 — бросает стол)
+    const parried = w.dl==null && parryActive(tgt.id, att.id);
+    if(parried){ mode = mode==='advantage' ? 'plain' : 'disadvantage'; rolls = mode==='plain' ? rolls.slice(0, 1) : rolls.length < 2 ? [rolls[0], randInt(20)] : rolls; }
     if(req.rerollOf){ // переброс: прежняя атака этого же атакующего отменяется целиком
       const prev = attackRecords.find(r=>r.attackId===req.rerollOf);
       if(prev && prev.attackerOwner===(from||null)) undoAttack(prev.attackId, true);
     }
     const pa = passiveAtk(att, tgt, w, true) || {mod:0, tags:[], adj:{}, adjAll:0, shield:false, defMod:0, muMod:0, firstDmg:0, catPlus:0};
-    const fullMax = attackKnownPart(c, w, fireMode, range, !!req.optikaOn, att.kind==='gm').base + chosenMod + secretPart(tgt, !!req.unprotected).v + pa.mod;
-    let max12Shown = null; // для подробного вида лога (пороги видят только допущенные Мастером)
+    const aim = fireMode!=='suppress' && AIM_ZONES.indexOf(req.aim) >= 0 ? req.aim : null;
+    const fullMax = attackKnownPart(c, w, fireMode, range, !!req.optikaOn, att.kind==='gm', {aim, dual:!!req.dual}).base + chosenMod + secretPart(tgt, !!req.unprotected).v + pa.mod;
+    let max12Shown = null, aim12Shown = null; // для подробного вида лога (пороги видят только допущенные Мастером)
     const roll = pickD20ForMode(rolls[0], rolls[1], fullMax, mode);
     const ev = evaluateD20Check(roll, fullMax);
     if(ev.success && pa.catPlus) ev.category += pa.catPlus; // «Мастер»: успешная атака из ружья — категория выше
@@ -23846,18 +24268,50 @@ const GameTable = (function(){
       const targetHp = tgt.kind==='gm' ? tgt.hp : (tSheet ? tSheet.hpCurrent : null); // для «раны 6, если у цели 10+ ОЗ»
       const plan = weaponHitPlan(Object.assign({}, w, {speedBonusAvailable:!!req.speedAvailable}), fireMode, roll, ev.category, {targetHp});
       speedUsed = plan.speedUsed;
-      const max12 = (w.mu||0) + (pa.muMod||0) - (unprotected ? 0 : targetDefense(tgt, w.muType) + (pa.defMod||0)); max12Shown = max12; // усиления: МУ атакующего, защита цели
-      const thr = tgt.kind==='player' ? 5 : (tgt.traumaThreshold || 5);
+      // защитные вещи листов: у цели — входящие, у атакующего — свои исходящие (characterGearEffects): «Кинетический щит» — МУ
+      // −[попадания атаки], «Генератор щита» — МУ −4 при стрельбе энергией/температурой/взрывом; у цели ещё «Гаситель кинетики»
+      // (раны −1 с попадания) и броня «в укрытии +1 к защите» (отметка «В укрытии» на жетоне)
+      const ranged = w.dl!=null, gearT = tgt.kind==='player' ? characterGearEffects(tSheet) : null, gearA = att.kind==='player' ? characterGearEffects(c) : null;
+      const gearMu = (type)=>{ let v = 0; [gearA, gearT].forEach(g=>{ if(!g) return; if(g.kinetic) v += plan.hits; if(g.shieldGen && ranged && type && g.shieldGen.types.indexOf(String(type).toLowerCase()) >= 0) v += g.shieldGen.v; }); return v; };
+      [[gearA, 'свой'], [gearT, 'у цели']].forEach(([g, who])=>{ if(!g) return;
+        if(g.kinetic) pa.tags.push(`${g.kinetic} (${who}): МУ −${plan.hits}`);
+        if(g.shieldGen && ranged && w.muType && g.shieldGen.types.indexOf(String(w.muType).toLowerCase()) >= 0) pa.tags.push(`${g.shieldGen.name} (${who}): МУ −${g.shieldGen.v}`); });
+      const inCover = (tgt.marks || []).some(m=>m.k==='cover');
+      const coverDef = !inCover ? 0 : gearT ? gearT.coverDef : (tgt.creature && typeof Bestiary!=='undefined' ? Bestiary.coverBonus(tgt) : 0);
+      if(coverDef) pa.tags.push(`броня цели в укрытии: защита +${coverDef}`);
+      if(gearT && gearT.woundsMinus) pa.tags.push(`${gearT.woundsMinusName}: раны −${gearT.woundsMinus} с попадания`);
+      // защита зоны: у персонажа — надетая на зону броня, у существа — броня из карточки (Bestiary.zoneDefense), у жетона без
+      // карточки — его защита
+      const zoneDef = (type, zone)=>{ if(tgt.kind==='player') return characterZoneDefense(tSheet, zone, type);
+        if(tgt.zoneDef && tgt.zoneDef[zone]!=null) return tgt.zoneDef[zone]; // вписано Мастером в форме жетона
+        const z = typeof Bestiary!=='undefined' ? Bestiary.zoneDefense(tgt, zone, type) : null; return z==null ? targetDefense(tgt, type) : z; };
+      const defOf = (type, zone)=>unprotected ? 0 : (zone ? zoneDef(type, zone) : targetDefense(tgt, type) + coverDef) + (pa.defMod||0);
+      const muBase = (w.mu||0) + (w.muPlusCat ? ev.category : 0) + (pa.muMod||0) - gearMu(w.muType); // «МУ[15+категория успеха]»; усиления атакующего
+      const max12 = muBase - defOf(w.muType); max12Shown = max12;
+      const aim12 = aim ? muBase - defOf(w.muType, aim) : null; aim12Shown = aim12; // прицельное — одно попадание, по защите зоны
+      const thr = tgt.kind==='player' ? 5 : (tgt.traumaThreshold || 5), nature = tokenNature(tgt);
+      // «Первый урон (в бою) наносит раны N»: в бою — один раз на атакующего и оружие, пока идёт бой трекера
+      const fwKey = att.id + '|' + w.name, fwOk = !!(w.firstWounds && (!w.firstWounds.perFight || !firstDmgSeen[fwKey]));
+      const adjFor = (type)=>pa.adjAll + (pa.adj[String(type || '').toLowerCase()] || 0) - (gearT ? gearT.woundsMinus : 0);
       for(let i=0;i<plan.hits;i++){
+        const m12 = aim && i===0 ? aim12 : max12;
         const rolls12 = Array.from({length:plan.rollsPerHit}, ()=>randInt(12));
-        const fits = rolls12.filter(k=>k<=max12);
-        const pen = max12>=1 && fits.length>0;
+        const fits = rolls12.filter(k=>k<=m12);
+        const pen = m12>=1 && fits.length>0;
         const k12 = pen ? Math.max(...fits) : Math.max(...rolls12); // «Пул»: лучший — наибольший, что ещё пробивает
-        const h = {k12, pen, wounds: pen ? plan.woundsFor(k12) : 0, trauma: pen && k12>thr && tokenNature(tgt)!=='void', red:false};
+        const h = {k12, pen, wounds: pen ? plan.woundsFor(k12) : 0, trauma: pen && k12>thr && nature!=='void', red:false};
         h.red = h.trauma && !!w.travma;
         if(plan.pulShot) h.rolls12 = rolls12;
-        if(h.pen){ const d = pa.adjAll + (pa.adj[String(w.muType || '').toLowerCase()] || 0) + (pa.firstDmg && !hits.some(x=>x.pen) ? pa.firstDmg : 0); if(d) h.wounds = Math.max(0, h.wounds + d); } // раны: способности цели и атакующего
+        if(aim && i===0){ h.aim = true; if(aim==='golova') h.headAim = true; }
+        const firstPen = h.pen && !hits.some(x=>x.pen && !x.zap);
+        if(firstPen && fwOk){ h.wounds = Math.max(h.wounds, w.firstWounds.wounds); if(w.firstWounds.perFight) firstDmgSeen[fwKey] = true; }
+        if(h.pen){ const d = adjFor(w.muType) + (pa.firstDmg && firstPen ? pa.firstDmg : 0); if(d) h.wounds = Math.max(0, h.wounds + d); } // раны: способности цели и атакующего, «Гаситель»
         hits.push(h);
+        if(w.zap){ // «каждое попадание даёт разряд с МУ14 энергия, раны 2» — отдельный к12 против защиты от его типа
+          const z12 = w.zap.mu - gearMu(w.zap.muType) - defOf(w.zap.muType, aim && i===0 ? aim : null), k = randInt(12), zp = z12>=1 && k<=z12;
+          const zh = {k12:k, pen:zp, wounds:zp ? Math.max(0, Math.max(1, w.zap.wounds) + adjFor(w.zap.muType)) : 0, trauma:zp && k>thr && nature!=='void', red:false, zap:true};
+          hits.push(zh);
+        }
       }
       if(pa.shield && hits.length > 1){ const k = randInt(12), drop = Math.min(k, hits.length - 1); hits.splice(hits.length - drop, drop); pa.tags.push(`щит: к12=${k}, отменено ${drop}`); }
       if(pa.ignore && hits.length){ hits.length = 0; pa.tags.push('атака проигнорирована (сценарная броня)'); }
@@ -23867,7 +24321,8 @@ const GameTable = (function(){
     const total = hits.reduce((a,h)=>a+h.wounds, 0);
     const traumaN = hits.filter(h=>h.trauma && !h.red).length, traumaRedN = hits.filter(h=>h.red).length;
     noteTraumas(tgt, hits, headFrom(att, w), false);
-    const targetName = tokenName(tgt, vitalsFor(tgt));
+    const hiddenLine = !!(opts.anyTarget && tgt.hidden), targetName = hiddenLine ? '???' : tokenName(tgt, vitalsFor(tgt));
+    if(hiddenLine){ const real = tokenName(tgt, vitalsFor(tgt)); pa.tags.push(`скрытая цель: ${real}`); if(role()==='gm' || !session.gmId) toast(`Шрапнель задела скрытого: ${real} — ${total} ${woundsWord(total)}`); }
     const rec = { attackId, attackerOwner: from||null, targetId:tgt.id, targetKind:tgt.kind, ownerId:tgt.ownerId||null,
                   total, traumaN, traumaRedN, hpApplied:false, label:`${attackerName} → ${targetName}, «${w.name}»: ${total} ${woundsWord(total)}`, undone:false };
     const patch = {};
@@ -23888,17 +24343,29 @@ const GameTable = (function(){
     if(Object.keys(patch).length) execCommand({c:'token-update', id:tgt.id, patch});
     attackRecords.push(rec); saveAttackRecords();
     recordAndShareQuickRoll({ mapAttack:true, attackId, attacker:attackerName, target:targetName, weaponName:w.name, fireMode, rolls, roll, mode,
-                              success:ev.success, category:ev.category, jammed, unprotected, slow:!!w.slow, hits, total, robot:tokenNature(tgt)==='robot', sec:{max:fullMax, max12:max12Shown}, pnote:pa.tags.join('; ') });
+                              success:ev.success, category:ev.category, jammed, unprotected, slow:!!w.slow, hits, total, robot:tokenNature(tgt)==='robot',
+                              aim, dual:!!req.dual, series:seriesNo || 0, line:!!opts.line, parried, sec:{max:fullMax, max12:max12Shown, aim12:aim12Shown}, pnote:pa.tags.join('; ') });
     if(att.kind==='player' && !ev.success) if(typeof GmAdvice!=='undefined') GmAdvice.event('miss'); // промах атаки игрока
     if(typeof Reactions!=='undefined') Reactions.trigger(roll===12 ? 'crit' : (roll===13 && !ev.success) ? 'fumble' : ev.success ? 'hit' : 'miss', att.id);
     lastAttackReqs[attackId] = {req, from:from || null};
     if(typeof AbilityKit!=='undefined') setTimeout(()=>{ try{ AbilityKit.onAttack({attackId, attackerId:att.id, targetId:tgt.id, roll, success:ev.success, jammed, total, fromPlayer:!!from || att.kind==='player'}); }catch(e){ console.warn('[Способности]', e); } }, 0);
-    return {ok:true, success:ev.success, jammed, speedUsed};
+    return {ok:true, success:ev.success, jammed, speedUsed, w};
   }
   function undoAttack(attackId, asReroll){
     if(!isAuthority()) return;
     const rec = attackRecords.find(r=>r.attackId===attackId);
     if(!rec || rec.undone) return;
+    if(rec.maneuver){ // манёвр: вернуть отметку «Схвачен» как было
+      const tg = rec.markOn && authState.tokens[rec.markOn];
+      if(tg) execCommand({c:'token-update', id:tg.id, patch:{marks:(tg.marks || []).filter(m=>m.k!=='grabbed')}});
+      const at = rec.markOff && authState.tokens[rec.markOff];
+      if(at && !(at.marks || []).some(m=>m.k==='grabbed')) execCommand({c:'token-update', id:at.id, patch:{marks:(at.marks || []).concat([{k:'grabbed', r:0}])}});
+      if(rec.moved && authState.tokens[rec.moved.id]) execCommand({c:'token-move', moves:[{id:rec.moved.id, x:rec.moved.x, y:rec.moved.y}]}); // толчок — жетон обратно
+      if(rec.parryOn){ delete parryVs[rec.parryOn]; const pt = authState.tokens[rec.parryOn]; if(pt) execCommand({c:'token-update', id:pt.id, patch:{marks:(pt.marks || []).filter(m=>m.k!=='parry')}}); } // парирование
+      rec.undone = true; saveAttackRecords();
+      recordAndShareQuickRoll({mapAttackUndo:true, attackId, text: rec.label + (asReroll ? ' (переброс)' : '')});
+      return;
+    }
     if(rec.victims){ // граната: откатываем каждого задетого
       rec.victims.forEach(v=>{
         const t = authState.tokens[v.targetId];
@@ -23929,6 +24396,154 @@ const GameTable = (function(){
     recordAndShareQuickRoll({mapAttackUndo:true, attackId, text: rec.label + (asReroll ? ' (переброс)' : '')});
   }
   function canUndoAttack(id){ return isAuthority() && attackRecords.some(r=>r.attackId===id && !r.undone); }
+
+  /* ---------- манёвры: схватить, толкнуть, освободиться (стр. 39) ----------
+     Действием — Бросок силы против силы или рефлексов цели (на её выбор — берётся большее). Крупнее цели — Упрощённо, мельче —
+     Осложнённо (складывается с Преимуществом/Помехой жеста). Успех: «схватить» — отметка «Схвачен» (обездвижена, может говорить,
+     освобождаться и Осложнённо делать простые действия одной рукой), «освободиться» — отметка снимается, «толкнуть» — жетон
+     цели отлетает на 3 м от толкающего (отмена ↶ возвращает). Цель «освободиться» — тот, кто держит.
+     Парирование (стр. 39) — реакция: Бросок архаичного оружия (10 + навык + Пр оружия или щита; −3 непредназначенным предметом,
+     −6 крошечным) против рукопашной атаки противника. Успех — его рукопашные атаки по персонажу в этом ходу Осложнены (до конца
+     круга трекера, без боя — 2 минуты): parryVs, отметка «Парирует». Цель манёвра — противник, чью атаку парируют. */
+  const MANEUVERS = {grab:'Схватить', push:'Толкнуть', escape:'Освободиться из захвата', parry:'Парировать'};
+  const parryVs = {}; // жетон, который парировал → {by: id противника, round, at}
+  function parryActive(defId, attId){ const p = parryVs[defId]; if(!p || p.by!==attId) return false;
+    const cb = authState.combat; return cb ? p.round===cb.round : Date.now() - p.at < 120000; }
+  // Чем парировать: оружие ближнего боя с Пр (слоты листа / оружие NPC), щиты из инвентаря («Пр +3»), непредназначенный или крошечный предмет
+  function parryOptions(c, t){
+    const out = [], sg = (n)=>(n >= 0 ? '+' : '−') + Math.abs(n);
+    if(t.kind==='player' && c){
+      [0, 1].forEach(i=>{ const w = sheetWeapon(c, i); if(w && w.dl==null && w.pr!=null) out.push({key:'w' + i, label:`«${w.name}» (Пр ${sg(w.pr)})`, mod:w.pr}); });
+      ['on_body','pockets','backpack','tiny'].forEach(cat=>((c.inventory && c.inventory[cat]) || []).forEach(it=>{
+        const m = /щит/i.test(String(it.name).split(' — ')[0]) && /(?:^|[\s,.;—])Пр\s*([+−-])\s*(\d+)/.exec(it.name);
+        if(m) out.push({key:'sh:' + it.id, label:`«${String(it.name).split(' — ')[0]}» (Пр ${m[1]==='+' ? '+' : '−'}${m[2]})`, mod:(m[1]==='+' ? 1 : -1)*(+m[2])}); }));
+    } else if(t.kind==='gm'){ const w = npcWeapon(t); if(w && w.dl==null && w.pr!=null) out.push({key:'w', label:`«${w.name}» (Пр ${sg(w.pr)})`, mod:w.pr}); }
+    out.push({key:'improper', label:'Непредназначенный предмет (−3)', mod:-3}, {key:'tiny', label:'Крошечный предмет (−6)', mod:-6});
+    return out;
+  }
+  function parryKnownPart(c, att, key){
+    const all = parryOptions(c, att), opt = all.find(o=>o.key===key) || all[0];
+    const w = att.kind==='gm' ? npcWeapon(att) : null;
+    const sk = att.kind==='player' ? ((c && c.stats && +c.stats.arhaichnoe_oruzhie) || 0) : (w && w.npcSkill!=null ? w.npcSkill : 3);
+    return {base:10 + sk + opt.mod, tags:[`Архаичное оружие: ${10 + sk}`, `${opt.label.replace(/\s*\([^)]*\)$/, '')}: ${opt.mod >= 0 ? '+' : '−'}${Math.abs(opt.mod)}`], key:opt.key};
+  }
+  function maneuverWeapon(kind){ return {name:MANEUVERS[kind], maneuver:kind, dl:null}; }
+  function tokenStat(t, key){
+    if(t.kind==='player'){ const c = attackerSheet(t); return c && c.stats ? (+c.stats[key] || 0) : 0; }
+    if(t.creature && typeof TargetRolls!=='undefined') return TargetRolls.npcStat(t, key);
+    return key==='sila' ? (t.strength==null ? 3 : +t.strength) : key==='refleksy' ? (t.reflexes==null ? 3 : +t.reflexes) : 3;
+  }
+  // размер для сравнения: у игрока — из листа, у существа — «Размер» карточки, иначе по клеткам жетона
+  function tokenBulk(t){
+    if(t.kind==='player'){ const c = attackerSheet(t); if(c && isFinite(+c.size)) return +c.size; }
+    if(t.creature && t.creature.rz!=null && isFinite(+t.creature.rz)) return +t.creature.rz;
+    return {small:-2, normal:0, large:2, huge:4}[t.size || 'normal'] || 0;
+  }
+  function maneuverSizeCmp(att, tgt){ const a = tokenBulk(att), b = tokenBulk(tgt); return a > b ? 1 : a < b ? -1 : 0; }
+  function maneuverKnownPart(c, att){ const s = att.kind==='player' ? (c && c.stats ? +c.stats.sila || 0 : 0) : tokenStat(att, 'sila'); return {base:10 + s, tags:[`Сила: ${10 + s}`]}; }
+  function maneuverSecretPart(tgt){ const ts = tokenStat(tgt, 'sila'), tr = tokenStat(tgt, 'refleksy'), v = Math.max(ts, tr);
+    return {v:-v, tags:[`${ts >= tr ? 'Сила' : 'Рефлексы'} цели: −${v}`]}; }
+  function openManeuverPopover(att, tgt, t, range, p){
+    const c = att.kind==='player' ? attackerSheet(att) : null, kind = t.w.maneuver, auth = isAuthority(), cmp = maneuverSizeCmp(att, tgt);
+    if(kind==='parry'){
+      const opts = parryOptions(c, att);
+      const html = `<div class="gt-pop-title">🛡 Парировать атаку: ${escapeHtml(tokenName(tgt, vitalsFor(tgt)))}</div>`+
+        `<div class="gt-pop-note">Реакция. Бросок архаичного оружия против рукопашной атаки этого противника. Успех — все его рукопашные атаки по вам в этом ходу Осложнены.</div>`+
+        `<label class="gt-f">Чем парировать<select name="parryItem">${opts.map(o=>`<option value="${escapeHtml(o.key)}">${escapeHtml(o.label)}</option>`).join('')}</select></label>`+
+        `<div class="gt-pop-actions"><button type="button" class="small" data-cancel>Отмена</button>`+
+        `<button type="button" class="small primary" data-roll title="Нажмите и протяните — как бросок в листе">🛡 Бросок — нажмите и тяните</button></div>`;
+      const form = openPopover(p, html, ()=>false);
+      form.querySelector('[data-roll]').addEventListener('pointerdown', (ev)=>{
+        ev.preventDefault();
+        const known = parryKnownPart(c, att, form.querySelector('[name=parryItem]').value);
+        _mapAttackCtx = { attackerId:att.id, targetId:tgt.id, weaponIdx:null, fireMode:'parry', parryItem:known.key, label:'Парирование', formula:'10 + архаичное оружие + Пр (непредназначенный предмет −3, крошечный −6)',
+                          knownBase:known.base, tags:known.tags, rerollOf:null };
+        closePopover();
+        openRollPicker('map_attack', ev.clientX, ev.clientY, 0);
+      });
+      return;
+    }
+    const what = kind==='grab' ? 'Успех — цель схвачена: обездвижена, простые действия одной рукой Осложнены, пока не освободится.'
+      : kind==='push' ? 'Успех — цель отлетает на 3 м от вас (жетон сдвинется сам).' : 'Успех — отметка «Схвачен» снимается. Цель — тот, кто держит.';
+    const html = `<div class="gt-pop-title">🤼 ${escapeHtml(MANEUVERS[kind])} → ${escapeHtml(tokenName(tgt, vitalsFor(tgt)))}</div>`+
+      `<div class="gt-pop-note">Действие. Бросок силы против силы или рефлексов цели (что у неё выше). ${escapeHtml(what)}</div>`+
+      `<div class="gt-pop-note">${cmp > 0 ? 'Вы крупнее цели — Упрощённо' : cmp < 0 ? 'Вы мельче цели — Осложнённо' : 'Размеры равны'} — ${auth ? 'стол учтёт сам' : 'учтёт Мастер'}.${auth ? ' Сила или рефлексы цели уже в Максимуме.' : ' Характеристику цели учтёт Мастер — итог появится в общем логе.'}</div>`+
+      `<div class="gt-pop-actions"><button type="button" class="small" data-cancel>Отмена</button>`+
+      `<button type="button" class="small primary" data-roll title="Нажмите и протяните — как бросок в листе">🤼 Бросок — нажмите и тяните</button></div>`;
+    const form = openPopover(p, html, ()=>false);
+    form.querySelector('[data-roll]').addEventListener('pointerdown', (ev)=>{
+      ev.preventDefault();
+      const known = maneuverKnownPart(c, att);
+      let knownBase = known.base, tags = known.tags;
+      if(auth){ const sec = maneuverSecretPart(tgt); knownBase += sec.v; tags = tags.concat(sec.tags); }
+      else tags = tags.concat(['− сила или рефлексы цели (учтёт Мастер)']);
+      if(cmp) tags = tags.concat([cmp > 0 ? 'Крупнее цели: Упрощённо (добавит стол)' : 'Мельче цели: Осложнённо (добавит стол)']);
+      _mapAttackCtx = { attackerId:att.id, targetId:tgt.id, weaponIdx:null, fireMode:kind, label:`Манёвр: ${MANEUVERS[kind]}`, formula:'10 + сила − (сила или рефлексы цели, что выше); крупнее — Упрощённо, мельче — Осложнённо',
+                        knownBase, tags, rerollOf:null };
+      closePopover();
+      openRollPicker('map_attack', ev.clientX, ev.clientY, 0);
+    });
+  }
+  // (Мастер/локальный стол) Итог манёвра: отметка «Схвачен» ставится или снимается сразу, отмена ↶ в логе возвращает как было
+  function resolveManeuver(req, from){
+    const s = authState, kind = req.fireMode;
+    const att = s.tokens[req.attackerId], tgt = s.tokens[req.targetId];
+    if(!att || !tgt || att.id===tgt.id) return {ok:false, reason:'Участники манёвра не найдены'};
+    const attackId = String(req.attackId||'').slice(0,64);
+    if(!attackId || attackRecords.some(r=>r.attackId===attackId)) return {ok:false, reason:'Повтор манёвра'};
+    let c = null, attackerName;
+    if(from){
+      if(!(att.kind==='player' && att.ownerId===from)) return {ok:false, reason:'Действовать можно только своим жетоном'};
+      if(tgt.kind!=='gm' || tgt.hidden) return {ok:false, reason:'Эту цель выбрать нельзя'};
+      const p = session.players[from]; c = p && p.character;
+      if(!c) return {ok:false, reason:'Мастеру ещё не пришёл ваш лист'};
+      attackerName = playerDisplayName(p) || att.name || 'Игрок';
+    } else if(att.kind==='gm'){
+      attackerName = att.hidden ? '???' : (att.name || 'NPC');
+    } else {
+      if(att.ownerId!==myOwnerId()) return {ok:false, reason:'Жетоном игрока действует сам игрок'};
+      c = attackerSheet(att);
+      if(!c) return {ok:false, reason:'Нет листа персонажа'};
+      attackerName = tokenName(att, vitalsFor(att));
+    }
+    if(kind==='escape' && !(att.marks || []).some(m=>m.k==='grabbed')) return {ok:false, reason:'Жетон не схвачен — освобождаться не от чего'};
+    const range = rangeInfo(att, tgt, maneuverWeapon(kind));
+    if(!range.ok) return {ok:false, reason:'Цель ' + range.label};
+    const pmode = (req.mode==='advantage' || req.mode==='disadvantage') ? req.mode : 'plain';
+    let rolls = (Array.isArray(req.rolls) ? req.rolls : []).slice(0, pmode==='plain' ? 1 : 2).map(v=>Math.round(num(v,0)));
+    if(!rolls.length || rolls.some(v=>v<1 || v>20) || (pmode!=='plain' && rolls.length<2)) return {ok:false, reason:'Некорректный бросок'};
+    const chosenMod = Math.round(clamp(num(req.chosenMod,0), -30, 30));
+    if(req.rerollOf){ const prev = attackRecords.find(r=>r.attackId===req.rerollOf); if(prev && prev.attackerOwner===(from||null)) undoAttack(prev.attackId, true); }
+    const fullMax = kind==='parry' ? parryKnownPart(c, att, String(req.parryItem || '')).base + chosenMod : maneuverKnownPart(c, att).base + chosenMod + maneuverSecretPart(tgt).v;
+    // Упрощение/Осложнение: жест игрока и разница в размере складываются и гасят друг друга; не хватает второго к20 — бросает стол
+    const sizeCmp = kind==='parry' ? 0 : maneuverSizeCmp(att, tgt), score = (pmode==='advantage' ? 1 : pmode==='disadvantage' ? -1 : 0) + sizeCmp;
+    const mode = score > 0 ? 'advantage' : score < 0 ? 'disadvantage' : 'plain';
+    if(mode==='plain') rolls = rolls.slice(0, 1); else if(rolls.length < 2) rolls = [rolls[0], randInt(20)];
+    const roll = pickD20ForMode(rolls[0], rolls[1], fullMax, mode);
+    const ev = evaluateD20Check(roll, fullMax);
+    const targetName = tokenName(tgt, vitalsFor(tgt));
+    const rec = { attackId, attackerOwner: from||null, targetId:tgt.id, targetKind:tgt.kind, ownerId:tgt.ownerId||null, total:0, traumaN:0, traumaRedN:0, hpApplied:false,
+                  label:`${attackerName} → ${targetName}: ${MANEUVERS[kind].toLowerCase()}`, undone:false, maneuver:kind, markOn:null, markOff:null };
+    if(ev.success && kind==='grab' && !(tgt.marks || []).some(m=>m.k==='grabbed')){
+      execCommand({c:'token-update', id:tgt.id, patch:{marks:(tgt.marks || []).concat([{k:'grabbed', r:0}])}}); rec.markOn = tgt.id; }
+    if(ev.success && kind==='escape'){ execCommand({c:'token-update', id:att.id, patch:{marks:(att.marks || []).filter(m=>m.k!=='grabbed')}}); rec.markOff = att.id; }
+    if(ev.success && kind==='push'){ // «толкнуть»: цель отлетает на 3 м (клетку) от толкающего — по ближайшему из 8 направлений сетки
+      const dx = tgt.x - att.x, dy = tgt.y - att.y, len = Math.hypot(dx, dy) || 1, step = Math.max(1, Math.round(3/METERS_PER_CELL));
+      const sx = Math.round(dx/len), sy = Math.round(dy/len), to = snapPos(tgt.x + (sx || (sy ? 0 : 1))*step, tgt.y + sy*step, tgt.size || 'normal');
+      rec.moved = {id:tgt.id, x:tgt.x, y:tgt.y};
+      execCommand({c:'token-move', moves:[{id:tgt.id, x:to.x, y:to.y}]});
+    }
+    if(ev.success && kind==='parry'){ // парировал: рукопашные атаки этого противника по нему Осложнены до конца хода (круга)
+      parryVs[att.id] = {by:tgt.id, round:authState.combat ? authState.combat.round : null, at:Date.now()}; rec.parryOn = att.id;
+      execCommand({c:'token-update', id:att.id, patch:{marks:(att.marks || []).filter(m=>m.k!=='parry').concat([{k:'parry', r:1}])}});
+      const cb = authState.combat; if(cb && cb.parts && cb.parts[att.id] && !cb.parts[att.id].react){ const c1 = clone(cb); c1.parts[att.id].react = true; setCombat(c1); } // реакция потрачена
+    }
+    attackRecords.push(rec); saveAttackRecords();
+    recordAndShareQuickRoll({ mapManeuver:true, attackId, attacker:attackerName, target:targetName, mv:kind, rolls, roll, mode, sizeCmp,
+                              success:ev.success, category:ev.category, sec:{max:fullMax} });
+    lastAttackReqs[attackId] = {req, from:from || null};
+    return {ok:true, success:ev.success, jammed:false, speedUsed:false};
+  }
 
   /* ---------- гранаты (см. GRENADE_SPECS) ---------- */
   function grenadeWeaponByKey(key, sila){
@@ -24117,7 +24732,7 @@ const GameTable = (function(){
       else if(!w) items.push({id:'atk_none', label:'⚔ Атаковать… (задайте оружие в «Изменить»)', run:()=>openTokenForm(t, null, p)});
       else weaponModes(w).forEach(([m, label])=>items.push({id:'atk_'+m, label:`⚔ ${w.name}: ${label}`, run:()=>startTargeting(t, null, m)}));
       if(t.grenade && GRENADE_SPECS[t.grenade]) items.push({id:'atk_grenade', label:`💣 Метнуть: ${GRENADE_SPECS[t.grenade].name}`, run:()=>startTargeting(t, null, 'grenade')});
-      return items;
+      return items.concat(maneuverItems(t));
     }
     if(t.ownerId!==myOwnerId()) return items;
     const c = attackerSheet(t);
@@ -24134,7 +24749,14 @@ const GameTable = (function(){
     Object.keys(seen).forEach(k=>{ const g = seen[k];
       items.push({id:'atk_gr_'+k, label:`💣 Метнуть: ${g.first.name} (×${g.n})`, run:()=>startTargeting(t, g.first.itemId, 'grenade')}); });
     if(!items.length) items.push({id:'atk_none', label:'⚔ Атаковать… (экипируйте оружие в листе)', run:()=>{}});
-    return items;
+    return items.concat(maneuverItems(t));
+  }
+  // «Схватить», «Толкнуть», а схваченному — «Освободиться» (см. манёвры выше)
+  function maneuverItems(t){
+    const out = [{id:'mv_grab', label:'🤼 Схватить…', run:()=>startTargeting(t, null, 'grab')}, {id:'mv_push', label:'🤼 Толкнуть…', run:()=>startTargeting(t, null, 'push')},
+      {id:'mv_parry', label:'🛡 Парировать… (реакция)', run:()=>startTargeting(t, null, 'parry')}];
+    if((t.marks || []).some(m=>m.k==='grabbed')) out.unshift({id:'mv_escape', label:'🤼 Освободиться из захвата…', run:()=>startTargeting(t, null, 'escape')});
+    return out;
   }
 
   /* ---------- сцены (экран Мастера): снимок стола без жетонов игроков и включение снимка одной командой ---------- */
@@ -24809,7 +25431,8 @@ const Bestiary = (function(){
       abil:[['Головоногий гибрид', 'реакцией шаман может с хрустом на 10 минут поглотить хрящи, кости и плоть своего куато, наращивая поверх головы (включая шлем) пучок толстых трёхметровых щупалец. Щупальца способны бегать, цепляться за стены и потолки, перенося свисающее вниз тело шамана паукообразным образом, Упрощая проверки акробатики и захвата. Кроме того, они бесконтрольно атакуют каждое существо, которое впервые за круг оказывается в пределах их досягаемости и которое шаман расценивает как враждебное — цель совершает Бросок рефлексов (−9), получая 2 попадания с МУ 13, удар, раны 3. Атаки щупалец не зависят от дееспособности шамана и продолжаются, пока не окончится эффект или пока ОЗ шамана не станет −3 и ниже.'],
             ['Мастер плоти', 'владеет способностями сумка плоти, ритуал вживления, заговор плоти, ритуал куато (см. стр. 118).'],
             ['Мутация куато', 'небольшой и уродливый сиамский близнец на теле. Прикрывает жреца пси-щитом (см. стр. 193) с Максимумом 16, при успехе щит расходуется до конца дня.'],
-            ['Ужасный морок Нара', 'как морок Нара (см. способности Изувера-аколита Нара), но накладывается сразу на 2 цели.']] },
+            ['Ужасный морок Нара', 'как морок Нара (см. способности Изувера-аколита Нара), но накладывается сразу на 2 цели.']],
+      gear:[KOSTYUM_CHU] }, // защита 2 — тот же костюм из веток чу, что у аколита (решение Мастера)
 
     { id:'sv_vizgun', name:'Визгун (оружие одичалых)', group:G_SV, faction:'Одичалые',
       desc:'Мутированный псионик-раб клана Ок’х’ыфаг (Кормящие Духов). Визгунов создают через ритуал: их опаивают смесью из синего шляпника и псевдокорня забывших, вгоняя в бесконечную агонию путём череды мучительных смертей. В конечной стадии визгун представляет собой пси-мутанта с деградировавшим сознанием. У всех визгунов устоявшиеся увечья: удалённые и зашитые глазницы, а рот стянут кляпом. Их держат в защитных паланкинах или шкафах, которые таскает расчёт из наводчика и четырёх рядовых одичалых.',
@@ -25652,6 +26275,7 @@ const Bestiary = (function(){
     tpl.tables.forEach((tb, i)=>{ if(tb.kind!=='armor') return; const sel = inst.tbl[i], row = sel && tb.rows[sel.idx]; if(!row) return;
       const a = itemsIn(row[1]).find(it=>it.kind==='armor'); if(!a) return; const pd = parseDef(a.stats.replace(/^.*?защита/i, '')); def = pd.def; subs = pd.subs; armorName = cap(a.name); });
     tpl.chances.forEach((c, i)=>{ if(inst.ch[i] && c[3] && c[3].def!=null){ def = c[3].def; subs = {}; armorName = ''; } });
+    if(inst.armorOff){ def = 0; subs = {}; armorName = ''; } // «сделать нулевой» в карточке (броня паланкина разбита и т.п.)
     (tpl.extra || []).forEach(g=>itemsIn(g).forEach(it=>{ // броня из каталога на торс / всё тело — заменяет защиту жетона
       if(it.kind!=='armor' || !/торс|вс[её] тело/i.test(it.stats)) return;
       const pd = parseDef(it.stats.replace(/^.*?защита/i, '')); def = pd.def; subs = pd.subs; armorName = cap(it.name); }));
@@ -25660,6 +26284,44 @@ const Bestiary = (function(){
             strength:Math.max(0, Math.min(20, statFrom(tpl.body, 'сила'))), reflexes:Math.max(0, Math.min(20, statFrom(tpl.body, 'рефлексы'))),
             attackMod:tpl.quick ? -(inst.strong ? 6 : tpl.pen) : 0};
   }
+  // Броня существа по зонам тела (прицельная атака, стр. 39) — как у персонажа: предметы «[защита N (…) / зоны / …]» из снаряжения,
+  // выбранной строки таблицы брони и добавленного из каталога; «У шлема защита N (…)» после предмета — у головы. Зона не подписана —
+  // по каталогу предметов или по названию (armorZonesGuess). Шанс «нет никакой брони» — его защита везде. Предметов брони нет
+  // (пустоты, звери: «Защита 5», «0 (Уд 6)») — защита карточки на всё тело. null — жетон без карточки (зон не знаем).
+  function armorLines(tpl){
+    const inst = tpl.inst || {}, lines = (tpl.gear || []).concat(tpl.extra || []).map(String);
+    (tpl.tables || []).forEach((tb, i)=>{ if(tb.kind!=='armor') return; const sel = inst.tbl && inst.tbl[i], row = sel && tb.rows[sel.idx]; if(row) lines.push(String(row[1])); });
+    return lines;
+  }
+  function zoneDefense(t, zone, muType){
+    const tpl = t && t.creature; if(!tpl) return null;
+    const inst = tpl.inst || {}, ch = (tpl.chances || []).find((c, i)=>inst.ch && inst.ch[i] && c[3] && c[3].def!=null);
+    if(inst.armorOff) return 0;
+    if(ch) return ch[3].def;
+    let best = null, any = false;
+    armorLines(tpl).forEach(line=>itemsIn(line).forEach(it=>{
+      if(it.kind!=='armor') return; any = true;
+      const st = it.stats.replace(/^.*?защита/i, ''), zones = parseArmorZones('Защита' + st + ']');
+      if((zones.length ? zones : armorZonesGuess(it.name)).indexOf(zone) < 0) return;
+      const pd = parseDef(st); let d = defenseAgainst(pd.def, pd.subs, muType);
+      if(zone==='golova'){ const h = /^[^\[]*?У шлема защита\s*(\d+)\s*(\([^)]*\))?/i.exec(line.slice(it.end)); if(h){ const hp = parseDef(h[1] + ' ' + (h[2] || '')); d = defenseAgainst(hp.def, hp.subs, muType); } }
+      if(best===null || d > best) best = d; }));
+    if(best!==null) return best;
+    if(!any){ const pd = parseDef(tpl.def); return defenseAgainst(pd.def, pd.subs, muType); }
+    return 0; // броня есть, но эту зону не закрывает
+  }
+  // броня существа, которая его сковывает (armorEncumbers, сила жетона): название или null — пометка «Скован» под жетоном
+  function encumbrance(t){
+    const tpl = t && t.creature; if(!tpl) return null;
+    const inst = tpl.inst || {};
+    if(inst.armorOff || (tpl.chances || []).some((c, i)=>inst.ch && inst.ch[i] && c[3] && c[3].def!=null)) return null; // брони нет
+    const sila = t.strength==null ? statFrom(tpl.body, 'сила') : +t.strength; let hit = null;
+    armorLines(tpl).some(line=>{ const a = itemsIn(line).find(it=>it.kind==='armor'); if(!a || !armorEncumbers(line, sila)) return false; hit = cap(a.name); return true; });
+    return hit;
+  }
+  // броня существа «если персонаж в укрытии, то +1 к защите» — с отметкой «В укрытии» на жетоне
+  function coverBonus(t){ const tpl = t && t.creature; if(!tpl) return 0; let v = 0;
+    armorLines(tpl).forEach(line=>{ const m = /в укрытии,?\s*то\s*\+\s*(\d+)\s*к защите/i.exec(line); if(m) v = Math.max(v, +m[1]); }); return v; }
   function makeTokenFields(tpl, tokens){
     let n = 0;
     Object.values(tokens||{}).forEach(t=>{ if(t.creature && t.creature.id===tpl.id){ const m = String(t.name||'').match(/(\d+)\)?\s*$/); n = Math.max(n, m ? +m[1] : 1); } });
@@ -25847,7 +26509,7 @@ const Bestiary = (function(){
         ${tokenNature(tok)==='void' ? '<span class="bst-sep"></span><span class="bst-muted" title="У пустот травм не бывает">без травм</span>' : `<span class="bst-sep"></span><span title="${tokenNature(tok)==='robot' ? 'Поломки' : 'Травмы'}">${tokenNature(tok)==='robot' ? '🔧' : '🦴'}</span> <b>${tok.trauma||0}</b><button type="button" class="bst-mini" data-act="tr" data-d="1">+</button><button type="button" class="bst-mini" data-act="tr" data-d="-1">−</button>`}</div>
       <div class="bst-inst-row"><label class="bst-chk"><input type="checkbox" data-act="bodrost" ${inst.bodrost ? 'checked' : ''}> Бодрость</label>
         ${c.quick ? `<label class="bst-chk"><input type="checkbox" data-act="strong" ${inst.strong ? 'checked' : ''}> Сильная сторона / невыгодная позиция (Помеха 6)</label>` : ''}
-        <span class="bst-muted">Защита ${tok.defense||0}${subs ? ' (' + esc(subs) + ')' : ''} · в руке: ${esc(w)}</span></div>
+        <span class="bst-muted">Защита ${tok.defense||0}${subs ? ' (' + esc(subs) + ')' : ''} · в руке: ${esc(w)}</span>${inst.armorOff || /\([^)]*брон[^)]*\)/i.test(c.def || '') ? ` <button type="button" class="bst-mini" data-act="armor-off" title="Защита существа ${inst.armorOff ? 'снова по карточке' : 'становится 0 (броня разбита, снята)'}">${inst.armorOff ? 'вернуть защиту' : 'сделать нулевой'}</button>` : ''}</div>
       ${inst.ozText && /к/.test(inst.ozText) ? `<div class="bst-muted">ОЗ брошены: ${esc(inst.ozText)}</div>` : ''}
       ${typeof TraumaTable!=='undefined' ? TraumaTable.cardHtml(tok) : ''}
       <div class="bst-inst-row">${c.quick ? '' : '<button type="button" class="bst-mini" data-act="reroll-all" title="Заново бросить снаряжение и шансы">🎲 Снаряжение заново</button>'}
@@ -25921,6 +26583,7 @@ const Bestiary = (function(){
     const keep = t.weaponText;
     const refit = (c, inst)=>{ const f = combatFields(c, inst, keep); delete f.attackMod; return f; };
     if(act==='chance'){ patchCreature(t, (c, inst)=>{ inst.ch[+b.dataset.i] = !inst.ch[+b.dataset.i]; }, refit); return; }
+    if(act==='armor-off'){ patchCreature(t, (c, inst)=>{ inst.armorOff = !inst.armorOff; }, refit); return; }
     if(act==='tbl-roll'){ patchCreature(t, (c, inst)=>{ const tb = c.tables[+b.dataset.i], res = rollTable(tb); inst.tbl[+b.dataset.i] = res; note(`🎲 к${tb.die} = ${res.roll}`); }, (c, inst)=>{ const f = combatFields(c, inst); delete f.attackMod; return f; }); return; }
     if(act==='tbl-pick'){ patchCreature(t, (c, inst)=>{ const i = +b.dataset.i, ri = +b.dataset.r, g = rangeOf(c.tables[i].rows[ri][0]); inst.tbl[i] = {roll:g ? g[0] : 0, idx:ri}; }, (c, inst)=>{ const f = combatFields(c, inst); delete f.attackMod; return f; }); return; }
     if(act==='reroll-all'){ patchCreature(t, (c, inst)=>{ const fresh = makeInstance(c); inst.tbl = fresh.tbl; inst.ch = fresh.ch; }, (c, inst)=>{ const f = combatFields(c, inst); delete f.attackMod; return f; }); return; }
@@ -26108,12 +26771,12 @@ const Bestiary = (function(){
     return `${signed(base)} (${10 + base}): ${diff.length ? sheetStatList(c, diff) : 'нет'}.`;
   }
   const itemName = (s)=>cap(String(s || '').split(/\s+—\s+|[,;(]/)[0].trim()); // «Огниво и 2 факела, горят 15 минут…» → «Огниво и 2 факела»
-  // строка оружия книги: Максимум атаки = 10 + навык боя + Ат (если в тексте его ещё нет)
+  // строка оружия книги: Максимум атаки = 10 + навык боя + Ат (если в тексте его ещё нет), «Любимое оружие» +3 — сразу в Максимуме
   function sheetWeaponLine(c, text){
     const p = parseWeaponStats(text); if(!p) return null;
-    const sk = weaponCombatSkill({name:p.cleanName, dl:p.dl, sl:p.sl}), v = sk ? (c.stats[sk] || 0) : 0;
+    const wq = {name:p.cleanName, dl:p.dl, sl:p.sl}, sk = weaponCombatSkill(wq), v = sk ? (c.stats[sk] || 0) : 0, fav = favoriteWeaponBonus(c, wq);
     let st = p.statText.replace(/\[/g, '(').replace(/\]/g, ')').replace(/\.\s*$/, '');
-    if(!/Ат\s*[+−-]\s*\d+\s*\(\d+\)/.test(st)) st = st.replace(WEAPON_AT_RE, (m)=>`${m} (${10 + v + p.at})`);
+    if(!/Ат\s*[+−-]\s*\d+\s*\(\d+\)/.test(st)) st = st.replace(WEAPON_AT_RE, (m)=>`${m} (${10 + v + fav + p.at})`);
     if(p.pr!=null && !/Пр\s*[+−-]\s*\d+\s*\(\d+\)/.test(st)) st = st.replace(WEAPON_PR_RE, (m)=>`${m} (${10 + v + p.pr})`);
     return `${cap(p.cleanName)} [${st}]`;
   }
@@ -26131,7 +26794,7 @@ const Bestiary = (function(){
     const name = String(hint.name || c.name || '').trim() || 'Персонаж';
     const arch = typeof ARCHETYPES!=='undefined' && ARCHETYPES[c.archetypeKey], sub = arch && arch.subtypes && arch.subtypes[c.subtypeKey];
     const origin = typeof ORIGINS!=='undefined' && ORIGINS[c.originKey], career = typeof CAREERS!=='undefined' && CAREERS[c.careerKey];
-    const hp = 3 + (st.vynoslivost || 0) + (c.size || 0) + (c.bonusHpMax || 0), psi = 3 + (st.duh || 0) + (c.bonusPsiMax || 0), la = st.legkaya_atletika || 0;
+    const hp = hpMax(Object.assign({bonusHpMax:0}, c, {stats:Object.assign({vynoslivost:0}, st), size:c.size || 0})), psi = 3 + (st.duh || 0) + (c.bonusPsiMax || 0), la = st.legkaya_atletika || 0;
     // защита: лучшая надетая броня на торсе
     let def = null;
     items.forEach(it=>{ if(!it.wornZones || it.wornZones.indexOf('tors') < 0) return; const a = parseArmorStats(it.name); if(a && (!def || a.base > def.base)) def = a; });
@@ -26450,7 +27113,7 @@ const Bestiary = (function(){
     if(sb) sb.addEventListener('click', ()=>fromSheet(typeof character!=='undefined' ? character : null, {name:(document.getElementById('fName') || {}).value, player:(document.getElementById('fPlayer') || {}).value})); }
   return { init, setVisible, refreshRole, onTableShown, onTableChanged, toggleDock, openFloat, closeFloat,
            tokenWeapons:(t)=>t && t.creature ? instWeapons(t.creature, t.creature.inst) : [], get dockOpen(){ return !!prefs.dock; },
-           list:all, byId, makeTokenFields, sanitizeTpl, parseDef, itemsIn, selId:()=>prefs.sel, fromSheet, sheetToTpl, refreshFloat:()=>{ renderFloat(); try{ render(); }catch(e){} } };
+           list:all, byId, makeTokenFields, sanitizeTpl, parseDef, itemsIn, zoneDefense, coverBonus, encumbrance, selId:()=>prefs.sel, fromSheet, sheetToTpl, refreshFloat:()=>{ renderFloat(); try{ render(); }catch(e){} } };
 })();
 try{ Bestiary.init(); }catch(e){ console.error('[Бестиарий] не удалось запустить', e);
   const v = document.getElementById('bestiaryTabView');
@@ -29241,7 +29904,7 @@ const TableLive = (function(){
     if(e.kind==='quick'){
       const f = formatQuickRollEntry(e), d = document.createElement('div'); d.innerHTML = f.html;
       const who = (d.querySelector('.who') || {}).textContent || e.player || '?', rest = txt((d.querySelector('.rest') || {}).innerHTML || '');
-      const d20 = e.mapAttack || e.mapGrenade || e.diceType==='d20';
+      const d20 = e.mapAttack || e.mapGrenade || e.mapManeuver || e.diceType==='d20';
       const big = e.loot ? '⛏' : e.initiative ? '⚔' : e.itemCheck ? '' : (d20 || e.mode==='max') ? e.roll : (e.sum!=null ? e.sum : '');
       const n13 = d20 && e.roll===13 && (e.jammed || e.success===false || e.outcome==='none');
       return {who, text:rest, big, cls:f.cls, nat:d20 && e.roll===12 ? 12 : n13 ? 13 : 0};
@@ -29382,8 +30045,8 @@ const Chronicle = (function(){
     if(!e || e.mapAttackUndo || e.weaponHits || e.chat || e.secretStub) return;
     let line = ''; try{ const d = document.createElement('div'); d.innerHTML = renderRollLogEntry(e, null);
       const w = d.querySelector('.who'), r = d.querySelector('.rest'); line = w && r ? `${strip(w.innerHTML)}: ${strip(r.innerHTML)}` : strip(d.innerHTML); }catch(err){ return; }
-    const k = e.mapAttack || e.mapGrenade ? 'atk' : e.loot ? 'loot' : e.initiative ? 'init' : 'roll';
-    const d20 = e.kind!=='quick' || e.mapAttack || e.mapGrenade || e.diceType==='d20';
+    const k = e.mapAttack || e.mapGrenade || e.mapManeuver ? 'atk' : e.loot ? 'loot' : e.initiative ? 'init' : 'roll';
+    const d20 = e.kind!=='quick' || e.mapAttack || e.mapGrenade || e.mapManeuver || e.diceType==='d20';
     const n = d20 && e.roll===12 ? 12 : d20 && e.roll===13 && (e.success===false || e.jammed || e.outcome==='none') ? 13 : 0;
     add(k, line, n);
   }
@@ -31440,6 +32103,12 @@ const AbilityKit = (function(){
     const out = [], S = sentences(t); let m;
     if(rs && rs.scope==='hits_all') out.push({id:'rerollHits', label:'↻ переброс: все к12 своей атаки (после попадания)'});
     if(rs && (rs.scope==='hits_note' || rs.scope==='other')) out.push({id:'rerollNote', label:'↻ переброс по условию — решает Мастер', cond:rs.cond});
+    // «Любимое оружие»: +3 к атаке оружием своей категории — считают лист и стол (favoriteWeaponBonus); «(уже учтено)» — числа уже в листе
+    if((m = /Атака\s+оружием\s+категории\s+«([^»]+)»\s+получает\s+модификатор\s+\+\s*(\d+)/i.exec(t))) out.push({id:'favWeapon', v:+m[2], label:`+${m[2]} к атаке: ${m[1].toLowerCase()}`});
+    else if(/\(уже учтено/i.test(t)) out.push({id:'applied', label:'учтено в листе'});
+    // «Умелый стрелок»: «(макс. +5)» — точка внутри скобок рвёт предложение, поэтому — по всему тексту
+    if((m = /следующая\s+стрелковая\s+атака\s+по\s+одной\s+цели[^;]*?накопительн\S*\s+модификатор\s+\+\s*1\s*\(\s*макс\S*\s*\+\s*(\d+)/i.exec(t)) && !S.some(sn=>/следующая\s+стрелковая\s+атака[^.]*\(\s*макс\S*\s*\+\s*\d+/i.test(sn)))
+      out.push({id:'stackAim', max:+m[1], label:`+1 за каждую следующую стрельбу по той же цели (до +${m[1]})`});
     const UNCOND = /(?:^|[^а-яё])(?:если|когда|может|можно|раз\s+в|за\s+\d+\s+(?:пси|удач)|в\s+ярости|до\s+конца|в\s+случае|при\s+успехе|при\s+провале|пока)(?![а-яё])/i;
     S.forEach(sn=>{
       const env = /хими|радиац|болезн|вредн\S*\s+сред|кислот|температур/i;
@@ -32191,7 +32860,7 @@ const AbilityKit = (function(){
     window.addRollLogEntry = function(entry, silent){
       const isNew = origAdd.apply(this, arguments);
       try{
-        if(isNew && !silent && typeof session!=='undefined' && session.role==='gm' && entry && !entry.mapAttack && !entry.mapGrenade && !entry.secretStub && !entry.chat
+        if(isNew && !silent && typeof session!=='undefined' && session.role==='gm' && entry && !entry.mapAttack && !entry.mapGrenade && !entry.mapManeuver && !entry.secretStub && !entry.chat
           && typeof entry.id==='string' && entry.id.indexOf(getDeviceId() + ':')!==0){
           const d20 = entry.kind!=='quick' || entry.diceType==='d20';
           if(d20 && entry.success===false && +entry.roll > 0 && +entry.roll <= 15){
@@ -32449,10 +33118,10 @@ const PcAbilities = (function(){
     else uiToast(`«${p.name}» при провале расходуется — отметьте у игрока`, {icon:'✦'});
   }
   // бросок персонажа: свой — окном с гексами (как в листе), за чужого персонажа (Мастер) — приложение
-  function rollFor(t, c, rs, title, done, st){
+  function rollFor(t, c, rs, title, done, st, text){
     const label = `${title}: ${rs.label}`, plus = st ? st.adj.max : 0, rl = rs.label + tagsText(st);
     if(ownSheet(t) && character===c && typeof openRollPicker==='function'){
-      _mapAbilityCtx = {label, base:baseOf(c, rs.stat) + plus, opp:rs.opp, tags:[label].concat(st ? st.adj.tags.concat(st.adj.dice) : []), done:(r)=>done(Object.assign({label:rl, opp:rs.opp}, r))};
+      _mapAbilityCtx = {label, stat:rs.stat, abilText:text || '', base:baseOf(c, rs.stat) + plus, opp:rs.opp, tags:[label].concat(st ? st.adj.tags.concat(st.adj.dice) : []), done:(r)=>done(Object.assign({label:rl, opp:rs.opp}, r))};
       openRollPicker('map_ability', innerWidth/2, innerHeight/2, Math.max(-21, Math.min(21, rs.mod)));
       uiToast(`Нажмите на модификатор — подсвечен ${sgn(rs.mod)}`, {icon:'🎲', ms:4000});
       return;
@@ -32479,7 +33148,7 @@ const PcAbilities = (function(){
       sendMsg({type:'pc-abil', req:{tokId:t.id, key, name:p.name, text:p.text.slice(0, 4000), ids:ids.slice(0, 40), roll:pr, adj:adjOut(st.adj)}}, session.gmId);
       uiToast('Ушло Мастеру — итог появится в общем логе', {icon:'✦'});
     };
-    if(rs) rollFor(t, c, rs, title, deliver, st); else deliver(null);
+    if(rs) rollFor(t, c, rs, title, deliver, st, p.text); else deliver(null);
   }
   function rollOnly(tokId, key){
     const f = find(tokId, key); if(!f) return;
@@ -32492,7 +33161,7 @@ const PcAbilities = (function(){
         if(pr.byGm) recordAndShareQuickRoll({abilityUse:true, text:`${charName(t, c)} — «${title}»: ${pr.label}: к20=${pr.roll} / Макс.${pr.base} — ${pr.success ? 'успех, КУ' + pr.cat : 'провал'}${paid ? '. ' + paid : ''}`});
         else if(pr.success && st.adj.cat) uiToast(`«${title}»: категория успеха +${st.adj.cat} — КУ${pr.cat}`, {icon:'✦'});
         if(!pr.success) afterFail(t, p);
-      }, st); });
+      }, st, p.text); });
   }
   // ★ — форма «Бросок цели» по тексту способности; цели — выделенные жетоны
   function creative(tokId, key){

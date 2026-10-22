@@ -52,7 +52,7 @@ const GameTable = (function(){
   function safeColor(c, d){ return /^#[0-9a-f]{6}$/i.test(c||'') ? c.toLowerCase() : d; }
 
   // Отметки состояний на жетоне (способности существ, «Бросок цели»): r — осталось кругов, 0 — пока не снимут
-  const MARKS = {shock:'Шок', prone:'Сбит с ног', grabbed:'Схвачен', stunned:'Оглушён', blind:'Ослеплён', skipturn:'Пропускает ход', vanished:'Исчез', limit:'На пределе сил', fear:'Испуган',
+  const MARKS = {shock:'Шок', prone:'Сбит с ног', grabbed:'Схвачен', stunned:'Оглушён', blind:'Ослеплён', skipturn:'Пропускает ход', vanished:'Исчез', limit:'На пределе сил', fear:'Испуган', cover:'В укрытии', parry:'Парирует',
     exhausted:'Истощён', immobile:'Обездвижен', dead:'Погиб'}; // последние три — таблица травм и поломок (23-trauma-table.js), истощение существ
   function sanitizeToken(t){
     t = t || {};
@@ -99,6 +99,9 @@ const GameTable = (function(){
         if(/^[А-Яа-яЁё]{1,4}$/.test(k) && isFinite(v)) out.defenseSubs[k] = clamp(v, 0, 99);
       });
       out.armorName = String(t.armorName||'').slice(0,80);
+      // защита по зонам, вписанная Мастером (жетон без карточки или поправка к карточке): {golova:5, ruki:0, …}
+      out.zoneDef = {};
+      Object.keys((t.zoneDef && typeof t.zoneDef==='object') ? t.zoneDef : {}).forEach(k=>{ const v = Math.round(num(t.zoneDef[k], NaN)); if(ARMOR_ZONES.indexOf(k)>=0 && isFinite(v)) out.zoneDef[k] = clamp(v, 0, 99); });
       out.weaponText = String(t.weaponText||'').slice(0,400);
       out.unprotectedMod = Math.round(clamp(num(t.unprotectedMod,-6), -30, 30));
       out.strength = Math.round(clamp(num(t.strength,3), 0, 20)); // сила NPC — для условных черт оружия («если сила 4+, то пул» и т.п.)
@@ -109,7 +112,7 @@ const GameTable = (function(){
     }
     return out;
   }
-  const SECRET_TOKEN_FIELDS = ['defense','defenseSubs','armorName','attackMod','attackModEnabled','unprotectedMod','traumaThreshold','weaponText','strength','reflexes','grenade','atkSkill','creature'];
+  const SECRET_TOKEN_FIELDS = ['defense','defenseSubs','zoneDef','armorName','attackMod','attackModEnabled','unprotectedMod','traumaThreshold','weaponText','strength','reflexes','grenade','atkSkill','creature'];
   function publicToken(t){ const o = Object.assign({}, t); SECRET_TOKEN_FIELDS.forEach(k=>{ delete o[k]; });
     // ОЗ жетона Мастера скрыты (по умолчанию): игрокам — только доля для кольца, без числа и максимума
     if(t.kind==='gm' && !t.hpShown && t.hp!==null && t.hp!==undefined){ o.hpFrac = hpFraction(t.hp, t.hpMax); o.hp = null; o.hpMax = null; }
@@ -407,7 +410,7 @@ const GameTable = (function(){
         if(!t) return deny('Жетон не найден');
         const patch = {};
         ['name','hp','hpMax','hpShown','size','color','hidden','avatar','rotation','marks','nature',
-         'defense','defenseSubs','armorName','weaponText','attackMod','attackModEnabled','unprotectedEnabled','unprotectedMod','traumaThreshold','trauma','traumaRed','strength','slowReaction','burning','reflexes','grenade','atkSkill','creature']
+         'defense','defenseSubs','zoneDef','armorName','weaponText','attackMod','attackModEnabled','unprotectedEnabled','unprotectedMod','traumaThreshold','trauma','traumaRed','strength','slowReaction','burning','reflexes','grenade','atkSkill','creature']
           .forEach(k=>{ if(cmd.patch && k in cmd.patch) patch[k] = cmd.patch[k]; });
         ops.push({op:'token-upsert', token:sanitizeToken(Object.assign({}, t, patch))});
         break;
@@ -462,6 +465,7 @@ const GameTable = (function(){
     renderTokens();
     requestRender({draw, bg, fx:true});
     if(ops.some(op=>op.op==='combat-set')) renderCombat();
+    if(ops.some(op=>op.op==='combat-set' && !op.combat)) firstDmgSeen = {}; // бой закончен — «первый урон в бою» снова доступен
     if(typeof Bestiary!=='undefined') Bestiary.onTableChanged(); // открытая карточка существа — свежие ОЗ, травмы, оружие
   }
   // Своё действие: авторитет применяет сразу, игрок отправляет Мастеру
@@ -553,10 +557,12 @@ const GameTable = (function(){
         if(role()!=='gm' || !from || !msg.req || typeof msg.req!=='object') return;
         const res = resolveAttack(msg.req, from);
         if(!res.ok){ sendMsg({type:'gt-reject', reason:res.reason}, from); return; }
-        sendMsg({type:'gt-attack-result', attackId:String(msg.req.attackId), success:res.success, jammed:res.jammed, speedUsed:res.speedUsed}, from);
+        sendMsg({type:'gt-attack-result', attackId:String(msg.req.attackId), success:res.success, jammed:res.jammed, speedUsed:res.speedUsed,
+          extra:(res.extra || []).map(x=>({weaponIdx:x.weaponIdx, ok:!!x.ok, speedUsed:!!x.speedUsed, reason:String(x.reason || '').slice(0, 120)}))}, from);
         break;
       }
-      case 'gt-attack-result': if(fromGm(msg)) afterAttackResult(String(msg.attackId), {success:!!msg.success, jammed:!!msg.jammed, speedUsed:!!msg.speedUsed}); break;
+      case 'gt-attack-result': if(fromGm(msg)) afterAttackResult(String(msg.attackId), {success:!!msg.success, jammed:!!msg.jammed, speedUsed:!!msg.speedUsed,
+        extra:(Array.isArray(msg.extra) ? msg.extra : []).slice(0, 4).map(x=>({weaponIdx:x && (x.weaponIdx===0 || x.weaponIdx===1) ? x.weaponIdx : null, ok:!!(x && x.ok), speedUsed:!!(x && x.speedUsed), reason:String(x && x.reason || '').slice(0, 120)}))}); break;
     }
   }
 
@@ -722,7 +728,7 @@ const GameTable = (function(){
       el.classList.toggle('cb-noact', !!cbp && cbp.noAct); }
     const v = vitalsFor(t);
     const pf = portraitFor(t);
-    const key = JSON.stringify([t.name, t.color, t.avatar, pf ? pf.length + pf.slice(-16) : '', t.hp, t.hpMax, t.hpShown, t.hpFrac, isAuthority(), t.kind, t.hidden, t.size, t.rotation, t.trauma, t.traumaRed, t.nature, t.slowReaction, t.burning, JSON.stringify(t.marks || []), v && [v.name, v.hp, v.hpMax, v.psi, v.psiMax]]);
+    const key = JSON.stringify([t.name, t.color, t.avatar, pf ? pf.length + pf.slice(-16) : '', t.hp, t.hpMax, t.hpShown, t.hpFrac, isAuthority(), t.kind, t.hidden, t.size, t.rotation, t.trauma, t.traumaRed, t.nature, t.slowReaction, t.burning, JSON.stringify(t.marks || []), v && [v.name, v.hp, v.hpMax, v.psi, v.psiMax], tokenEncumbrance(t)]); // «Скован» зависит от листа / карточки
     if(el._gtKey===key) return;
     el._gtKey = key;
     const name = tokenName(t, v), sz = SIZE_CELLS[t.size]*CELL;
@@ -745,11 +751,24 @@ const GameTable = (function(){
       (t.hidden ? '<i class="gt-hidden-badge" title="Скрыт от игроков">⊘</i>' : '')+
       `<div class="gt-token-label"><b>${escapeHtml(name)}</b>${stats}${traumaBadgesHtml(t)}</div>`;
   }
+  // «Скован»: броня сковывает — у игрока надетая броня из листа, у существа — броня из карточки, у жетона без карточки — броня из
+  // каталога в поле «Броня»; считается при отрисовке там, где лист или карточка известны (у Мастера — всё, у игрока — свой жетон)
+  function tokenEncumbrance(t){
+    if(t.kind==='player') return typeof characterEncumbrance==='function' ? characterEncumbrance(attackerSheet(t)) : null;
+    if(t.creature) return typeof Bestiary!=='undefined' && Bestiary.encumbrance ? Bestiary.encumbrance(t) : null;
+    if(!t.armorName) return null;
+    const nm = String(t.armorName).toLowerCase();
+    for(const gen of Object.values(ITEM_CATALOG)) for(const it of ((gen.categories.armor || {}).items || [])){
+      if(nm.indexOf(it.name.toLowerCase())===0) return armorEncumbers(it.desc, t.strength==null ? 3 : t.strength) ? it.name : null; }
+    return null;
+  }
   // Травмы под жетоном: 🦴N — обычные, красная 🦴M — от оружия с чертой «травма» (см. resolveAttack)
   function traumaBadgesHtml(t){
-    if(!t.trauma && !t.traumaRed && !t.slowReaction && !t.burning && !(t.marks && t.marks.length)) return '';
+    const enc = tokenEncumbrance(t);
+    if(!t.trauma && !t.traumaRed && !t.slowReaction && !t.burning && !(t.marks && t.marks.length) && !enc) return '';
     const rb = tokenNature(t)==='robot';
-    const marks = (t.marks || []).map(m=>`<span class="gt-mark-badge" title="${MARKS[m.k]}${m.r ? ': ещё ' + m.r + ' кр.' : ' — пока не снимут'}">${MARKS[m.k]}${m.r ? ' ' + m.r : ''}</span>`).join('');
+    const marks = (t.marks || []).map(m=>`<span class="gt-mark-badge" title="${MARKS[m.k]}${m.r ? ': ещё ' + m.r + ' кр.' : ' — пока не снимут'}">${MARKS[m.k]}${m.r ? ' ' + m.r : ''}</span>`).join('')
+      + (enc ? `<span class="gt-mark-badge" title="Сковывает: ${escapeHtml(enc)} (сила ниже нужной)">Скован</span>` : '');
     return `<span class="gt-trauma-row">${marks}${t.burning?`<span class="gt-burn-badge" title="Горит (термическая граната): кругов">🔥${t.burning}</span>`:""}${t.slowReaction?'<span class="gt-slow-badge" title="Атакован медленным оружием — может отреагировать">⚡ реакция</span>':''}${t.trauma?`<span title="${rb ? 'Поломки' : 'Травмы'}">${rb ? '🔧' : '🦴'}${t.trauma}</span>`:''}${t.traumaRed?`<span class="bone-red" title="${rb ? 'Поломки' : 'Травмы'} от оружия с чертой «травма»">${rb ? '🔧' : '🦴'}</span><span class="gt-trauma-red-n">${t.traumaRed}</span>`:''}</span>`;
   }
   function refreshTokenPos(id){ const el = tokenEls.get(id), t = tok(id); if(el && t){ positionTokenEl(el, t); el.classList.toggle('dragging', !!dragPos[id]); } }
@@ -1683,6 +1702,8 @@ const GameTable = (function(){
       if(t.kind==='gm') items.push({id:'hide', label:t.hidden ? 'Показать игрокам' : 'Скрыть от игроков', run:()=>act({c:'token-update', id:t.id, patch:{hidden:!t.hidden}})});
       if(typeof Reactions!=='undefined' && Reactions.manualAllowed(t)) items.push({id:'rx', label:'🎞 Реакция…', run:()=>{ const r = viewport.getBoundingClientRect(); Reactions.pickForToken(t.id, r.left + p.x, r.top + p.y); }});
       if(typeof TargetRolls!=='undefined') items.push({id:'tr', label:t.kind==='gm' ? '🎯 Бросок цели…' : '🎯 Потребовать бросок…', run:()=>TargetRolls.open(t.kind==='gm' ? {src:t.id, targets:ids.filter(x=>x!==t.id)} : {targets:ids})});
+      { const cov = (t.marks || []).some(m=>m.k==='cover'); // укрытие: броня «если персонаж в укрытии, то +1 к защите» (characterGearEffects)
+        items.push({id:'cover', label:cov ? '🧱 Вышел из укрытия' : '🧱 В укрытии', run:()=>act({c:'token-update', id:t.id, patch:{marks:cov ? (t.marks || []).filter(m=>m.k!=='cover') : (t.marks || []).concat([{k:'cover', r:0}])}})}); }
       if((t.marks || []).length) items.push({id:'unmark', label:'✕ Снять отметки: ' + t.marks.map(m=>MARKS[m.k].toLowerCase()).join(', '), run:()=>act({c:'token-update', id:t.id, patch:{marks:[]}})});
       items.push('-', {id:'del', label: ids.length>1 ? `Удалить (${ids.length})` : 'Удалить', danger:true, run:()=>deleteTokens(ids)});
       openMenu(p, name, items);
@@ -1808,6 +1829,9 @@ const GameTable = (function(){
       `<div class="gt-f-row"><label class="gt-f">Рефлексы${n('reflexes', cur.reflexes==null?3:cur.reflexes, 0, 20)}</label>`+
       `<label class="gt-f">Граната<select name="grenade"><option value="">— нет —</option>${Object.keys(GRENADE_SPECS).map(k=>`<option value="${k}" ${cur.grenade===k?'selected':''}>${escapeHtml(GRENADE_SPECS[k].name)}</option>`).join('')}</select></label></div>`+
       `<div class="gt-pop-note" data-subs-note>${Object.keys(cur.defenseSubs||{}).length ? 'По типам урона: '+escapeHtml(Object.keys(cur.defenseSubs).map(k=>k+cur.defenseSubs[k]).join(', ')) : ''}</div>`+
+      // защита по зонам для прицельной атаки: пусто — как у карточки существа или как «Защита» (тело)
+      `<div class="gt-pop-note">Защита по зонам (прицельная атака): пусто — ${cur.creature ? 'по броне из карточки' : 'как «Защита»'}.</div><div class="gt-f-row gt-zone-row">${AIM_ZONES.map(z=>
+        `<label class="gt-f">${ARMOR_ZONE_LABELS[z]}<input type="number" name="zone_${z}" min="0" max="99" step="1" placeholder="—" value="${cur.zoneDef && cur.zoneDef[z]!=null ? cur.zoneDef[z] : ''}"></label>`).join('')}</div>`+
       `<label class="gt-f">Модификатор атаки по нему (−18…+18)${n('attackMod', cur.attackMod||0, -18, 18)}</label>`+
       `<div class="gt-f-row" style="align-items:flex-end"><label class="gt-check" style="flex:1"><input type="checkbox" name="unprotectedEnabled" ${cur.unprotectedEnabled?'checked':''}> По незащищённым частям</label>`+
       `<label class="gt-f" style="flex:0 0 70px">мод.${n('unprotectedMod', cur.unprotectedMod==null?-6:cur.unprotectedMod, -30, 30)}</label></div>`+
@@ -1826,6 +1850,7 @@ const GameTable = (function(){
     out.reflexes = int('reflexes', cur.reflexes==null?3:cur.reflexes);
     out.grenade = GRENADE_SPECS[fd.get('grenade')] ? fd.get('grenade') : '';
     out.defenseSubs = subsState.subs;
+    out.zoneDef = {}; AIM_ZONES.forEach(z=>{ const raw = String(fd.get('zone_' + z) || '').trim(), v = parseInt(raw, 10); if(raw!=='' && isFinite(v)) out.zoneDef[z] = v; });
     out.traumaThreshold = int('traumaThreshold', cur.traumaThreshold||5);
     out.unprotectedEnabled = fd.get('unprotectedEnabled')==='on';
     out.unprotectedMod = int('unprotectedMod', -6);
@@ -2321,6 +2346,7 @@ const GameTable = (function(){
   let targeting = null;        // {attackerId, weaponIdx, fireMode, w, cur} — выбор цели на карте
   const lastAttackReqs = {};   // attackId -> {req, from} — для переброса способностями существ (Малая цель, Уход техника СДК…)
   const pendingAttacks = {};   // attackId -> контекст своей атаки (для «Скорости» и переброса после ответа Мастера)
+  let firstDmgSeen = {};       // «первый урон в бою наносит раны N»: атакующий|оружие → уже был (сброс — когда бой трекера закончен)
 
   function npcWeapon(t){ // оружие жетона Мастера выдано Мастером — доступно всегда; условные черты — по силе NPC
     const p = t && t.weaponText ? parseWeaponStats(t.weaponText) : null;
@@ -2364,8 +2390,13 @@ const GameTable = (function(){
     if(!att || !tgt || att.id===tgt.id) return false;
     return isPlayer() ? tgt.kind==='gm' : true;
   }
-  // Известная атакующему часть Максимума (без модификаторов цели)
-  function attackKnownPart(c, w, fireMode, range, optikaOn, isNpc){
+  // Прицельная атака (стр. 39): по части тела −6; урон одного попадания — против защиты этой зоны (у NPC зон нет — защита тела)
+  const AIM_ZONES = ['golova', 'plechi', 'ruki', 'bedra', 'nogi'];
+  // Атака с двумя оружиями (стр. 39): одно действие, каждое оружие проверяется отдельно с −3; «Амбидекстр» 2-го уровня снимает штраф
+  function dualPenalty(c, isNpc){ return !isNpc && c && specTier(c, 'ambidekstr') >= 2 ? 0 : 3; }
+  // Известная атакующему часть Максимума (без модификаторов цели). opts: aim — зона прицельной атаки, dual — атака двумя оружиями
+  function attackKnownPart(c, w, fireMode, range, optikaOn, isNpc, opts){
+    opts = opts || {};
     const tags = [];
     let base;
     if(fireMode==='suppress'){ base = 12; tags.push('Подавляющий огонь: Максимум 12'); }
@@ -2375,8 +2406,12 @@ const GameTable = (function(){
       base = 10 + skillVal + (w.at||0);
       tags.push(isNpc ? `Навык NPC: ${10+skillVal}` : `${STAT_LABELS[sk]||'Навык'}: ${10+skillVal}`, `Ат оружия: ${w.at>=0?'+':''}${w.at}`);
       (w.techNotes||[]).concat((w.condNotes||[]).filter(n=>/Ат/.test(n))).forEach(n=>tags.push(n)); // Ат уже с ними (applyWielder)
+      const fav = !isNpc && c ? favoriteWeaponBonus(c, w) : 0;
+      if(fav){ base += fav; tags.push(`Любимое оружие: +${fav}`); }
       if(fireMode==='burst' && range.meters>12){ base -= 6; tags.push('Очередь дальше 12 м: −6'); }
       if(fireMode==='attack' && w.optika && optikaOn && range.meters>=30){ base += 6; tags.push('Оптика (30 м+): +6'); }
+      if(opts.aim){ base -= 6; tags.push(`Прицельно — ${String(ARMOR_ZONE_LABELS[opts.aim] || opts.aim).toLowerCase()}: −6`); }
+      if(opts.dual){ const p = dualPenalty(c, isNpc); base -= p; tags.push(p ? `Двумя оружиями: −${p}` : 'Двумя оружиями: без штрафа («Амбидекстр»)'); }
     }
     if(range.pen){ base += range.pen; tags.push(`Дистанция ${fmtNum(range.meters)} м: ${range.pen}`); }
     else tags.push(`Дистанция ${fmtNum(range.meters)} м`);
@@ -2449,7 +2484,7 @@ const GameTable = (function(){
     return act({c:'token-create', token:Object.assign({}, fields, {x:sn.x, y:sn.y})});
   }
   function startTargeting(att, weaponIdx, fireMode){
-    const w = fireMode==='grenade' ? grenadeWeapon(att, weaponIdx) : att.kind==='player' ? sheetWeapon(attackerSheet(att), weaponIdx) : npcWeapon(att);
+    const w = fireMode==='grenade' ? grenadeWeapon(att, weaponIdx) : MANEUVERS[fireMode] ? maneuverWeapon(fireMode) : att.kind==='player' ? sheetWeapon(attackerSheet(att), weaponIdx) : npcWeapon(att);
     if(!w){ toast('Нет оружия для атаки'); return; }
     cancelAll();
     targeting = {attackerId:att.id, weaponIdx, fireMode, w, cur:null};
@@ -2470,6 +2505,7 @@ const GameTable = (function(){
     const t = targeting;
     targeting = null; showHint(); requestRender({fx:true});
     if(t.w.grenade) openGrenadePopover(att, tgt, t, range, p);
+    else if(t.w.maneuver) openManeuverPopover(att, tgt, t, range, p);
     else openAttackPopover(att, tgt, t, range, p);
   }
   function openAttackPopover(att, tgt, t, range, p){
@@ -2480,8 +2516,19 @@ const GameTable = (function(){
       ? `<label class="gt-check"><input type="checkbox" name="unprot"> По незащищённым частям${auth ? ` (${tgt.unprotectedMod})` : ''} — защита цели не учитывается</label>` : '';
     const optikaNote = (t.fireMode==='attack' && t.w.optika && att.kind==='player' && range.meters>=30)
       ? '<div class="gt-pop-note">Оптика учтётся, если отмечена на карточке оружия (реакция).</div>' : '';
+    // прицельная атака — по зоне тела (−6); второе оружие — тем же действием (каждому −3); «до N атак одним действием» — серия
+    const aimHtml = t.fireMode==='suppress' ? '' : `<label class="gt-check">🎯 Прицельно: <select name="aim"><option value="">нет — по телу</option>${AIM_ZONES.map(z=>`<option value="${z}">${ARMOR_ZONE_LABELS[z]}</option>`).join('')}</select> −6</label>`;
+    const otherIdx = att.kind==='player' && c && (t.weaponIdx===0 || t.weaponIdx===1) && t.fireMode!=='suppress' ? 1 - t.weaponIdx : null;
+    const other = otherIdx!=null ? sheetWeapon(c, otherIdx) : null, otherOk = !!(other && !weaponBlockedReason(c, otherIdx));
+    const dualWhy = otherOk ? dualWieldBlock(c) : null; // двуручное парой — «Две пушки», размер, сила
+    const dualHtml = !otherOk ? '' : dualWhy ? `<div class="gt-pop-note">⚔⚔ Двумя оружиями нельзя: ${escapeHtml(dualWhy)}.</div>`
+      : `<label class="gt-check"><input type="checkbox" name="dual"> ⚔⚔ Двумя оружиями: ещё «${escapeHtml(other.name)}» — одно действие, каждому ${dualPenalty(c, false) ? '−3' : 'без штрафа («Амбидекстр»)'}</label>`;
+    const apa = t.fireMode==='attack' && t.w.attacksPerAction > 1 ? t.w.attacksPerAction : 0;
+    const multiHtml = !apa ? '' : `<label class="gt-check">Атак этим действием: <select name="multi">${Array.from({length:apa}, (_, i)=>`<option value="${i+1}"${i+1===apa ? ' selected' : ''}>${i+1}</option>`).join('')}</select></label>`;
+    const lineNote = t.w.lineWidth && t.fireMode!=='suppress' ? `<div class="gt-pop-note">Линия шириной ${t.w.lineWidth} м через цель до ${fmtNum(3*(t.w.dl || 0))} м: по каждому жетону на ней (и своим) — отдельная проверка, к20 бросает стол.</div>` : '';
+    const seriesNote = lineNote + (dualHtml || multiHtml ? '<div class="gt-pop-note">Следующие атаки действия бросаются сами (тот же жест — Преимущество/Помеха); переброс — только у первой. Двуручное оружие парой — с «Двумя пушками».</div>' : '');
     const html = `<div class="gt-pop-title">⚔ ${escapeHtml(t.w.name)} → ${escapeHtml(tokenName(tgt, vitalsFor(tgt)))}</div>`+
-      `<div class="gt-pop-note">${escapeHtml(modeName)} · ${fmtNum(range.meters)} м · ${escapeHtml(range.label)}</div>` + optikaNote + unprotHtml +
+      `<div class="gt-pop-note">${escapeHtml(modeName)} · ${fmtNum(range.meters)} м · ${escapeHtml(range.label)}</div>` + optikaNote + unprotHtml + aimHtml + dualHtml + multiHtml + seriesNote +
       `<div class="gt-pop-note">${auth ? 'Модификаторы цели уже в Максимуме.' : 'Модификаторы цели учтёт Мастер — итог появится в общем логе.'}</div>`+
       `<div class="gt-pop-actions"><button type="button" class="small" data-cancel>Отмена</button>`+
       `<button type="button" class="small primary" data-roll title="Нажмите и протяните — как бросок в листе">🎯 Бросок — нажмите и тяните</button></div>`;
@@ -2491,11 +2538,18 @@ const GameTable = (function(){
       const unEl = form.querySelector('[name=unprot]');
       const unprot = !!(unEl && unEl.checked);
       const optikaOn = att.kind==='player' && !!t.w.optika && checkboxOn('weaponOptika' + t.weaponIdx);
-      const known = attackKnownPart(c, t.w, t.fireMode, range, optikaOn, att.kind==='gm');
+      const aimEl = form.querySelector('[name=aim]'), aim = aimEl && AIM_ZONES.indexOf(aimEl.value) >= 0 ? aimEl.value : null;
+      const dualEl = form.querySelector('[name=dual]'), dual = !!(dualEl && dualEl.checked);
+      const multiEl = form.querySelector('[name=multi]'), multi = multiEl ? Math.max(1, Math.min(apa, +multiEl.value || 1)) : 1;
+      const known = attackKnownPart(c, t.w, t.fireMode, range, optikaOn, att.kind==='gm', {aim, dual});
       let knownBase = known.base, tags = known.tags;
       if(auth){ const sec = secretPart(tgt, unprot); knownBase += sec.v; tags = tags.concat(sec.tags);
         const pa = passiveAtk(att, tgt, t.w); if(pa && (pa.mod || pa.tags.length)){ knownBase += pa.mod; tags = tags.concat(pa.tags); } } // Мастер видит полный Максимум
-      _mapAttackCtx = { attackerId:att.id, targetId:tgt.id, weaponIdx:t.weaponIdx, fireMode:t.fireMode, unprotected:unprot, optikaOn,
+      const plan = []; // остальные атаки того же действия: ещё раз тем же оружием («атаковать дважды»), второе оружие
+      for(let i=1;i<multi;i++) plan.push({weaponIdx:t.weaponIdx, fireMode:t.fireMode});
+      if(dual) plan.push({weaponIdx:otherIdx, fireMode:weaponModes(other).some(m=>m[0]===t.fireMode) ? t.fireMode : 'attack'});
+      if(plan.length) tags = tags.concat([`Ещё ${plan.length} ${plan.length===1 ? 'атака' : 'атаки'} этим действием — бросятся сами`]);
+      _mapAttackCtx = { attackerId:att.id, targetId:tgt.id, weaponIdx:t.weaponIdx, fireMode:t.fireMode, unprotected:unprot, optikaOn, aim, dual, plan,
                         knownBase, tags, rerollOf:null };
       closePopover();
       openRollPicker('map_attack', ev.clientX, ev.clientY, 0);
@@ -2505,12 +2559,14 @@ const GameTable = (function(){
   function submitMapAttack(ctx, r){
     if(!ctx) return;
     const req = { attackId:newId('atk'), attackerId:ctx.attackerId, targetId:ctx.targetId, weaponIdx:ctx.weaponIdx, fireMode:ctx.fireMode,
-                  unprotected:!!ctx.unprotected, optikaOn:!!ctx.optikaOn, rolls:r.rolls, mode:r.mode, chosenMod:r.chosenMod, rerollOf:ctx.rerollOf||null };
+                  unprotected:!!ctx.unprotected, optikaOn:!!ctx.optikaOn, aim:ctx.aim||null, dual:!!ctx.dual, parryItem:ctx.parryItem||null,
+                  rolls:r.rolls, mode:r.mode, chosenMod:r.chosenMod, rerollOf:ctx.rerollOf||null };
     const att = tok(ctx.attackerId);
-    if(att && att.kind==='player'){
-      const c = attackerSheet(att), slot = c && c.weapons && c.weapons[ctx.weaponIdx];
-      req.speedAvailable = !!(slot && slot.skorost && slot.speedBonusAvailable);
-    }
+    const speedOf = (idx)=>{ const c = att && att.kind==='player' ? attackerSheet(att) : null, slot = c && c.weapons && c.weapons[idx]; return !!(slot && slot.skorost && slot.speedBonusAvailable); };
+    if(att && att.kind==='player') req.speedAvailable = speedOf(ctx.weaponIdx);
+    // остальные атаки того же действия: к20 бросаются здесь же, тем же режимом жеста (переброс — только первой атаки)
+    if(ctx.plan && ctx.plan.length && !ctx.rerollOf) req.series = ctx.plan.slice(0, 3).map(s=>({ weaponIdx:s.weaponIdx, fireMode:s.fireMode,
+      rolls: r.mode==='plain' ? [randInt(20)] : [randInt(20), randInt(20)], speedAvailable:speedOf(s.weaponIdx) }));
     pendingAttacks[req.attackId] = Object.assign({}, ctx, {chosenMod:r.chosenMod, mode:r.mode});
     if(isAuthority()){
       const res = resolveAttack(req, null);
@@ -2538,9 +2594,14 @@ const GameTable = (function(){
     let changed = false;
     if(res.speedUsed && slot && slot.speedBonusAvailable){ slot.speedBonusAvailable = false; changed = true; }
     if(slot && slot.odnozaryadnoe && slot.loaded!==false){ slot.loaded = false; changed = true; } // выстрел разрядил однозарядное
+    (res.extra || []).forEach(x=>{ // остальные атаки того же действия (второе оружие, «атаковать дважды»)
+      const s2 = character.weapons && character.weapons[x.weaponIdx];
+      if(!x.ok){ if(x.reason) toast(`${s2 && s2.name ? '«' + s2.name + '»: ' : ''}${x.reason}`); return; }
+      if(x.speedUsed && s2 && s2.speedBonusAvailable){ s2.speedBonusAvailable = false; changed = true; }
+      if(s2 && s2.odnozaryadnoe && s2.loaded!==false){ s2.loaded = false; changed = true; } });
     if(changed) renderAll();
     if(!res.jammed){
-      _mapAttackCtx = Object.assign({}, ctx, {rerollOf:attackId});
+      _mapAttackCtx = Object.assign({}, ctx, {rerollOf:attackId, plan:null}); // переброс — только этой атаки, без остальных атак серии
       showRerollPopup('map_attack', ctx.chosenMod||0, ctx.mode);
     }
   }
@@ -2558,7 +2619,7 @@ const GameTable = (function(){
     const has = (c && (c.abilities || []).some(a=>re.test(a.text || ''))) || (att && att.creature && (att.creature.abil || []).some(a=>re.test(a[1] || '')));
     return has && w && w.dl!=null ? 11 : 12; }
   function noteTraumas(tgt, hits, head, redAll){ if(typeof TraumaTable==='undefined' || !tgt || tgt.kind!=='gm') return;
-    TraumaTable.noteHits(tgt.id, hits.filter(x=>x.trauma).map(x=>({head:x.k12 >= head, red:!!(redAll || x.red)}))); }
+    TraumaTable.noteHits(tgt.id, hits.filter(x=>x.trauma).map(x=>({head:x.k12 >= head || !!x.headAim, red:!!(redAll || x.red)}))); } // headAim — прицельное в голову
   function applyHitsTo(id, h){
     const tgt = tok(id); if(!tgt || !isAuthority() || !(h && h.n > 0)) return null;
     let pa = null; try{ pa = typeof AbilityKit!=='undefined' ? AbilityKit.hitPassives(tgt) : null; }catch(e){ console.warn('[Способности]', e); }
@@ -2597,6 +2658,50 @@ const GameTable = (function(){
   // (Мастер/локальный стол) Итог атаки. from — id игрока для его атаки, пусто — своя.
   function resolveAttack(req, from){
     if(req && req.fireMode==='grenade') return resolveGrenade(req, from);
+    if(req && MANEUVERS[req.fireMode]) return resolveManeuver(req, from);
+    const res = resolveOne(req, from, 0);
+    if(!res.ok) return res;
+    // остальные атаки того же действия — отдельными записями в логе (своя отмена у каждой): ещё раз тем же оружием, пока
+    // позволяет «за одно действие может атаковать дважды / до трёх атак», и второе оружие при атаке двумя оружиями
+    const att = authState.tokens[req.attackerId];
+    let same = 0, others = 0, speedSpent = !!res.speedUsed;
+    res.extra = [];
+    (Array.isArray(req.series) ? req.series : []).slice(0, 3).forEach((x, i)=>{
+      if(!x || typeof x!=='object') return;
+      const idx = att && att.kind==='player' ? (x.weaponIdx===0 || x.weaponIdx===1 ? x.weaponIdx : -1) : null;
+      if(idx===-1) return;
+      const isSame = idx===(att && att.kind==='player' ? req.weaponIdx : null);
+      if(isSame ? ++same > Math.max(0, (res.w.attacksPerAction || 1) - 1) : (!req.dual || ++others > 1)) return;
+      if(!isSame){ // второе оружие: двуручное парой — «Две пушки», размер 1+, сила (dualWieldBlock)
+        const cAtt = from ? (session.players[from] && session.players[from].character) : attackerSheet(att), why = cAtt ? dualWieldBlock(cAtt) : null;
+        if(why){ res.extra.push({weaponIdx:idx, ok:false, success:false, jammed:false, speedUsed:false, reason:why}); return; } }
+      const sub = Object.assign({}, req, {attackId:String(req.attackId || '').slice(0, 60) + '~' + (i + 2), weaponIdx:idx, fireMode:x.fireMode, rolls:x.rolls,
+        rerollOf:null, series:null, speedAvailable:!!x.speedAvailable && !(isSame && speedSpent)});
+      const r = resolveOne(sub, from, i + 2);
+      if(r.speedUsed && isSame) speedSpent = true;
+      res.extra.push({weaponIdx:idx, ok:!!r.ok, success:!!r.success, jammed:!!r.jammed, speedUsed:!!r.speedUsed, reason:r.ok ? '' : r.reason});
+    });
+    // «Шрапнельная пушка»: «проверьте атаку по каждой цели на линии шириной 3 м» — линия от атакующего через цель до предела
+    // дальности (3×Дл); каждый жетон на ней (и свои тоже) — отдельная проверка: к20 бросает стол тем же режимом жеста, дистанция
+    // и защита у каждого свои. Переброс первой атаки линию заново не бросает.
+    if(res.w.lineWidth && att && !req.rerollOf && req.fireMode!=='suppress'){
+      const t0 = authState.tokens[req.targetId], dx = t0.x - att.x, dy = t0.y - att.y, len = Math.hypot(dx, dy) || 1, ux = dx/len, uy = dy/len;
+      const maxCells = 3*(res.w.dl || 0)/METERS_PER_CELL, half = res.w.lineWidth/2/METERS_PER_CELL;
+      const mode = req.mode==='advantage' || req.mode==='disadvantage' ? req.mode : 'plain';
+      Object.values(authState.tokens).filter(t=>t.id!==att.id && t.id!==t0.id).map(t=>{ const px = t.x - att.x, py = t.y - att.y;
+        return {t, along:px*ux + py*uy, across:Math.abs(px*uy - py*ux)}; })
+        .filter(x=>x.along > 0 && x.along <= maxCells && x.across < half + (SIZE_CELLS[x.t.size||'normal'] || 1)/2 - 1e-6) // только касается края — не задет
+        .sort((a, b)=>a.along - b.along).slice(0, 12).forEach((x, i)=>{
+          const sub = Object.assign({}, req, {attackId:String(req.attackId || '').slice(0, 60) + '~L' + (i + 1), targetId:x.t.id, aim:null, series:null, rerollOf:null,
+            rolls: mode==='plain' ? [randInt(20)] : [randInt(20), randInt(20)], speedAvailable:false});
+          resolveOne(sub, from, 0, {anyTarget:true, line:true}); });
+    }
+    return res;
+  }
+  // Одна атака оружием с карты. seriesNo — номер атаки в серии одного действия (0 — первая, 2, 3… — остальные);
+  // opts.anyTarget — цель выбрал стол (линия шрапнели): можно и свой жетон, и скрытый (имя в логе — «???»)
+  function resolveOne(req, from, seriesNo, opts){
+    opts = opts || {};
     const s = authState;
     const att = s.tokens[req.attackerId], tgt = s.tokens[req.targetId];
     if(!att || !tgt || att.id===tgt.id) return {ok:false, reason:'Атакующий или цель не найдены'};
@@ -2605,7 +2710,7 @@ const GameTable = (function(){
     let c = null, w = null, attackerName;
     if(from){
       if(!(att.kind==='player' && att.ownerId===from)) return {ok:false, reason:'Атаковать можно только своим жетоном'};
-      if(tgt.kind!=='gm' || tgt.hidden) return {ok:false, reason:'Эту цель атаковать нельзя'};
+      if(!opts.anyTarget && (tgt.kind!=='gm' || tgt.hidden)) return {ok:false, reason:'Эту цель атаковать нельзя'};
       const p = session.players[from]; c = p && p.character;
       if(!c) return {ok:false, reason:'Мастеру ещё не пришёл ваш лист'};
       w = sheetWeapon(c, req.weaponIdx);
@@ -2626,17 +2731,21 @@ const GameTable = (function(){
     if(fireMode!=='attack' && !w.avtomat) return {ok:false, reason:'У оружия нет автоматического огня'};
     const range = rangeInfo(att, tgt, w);
     if(!range.ok) return {ok:false, reason:'Цель ' + range.label};
-    const mode = (req.mode==='advantage' || req.mode==='disadvantage') ? req.mode : 'plain';
-    const rolls = (Array.isArray(req.rolls) ? req.rolls : []).slice(0, mode==='plain' ? 1 : 2).map(v=>Math.round(num(v,0)));
+    let mode = (req.mode==='advantage' || req.mode==='disadvantage') ? req.mode : 'plain';
+    let rolls = (Array.isArray(req.rolls) ? req.rolls : []).slice(0, mode==='plain' ? 1 : 2).map(v=>Math.round(num(v,0)));
     if(!rolls.length || rolls.some(v=>v<1 || v>20) || (mode!=='plain' && rolls.length<2)) return {ok:false, reason:'Некорректный бросок'};
     const chosenMod = Math.round(clamp(num(req.chosenMod,0), -30, 30));
+    // цель парировала этого противника: его рукопашные атаки по ней в этом ходу Осложнены (нет второго к20 — бросает стол)
+    const parried = w.dl==null && parryActive(tgt.id, att.id);
+    if(parried){ mode = mode==='advantage' ? 'plain' : 'disadvantage'; rolls = mode==='plain' ? rolls.slice(0, 1) : rolls.length < 2 ? [rolls[0], randInt(20)] : rolls; }
     if(req.rerollOf){ // переброс: прежняя атака этого же атакующего отменяется целиком
       const prev = attackRecords.find(r=>r.attackId===req.rerollOf);
       if(prev && prev.attackerOwner===(from||null)) undoAttack(prev.attackId, true);
     }
     const pa = passiveAtk(att, tgt, w, true) || {mod:0, tags:[], adj:{}, adjAll:0, shield:false, defMod:0, muMod:0, firstDmg:0, catPlus:0};
-    const fullMax = attackKnownPart(c, w, fireMode, range, !!req.optikaOn, att.kind==='gm').base + chosenMod + secretPart(tgt, !!req.unprotected).v + pa.mod;
-    let max12Shown = null; // для подробного вида лога (пороги видят только допущенные Мастером)
+    const aim = fireMode!=='suppress' && AIM_ZONES.indexOf(req.aim) >= 0 ? req.aim : null;
+    const fullMax = attackKnownPart(c, w, fireMode, range, !!req.optikaOn, att.kind==='gm', {aim, dual:!!req.dual}).base + chosenMod + secretPart(tgt, !!req.unprotected).v + pa.mod;
+    let max12Shown = null, aim12Shown = null; // для подробного вида лога (пороги видят только допущенные Мастером)
     const roll = pickD20ForMode(rolls[0], rolls[1], fullMax, mode);
     const ev = evaluateD20Check(roll, fullMax);
     if(ev.success && pa.catPlus) ev.category += pa.catPlus; // «Мастер»: успешная атака из ружья — категория выше
@@ -2649,18 +2758,50 @@ const GameTable = (function(){
       const targetHp = tgt.kind==='gm' ? tgt.hp : (tSheet ? tSheet.hpCurrent : null); // для «раны 6, если у цели 10+ ОЗ»
       const plan = weaponHitPlan(Object.assign({}, w, {speedBonusAvailable:!!req.speedAvailable}), fireMode, roll, ev.category, {targetHp});
       speedUsed = plan.speedUsed;
-      const max12 = (w.mu||0) + (pa.muMod||0) - (unprotected ? 0 : targetDefense(tgt, w.muType) + (pa.defMod||0)); max12Shown = max12; // усиления: МУ атакующего, защита цели
-      const thr = tgt.kind==='player' ? 5 : (tgt.traumaThreshold || 5);
+      // защитные вещи листов: у цели — входящие, у атакующего — свои исходящие (characterGearEffects): «Кинетический щит» — МУ
+      // −[попадания атаки], «Генератор щита» — МУ −4 при стрельбе энергией/температурой/взрывом; у цели ещё «Гаситель кинетики»
+      // (раны −1 с попадания) и броня «в укрытии +1 к защите» (отметка «В укрытии» на жетоне)
+      const ranged = w.dl!=null, gearT = tgt.kind==='player' ? characterGearEffects(tSheet) : null, gearA = att.kind==='player' ? characterGearEffects(c) : null;
+      const gearMu = (type)=>{ let v = 0; [gearA, gearT].forEach(g=>{ if(!g) return; if(g.kinetic) v += plan.hits; if(g.shieldGen && ranged && type && g.shieldGen.types.indexOf(String(type).toLowerCase()) >= 0) v += g.shieldGen.v; }); return v; };
+      [[gearA, 'свой'], [gearT, 'у цели']].forEach(([g, who])=>{ if(!g) return;
+        if(g.kinetic) pa.tags.push(`${g.kinetic} (${who}): МУ −${plan.hits}`);
+        if(g.shieldGen && ranged && w.muType && g.shieldGen.types.indexOf(String(w.muType).toLowerCase()) >= 0) pa.tags.push(`${g.shieldGen.name} (${who}): МУ −${g.shieldGen.v}`); });
+      const inCover = (tgt.marks || []).some(m=>m.k==='cover');
+      const coverDef = !inCover ? 0 : gearT ? gearT.coverDef : (tgt.creature && typeof Bestiary!=='undefined' ? Bestiary.coverBonus(tgt) : 0);
+      if(coverDef) pa.tags.push(`броня цели в укрытии: защита +${coverDef}`);
+      if(gearT && gearT.woundsMinus) pa.tags.push(`${gearT.woundsMinusName}: раны −${gearT.woundsMinus} с попадания`);
+      // защита зоны: у персонажа — надетая на зону броня, у существа — броня из карточки (Bestiary.zoneDefense), у жетона без
+      // карточки — его защита
+      const zoneDef = (type, zone)=>{ if(tgt.kind==='player') return characterZoneDefense(tSheet, zone, type);
+        if(tgt.zoneDef && tgt.zoneDef[zone]!=null) return tgt.zoneDef[zone]; // вписано Мастером в форме жетона
+        const z = typeof Bestiary!=='undefined' ? Bestiary.zoneDefense(tgt, zone, type) : null; return z==null ? targetDefense(tgt, type) : z; };
+      const defOf = (type, zone)=>unprotected ? 0 : (zone ? zoneDef(type, zone) : targetDefense(tgt, type) + coverDef) + (pa.defMod||0);
+      const muBase = (w.mu||0) + (w.muPlusCat ? ev.category : 0) + (pa.muMod||0) - gearMu(w.muType); // «МУ[15+категория успеха]»; усиления атакующего
+      const max12 = muBase - defOf(w.muType); max12Shown = max12;
+      const aim12 = aim ? muBase - defOf(w.muType, aim) : null; aim12Shown = aim12; // прицельное — одно попадание, по защите зоны
+      const thr = tgt.kind==='player' ? 5 : (tgt.traumaThreshold || 5), nature = tokenNature(tgt);
+      // «Первый урон (в бою) наносит раны N»: в бою — один раз на атакующего и оружие, пока идёт бой трекера
+      const fwKey = att.id + '|' + w.name, fwOk = !!(w.firstWounds && (!w.firstWounds.perFight || !firstDmgSeen[fwKey]));
+      const adjFor = (type)=>pa.adjAll + (pa.adj[String(type || '').toLowerCase()] || 0) - (gearT ? gearT.woundsMinus : 0);
       for(let i=0;i<plan.hits;i++){
+        const m12 = aim && i===0 ? aim12 : max12;
         const rolls12 = Array.from({length:plan.rollsPerHit}, ()=>randInt(12));
-        const fits = rolls12.filter(k=>k<=max12);
-        const pen = max12>=1 && fits.length>0;
+        const fits = rolls12.filter(k=>k<=m12);
+        const pen = m12>=1 && fits.length>0;
         const k12 = pen ? Math.max(...fits) : Math.max(...rolls12); // «Пул»: лучший — наибольший, что ещё пробивает
-        const h = {k12, pen, wounds: pen ? plan.woundsFor(k12) : 0, trauma: pen && k12>thr && tokenNature(tgt)!=='void', red:false};
+        const h = {k12, pen, wounds: pen ? plan.woundsFor(k12) : 0, trauma: pen && k12>thr && nature!=='void', red:false};
         h.red = h.trauma && !!w.travma;
         if(plan.pulShot) h.rolls12 = rolls12;
-        if(h.pen){ const d = pa.adjAll + (pa.adj[String(w.muType || '').toLowerCase()] || 0) + (pa.firstDmg && !hits.some(x=>x.pen) ? pa.firstDmg : 0); if(d) h.wounds = Math.max(0, h.wounds + d); } // раны: способности цели и атакующего
+        if(aim && i===0){ h.aim = true; if(aim==='golova') h.headAim = true; }
+        const firstPen = h.pen && !hits.some(x=>x.pen && !x.zap);
+        if(firstPen && fwOk){ h.wounds = Math.max(h.wounds, w.firstWounds.wounds); if(w.firstWounds.perFight) firstDmgSeen[fwKey] = true; }
+        if(h.pen){ const d = adjFor(w.muType) + (pa.firstDmg && firstPen ? pa.firstDmg : 0); if(d) h.wounds = Math.max(0, h.wounds + d); } // раны: способности цели и атакующего, «Гаситель»
         hits.push(h);
+        if(w.zap){ // «каждое попадание даёт разряд с МУ14 энергия, раны 2» — отдельный к12 против защиты от его типа
+          const z12 = w.zap.mu - gearMu(w.zap.muType) - defOf(w.zap.muType, aim && i===0 ? aim : null), k = randInt(12), zp = z12>=1 && k<=z12;
+          const zh = {k12:k, pen:zp, wounds:zp ? Math.max(0, Math.max(1, w.zap.wounds) + adjFor(w.zap.muType)) : 0, trauma:zp && k>thr && nature!=='void', red:false, zap:true};
+          hits.push(zh);
+        }
       }
       if(pa.shield && hits.length > 1){ const k = randInt(12), drop = Math.min(k, hits.length - 1); hits.splice(hits.length - drop, drop); pa.tags.push(`щит: к12=${k}, отменено ${drop}`); }
       if(pa.ignore && hits.length){ hits.length = 0; pa.tags.push('атака проигнорирована (сценарная броня)'); }
@@ -2670,7 +2811,8 @@ const GameTable = (function(){
     const total = hits.reduce((a,h)=>a+h.wounds, 0);
     const traumaN = hits.filter(h=>h.trauma && !h.red).length, traumaRedN = hits.filter(h=>h.red).length;
     noteTraumas(tgt, hits, headFrom(att, w), false);
-    const targetName = tokenName(tgt, vitalsFor(tgt));
+    const hiddenLine = !!(opts.anyTarget && tgt.hidden), targetName = hiddenLine ? '???' : tokenName(tgt, vitalsFor(tgt));
+    if(hiddenLine){ const real = tokenName(tgt, vitalsFor(tgt)); pa.tags.push(`скрытая цель: ${real}`); if(role()==='gm' || !session.gmId) toast(`Шрапнель задела скрытого: ${real} — ${total} ${woundsWord(total)}`); }
     const rec = { attackId, attackerOwner: from||null, targetId:tgt.id, targetKind:tgt.kind, ownerId:tgt.ownerId||null,
                   total, traumaN, traumaRedN, hpApplied:false, label:`${attackerName} → ${targetName}, «${w.name}»: ${total} ${woundsWord(total)}`, undone:false };
     const patch = {};
@@ -2691,17 +2833,29 @@ const GameTable = (function(){
     if(Object.keys(patch).length) execCommand({c:'token-update', id:tgt.id, patch});
     attackRecords.push(rec); saveAttackRecords();
     recordAndShareQuickRoll({ mapAttack:true, attackId, attacker:attackerName, target:targetName, weaponName:w.name, fireMode, rolls, roll, mode,
-                              success:ev.success, category:ev.category, jammed, unprotected, slow:!!w.slow, hits, total, robot:tokenNature(tgt)==='robot', sec:{max:fullMax, max12:max12Shown}, pnote:pa.tags.join('; ') });
+                              success:ev.success, category:ev.category, jammed, unprotected, slow:!!w.slow, hits, total, robot:tokenNature(tgt)==='robot',
+                              aim, dual:!!req.dual, series:seriesNo || 0, line:!!opts.line, parried, sec:{max:fullMax, max12:max12Shown, aim12:aim12Shown}, pnote:pa.tags.join('; ') });
     if(att.kind==='player' && !ev.success) if(typeof GmAdvice!=='undefined') GmAdvice.event('miss'); // промах атаки игрока
     if(typeof Reactions!=='undefined') Reactions.trigger(roll===12 ? 'crit' : (roll===13 && !ev.success) ? 'fumble' : ev.success ? 'hit' : 'miss', att.id);
     lastAttackReqs[attackId] = {req, from:from || null};
     if(typeof AbilityKit!=='undefined') setTimeout(()=>{ try{ AbilityKit.onAttack({attackId, attackerId:att.id, targetId:tgt.id, roll, success:ev.success, jammed, total, fromPlayer:!!from || att.kind==='player'}); }catch(e){ console.warn('[Способности]', e); } }, 0);
-    return {ok:true, success:ev.success, jammed, speedUsed};
+    return {ok:true, success:ev.success, jammed, speedUsed, w};
   }
   function undoAttack(attackId, asReroll){
     if(!isAuthority()) return;
     const rec = attackRecords.find(r=>r.attackId===attackId);
     if(!rec || rec.undone) return;
+    if(rec.maneuver){ // манёвр: вернуть отметку «Схвачен» как было
+      const tg = rec.markOn && authState.tokens[rec.markOn];
+      if(tg) execCommand({c:'token-update', id:tg.id, patch:{marks:(tg.marks || []).filter(m=>m.k!=='grabbed')}});
+      const at = rec.markOff && authState.tokens[rec.markOff];
+      if(at && !(at.marks || []).some(m=>m.k==='grabbed')) execCommand({c:'token-update', id:at.id, patch:{marks:(at.marks || []).concat([{k:'grabbed', r:0}])}});
+      if(rec.moved && authState.tokens[rec.moved.id]) execCommand({c:'token-move', moves:[{id:rec.moved.id, x:rec.moved.x, y:rec.moved.y}]}); // толчок — жетон обратно
+      if(rec.parryOn){ delete parryVs[rec.parryOn]; const pt = authState.tokens[rec.parryOn]; if(pt) execCommand({c:'token-update', id:pt.id, patch:{marks:(pt.marks || []).filter(m=>m.k!=='parry')}}); } // парирование
+      rec.undone = true; saveAttackRecords();
+      recordAndShareQuickRoll({mapAttackUndo:true, attackId, text: rec.label + (asReroll ? ' (переброс)' : '')});
+      return;
+    }
     if(rec.victims){ // граната: откатываем каждого задетого
       rec.victims.forEach(v=>{
         const t = authState.tokens[v.targetId];
@@ -2732,6 +2886,154 @@ const GameTable = (function(){
     recordAndShareQuickRoll({mapAttackUndo:true, attackId, text: rec.label + (asReroll ? ' (переброс)' : '')});
   }
   function canUndoAttack(id){ return isAuthority() && attackRecords.some(r=>r.attackId===id && !r.undone); }
+
+  /* ---------- манёвры: схватить, толкнуть, освободиться (стр. 39) ----------
+     Действием — Бросок силы против силы или рефлексов цели (на её выбор — берётся большее). Крупнее цели — Упрощённо, мельче —
+     Осложнённо (складывается с Преимуществом/Помехой жеста). Успех: «схватить» — отметка «Схвачен» (обездвижена, может говорить,
+     освобождаться и Осложнённо делать простые действия одной рукой), «освободиться» — отметка снимается, «толкнуть» — жетон
+     цели отлетает на 3 м от толкающего (отмена ↶ возвращает). Цель «освободиться» — тот, кто держит.
+     Парирование (стр. 39) — реакция: Бросок архаичного оружия (10 + навык + Пр оружия или щита; −3 непредназначенным предметом,
+     −6 крошечным) против рукопашной атаки противника. Успех — его рукопашные атаки по персонажу в этом ходу Осложнены (до конца
+     круга трекера, без боя — 2 минуты): parryVs, отметка «Парирует». Цель манёвра — противник, чью атаку парируют. */
+  const MANEUVERS = {grab:'Схватить', push:'Толкнуть', escape:'Освободиться из захвата', parry:'Парировать'};
+  const parryVs = {}; // жетон, который парировал → {by: id противника, round, at}
+  function parryActive(defId, attId){ const p = parryVs[defId]; if(!p || p.by!==attId) return false;
+    const cb = authState.combat; return cb ? p.round===cb.round : Date.now() - p.at < 120000; }
+  // Чем парировать: оружие ближнего боя с Пр (слоты листа / оружие NPC), щиты из инвентаря («Пр +3»), непредназначенный или крошечный предмет
+  function parryOptions(c, t){
+    const out = [], sg = (n)=>(n >= 0 ? '+' : '−') + Math.abs(n);
+    if(t.kind==='player' && c){
+      [0, 1].forEach(i=>{ const w = sheetWeapon(c, i); if(w && w.dl==null && w.pr!=null) out.push({key:'w' + i, label:`«${w.name}» (Пр ${sg(w.pr)})`, mod:w.pr}); });
+      ['on_body','pockets','backpack','tiny'].forEach(cat=>((c.inventory && c.inventory[cat]) || []).forEach(it=>{
+        const m = /щит/i.test(String(it.name).split(' — ')[0]) && /(?:^|[\s,.;—])Пр\s*([+−-])\s*(\d+)/.exec(it.name);
+        if(m) out.push({key:'sh:' + it.id, label:`«${String(it.name).split(' — ')[0]}» (Пр ${m[1]==='+' ? '+' : '−'}${m[2]})`, mod:(m[1]==='+' ? 1 : -1)*(+m[2])}); }));
+    } else if(t.kind==='gm'){ const w = npcWeapon(t); if(w && w.dl==null && w.pr!=null) out.push({key:'w', label:`«${w.name}» (Пр ${sg(w.pr)})`, mod:w.pr}); }
+    out.push({key:'improper', label:'Непредназначенный предмет (−3)', mod:-3}, {key:'tiny', label:'Крошечный предмет (−6)', mod:-6});
+    return out;
+  }
+  function parryKnownPart(c, att, key){
+    const all = parryOptions(c, att), opt = all.find(o=>o.key===key) || all[0];
+    const w = att.kind==='gm' ? npcWeapon(att) : null;
+    const sk = att.kind==='player' ? ((c && c.stats && +c.stats.arhaichnoe_oruzhie) || 0) : (w && w.npcSkill!=null ? w.npcSkill : 3);
+    return {base:10 + sk + opt.mod, tags:[`Архаичное оружие: ${10 + sk}`, `${opt.label.replace(/\s*\([^)]*\)$/, '')}: ${opt.mod >= 0 ? '+' : '−'}${Math.abs(opt.mod)}`], key:opt.key};
+  }
+  function maneuverWeapon(kind){ return {name:MANEUVERS[kind], maneuver:kind, dl:null}; }
+  function tokenStat(t, key){
+    if(t.kind==='player'){ const c = attackerSheet(t); return c && c.stats ? (+c.stats[key] || 0) : 0; }
+    if(t.creature && typeof TargetRolls!=='undefined') return TargetRolls.npcStat(t, key);
+    return key==='sila' ? (t.strength==null ? 3 : +t.strength) : key==='refleksy' ? (t.reflexes==null ? 3 : +t.reflexes) : 3;
+  }
+  // размер для сравнения: у игрока — из листа, у существа — «Размер» карточки, иначе по клеткам жетона
+  function tokenBulk(t){
+    if(t.kind==='player'){ const c = attackerSheet(t); if(c && isFinite(+c.size)) return +c.size; }
+    if(t.creature && t.creature.rz!=null && isFinite(+t.creature.rz)) return +t.creature.rz;
+    return {small:-2, normal:0, large:2, huge:4}[t.size || 'normal'] || 0;
+  }
+  function maneuverSizeCmp(att, tgt){ const a = tokenBulk(att), b = tokenBulk(tgt); return a > b ? 1 : a < b ? -1 : 0; }
+  function maneuverKnownPart(c, att){ const s = att.kind==='player' ? (c && c.stats ? +c.stats.sila || 0 : 0) : tokenStat(att, 'sila'); return {base:10 + s, tags:[`Сила: ${10 + s}`]}; }
+  function maneuverSecretPart(tgt){ const ts = tokenStat(tgt, 'sila'), tr = tokenStat(tgt, 'refleksy'), v = Math.max(ts, tr);
+    return {v:-v, tags:[`${ts >= tr ? 'Сила' : 'Рефлексы'} цели: −${v}`]}; }
+  function openManeuverPopover(att, tgt, t, range, p){
+    const c = att.kind==='player' ? attackerSheet(att) : null, kind = t.w.maneuver, auth = isAuthority(), cmp = maneuverSizeCmp(att, tgt);
+    if(kind==='parry'){
+      const opts = parryOptions(c, att);
+      const html = `<div class="gt-pop-title">🛡 Парировать атаку: ${escapeHtml(tokenName(tgt, vitalsFor(tgt)))}</div>`+
+        `<div class="gt-pop-note">Реакция. Бросок архаичного оружия против рукопашной атаки этого противника. Успех — все его рукопашные атаки по вам в этом ходу Осложнены.</div>`+
+        `<label class="gt-f">Чем парировать<select name="parryItem">${opts.map(o=>`<option value="${escapeHtml(o.key)}">${escapeHtml(o.label)}</option>`).join('')}</select></label>`+
+        `<div class="gt-pop-actions"><button type="button" class="small" data-cancel>Отмена</button>`+
+        `<button type="button" class="small primary" data-roll title="Нажмите и протяните — как бросок в листе">🛡 Бросок — нажмите и тяните</button></div>`;
+      const form = openPopover(p, html, ()=>false);
+      form.querySelector('[data-roll]').addEventListener('pointerdown', (ev)=>{
+        ev.preventDefault();
+        const known = parryKnownPart(c, att, form.querySelector('[name=parryItem]').value);
+        _mapAttackCtx = { attackerId:att.id, targetId:tgt.id, weaponIdx:null, fireMode:'parry', parryItem:known.key, label:'Парирование', formula:'10 + архаичное оружие + Пр (непредназначенный предмет −3, крошечный −6)',
+                          knownBase:known.base, tags:known.tags, rerollOf:null };
+        closePopover();
+        openRollPicker('map_attack', ev.clientX, ev.clientY, 0);
+      });
+      return;
+    }
+    const what = kind==='grab' ? 'Успех — цель схвачена: обездвижена, простые действия одной рукой Осложнены, пока не освободится.'
+      : kind==='push' ? 'Успех — цель отлетает на 3 м от вас (жетон сдвинется сам).' : 'Успех — отметка «Схвачен» снимается. Цель — тот, кто держит.';
+    const html = `<div class="gt-pop-title">🤼 ${escapeHtml(MANEUVERS[kind])} → ${escapeHtml(tokenName(tgt, vitalsFor(tgt)))}</div>`+
+      `<div class="gt-pop-note">Действие. Бросок силы против силы или рефлексов цели (что у неё выше). ${escapeHtml(what)}</div>`+
+      `<div class="gt-pop-note">${cmp > 0 ? 'Вы крупнее цели — Упрощённо' : cmp < 0 ? 'Вы мельче цели — Осложнённо' : 'Размеры равны'} — ${auth ? 'стол учтёт сам' : 'учтёт Мастер'}.${auth ? ' Сила или рефлексы цели уже в Максимуме.' : ' Характеристику цели учтёт Мастер — итог появится в общем логе.'}</div>`+
+      `<div class="gt-pop-actions"><button type="button" class="small" data-cancel>Отмена</button>`+
+      `<button type="button" class="small primary" data-roll title="Нажмите и протяните — как бросок в листе">🤼 Бросок — нажмите и тяните</button></div>`;
+    const form = openPopover(p, html, ()=>false);
+    form.querySelector('[data-roll]').addEventListener('pointerdown', (ev)=>{
+      ev.preventDefault();
+      const known = maneuverKnownPart(c, att);
+      let knownBase = known.base, tags = known.tags;
+      if(auth){ const sec = maneuverSecretPart(tgt); knownBase += sec.v; tags = tags.concat(sec.tags); }
+      else tags = tags.concat(['− сила или рефлексы цели (учтёт Мастер)']);
+      if(cmp) tags = tags.concat([cmp > 0 ? 'Крупнее цели: Упрощённо (добавит стол)' : 'Мельче цели: Осложнённо (добавит стол)']);
+      _mapAttackCtx = { attackerId:att.id, targetId:tgt.id, weaponIdx:null, fireMode:kind, label:`Манёвр: ${MANEUVERS[kind]}`, formula:'10 + сила − (сила или рефлексы цели, что выше); крупнее — Упрощённо, мельче — Осложнённо',
+                        knownBase, tags, rerollOf:null };
+      closePopover();
+      openRollPicker('map_attack', ev.clientX, ev.clientY, 0);
+    });
+  }
+  // (Мастер/локальный стол) Итог манёвра: отметка «Схвачен» ставится или снимается сразу, отмена ↶ в логе возвращает как было
+  function resolveManeuver(req, from){
+    const s = authState, kind = req.fireMode;
+    const att = s.tokens[req.attackerId], tgt = s.tokens[req.targetId];
+    if(!att || !tgt || att.id===tgt.id) return {ok:false, reason:'Участники манёвра не найдены'};
+    const attackId = String(req.attackId||'').slice(0,64);
+    if(!attackId || attackRecords.some(r=>r.attackId===attackId)) return {ok:false, reason:'Повтор манёвра'};
+    let c = null, attackerName;
+    if(from){
+      if(!(att.kind==='player' && att.ownerId===from)) return {ok:false, reason:'Действовать можно только своим жетоном'};
+      if(tgt.kind!=='gm' || tgt.hidden) return {ok:false, reason:'Эту цель выбрать нельзя'};
+      const p = session.players[from]; c = p && p.character;
+      if(!c) return {ok:false, reason:'Мастеру ещё не пришёл ваш лист'};
+      attackerName = playerDisplayName(p) || att.name || 'Игрок';
+    } else if(att.kind==='gm'){
+      attackerName = att.hidden ? '???' : (att.name || 'NPC');
+    } else {
+      if(att.ownerId!==myOwnerId()) return {ok:false, reason:'Жетоном игрока действует сам игрок'};
+      c = attackerSheet(att);
+      if(!c) return {ok:false, reason:'Нет листа персонажа'};
+      attackerName = tokenName(att, vitalsFor(att));
+    }
+    if(kind==='escape' && !(att.marks || []).some(m=>m.k==='grabbed')) return {ok:false, reason:'Жетон не схвачен — освобождаться не от чего'};
+    const range = rangeInfo(att, tgt, maneuverWeapon(kind));
+    if(!range.ok) return {ok:false, reason:'Цель ' + range.label};
+    const pmode = (req.mode==='advantage' || req.mode==='disadvantage') ? req.mode : 'plain';
+    let rolls = (Array.isArray(req.rolls) ? req.rolls : []).slice(0, pmode==='plain' ? 1 : 2).map(v=>Math.round(num(v,0)));
+    if(!rolls.length || rolls.some(v=>v<1 || v>20) || (pmode!=='plain' && rolls.length<2)) return {ok:false, reason:'Некорректный бросок'};
+    const chosenMod = Math.round(clamp(num(req.chosenMod,0), -30, 30));
+    if(req.rerollOf){ const prev = attackRecords.find(r=>r.attackId===req.rerollOf); if(prev && prev.attackerOwner===(from||null)) undoAttack(prev.attackId, true); }
+    const fullMax = kind==='parry' ? parryKnownPart(c, att, String(req.parryItem || '')).base + chosenMod : maneuverKnownPart(c, att).base + chosenMod + maneuverSecretPart(tgt).v;
+    // Упрощение/Осложнение: жест игрока и разница в размере складываются и гасят друг друга; не хватает второго к20 — бросает стол
+    const sizeCmp = kind==='parry' ? 0 : maneuverSizeCmp(att, tgt), score = (pmode==='advantage' ? 1 : pmode==='disadvantage' ? -1 : 0) + sizeCmp;
+    const mode = score > 0 ? 'advantage' : score < 0 ? 'disadvantage' : 'plain';
+    if(mode==='plain') rolls = rolls.slice(0, 1); else if(rolls.length < 2) rolls = [rolls[0], randInt(20)];
+    const roll = pickD20ForMode(rolls[0], rolls[1], fullMax, mode);
+    const ev = evaluateD20Check(roll, fullMax);
+    const targetName = tokenName(tgt, vitalsFor(tgt));
+    const rec = { attackId, attackerOwner: from||null, targetId:tgt.id, targetKind:tgt.kind, ownerId:tgt.ownerId||null, total:0, traumaN:0, traumaRedN:0, hpApplied:false,
+                  label:`${attackerName} → ${targetName}: ${MANEUVERS[kind].toLowerCase()}`, undone:false, maneuver:kind, markOn:null, markOff:null };
+    if(ev.success && kind==='grab' && !(tgt.marks || []).some(m=>m.k==='grabbed')){
+      execCommand({c:'token-update', id:tgt.id, patch:{marks:(tgt.marks || []).concat([{k:'grabbed', r:0}])}}); rec.markOn = tgt.id; }
+    if(ev.success && kind==='escape'){ execCommand({c:'token-update', id:att.id, patch:{marks:(att.marks || []).filter(m=>m.k!=='grabbed')}}); rec.markOff = att.id; }
+    if(ev.success && kind==='push'){ // «толкнуть»: цель отлетает на 3 м (клетку) от толкающего — по ближайшему из 8 направлений сетки
+      const dx = tgt.x - att.x, dy = tgt.y - att.y, len = Math.hypot(dx, dy) || 1, step = Math.max(1, Math.round(3/METERS_PER_CELL));
+      const sx = Math.round(dx/len), sy = Math.round(dy/len), to = snapPos(tgt.x + (sx || (sy ? 0 : 1))*step, tgt.y + sy*step, tgt.size || 'normal');
+      rec.moved = {id:tgt.id, x:tgt.x, y:tgt.y};
+      execCommand({c:'token-move', moves:[{id:tgt.id, x:to.x, y:to.y}]});
+    }
+    if(ev.success && kind==='parry'){ // парировал: рукопашные атаки этого противника по нему Осложнены до конца хода (круга)
+      parryVs[att.id] = {by:tgt.id, round:authState.combat ? authState.combat.round : null, at:Date.now()}; rec.parryOn = att.id;
+      execCommand({c:'token-update', id:att.id, patch:{marks:(att.marks || []).filter(m=>m.k!=='parry').concat([{k:'parry', r:1}])}});
+      const cb = authState.combat; if(cb && cb.parts && cb.parts[att.id] && !cb.parts[att.id].react){ const c1 = clone(cb); c1.parts[att.id].react = true; setCombat(c1); } // реакция потрачена
+    }
+    attackRecords.push(rec); saveAttackRecords();
+    recordAndShareQuickRoll({ mapManeuver:true, attackId, attacker:attackerName, target:targetName, mv:kind, rolls, roll, mode, sizeCmp,
+                              success:ev.success, category:ev.category, sec:{max:fullMax} });
+    lastAttackReqs[attackId] = {req, from:from || null};
+    return {ok:true, success:ev.success, jammed:false, speedUsed:false};
+  }
 
   /* ---------- гранаты (см. GRENADE_SPECS) ---------- */
   function grenadeWeaponByKey(key, sila){
@@ -2920,7 +3222,7 @@ const GameTable = (function(){
       else if(!w) items.push({id:'atk_none', label:'⚔ Атаковать… (задайте оружие в «Изменить»)', run:()=>openTokenForm(t, null, p)});
       else weaponModes(w).forEach(([m, label])=>items.push({id:'atk_'+m, label:`⚔ ${w.name}: ${label}`, run:()=>startTargeting(t, null, m)}));
       if(t.grenade && GRENADE_SPECS[t.grenade]) items.push({id:'atk_grenade', label:`💣 Метнуть: ${GRENADE_SPECS[t.grenade].name}`, run:()=>startTargeting(t, null, 'grenade')});
-      return items;
+      return items.concat(maneuverItems(t));
     }
     if(t.ownerId!==myOwnerId()) return items;
     const c = attackerSheet(t);
@@ -2937,7 +3239,14 @@ const GameTable = (function(){
     Object.keys(seen).forEach(k=>{ const g = seen[k];
       items.push({id:'atk_gr_'+k, label:`💣 Метнуть: ${g.first.name} (×${g.n})`, run:()=>startTargeting(t, g.first.itemId, 'grenade')}); });
     if(!items.length) items.push({id:'atk_none', label:'⚔ Атаковать… (экипируйте оружие в листе)', run:()=>{}});
-    return items;
+    return items.concat(maneuverItems(t));
+  }
+  // «Схватить», «Толкнуть», а схваченному — «Освободиться» (см. манёвры выше)
+  function maneuverItems(t){
+    const out = [{id:'mv_grab', label:'🤼 Схватить…', run:()=>startTargeting(t, null, 'grab')}, {id:'mv_push', label:'🤼 Толкнуть…', run:()=>startTargeting(t, null, 'push')},
+      {id:'mv_parry', label:'🛡 Парировать… (реакция)', run:()=>startTargeting(t, null, 'parry')}];
+    if((t.marks || []).some(m=>m.k==='grabbed')) out.unshift({id:'mv_escape', label:'🤼 Освободиться из захвата…', run:()=>startTargeting(t, null, 'escape')});
+    return out;
   }
 
   /* ---------- сцены (экран Мастера): снимок стола без жетонов игроков и включение снимка одной командой ---------- */

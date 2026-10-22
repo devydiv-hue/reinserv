@@ -20,19 +20,36 @@ const ARMOR_ZONE_COLORS = {
 // зона1, зона2 / СК..." — если распознать не удалось (свободная формулировка, кастомный предмет
 // игрока и т.п.), возвращает пустой список, а не гадает: при надевании игрок увидит пустые галочки
 // и отметит зоны сам, вместо того чтобы молча приписать предмету неверное покрытие.
+// Тот же разбор — у брони существ бестиария («[защита 2 / всё тело, кроме головы / СК 19]»): регистр не важен, зона может
+// стоять последней перед «]», «кроме головы» исключает голову; «защита 6 (…) / СК 18» — зона не подписана (пусто).
 function parseArmorZones(name){
-  const m = /Защита[^/]*\/\s*([^/]+)\s*\//.exec(name||'');
+  const m = /Защита[^/]*\/\s*([^/\]]+)\s*[\/\]]/i.exec(name||'');
   if(!m) return [];
-  const text = m[1].toLowerCase();
-  if(text.includes('всё тело')) return ARMOR_ZONES.slice();
-  const found = [];
-  if(/голов/.test(text)) found.push('golova');
-  if(/плеч/.test(text)) found.push('plechi');
-  if(/торс/.test(text)) found.push('tors');
-  if(/рук/.test(text)) found.push('ruki');
-  if(/бёдр|бедр/.test(text)) found.push('bedra');
-  if(/ног/.test(text)) found.push('nogi');
+  const text = m[1].toLowerCase().replace(/ё/g, 'е');
+  if(/^\s*(?:ск|сл)\s*\d/.test(text)) return [];
+  let found = [];
+  if(text.includes('все тело')) found = ARMOR_ZONES.slice();
+  else {
+    if(/голов/.test(text)) found.push('golova');
+    if(/плеч/.test(text)) found.push('plechi');
+    if(/торс/.test(text)) found.push('tors');
+    if(/рук/.test(text)) found.push('ruki');
+    if(/бедр/.test(text)) found.push('bedra');
+    if(/ног/.test(text)) found.push('nogi');
+  }
+  if(/кроме\s+голов/.test(text)) found = found.filter(z=>z!=='golova');
   return found;
+}
+// Зона брони не подписана («мотошлем [защита 1 (Уд 3) / СК 17]»): по предмету каталога с тем же названием, иначе шлем, каска,
+// маска, противогаз, пузырь — голова
+function armorZonesGuess(itemName){
+  const n = String(itemName||'').toLowerCase().replace(/ё/g, 'е').trim();
+  if(!n) return [];
+  for(const gen of Object.values(ITEM_CATALOG)) for(const cat of Object.values(gen.categories || {})) for(const it of (cat.items || [])){
+    if(it.name.toLowerCase().replace(/ё/g, 'е')!==n) continue;
+    const z = parseArmorZones(it.name + ' — ' + it.desc); if(z.length) return z;
+  }
+  return /шлем|каск|маск|противогаз|пузыр/.test(n) ? ['golova'] : [];
 }
 // Цвета для типовых сокращений урона в скобках у "Защита N (Эн6, Уд5...)" — сами названия типов
 // (Эн/Уд/Вз/Пт/Тм и т.д.) не расшифровываем и не придумываем: в книге они не разжёваны, показываем
@@ -161,9 +178,15 @@ const WEAPON_SL_RE = /Сл\s*(\d+)/;
 // "раны N" — базовое число ран за попадание (см. черту "Раны Х" в памятке: без неё — 1 рана за
 // попадание, с ней — указанное число). Используется в резолве попаданий (см. resolveWeaponAttackOutcome).
 const WEAPON_WOUNDS_RE = /раны\s*(\d+)/i;
+// «МУ[15+категория успеха атаки]» («Лазерное ружьё») — МУ растёт на категорию успеха атаки. В карточке существа из листа
+// квадратные скобки заменены круглыми — годятся обе.
+const WEAPON_MU_CAT_RE = /МУ\s*[\[(]\s*(\d+)\s*\+\s*категори[^\])]*[\])]\s*(удар|патрон|энергия|температура)?/;
+// Раны, которые наносит не каждое попадание, а особый случай: «Первый урон (в бою) наносит раны 2», «разряд с МУ14 энергия,
+// раны 2» («Электропрут»), «при силе 4 и менее … наносит раны 2». Базовые «раны N» ищутся в тексте без этих фраз.
+const woundsBaseText = (statText)=>String(statText||'').replace(/[^.]*(?:[Пп]ервый\s+урон|разряд)[^.]*\.?/g, '').replace(/наносит\s+раны\s*\d+/gi, '');
 function parseWeaponStats(fullName){
   if(!fullName) return null;
-  const atM = WEAPON_AT_RE.exec(fullName), muM = WEAPON_MU_RE.exec(fullName);
+  const atM = WEAPON_AT_RE.exec(fullName), muM = WEAPON_MU_RE.exec(fullName) || WEAPON_MU_CAT_RE.exec(fullName);
   if(!atM || !muM) return null;
   const normSigned = s => parseInt(s.replace(/\s+/g,'').replace('−','-'),10);
   // Имя vs. текст свойств — два формата, встречающихся в данных: "Имя — текст." (предмет добавлен из
@@ -180,7 +203,7 @@ function parseWeaponStats(fullName){
     else { cleanName = fullName.trim(); statText = fullName.trim(); }
   }
   const prM = WEAPON_PR_RE.exec(fullName), dlM = WEAPON_DL_RE.exec(fullName), slM = WEAPON_SL_RE.exec(fullName);
-  const woundsM = WEAPON_WOUNDS_RE.exec(statText);
+  const woundsM = WEAPON_WOUNDS_RE.exec(woundsBaseText(statText));
   return {
     cleanName, statText,
     at: normSigned(atM[1]), mu: parseInt(muM[1],10), hitType: muM[2]||null,
@@ -240,11 +263,51 @@ function blankWeaponSlot(){
 // комментарий у parseWeaponStats выше про его роль как чисто информационного стата — штраф к МУ поэтому
 // только упоминается тегом-предупреждением на карточке, не пересчитывает что-либо).
 // (штраф Высоких технологий/Ксенотеха — Ат −2 и МУ −1 — считает applyWielder ниже по файлу)
+// «Любимое оружие» (карьеры бойцов): «Атака оружием категории «X» получает модификатор +3» — X сверяется с навыком боя
+// оружия (weaponCombatSkill). Считается и в броске из листа, и в атаке с карты, и в карточке существа из листа.
+function favoriteWeaponBonus(c, w){
+  const sk = w && weaponCombatSkill(w);
+  if(!c || !sk) return 0;
+  const a = (c.abilities || []).find(x=>x.name==='Любимое оружие' && String(x.text || '').indexOf(`«${STAT_LABELS[sk]}»`) >= 0);
+  const m = a && /модификатор\s*\+\s*(\d+)/.exec(a.text);
+  return m ? +m[1] : 0;
+}
+// Уровень взятой специализации: 0 — не взята, иначе наибольший из взятых (1 или 2)
+function specTier(c, key){ return ((c && c.specializationPicks) || []).reduce((a, p)=>p && p.key===key ? Math.max(a, +p.tier || 0) : a, 0); }
+// Одной ли рукой держится оружие слота. «Одной рукой нужна Сл5 / сила 5+», «требует силу 4+, чтобы держать одной рукой» — одной
+// рукой при такой силе, иначе двуручное; без такой фразы — двуручное, если весит 3 Вещи и больше (или Огромную), иначе одноручное.
+// need — сила, чтобы держать одной рукой: из фразы, иначе Сл + 3 («Две пушки»: «требование силы +3 на каждое»).
+function weaponHands(c, idx){
+  const slot = c && c.weapons && c.weapons[idx], e = slot && slot.name ? sheetWeaponEffective(c, idx) : null;
+  if(!e) return null;
+  const text = e.statText || '', sila = (c.stats && c.stats.sila) || 0;
+  const m = /одной\s+рукой\s+нужн\S*\s+(?:сил\S*|Сл)\s*(\d+)/i.exec(text) || /требует\s+сил\S*\s*(\d+)\+?,?\s*чтобы\s+держать\s+одной\s+рукой/i.exec(text);
+  if(m) return {name:e.name, two:sila < +m[1], need:+m[1], phrase:true};
+  let weight = '';
+  ['on_body','pockets','backpack','tiny'].some(cat=>((c.inventory && c.inventory[cat]) || []).some(it=>{ if(it.id===slot.itemId){ weight = String(it.weight || ''); return true; } return false; }));
+  const wm = /(\d+)\s*Вещ/i.exec(weight), heavy = /Огр/i.test(weight) || (wm && +wm[1] >= 3);
+  return {name:e.name, two:!!heavy, need:(e.sl || 0) + 3, phrase:false};
+}
+// Можно ли атаковать двумя оружиями (стр. 39): два одноручных — да; двуручное в паре — только со способностью «Две пушки» (Тварь),
+// при размере 1+ и силе не ниже требования одной рукой на каждое двуручное. null — можно, иначе — почему нельзя.
+function dualWieldBlock(c){
+  const h = [0, 1].map(i=>weaponHands(c, i));
+  if(!h[0] || !h[1]) return 'Нужно два экипированных оружия';
+  const two = h.filter(x=>x.two);
+  if(!two.length) return null;
+  if(two.some(x=>x.phrase)){ const x = two.find(y=>y.phrase); return `«${x.name}» одной рукой — нужна сила ${x.need}`; }
+  if(!(c.abilities || []).some(a=>a.name==='Две пушки')) return `«${two[0].name}» — двуручное: парой только со способностью «Две пушки»`;
+  if((c.size || 0) < 1) return '«Две пушки» — только при размере 1+';
+  const weak = two.find(x=>((c.stats && c.stats.sila) || 0) < x.need);
+  return weak ? `«${weak.name}» одной рукой («Две пушки») — нужна сила ${weak.need}` : null;
+}
 // Подписи броска атаки из листа: навык, Ат (уже с чертами) и что именно его изменило
 function weaponAttackTags(idx, extraFn){
   const e = sheetWeaponEffective(character, idx), sk = weaponCombatSkill(e);
   if(!sk) return [];
   const t = [`${STAT_LABELS[sk]}: ${10 + character.stats[sk]}`, `Ат оружия: ${e.at>=0?'+':''}${e.at}`];
+  const fav = favoriteWeaponBonus(character, e);
+  if(fav) t.push(`Любимое оружие: +${fav}`);
   e.techNotes.concat(e.condNotes.filter(n=>/Ат/.test(n))).forEach(n=>t.push(n));
   return t.concat(extraFn(e));
 }
@@ -256,7 +319,7 @@ function weaponAttackTags(idx, extraFn){
       const e = sheetWeaponEffective(character, idx), sk = weaponCombatSkill(e);
       if(!sk) return 10;
       const optikaOn = e.optika && checkboxOn('weaponOptika'+idx);
-      return 10 + character.stats[sk] + e.at + (optikaOn?6:0); // e.at — уже с тех-штрафом и условными чертами
+      return 10 + character.stats[sk] + e.at + favoriteWeaponBonus(character, e) + (optikaOn?6:0); // e.at — уже с тех-штрафом и условными чертами
     },
     tags(){ return weaponAttackTags(idx, (e)=> e.optika && checkboxOn('weaponOptika'+idx) ? ['Оптика (30м+, реакция): +6'] : []); },
     blocked(){ return weaponBlockedReason(character, idx); },
@@ -271,11 +334,11 @@ function weaponAttackTags(idx, extraFn){
       const e = sheetWeaponEffective(character, idx), sk = weaponCombatSkill(e);
       if(!sk) return 10;
       const far = checkboxOn('weaponBurstFar'+idx);
-      return 10 + character.stats[sk] + e.at + (far?-6:0);
+      return 10 + character.stats[sk] + e.at + favoriteWeaponBonus(character, e) + (far?-6:0);
     },
     tags(){ return weaponAttackTags(idx, ()=> checkboxOn('weaponBurstFar'+idx) ? ['Дистанция >12м: −6'] : []); },
     blocked(){ return weaponBlockedReason(character, idx); },
-    formula(){ return 'Навык боя + Ат оружия (−6, если дистанция >12м); успех даёт [КУ+3] попаданий'; }
+    formula(){ return 'Навык боя + Ат оружия (+3 «Любимое оружие»; −6, если дистанция >12м); успех даёт [КУ+3] попаданий'; }
   };
   // Подавляющий огонь — отдельный спасброс атаки с ФИКСИРОВАННЫМ Максимумом 12 (книга прямо говорит
   // "фиксированным" — ни навык боя, ни Ат оружия сюда не идут, в отличие от обычной атаки/очереди выше).
@@ -475,7 +538,7 @@ function weaponHitPlan(w, fireMode, roll, category, opts){
   // но [КУ] бросков к12 за него. Пул+Мощь: тот же лучший бросок идёт и на раны.
   const pulShot = !!(fireMode==='attack' && w.pul);
   return {
-    hits: pulShot ? 1 : Math.max(1, hitCount || 0), // успешная атака — хотя бы одно попадание
+    hits: (pulShot ? 1 : Math.max(1, hitCount || 0)) + Math.max(0, Math.round(+w.extraHits || 0)), // успешная атака — хотя бы одно попадание; «наносит +1 попадание» — сверху
     rollsPerHit: pulShot ? Math.max(1, category || 0) : 1,
     pulShot, speedUsed,
     woundsFor: (k12)=> Math.max(1, (moshhActive ? k12 : rollBaseWounds()) + razryvBonus)
@@ -483,6 +546,7 @@ function weaponHitPlan(w, fireMode, roll, category, opts){
   // «Раны N» — число; «раны 2к6» — кубики на каждое попадание; «раны 4 (6, если у цели 10+ ОЗ)» — по HP цели
   // (известно только при атаке с игрового стола — opts.targetHp)
   function rollBaseWounds(){
+    if(w.woundsPerCat) return w.woundsPerCat * Math.max(1, category || 1); // «раны [4 за категорию успеха атаки]»
     if(w.woundsVsHp && opts && opts.targetHp!=null && opts.targetHp >= w.woundsVsHp.hp) return w.woundsVsHp.wounds;
     if(w.woundsDice){ let sum = 0; for(let i=0;i<w.woundsDice.n;i++) sum += randInt(w.woundsDice.sides); return sum; }
     return baseWounds;
@@ -507,30 +571,85 @@ function armorSubsObject(list){
   (list||[]).forEach(s=>{ const m = /^([А-Яа-яЁё]+)\s*([+\-−]?\d+)$/.exec(String(s).trim()); if(m) out[m[1]] = parseInt(m[2].replace('−','-'),10); });
   return out;
 }
-// Защита торса персонажа игрока (c — его лист: у Мастера это копия из session.players): наибольшая защита
-// среди надетой брони, покрывающей торс (по типу урона, если указан), иначе ручное поле «Защита (тело)».
-function characterTorsoDefense(c, muType){
+// Защита зоны тела персонажа игрока (c — его лист: у Мастера это копия из session.players): наибольшая защита среди
+// надетой брони, покрывающей зону (по типу урона, если указан). Голова — с отдельной защитой шлема («У шлема защита 7»,
+// «Защита шлема +2»). Обычная атака бьёт по торсу (защита тела), прицельная — по выбранной зоне (стр. 39).
+function characterZoneDefense(c, zone, muType){
   if(!c) return 0;
   let best = null;
   ['on_body','pockets','backpack','tiny'].forEach(cat=>{
     ((c.inventory && c.inventory[cat]) || []).forEach(it=>{
-      if(!it.wornZones || it.wornZones.indexOf('tors')<0) return;
+      if(!it.wornZones || it.wornZones.indexOf(zone)<0) return;
       const st = parseArmorStats(it.name);
       if(!st) return;
-      const d = defenseAgainst(st.base, armorSubsObject(st.subs), muType);
+      let d = defenseAgainst(st.base, armorSubsObject(st.subs), muType);
+      if(zone==='golova' && st.helmet) d = st.helmet.mode==='abs' ? defenseAgainst(st.helmet.value, armorSubsObject(st.helmet.subs), muType) : d + st.helmet.value;
       if(best===null || d>best) best = d;
     });
   });
   if(best!==null) return best;
-  return (c.armor && Number(c.armor.body)) || 0;
+  return zone==='tors' ? ((c.armor && Number(c.armor.body)) || 0) : zone==='golova' ? ((c.armor && Number(c.armor.helmet)) || 0) : 0; // ручные поля «Защита (тело)» и «Шлем»
 }
+function characterTorsoDefense(c, muType){ return characterZoneDefense(c, 'tors', muType); }
+// Защитные вещи листа, которые стол учитывает сам: «Кинетический щит» (МУ атаки −[её попадания]) и «Генератор щита»
+// (−4 МУ энергии, температуры и взрыва при стрельбе) — если включены кнопкой «Использовать» в инвентаре; оба режут и
+// входящие, и исходящие атаки. Надетые на торс: «Гаситель кинетики» (раны от каждого попадания −1) и броня
+// «если персонаж в укрытии, то +1 к защите» (отметка «В укрытии» на жетоне).
+const GEAR_TOGGLE_RE = /МУ входящей и исходящей атаки|МУ входящих и исходящих попаданий/i;
+// «Сковывает» у брони: «если сила не 2+, то сковывает» / «сковывает, если сила не 2+» — при силе ниже; голое «сковывает»
+// («Паровоз», «Полная броня») — всегда. Пока только пометка «Скован» под жетоном (механики в листе нет).
+function armorEncumbers(text, sila){
+  const t = String(text || ''); let m;
+  if((m = /если\s+сила\s+(?:персонажа\s+)?не\s+(\d+)\+,?\s*то\s+(?:броня\s+)?сковывает/i.exec(t)) || (m = /сковывает,?\s*если\s+сила\s+не\s+(\d+)\+/i.exec(t))) return (+sila || 0) < +m[1];
+  return /(?:^|[,.;]\s*)сковывает\s*(?:[,.;\]]|$)/i.test(t);
+}
+// надетая броня персонажа (зоны отмечены), которая его сковывает: название или null
+function characterEncumbrance(c){
+  if(!c || !c.inventory) return null;
+  const sila = (c.stats && c.stats.sila) || 0; let hit = null;
+  ['on_body','pockets','backpack','tiny'].some(cat=>((c.inventory[cat]) || []).some(it=>{
+    if(!(it.wornZones && it.wornZones.length) || !armorEncumbers(it.name, sila)) return false;
+    hit = String(it.name).split(' — ')[0]; return true; }));
+  return hit;
+}
+function characterGearEffects(c){
+  const out = {kinetic:null, shieldGen:null, woundsMinus:0, woundsMinusName:'', coverDef:0};
+  if(!c || !c.inventory) return out;
+  ['on_body','pockets','backpack','tiny'].forEach(cat=>((c.inventory[cat]) || []).forEach(it=>{
+    const t = String(it.name || ''), nm = t.split(' — ')[0], torso = !!(it.wornZones && it.wornZones.indexOf('tors') >= 0);
+    let m;
+    if(it.gearActive && /МУ входящей и исходящей атаки на\s*\[\s*количество попаданий/i.test(t)) out.kinetic = nm;
+    if(it.gearActive && (m = /снижает на\s*[−-]?\s*(\d+)\s*МУ входящих и исходящих попаданий типа\s+([^.]+)/i.exec(t))) out.shieldGen = {v:+m[1], types:m[2].toLowerCase(), name:nm};
+    if(torso && (m = /Раны от каждого попадания\s*[−-]\s*(\d+)/i.exec(t)) && +m[1] > out.woundsMinus){ out.woundsMinus = +m[1]; out.woundsMinusName = nm; }
+    if(torso && (m = /в укрытии,?\s*то\s*\+\s*(\d+)\s*к защите/i.exec(t))) out.coverDef = Math.max(out.coverDef, +m[1]);
+  }));
+  return out;
+}
+window.toggleGearActive = function(category, itemId){
+  const it = character && character.inventory[category] && character.inventory[category].find(x=>x.id===itemId);
+  if(!it) return;
+  it.gearActive = !it.gearActive;
+  logEvent(character, `«${it.name.split(' — ')[0]}»: ${it.gearActive ? 'используется — стол учитывает его в атаках' : 'убран'}.`);
+  renderAll();
+};
+// «Раз в бой в свой ход даёт 2 временных ОЗ» («Кинезис-латы», надетые): ОЗ сверх максимума — как временные
+window.useItemTempHp = function(category, itemId){
+  const it = character && character.inventory[category] && character.inventory[category].find(x=>x.id===itemId);
+  const m = it && /даёт\s+(\d+)\s+временн\S*\s+ОЗ/i.exec(it.name);
+  if(!m) return;
+  const b = +character.hpCurrent || 0;
+  character.hpCurrent = b + (+m[1]);
+  logEvent(character, `«${it.name.split(' — ')[0]}»: +${m[1]} временных ОЗ (${b} → ${character.hpCurrent}). Раз в бой.`);
+  uiToast(`+${m[1]} временных ОЗ — раз в бой`, {icon:'🛡'});
+  renderAll();
+};
 // Слот оружия листа → те же поля плюс тип урона МУ и черта «травма» (для атаки с карты): берём из полного
 // текста предмета, с которого слот экипирован; у вручную заполненного слота — из его текста свойств.
 function weaponFullStats(w){
   if(!w || !w.name) return null;
   const parsed = w.itemNameSnapshot ? parseWeaponStats(w.itemNameSnapshot) : null;
   const text = parsed ? parsed.statText : String(w.properties||'').replace(/<[^>]*>/g,'');
-  const muM = WEAPON_MU_RE.exec(text);
+  const muM = WEAPON_MU_RE.exec(text) || WEAPON_MU_CAT_RE.exec(text);
   return Object.assign({}, w, { statText:text, muType: parsed ? parsed.hitType : (muM && muM[2]) || null, travma: hasWeaponTag(text, 'травма') });
 }
 /* ======================================================================
@@ -583,6 +702,23 @@ function applyWielder(w, st, gmIssued){
   if(dm && cond.woundsOverride==null){ e.woundsDice = {n: parseInt(dm[1],10) || 1, sides: parseInt(dm[2],10)}; e.hasExplicitWounds = true; }
   const hm = /раны\s*(\d+)\s*\((\d+),?\s*если у цели (\d+)\+\s*ОЗ\)/i.exec(text);
   if(hm) e.woundsVsHp = {wounds:+hm[2], hp:+hm[3]};
+  // Особые строки оружия: «МУ[15+категория успеха]», «раны [4 за категорию успеха]», «(успешная атака) наносит +1 попадание»,
+  // «за одно действие может атаковать дважды» / «до трёх атак», «каждое попадание даёт разряд с МУ14 энергия, раны 2»,
+  // «первый урон (в бою) наносит раны N»
+  if(WEAPON_MU_CAT_RE.test(text)) e.muPlusCat = true;
+  const wc = /раны\s*[\[(]\s*(\d+)\s+за\s+категори/i.exec(text);
+  if(wc && cond.woundsOverride==null){ e.woundsPerCat = +wc[1]; e.hasExplicitWounds = true; }
+  const xh = /наносит\s+\+\s*(\d+)\s+попадани/i.exec(text);
+  if(xh) e.extraHits = +xh[1];
+  const ma = /до\s+(двух|трёх|\d+)\s+атак/i.exec(text);
+  e.attacksPerAction = /атаковать\s+дважды/i.test(text) ? 2 : ma ? ({'двух':2, 'трёх':3}[ma[1]] || Math.min(5, +ma[1] || 1)) : 1;
+  const zp = /разряд\s+с\s+МУ\s*(\d+)\s*(удар|патрон|энергия|температура)?,?\s*раны\s*(\d+)/i.exec(text);
+  if(zp) e.zap = {mu:+zp[1], muType:zp[2] || 'энергия', wounds:+zp[3]};
+  const fw = /[Пп]ервый\s+урон(\s+в\s+бою)?\s+наносит\s+раны\s*(\d+)/i.exec(text);
+  if(fw) e.firstWounds = {wounds:+fw[2], perFight:!!fw[1]};
+  // «Проверьте атаку по каждой цели на линии шириной 3 м» («Шрапнельная пушка»; в старых записях было «в радиусе 3м»)
+  const ln = /атаку\s+по\s+каждой\s+цели\s+(?:на\s+линии\s+шириной|в\s+радиусе)\s*(\d+)\s*м/i.exec(text);
+  if(ln) e.lineWidth = +ln[1];
   e.slow = hasWeaponTag(text, 'медленное') || cond.slow;
   const tech = [];
   if(w.highTech && !(st.uchenost>=2 || st.tehnika>=2)){ e.at -= 2; e.mu -= 1; tech.push('Высокие технологии: нет учёности/техники 2+ — Ат−2, МУ−1'); }
@@ -674,12 +810,12 @@ function consumeGrenade(c, itemId){
 // только известную ему часть Максимума: модификаторы цели секретны и добавляются у Мастера.
 let _mapAttackCtx = null;
 Object.defineProperty(STAT_LABELS, 'map_attack', { enumerable:true, configurable:true,
-  get(){ return _mapAttackCtx && _mapAttackCtx.fireMode==='grenade' ? 'Бросок гранаты' : 'Атака с карты'; } });
-SAVE_ROLL_DEFS['map_attack'] = {
-  get label(){ return _mapAttackCtx && _mapAttackCtx.fireMode==='grenade' ? 'Бросок гранаты (лёгкая атлетика)' : 'Атака с карты'; }, anchorMod: 0,
+  get(){ return _mapAttackCtx && _mapAttackCtx.label ? _mapAttackCtx.label : _mapAttackCtx && _mapAttackCtx.fireMode==='grenade' ? 'Бросок гранаты' : 'Атака с карты'; } });
+SAVE_ROLL_DEFS['map_attack'] = { // label/formula в контексте — у манёвров («Схватить» и т.п.)
+  get label(){ return _mapAttackCtx && _mapAttackCtx.label ? _mapAttackCtx.label : _mapAttackCtx && _mapAttackCtx.fireMode==='grenade' ? 'Бросок гранаты (лёгкая атлетика)' : 'Атака с карты'; }, anchorMod: 0,
   base(){ return _mapAttackCtx ? _mapAttackCtx.knownBase : 10; },
   tags(){ return _mapAttackCtx ? _mapAttackCtx.tags.slice() : []; },
-  formula(){ return _mapAttackCtx && _mapAttackCtx.fireMode==='grenade' ? '10 + лёгкая атлетика − рефлексы цели; дальше 12 м −6' : 'Навык боя + Ат оружия + дистанция; модификаторы цели учитывает Мастер'; }
+  formula(){ return _mapAttackCtx && _mapAttackCtx.formula ? _mapAttackCtx.formula : _mapAttackCtx && _mapAttackCtx.fireMode==='grenade' ? '10 + лёгкая атлетика − рефлексы цели; дальше 12 м −6' : 'Навык боя + Ат оружия + дистанция; модификаторы цели учитывает Мастер'; }
 };
 // Бросок существа из бестиария (клик по числу в скобках на карточке): Максимум — из книги. Переброс ресурсами
 // листа не предлагается (это не персонаж), в общий лог уходит, только если Мастер включил «броски видны игрокам».
@@ -707,6 +843,8 @@ function executeMapAbilityRoll(base, mod, popup, mode){
   const ctx = _mapAbilityCtx, max = base + mod, rolls = mode==='plain' ? [randInt(20)] : [randInt(20), randInt(20)];
   const roll = pickD20ForMode(rolls[0], rolls[1], max, mode), ev = evaluateD20Check(roll, max), opp = !!(ctx && ctx.opp);
   if(!opp && typeof recordAndShareRoll==='function') recordAndShareRoll('map_ability', mod, roll, max, ev.success, ev.category, mode, rolls); // встречную запишет Мастер — с итогом по целям
+  if(!opp && ctx && ctx.stat==='mistika' && typeof resolveSpiritOutcome==='function') resolveSpiritOutcome('mistika', roll, ev.success, ev.category); // кость духов шамана
+  if(!opp && ctx && ctx.abilText && typeof spiritAbilityOutcome==='function') spiritAbilityOutcome(ctx.abilText, ev.success); // «Песнь мира», «Лечащий ритуал»
   popup.querySelector('.hex-field').remove();
   popup.querySelector('.roll-max-preview').remove();
   popup.querySelector('.roll-tags').remove();

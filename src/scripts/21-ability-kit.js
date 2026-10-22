@@ -564,6 +564,12 @@ const AbilityKit = (function(){
     const out = [], S = sentences(t); let m;
     if(rs && rs.scope==='hits_all') out.push({id:'rerollHits', label:'↻ переброс: все к12 своей атаки (после попадания)'});
     if(rs && (rs.scope==='hits_note' || rs.scope==='other')) out.push({id:'rerollNote', label:'↻ переброс по условию — решает Мастер', cond:rs.cond});
+    // «Любимое оружие»: +3 к атаке оружием своей категории — считают лист и стол (favoriteWeaponBonus); «(уже учтено)» — числа уже в листе
+    if((m = /Атака\s+оружием\s+категории\s+«([^»]+)»\s+получает\s+модификатор\s+\+\s*(\d+)/i.exec(t))) out.push({id:'favWeapon', v:+m[2], label:`+${m[2]} к атаке: ${m[1].toLowerCase()}`});
+    else if(/\(уже учтено/i.test(t)) out.push({id:'applied', label:'учтено в листе'});
+    // «Умелый стрелок»: «(макс. +5)» — точка внутри скобок рвёт предложение, поэтому — по всему тексту
+    if((m = /следующая\s+стрелковая\s+атака\s+по\s+одной\s+цели[^;]*?накопительн\S*\s+модификатор\s+\+\s*1\s*\(\s*макс\S*\s*\+\s*(\d+)/i.exec(t)) && !S.some(sn=>/следующая\s+стрелковая\s+атака[^.]*\(\s*макс\S*\s*\+\s*\d+/i.test(sn)))
+      out.push({id:'stackAim', max:+m[1], label:`+1 за каждую следующую стрельбу по той же цели (до +${m[1]})`});
     const UNCOND = /(?:^|[^а-яё])(?:если|когда|может|можно|раз\s+в|за\s+\d+\s+(?:пси|удач)|в\s+ярости|до\s+конца|в\s+случае|при\s+успехе|при\s+провале|пока)(?![а-яё])/i;
     S.forEach(sn=>{
       const env = /хими|радиац|болезн|вредн\S*\s+сред|кислот|температур/i;
@@ -1315,7 +1321,7 @@ const AbilityKit = (function(){
     window.addRollLogEntry = function(entry, silent){
       const isNew = origAdd.apply(this, arguments);
       try{
-        if(isNew && !silent && typeof session!=='undefined' && session.role==='gm' && entry && !entry.mapAttack && !entry.mapGrenade && !entry.secretStub && !entry.chat
+        if(isNew && !silent && typeof session!=='undefined' && session.role==='gm' && entry && !entry.mapAttack && !entry.mapGrenade && !entry.mapManeuver && !entry.secretStub && !entry.chat
           && typeof entry.id==='string' && entry.id.indexOf(getDeviceId() + ':')!==0){
           const d20 = entry.kind!=='quick' || entry.diceType==='d20';
           if(d20 && entry.success===false && +entry.roll > 0 && +entry.roll <= 15){

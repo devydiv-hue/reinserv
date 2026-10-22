@@ -794,7 +794,7 @@ function handleIncomingMessage(msg){
   } else if(msg.type==='roll-sec'){
     // Мастер допустил к порогам во время сессии — пороги уже прошедших атак
     if(fromGm && Array.isArray(msg.list)){ let n = 0; msg.list.slice(0, 200).forEach(x=>{ const e = x && session.log.find(y=>y.id===x.id);
-      if(e && (e.mapAttack || e.mapGrenade) && x.sec && typeof x.sec==='object'){ e.sec = {max:Math.round(+x.sec.max || 0), max12:x.sec.max12==null ? null : Math.round(+x.sec.max12 || 0)}; n++; } });
+      if(e && (e.mapAttack || e.mapGrenade || e.mapManeuver) && x.sec && typeof x.sec==='object'){ e.sec = {max:Math.round(+x.sec.max || 0), max12:x.sec.max12==null ? null : Math.round(+x.sec.max12 || 0), aim12:x.sec.aim12==null ? null : Math.round(+x.sec.aim12 || 0)}; n++; } });
       if(n){ saveRollLog(); renderRollLog(); } }
   } else if(msg.type==='sheet-restore-none'){
     if(fromGm) uiAlert('У Мастера нет сохранённых копий вашего листа. Создайте персонажа заново или загрузите из файла.', {title:'Вернуть у Мастера', icon:'↩'});

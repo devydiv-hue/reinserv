@@ -281,7 +281,7 @@ function reconcileMysticUnlocks(c, source){
     const cat = CULTIST_ABILITY_CATALOG[c.cultReligion] || {};
     const src = c.cultReligionSource || source;
     Object.entries(cat).forEach(([group,names])=>{
-      const reqLevel = CULT_GROUP_LEVEL[group];
+      const reqLevel = cultGroupLevel(c, group);
       if(reqLevel!==undefined && c.level>=reqLevel){
         const granted = names.filter(n=>addCatalogAbility(c,n,src,c.cultReligion,group));
         if(granted.length) logEvent(c, `Способности культа открыты (${c.cultReligion} → ${group}, ур.${reqLevel}): ${granted.join(', ')}.`);
@@ -293,7 +293,7 @@ function reconcileMysticUnlocks(c, source){
     // level/career batch doesn't queue the choice again. Uses its own source suffix (still prefixed by
     // src, so a full religion/archetype switch's removeBonusesBySource(src) still cleans it up too) so
     // a level-down can prune just this mutation without touching Послушание/Молитва/Культовый символ.
-    if(c.cultReligion==='Поклонение Матери-Природе' && c.level>=CULT_GROUP_LEVEL['Катарсис'] && !c._motherNatureCatharsisTriggered){
+    if(c.cultReligion==='Поклонение Матери-Природе' && c.level>=cultGroupLevel(c, 'Катарсис') && !c._motherNatureCatharsisTriggered){
       c._motherNatureCatharsisTriggered = true;
       applyModifier(c, M.choiceMixed(MOTHER_NATURE_CATHARSIS_BUNDLES), src+' → катарсис-мутация', randomMode);
     }
@@ -693,6 +693,23 @@ function applyModifier(c, mod, source, auto){
       logEvent(c, `Пси-сопротивление ${mod.delta>0?'+':''}${mod.delta} (${source}) → сейчас ${c.psiSoprot}.`);
       break;
     }
+    case 'hpBySize': { // «Здоровяк»: максимум ОЗ +[размер + plus], пересчитывается с размером (hpMax)
+      c.hpBySizeLog = (c.hpBySizeLog || []).concat([{source, plus: mod.plus || 0}]);
+      logEvent(c, `Максимум ОЗ +[размер${mod.plus ? ' + ' + mod.plus : ''}] (${source}) → сейчас +${Math.max(0, c.size + (mod.plus || 0))}, максимум ОЗ ${hpMax(c)}.`);
+      break;
+    }
+    case 'sturdyWeapon': { // «Крепкий середнячок» (стр. 120): «любимое оружие», а если уже есть — один навык боя +2, но не выше 4
+      const fav = c.abilities.find(a=>a.name==='Любимое оружие');
+      if(!fav){ applyModifier(c, M.weaponChoice(COMBAT_SKILLS), source, auto); break; }
+      const opts = COMBAT_SKILLS.map(s=>({stat:s, delta:Math.min(2, 4 - (c.stats[s] || 0))})).filter(o=>o.delta > 0);
+      if(!opts.length){ logEvent(c, `«Крепкий середнячок» (${source}): все навыки боя уже 4+ — повышать нечего.`); break; }
+      const favStat = COMBAT_SKILLS.find(s=>String(fav.text || '').indexOf(`«${STAT_LABELS[s]}»`) >= 0);
+      const raise = (ch, o)=>{ addLog(ch, o.stat, o.delta, source); logEvent(ch, `«Крепкий середнячок» (${source}): ${STAT_LABELS[o.stat]} +${o.delta} → ${ch.stats[o.stat]}.`); };
+      if(auto) raise(c, opts.find(o=>o.stat===favStat) || pick(opts));
+      else pendingChoices.push({ id: uid(), source, title: `«Крепкий середнячок»: навык боя +2, не выше 4 (${source})`,
+        options: opts.map(o=>({ label: `${STAT_LABELS[o.stat]} +${o.delta}${o.stat===favStat ? ' (любимое оружие)' : ''}`, apply: ch=>raise(ch, o) })) });
+      break;
+    }
     case 'bonusHpMax': {
       c.bonusHpMaxLog.push({source, delta: mod.delta});
       c.bonusHpMax += mod.delta;
@@ -854,6 +871,7 @@ function removeBonusesBySource(c, sourcePrefix){
   { let removed = 0; c.appearanceLog = c.appearanceLog.filter(e=>{ if(e.source.startsWith(sourcePrefix)){ removed += e.delta; return false; } return true; }); c.appearance -= removed; }
   { let removed = 0; c.sizeLog = c.sizeLog.filter(e=>{ if(e.source.startsWith(sourcePrefix)){ removed += e.delta; return false; } return true; }); c.size = clampSize(c.size - removed); }
   { let removed = 0; c.psiSoprotLog = c.psiSoprotLog.filter(e=>{ if(e.source.startsWith(sourcePrefix)){ removed += e.delta; return false; } return true; }); c.psiSoprot -= removed; }
+  if(c.hpBySizeLog) c.hpBySizeLog = c.hpBySizeLog.filter(e=>!e.source.startsWith(sourcePrefix));
   { let removed = 0; c.bonusHpMaxLog = c.bonusHpMaxLog.filter(e=>{ if(e.source.startsWith(sourcePrefix)){ removed += e.delta; return false; } return true; }); c.bonusHpMax -= removed; }
   { let removed = 0; c.bonusPsiMaxLog = c.bonusPsiMaxLog.filter(e=>{ if(e.source.startsWith(sourcePrefix)){ removed += e.delta; return false; } return true; }); c.bonusPsiMax -= removed; }
   { let removed = 0; c.creditsLog = c.creditsLog.filter(e=>{ if(e.source.startsWith(sourcePrefix)){ removed += e.amount; return false; } return true; }); c.credits -= removed; }
@@ -1171,17 +1189,19 @@ function shiftSize(c, delta, source, cap){
   if(cap != null && delta > 0) to = Math.max(c.size, Math.min(to, cap));
   const d = to - c.size;
   if(!d) return 0;
-  const full = typeof c.hpCurrent === 'number' && c.hpCurrent >= hpMax(c);
+  const before = hpMax(c), full = typeof c.hpCurrent === 'number' && c.hpCurrent >= before;
   c.sizeLog.push({source, delta:d});
   c.size = to;
   const why = /размер/i.test(source) ? source : `${source} (размер ${d>0?'+':'−'}${Math.abs(d)})`; // тот же префикс — снимается вместе с источником
   addLog(c, 'sila', d, why);
   addLog(c, 'skrytnost', -d, why);
-  if(full) c.hpCurrent += d;
+  if(full) c.hpCurrent += hpMax(c) - before; // размер входит в максимум ОЗ и сам, и через «Здоровяка»
   return d;
 }
 function sizeStatsText(d){ return `сила ${d>0?'+':'−'}${Math.abs(d)}, скрытность ${d>0?'−':'+'}${Math.abs(d)}`; }
-function hpMax(c){ return 3 + c.stats.vynoslivost + c.size + c.bonusHpMax; } // book: "выносливость + размер + 3" (стр. 80) + any bonusHpMax abilities (e.g. Боец «Живучий»)
+function hpMax(c){ return 3 + c.stats.vynoslivost + c.size + c.bonusHpMax + hpBySizeBonus(c); } // book: "выносливость + размер + 3" (стр. 80) + any bonusHpMax abilities (e.g. Боец «Живучий»)
+// «Здоровяк» (hpBySizeLog): +[размер + 2] и ещё +[размер] — от текущего размера, не меньше 0
+function hpBySizeBonus(c){ return (c.hpBySizeLog || []).reduce((a, x)=>a + Math.max(0, (c.size || 0) + (+x.plus || 0)), 0); }
 function psiMax(c){ return 3 + c.stats.duh + c.bonusPsiMax; }
 function reclampVitals(c){
   c.hpCurrent = clampLower(c.hpCurrent, hpMax(c));
@@ -1247,11 +1267,11 @@ function applyLevelDown(c, newLevel){
   if(c.cultReligion){
     const cat = CULTIST_ABILITY_CATALOG[c.cultReligion] || {};
     Object.entries(cat).forEach(([group,names])=>{
-      if(c.level < (CULT_GROUP_LEVEL[group]||0)){
+      if(c.level < (cultGroupLevel(c, group)||0)){
         c.abilities = c.abilities.filter(a=>!names.includes(a.name));
       }
     });
-    if(c.cultReligion==='Поклонение Матери-Природе' && c.level < CULT_GROUP_LEVEL['Катарсис']){
+    if(c.cultReligion==='Поклонение Матери-Природе' && c.level < cultGroupLevel(c, 'Катарсис')){
       removeBonusesBySource(c, (c.cultReligionSource||'')+' → катарсис-мутация');
       c._motherNatureCatharsisTriggered = false; // allow it to re-trigger if the player levels back up
     }
