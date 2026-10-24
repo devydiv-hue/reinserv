@@ -1,0 +1,85 @@
+  /* ============================================================
+     ЭПИЧНЫЕ БРОСКИ (модуль EpicRolls): сцена на весь экран поверх всего, настройки во вкладке «Эпичные» экрана Мастера,
+     светящийся D20 у игрока на вкладке «Игроки». --epfx — цвет акцента сцены (по исходу или выбранный Мастером).
+     ============================================================ */
+  .ep-stage{ --epfx:#e2b24c; position:fixed; inset:0; z-index:10200; overflow:hidden; isolation:isolate; cursor:pointer; color:var(--vellum-bright); font-family:var(--font);
+    -webkit-user-select:none; user-select:none; touch-action:none; }
+  .ep-stage[hidden]{ display:none !important; }
+  .ep-shake{ position:absolute; inset:0; }
+  .ep-world{ position:absolute; inset:0; transition:backdrop-filter .5s ease; }
+  .ep-world.gray{ backdrop-filter:grayscale(.9) contrast(1.15) brightness(.8); -webkit-backdrop-filter:grayscale(.9) contrast(1.15) brightness(.8); }
+  .ep-dim{ position:absolute; inset:0; background:radial-gradient(ellipse 70% 60% at 50% 55%, #241a28 0%, var(--void) 70%, var(--void-deep) 100%); opacity:0; pointer-events:none; }
+  .ep-tint{ position:absolute; inset:0; opacity:0; pointer-events:none; background:radial-gradient(circle at 50% 50%, var(--epfx) 0%, transparent 60%); mix-blend-mode:screen; }
+  .ep-fx{ position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:4; }
+  .ep-vignette{ position:absolute; inset:0; z-index:5; pointer-events:none; opacity:.55; background:radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,.85) 100%); }
+  .ep-vignette.pulse{ background:radial-gradient(ellipse at center, transparent 38%, color-mix(in srgb, var(--epfx) 55%, black) 100%); }
+  .ep-flash{ position:absolute; inset:0; background:#fff7e6; opacity:0; z-index:7; pointer-events:none; mix-blend-mode:screen; }
+  .ep-bar{ position:absolute; left:0; right:0; height:0; background:#000; z-index:8; }
+  .ep-bar.top{ top:0; } .ep-bar.bot{ bottom:0; }
+  .ep-glow{ position:absolute; left:50%; top:50%; width:340px; height:340px; margin:-170px 0 0 -170px; border-radius:50%; z-index:2; opacity:0; pointer-events:none;
+    background:radial-gradient(circle, color-mix(in srgb, var(--epfx) 85%, white) 0%, color-mix(in srgb, var(--epfx) 45%, transparent) 35%, transparent 70%); filter:blur(6px); }
+  .ep-runes, .ep-seal{ position:absolute; left:50%; top:50%; pointer-events:none; opacity:0; z-index:2; }
+  .ep-runes{ width:min(560px, 92vw, 92vh); aspect-ratio:1; transform:translate(-50%,-50%); }
+  .ep-runes svg, .ep-seal svg{ width:100%; height:100%; display:block; overflow:visible; }
+  .ep-ring{ transform-origin:center; transform-box:fill-box; }
+  .ep-seal{ width:min(360px, 70vw, 60vh); aspect-ratio:1; transform:translate(-50%,-50%); }
+  .ep-die-wrap{ --die:clamp(120px, 22vmin, 200px); position:absolute; left:50%; top:50%; width:var(--die); height:var(--die); margin-left:calc(var(--die) / -2); margin-top:calc(var(--die) / -2);
+    z-index:3; opacity:0; pointer-events:none; }
+  .ep-die{ width:100%; height:100%; }
+  .ep-die svg{ width:100%; height:100%; display:block; overflow:visible; filter:drop-shadow(0 10px 14px rgba(0,0,0,.55)); }
+  .ep-face{ transition:fill var(--heat, 1.4s) ease; }
+  .ep-face.f0{ fill:#f6ecd4; } .ep-face.f1{ fill:#e2d3ac; } .ep-face.f2{ fill:#cdbb8f; } .ep-face.f3{ fill:#b39f72; }
+  .ep-edge{ fill:none; stroke:#1c1712; stroke-width:2.4; stroke-linejoin:round; }
+  .ep-num{ font-family:var(--font-display); font-weight:800; fill:#1c1712; text-anchor:middle; dominant-baseline:central; }
+  .ep-num.main{ font-size:46px; }
+  .ep-num.small{ font-size:15px; opacity:.55; }
+  .ep-die.hot .f0{ fill:#fff1c9; } .ep-die.hot .f1{ fill:#ffb347; } .ep-die.hot .f2{ fill:#ff7a2a; } .ep-die.hot .f3{ fill:#c2381a; }
+  .ep-die.hot .ep-edge{ stroke:#5a1405; }
+  .ep-die.forged .ep-num.main{ fill:#fffbe9; paint-order:stroke; stroke:#7a1d06; stroke-width:4px; }
+  .ep-die.gold .f0{ fill:#fff6d6; } .ep-die.gold .f1{ fill:#f0d48a; } .ep-die.gold .f2{ fill:#d9ab4b; } .ep-die.gold .f3{ fill:#a9772a; }
+  .ep-die.cracked .f0{ fill:#a39577; } .ep-die.cracked .f1{ fill:#8a7d62; } .ep-die.cracked .f2{ fill:#6f6450; } .ep-die.cracked .f3{ fill:#544b3c; }
+  .ep-die.psi .ep-edge{ stroke:#2a1f5c; }
+  .ep-cracks path{ fill:none; stroke:#120d16; stroke-width:2.6; stroke-linecap:round; stroke-linejoin:round; }
+  .ep-caption{ position:absolute; left:0; right:0; bottom:12%; text-align:center; z-index:6; pointer-events:none; opacity:0; padding-inline:16px; }
+  .ep-cap-main{ font-family:var(--font-display); font-weight:800; font-size:clamp(26px, 5vw, 56px); letter-spacing:.12em; color:var(--epfx);
+    text-shadow:0 0 18px color-mix(in srgb, var(--epfx) 60%, transparent), 0 2px 0 #000; text-wrap:balance; }
+  .ep-cap-sub{ margin-top:6px; color:var(--vellum-muted); font-size:clamp(12px, 1.6vw, 15px); letter-spacing:.04em; text-transform:uppercase; text-shadow:0 1px 2px #000; }
+  .ep-caption.glitch .ep-cap-main{ animation:epGlitch .18s steps(2) 4; }
+  @keyframes epGlitch{ 0%{ transform:translate(0); text-shadow:-3px 0 #ff2bd6, 3px 0 #2bf0ff; } 50%{ transform:translate(2px,-1px); text-shadow:3px 0 #ff2bd6, -3px 0 #2bf0ff; } 100%{ transform:translate(0); } }
+  .ep-skip{ position:absolute; right:max(16px, env(safe-area-inset-right, 0px)); bottom:max(14px, env(safe-area-inset-bottom, 0px)); z-index:9; font-size:11px; letter-spacing:.06em;
+    text-transform:uppercase; color:var(--vellum-muted); opacity:.55; pointer-events:none; }
+  @media (prefers-reduced-motion: reduce){ .ep-face{ transition:none; } }
+
+  /* ---------- светящийся D20 у игрока ---------- */
+  .gs-btn.gs-epic{ display:inline-flex; align-items:center; justify-content:center; width:30px; height:24px; padding:0; color:var(--vellum-muted); }
+  .gs-epic .ep-d20{ width:16px; height:16px; display:block; }
+  .gs-btn.gs-epic.on{ color:#d9d2ff; border-color:rgba(154,140,255,.7); background:radial-gradient(circle, rgba(139,123,255,.45), rgba(40,26,90,.9) 75%);
+    box-shadow:0 0 10px rgba(139,123,255,.75), inset 0 0 6px rgba(205,195,255,.5); animation:epArmGlow 1.6s ease-in-out infinite; }
+  .gs-epic.on .ep-d20{ filter:drop-shadow(0 0 4px #b9adff); }
+  @keyframes epArmGlow{ 0%,100%{ box-shadow:0 0 6px rgba(139,123,255,.55), inset 0 0 4px rgba(205,195,255,.35); } 50%{ box-shadow:0 0 16px rgba(139,123,255,.95), inset 0 0 8px rgba(205,195,255,.7); } }
+  @media (prefers-reduced-motion: reduce){ .gs-btn.gs-epic.on{ animation:none; } }
+  html[data-theme="dark"] .gm-screen .gs-btn.gs-epic.on:hover{ background:radial-gradient(circle, rgba(139,123,255,.6), rgba(40,26,90,.9) 75%); color:#fff; }
+
+  /* ---------- вкладка «Эпичные» экрана Мастера ---------- */
+  .ep-cfg h4{ margin:12px 0 6px; font-family:var(--font-display); font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:#e8b9a6; }
+  .ep-cfg h4 .gs-muted{ font-family:var(--font); text-transform:none; letter-spacing:0; }
+  .ep-arm-list{ display:flex; flex-wrap:wrap; gap:6px 10px; margin:4px 0 2px; }
+  .ep-arm-item{ display:inline-flex; align-items:center; gap:6px; font-size:12.5px; }
+  .ep-scenes{ display:grid; gap:5px; }
+  .ep-scene{ display:grid; grid-template-columns:auto 1fr; gap:1px 8px; align-items:start; padding:6px 9px; border-radius:12px; cursor:pointer;
+    background:rgba(255,255,255,.035); border:1px solid rgba(246,236,212,.1); }
+  .ep-scene input{ margin-top:3px; accent-color:#c4482e; }
+  .ep-scene b{ font-family:var(--font-display); font-size:12.5px; letter-spacing:.04em; }
+  .ep-scene span{ grid-column:2; font-size:11.5px; color:var(--vellum-muted); }
+  .ep-scene:has(input:checked){ border-color:rgba(214,96,70,.6); background:rgba(156,47,28,.2); }
+  .ep-field{ display:grid; grid-template-columns:minmax(0,1fr) auto; gap:2px 8px; align-items:center; margin-top:6px; font-size:12px; color:var(--vellum-muted); }
+  .ep-field output{ color:var(--vellum-bright); font-weight:700; font-variant-numeric:tabular-nums; }
+  .ep-field input[type=range], .ep-field input[type=text]{ grid-column:1 / -1; width:100%; }
+  .ep-cfg input[type=range]{ accent-color:#c4482e; }
+  .ep-cfg input[type=checkbox]{ accent-color:#c4482e; }
+  .ep-cfg label{ font-size:12.5px; color:var(--vellum-bright); text-transform:none; letter-spacing:0; }
+  .ep-cfg input[type=text], .ep-cfg select{ font:12.5px var(--font); color:var(--vellum-bright); background:rgba(0,0,0,.38); border:1px solid rgba(246,236,212,.18); border-radius:10px; padding:4px 8px; min-width:0; }
+  .ep-cfg select option{ color:#1c1712; }
+  .ep-cfg input[type=color]{ width:38px; height:24px; padding:1px 2px; border-radius:8px; border:1px solid rgba(246,236,212,.25); background:rgba(0,0,0,.38); }
+  .ep-rule{ display:grid; grid-template-columns:minmax(0,1fr) 150px; gap:6px; align-items:center; margin-top:4px; font-size:12.5px; }
+  .ep-rule select{ width:100%; }

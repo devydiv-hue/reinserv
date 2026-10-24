@@ -39,7 +39,7 @@ const GmScreen = (function(){
       <button type="button" class="gs-dock-btn gs-move" aria-pressed="false" aria-label="Перемещать экран Мастера по краям экрана">${MOVE_ICON}</button>
       <button type="button" class="gs-dock-btn gs-pin" aria-pressed="true" aria-label="Булавка: капли на месте или медленно ползут по краям экрана">${PIN_ICON}</button>
       <div class="gs-title">Экран Мастера</div>
-      <div class="gs-tabs"><button type="button" data-tab="players">Игроки</button><button type="button" data-tab="scenes">Сцены</button><button type="button" data-tab="notes">Заметки</button><button type="button" data-tab="reactions">Реакции</button><button type="button" data-tab="chron" title="Летопись сессии: броски, бои, «повержен», выдачи, ваши записи">Летопись</button></div>
+      <div class="gs-tabs"><button type="button" data-tab="players">Игроки</button><button type="button" data-tab="scenes">Сцены</button><button type="button" data-tab="notes">Заметки</button><button type="button" data-tab="reactions">Реакции</button><button type="button" data-tab="epic" title="Эпичные броски: сцена на весь экран у всех за столом">Эпичные</button><button type="button" data-tab="chron" title="Летопись сессии: броски, бои, «повержен», выдачи, ваши записи">Летопись</button></div>
       <div class="gs-body"></div>`;
     document.body.appendChild(panel);
     body = panel.querySelector('.gs-body');
@@ -89,6 +89,7 @@ const GmScreen = (function(){
     if(prefs.tab==='players') body.innerHTML = playersHtml();
     else if(prefs.tab==='scenes') body.innerHTML = scenesHtml();
     else if(prefs.tab==='reactions'){ body.innerHTML = '<div class="rx-cfg"></div>'; if(typeof Reactions!=='undefined') Reactions.renderConfig(body.firstChild); }
+    else if(prefs.tab==='epic'){ body.innerHTML = '<div class="ep-cfg-root"></div>'; if(typeof EpicRolls!=='undefined') EpicRolls.renderConfig(body.firstChild); }
     else if(prefs.tab==='chron'){ body.innerHTML = '<div class="ch-root"></div>'; if(typeof Chronicle!=='undefined') Chronicle.render(body.firstChild); }
     else renderNotes();
     if(typeof NoteMedia!=='undefined') NoteMedia.hydrate(body); // картинки и ролики заметок — из хранилища браузера
@@ -119,7 +120,7 @@ const GmScreen = (function(){
       return `<div class="gs-pc"><div class="gs-pc-head">${typeof SessionExtras!=='undefined' ? SessionExtras.connDot(id) : '<span class="gs-dot on"></span>'}<b>${cname || pname}</b><span class="gs-muted">${cname ? pname + ' · ' : ''}ур. ${c.level}${arch ? ' · ' + esc(arch) : ''}</span></div>
         <div class="gs-bars"><span class="gs-lbl">ОЗ</span>${bar('hp', c.hpCurrent, hm)}<span class="gs-lbl">Пси</span>${bar('psi', c.psiCurrent, pm)}</div>
         <div class="gs-chips"><span class="gs-chip">🍀 ${c.luck==null ? 1 : c.luck}</span><span class="gs-chip">опыт ${c.xp || 0}</span>${down}${states}</div>
-        <div class="gs-row"><button type="button" class="gs-btn" data-a="luck" data-id="${esc(id)}" title="Выдать 1 удачу">🍀+1</button><button type="button" class="gs-btn" data-a="edit" data-id="${esc(id)}" title="Открыть лист игрока у себя и править">✎ Лист</button><button type="button" class="gs-btn" data-a="loot" data-id="${esc(id)}" title="Находка: бросок по таблицам книги и выдача игроку">⛏ Находка</button><button type="button" class="gs-btn" data-a="find" data-id="${esc(id)}" title="Показать жетон игрока на игровом столе">📍</button>${typeof logView!=='undefined' && logView.on ? `<label class="gs-lvp" title="Этот игрок видит подробный лог с порогами (Макс. и МУ − Защита цели)"><input type="checkbox" data-lv="p" data-id="${esc(id)}" ${logView.allow[id] ? 'checked' : ''}> пороги</label>` : ''}</div></div>`;
+        <div class="gs-row">${typeof EpicRolls!=='undefined' ? EpicRolls.armButtonHtml(id) : ''}<button type="button" class="gs-btn" data-a="luck" data-id="${esc(id)}" title="Выдать 1 удачу">🍀+1</button><button type="button" class="gs-btn" data-a="edit" data-id="${esc(id)}" title="Открыть лист игрока у себя и править">✎ Лист</button><button type="button" class="gs-btn" data-a="loot" data-id="${esc(id)}" title="Находка: бросок по таблицам книги и выдача игроку">⛏ Находка</button><button type="button" class="gs-btn" data-a="find" data-id="${esc(id)}" title="Показать жетон игрока на игровом столе">📍</button>${typeof logView!=='undefined' && logView.on ? `<label class="gs-lvp" title="Этот игрок видит подробный лог с порогами (Макс. и МУ − Защита цели)"><input type="checkbox" data-lv="p" data-id="${esc(id)}" ${logView.allow[id] ? 'checked' : ''}> пороги</label>` : ''}</div></div>`;
     }).join('');
   }
 
@@ -278,6 +279,7 @@ const GmScreen = (function(){
       if(a.dataset.a==='luck' && typeof giveLuckToPlayer==='function') giveLuckToPlayer(id);
       else if(a.dataset.a==='edit' && typeof enterGmEditMode==='function'){ close(); if(typeof toggleMainTab==='function') toggleMainTab('sheet'); enterGmEditMode(id); }
       else if(a.dataset.a==='loot' && typeof openLootDig==='function') openLootDig(id);
+      else if(a.dataset.a==='epic' && typeof EpicRolls!=='undefined') EpicRolls.toggleArm(id); // следующий к20 игрока — эпичный
       else if(a.dataset.a==='find'){ const gt = GT(); if(gt && gt.focusOwner && !gt.focusOwner(id)) uiToast('Жетона этого игрока на столе нет', {icon:'📍'}); }
       else if(a.dataset.a==='copies'){ showCopies(); return; }
       else if(a.dataset.a==='copy-link'){ const b = document.getElementById('btnCopyRoomLink'); if(b) b.click(); }

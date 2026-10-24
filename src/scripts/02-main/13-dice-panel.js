@@ -458,12 +458,15 @@ const DicePanel = (function(){
       }
     }
     recordAndShareQuickRoll(entry);
+    // эпичный бросок (EpicRolls) — сцена на весь экран у всех вместо полёта кости; тайный — с «?» вместо числа
+    const epic = diceType==='d20' && typeof EpicRolls!=='undefined'
+      ? EpicRolls.forOwnRoll({value:entry.roll, max:entry.max, success:entry.success, category:entry.category, label:'Бросок к20', secret:secretRollActive()}) : null;
     if(session.role==='player' && secretRollActive()){ // тайный бросок: без кости и результата
       el('dpFeedback').innerHTML = '🤫 Тайный бросок ушёл Мастеру — результат знает только он'; el('dpFeedback').className = 'dp-feedback secret'; setTitle('Тайно');
       setTimeout(()=>{ if(myToken===rollToken) closePanel(); }, 1600); return;
     }
     const f = formatQuickRollEntry(entry); // тот же форматтер, что и в общем логе — один источник текста
-    launchRollAnimation(entry).then(()=>{
+    (epic || launchRollAnimation(entry)).then(()=>{
       if(myToken!==rollToken) return; // панель уже открыли/закрыли заново — этот бросок больше не хозяин UI
       const fb = el('dpFeedback');
       fb.innerHTML = f.html; fb.className = 'dp-feedback '+f.cls;
@@ -704,6 +707,7 @@ function handleIncomingMessage(msg){
   // переписать чужой лист или начислить опыт всем.
   const fromGm = session.role==='player' && !!fromId && fromId===session.gmId;
   if(typeof SessionExtras!=='undefined' && SessionExtras.handle(msg)) return; // встреча, раздатки, пауза, связь
+  if(typeof EpicRolls!=='undefined' && EpicRolls.handle(msg)) return; // эпичные броски: настройки и метки Мастера, сцены
   if(typeof TargetRolls!=='undefined' && TargetRolls.handle(msg)) return; // бросок цели: запрос Мастера и ответ игрока
   if(typeof PcAbilities!=='undefined' && PcAbilities.handle(msg)) return; // способность персонажа со стола — Мастеру
   if(msg.type==='roll'){
@@ -750,6 +754,7 @@ function handleIncomingMessage(msg){
       sendMsg({type:'roll-sync', entries: rollEntriesFor(session.log, fromId)}, fromId); // пороги — только допущенным
       sendLogView(fromId); // вид лога: подробный, если Мастер допустил этого игрока
       if(typeof SessionExtras!=='undefined') SessionExtras.onPlayerHello(fromId); // пауза, список «кому», замер связи
+      if(typeof EpicRolls!=='undefined') EpicRolls.onPlayerHello(fromId); // настройки эпичных бросков и метки D20
       sendMsg({type:'xp-checklist-sync', checklist: session.xpChecklist}, fromId); // догоняющий игрок сразу видит уже отмеченные деяния этой встречи
       gtHook(g=>g.onPlayerHello(fromId)); // game-table snapshot этому игроку
       sbHook(s=>s.onPlayerHello(fromId)); // soundboard snapshot — музыка догоняет позицию

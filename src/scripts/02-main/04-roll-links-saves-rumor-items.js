@@ -112,6 +112,19 @@ window.openAbilityRollPickerVs = openAbilityRollPickerVs;
    гекс, как и везде — игрок всегда может выбрать другой.
    ====================================================================== */
 const SAVE_ROLL_DEFS = {
+  // Спасбросок от смерти — всегда к20 с Максимумом 9, от характеристик и снаряжения не зависит.
+  // «Непреклонность» («вместо спасброска от смерти … спасбросок воли (−3)») — только подсказка: волю игрок бросает сам
+  save_smert: {
+    label: 'Спасбросок от смерти', anchorMod: 0,
+    base(){ return 9; },
+    tags(){
+      const t = ['Максимум всегда 9'];
+      const alt = (character.abilities || []).find(a=>/вместо\s+спасброска\s+от\s+смерти[^.]*спасбросок\s+воли/i.test(a.text || ''));
+      if(alt){ const m = /спасбросок\s+воли\s*\(\s*([−+-]\s*\d+)\s*\)/i.exec(alt.text); t.push(`${alt.name}: можно вместо него Бросок воли${m ? ' (' + m[1].replace(/\s/g, '') + ')' : ''}`); }
+      return t;
+    },
+    formula(){ return 'к20, Максимум 9'; }
+  },
   save_vrednaya_sreda: {
     label: 'Вредная среда', anchorMod: 0,
     base(){ return 10 + character.stats.vynoslivost + (character.siz||0) + getWornArmorSizBonus(); },

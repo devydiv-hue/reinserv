@@ -13,7 +13,7 @@
   const TOP = [grp(['Тело', 'Личность']), grp(['Навыки авантюриста', 'Навыки боя']), grp(['Знания культуры', 'Знания нового мира', 'Знания старого мира'])].filter(g=>g.length);
   const MID = [grp(['Самочувствие']), grp(['Броня'])].filter(g=>g.length);
   const used = new Set(TOP.concat(MID).flat());
-  const REST = ['Спасброски от вредной среды', 'Отдых', 'Атака', 'Способности', 'Достоинства и недостатки', 'Религия'].map(t=>grp([t])).filter(g=>g.length);
+  const REST = ['Спасброски', 'Отдых', 'Атака', 'Способности', 'Достоинства и недостатки', 'Религия'].map(t=>grp([t])).filter(g=>g.length);
   REST.flat().forEach(p=>used.add(p)); panels.forEach(p=>{ if(!used.has(p)) REST.push([p]); });
   let cols = [], n = 0, raf = 0, last = '', lastSum = 0;
   const want = ()=>{ const w = flow.clientWidth || window.innerWidth; return w >= 1000 ? 3 : w >= 640 ? 2 : 1; };

@@ -29,7 +29,7 @@ const TargetRolls = (function(){
     ['duh', 'Бросок духа'], ['smekalka', 'Бросок смекалки'], ['legkaya_atletika', 'Бросок лёгкой атлетики'], ['lovkost_ruk', 'Бросок ловкости рук'],
     ['vospriyatie', 'Бросок восприятия'], ['hladnokrovie', 'Проверка хладнокровия (воля)'], ['save_psi_pole', 'Спасбросок от пси-поля'],
     ['save_vrednaya_sreda', 'Спасбросок от вредной среды (химия, радиация, болезни)'], ['save_pryamoy_kontakt', 'Спасбросок: прямой контакт'],
-    ['save_kislotnost', 'Спасбросок от кислотности'], ['psi_plus', 'Проверка с Максимумом [N + пси-сопротивление]'], ['psi_cur_plus', 'Проверка с Максимумом [N + текущие пси]']];
+    ['save_kislotnost', 'Спасбросок от кислотности'], ['save_smert', 'Спасбросок от смерти (Максимум 9)'], ['psi_plus', 'Проверка с Максимумом [N + пси-сопротивление]'], ['psi_cur_plus', 'Проверка с Максимумом [N + текущие пси]']];
   const VS = [['', '— (обычная атака, без вычета)'], ['volya', 'воли'], ['refleksy', 'рефлексов'], ['sila', 'силы'], ['smekalka', 'смекалки'], ['duh', 'духа'], ['vynoslivost', 'выносливости'], ['legkaya_atletika', 'лёгкой атлетики']];
   const LABEL = Object.fromEntries(CHECKS);
   const RU = {vynoslivost:'выносливость', legkaya_atletika:'л[её]гкая атлетика', refleksy:'рефлексы', sila:'сила', volya:'воля', duh:'дух', smekalka:'смекалка', lovkost_ruk:'ловкость рук', vospriyatie:'восприятие', mistika:'мистика'};
@@ -86,13 +86,14 @@ const TargetRolls = (function(){
     return m ? +m[1].replace('−', '-') : (key==='refleksy' && t.reflexes!=null ? +t.reflexes : 2);
   }
   function sheetStat(c, key){ return c && c.stats && isFinite(+c.stats[key]) ? +c.stats[key] : 2; }
-  // Максимум проверки цели: Бросок = значение + 10; спасбросок пси-поля = пси-сопротивление; вредная среда = 10 + выносливость
+  // Максимум проверки цели: Бросок = значение + 10; спасбросок пси-поля = пси-сопротивление; от смерти — всегда 9; вредная среда = 10 + выносливость
   function baseFor(t, key, n){
     const gt = GT(), c = t.kind==='player' && gt ? gt.sheetOfToken(t) : null, k = realKey(key);
     const st = (s)=>t.kind==='player' ? sheetStat(c, s) : npcStat(t, s), psi = t.kind==='player' ? (c && isFinite(+c.psiSoprot) ? +c.psiSoprot : 12) : npcStat(t, 'psi');
     if(k==='psi_plus') return (+n || 0) + psi;
     if(k==='psi_cur_plus') return (+n || 0) + (c ? +c.psiCurrent || 0 : 0);
     if(k==='save_psi_pole') return psi;
+    if(k==='save_smert') return 9;
     if(k.indexOf('save_')===0) return 10 + st('vynoslivost') + (c ? +c.siz || 0 : 0);
     return 10 + st(k);
   }

@@ -855,9 +855,13 @@ function executeMapAbilityRoll(base, mod, popup, mode){
   stage.innerHTML = opp ? `<div class="roll-outcome"><span class="verdict">к20: ${rolls.join(', ')}</span>Макс. ${max} − характеристика цели — итог у Мастера${modeTxt}</div>`
     : `<div class="roll-outcome ${ev.success?'success':'failure'}"><span class="verdict">${ev.success?`Успех, КУ${ev.category}`:'Провал'}</span>к20=${roll} / Макс.${max}${modeTxt}</div>`;
   popup.appendChild(stage);
+  const done = ()=>{ if(ctx && ctx.done) ctx.done({rolls, mode, chosenMod:mod, base:max, roll, success:ev.success, cat:ev.category}); };
+  // эпичный бросок (EpicRolls) — сцена на весь экран вместо полёта кости; у встречной итог у Мастера
+  const epic = typeof EpicRolls!=='undefined' ? EpicRolls.forOwnRoll({value:roll, max, success:ev.success, category:ev.category, label:STAT_LABELS.map_ability, unknown:opp}) : null;
+  if(epic){ closeRollOverlay(); epic.then(done); return; }
   launchRollAnimation({diceType:'d20', mode, max, rolls, roll}, startRect).then(()=>{
     closeRollOverlay();
-    if(ctx && ctx.done) ctx.done({rolls, mode, chosenMod:mod, base:max, roll, success:ev.success, cat:ev.category});
+    done();
   });
 }
 // Вместо обычного executeRoll для 'map_attack': кости бросаются здесь (с той же анимацией), но успех и
@@ -877,6 +881,8 @@ function executeMapAttackRoll(base, mod, popup, mode){
   stage.innerHTML = `<div class="roll-outcome"><span class="verdict">к20: ${rolls.join(', ')}</span>Результат атаки — в общем логе${modeTxt}</div>`;
   popup.appendChild(stage);
   const ctx = _mapAttackCtx;
+  // эпичный бросок: итог считает Мастер и он же запустит сцену у всех — свой полёт кости не нужен
+  if(typeof EpicRolls!=='undefined' && rolls.some(v=>EpicRolls.willMapEpic(v))){ closeRollOverlay(); gtHook(g=>g.submitMapAttack(ctx, {rolls, mode, chosenMod: mod})); return; }
   launchRollAnimation({diceType:'d20', mode, max:knownMax, rolls, roll:shown}, startRect).then(()=>{
     closeRollOverlay();
     gtHook(g=>g.submitMapAttack(ctx, {rolls, mode, chosenMod: mod}));

@@ -241,7 +241,11 @@ function executeRoll(statKey, base, mod, popup, mode){
   if(statKey==='creature_roll' && !success) if(typeof GmAdvice!=='undefined') GmAdvice.event('miss'); // проваленный бросок существа
   if(typeof recordAndShareRoll==='function') recordAndShareRoll(statKey, mod, roll, max, success, category, mode, rolls); // общий лог сессии, см. её раздел внизу файла
   resolveSpiritOutcome(statKey, roll, success, category); // кость духов шамана: провал мистики, саматха
+  // эпичный бросок (EpicRolls): метка Мастера или автоправило — сцена на весь экран у всех вместо полёта кости
+  const epic = statKey!=='creature_roll' && typeof EpicRolls!=='undefined'
+    ? EpicRolls.forOwnRoll({value:roll, max, success, category, label:STAT_LABELS[statKey] || statKey, death:statKey==='save_smert', secret:secretRollActive()}) : null;
   if(statKey!=='creature_roll' && session.role==='player' && secretRollActive()){ // тайный бросок: результат знает только Мастер
+    if(epic){ closeRollOverlay(); return; } // в сцене вместо числа — «?»
     popup.querySelector('.hex-field').remove(); popup.querySelector('.roll-max-preview').remove(); popup.querySelector('.roll-tags').remove();
     const st = document.createElement('div'); st.innerHTML = '<div class="roll-outcome secret"><span class="verdict">🤫 Тайный бросок</span>ушёл Мастеру — результат знает только он</div>';
     popup.appendChild(st); setTimeout(closeRollOverlay, 1600); return;
@@ -269,13 +273,17 @@ function executeRoll(statKey, base, mod, popup, mode){
   popup.style.left = Math.max(6, Math.min(parseFloat(popup.style.left), window.innerWidth - pr2.width - 6)) + 'px';
   popup.style.top = Math.max(6, Math.min(parseFloat(popup.style.top), window.innerHeight - pr2.height - 6)) + 'px';
 
-  launchRollAnimation({diceType:'d20', mode, max, rolls, roll}, startRect).then(()=>{
-    closeRollOverlay();
+  const after = ()=>{
     // Атака оружием — резолв попаданий/ран/к12 (см. resolveWeaponAttackOutcome) ПОСЛЕ обычного d20,
     // не вместо него; 'jammed' (Клинит на нат.13) — единственный случай, когда переброс не предлагается,
     // остальные statKey (не про атаку) resolveWeaponAttackOutcome просто игнорирует (return без действий).
     const attackOutcome = resolveWeaponAttackOutcome(statKey, roll, success, category);
     if(attackOutcome!=='jammed' && statKey!=='creature_roll') showRerollPopup(statKey, mod, mode);
+  };
+  if(epic){ closeRollOverlay(); epic.then(after); return; }
+  launchRollAnimation({diceType:'d20', mode, max, rolls, roll}, startRect).then(()=>{
+    closeRollOverlay();
+    after();
   });
 }
 
@@ -1027,12 +1035,13 @@ window.removeInventoryItem = function(category, id){
 
 function escapeAttr(s){ return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;'); }
 
-/* ---- Спасброски от вредной среды ---- */
+/* ---- Спасброски: от смерти и от вредной среды ---- */
 function renderSaves(){
   const el = document.getElementById('savesBox');
   if(!character){ el.innerHTML=''; return; }
   const acidMax = getAcidCheckMax();
   el.innerHTML = `
+    <div class="item-line">${saveRollLinkHtml('save_smert')}: <b>${SAVE_ROLL_DEFS.save_smert.base()}</b></div>
     <div class="item-line">${saveRollLinkHtml('save_vrednaya_sreda')}: <b>${SAVE_ROLL_DEFS.save_vrednaya_sreda.base()}</b></div>
     <div class="item-line">${saveRollLinkHtml('save_pryamoy_kontakt')}: <b>${SAVE_ROLL_DEFS.save_pryamoy_kontakt.base()}</b></div>
     <div class="item-line">${saveRollLinkHtml('save_psi_pole')}: <b>${SAVE_ROLL_DEFS.save_psi_pole.base()}</b></div>

@@ -131,8 +131,8 @@
   .gs-close{ position:absolute; top:10px; right:12px; width:22px; height:22px; border:none; background:none; box-shadow:none; padding:0; color:var(--vellum-muted); font-size:15px; opacity:.7; cursor:pointer; }
   .gs-close:hover{ opacity:1; color:var(--vellum-bright); }
   .gs-title{ font-family:var(--font-display); font-size:11px; letter-spacing:.07em; text-transform:uppercase; color:var(--vellum-muted); text-align:center; margin-bottom:8px; }
-  .gs-tabs{ display:flex; gap:4px; justify-content:center; margin-bottom:10px; }
-  .gs-tabs button{ padding:5px 12px; border-radius:999px; font-size:10.5px; box-shadow:none; color:var(--vellum-muted); background:transparent; border:1px solid rgba(246,236,212,.2); }
+  .gs-tabs{ display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:4px; margin-bottom:10px; } /* шесть вкладок — сеткой 3×2 */
+  .gs-tabs button{ padding:5px 6px; border-radius:999px; font-size:10.5px; box-shadow:none; color:var(--vellum-muted); background:transparent; border:1px solid rgba(246,236,212,.2); }
   .gs-tabs button.on{ color:#fff; background:linear-gradient(155deg, #b8402a, var(--stamp) 55%, #4a1109); border-color:rgba(255,170,140,.4); }
   .gs-body{ flex:1; overflow-y:auto; padding-right:2px; font-size:13px; line-height:1.4; }
   .gs-empty{ color:var(--vellum-muted); padding:8px 4px; }

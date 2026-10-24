@@ -2655,6 +2655,11 @@ const GameTable = (function(){
     }
     sendGrant(ownerId, {kind:'vitals', which:'hp', mode:'delta', value:delta}); // с подтверждением — дойдёт и после обрыва
   }
+  // Эпичный бросок (EpicRolls): к20 атаки / манёвра / гранаты жетоном игрока — сцену запускает тот, кто считает итог
+  function epicMapRoll(att, info){
+    if(!att || att.kind!=='player' || typeof EpicRolls==='undefined') return;
+    try{ EpicRolls.forMapRoll(att.ownerId || null, info); }catch(e){ console.warn('[Эпичный бросок]', e); }
+  }
   // (Мастер/локальный стол) Итог атаки. from — id игрока для его атаки, пусто — своя.
   function resolveAttack(req, from){
     if(req && req.fireMode==='grenade') return resolveGrenade(req, from);
@@ -2836,6 +2841,8 @@ const GameTable = (function(){
                               success:ev.success, category:ev.category, jammed, unprotected, slow:!!w.slow, hits, total, robot:tokenNature(tgt)==='robot',
                               aim, dual:!!req.dual, series:seriesNo || 0, line:!!opts.line, parried, sec:{max:fullMax, max12:max12Shown, aim12:aim12Shown}, pnote:pa.tags.join('; ') });
     if(att.kind==='player' && !ev.success) if(typeof GmAdvice!=='undefined') GmAdvice.event('miss'); // промах атаки игрока
+    if(!seriesNo && !opts.line) epicMapRoll(att, {value:roll, success:ev.success && !jammed, category:ev.category, who:attackerName, label:`«${w.name}» → ${targetName}`,
+      main: jammed ? 'Оружие заклинило' : ev.success ? (roll===12 ? 'Критическое попадание' : 'Попадание') : roll===13 ? 'Провал' : 'Промах'});
     if(typeof Reactions!=='undefined') Reactions.trigger(roll===12 ? 'crit' : (roll===13 && !ev.success) ? 'fumble' : ev.success ? 'hit' : 'miss', att.id);
     lastAttackReqs[attackId] = {req, from:from || null};
     if(typeof AbilityKit!=='undefined') setTimeout(()=>{ try{ AbilityKit.onAttack({attackId, attackerId:att.id, targetId:tgt.id, roll, success:ev.success, jammed, total, fromPlayer:!!from || att.kind==='player'}); }catch(e){ console.warn('[Способности]', e); } }, 0);
@@ -3031,6 +3038,7 @@ const GameTable = (function(){
     attackRecords.push(rec); saveAttackRecords();
     recordAndShareQuickRoll({ mapManeuver:true, attackId, attacker:attackerName, target:targetName, mv:kind, rolls, roll, mode, sizeCmp,
                               success:ev.success, category:ev.category, sec:{max:fullMax} });
+    epicMapRoll(att, {value:roll, success:ev.success, category:ev.category, who:attackerName, label:`${MANEUVERS[kind]} → ${targetName}`});
     lastAttackReqs[attackId] = {req, from:from || null};
     return {ok:true, success:ev.success, jammed:false, speedUsed:false};
   }
@@ -3208,6 +3216,8 @@ const GameTable = (function(){
     attackRecords.push(rec); saveAttackRecords();
     recordAndShareQuickRoll({ mapGrenade:true, attackId, attacker:attackerName, target:targetName, weaponName:w.name, rolls, roll, mode,
                               success:ev.success, category:ev.category, outcome, slow:!!w.slow, victims:logVictims, sec:{max:fullMax, max12:null} });
+    epicMapRoll(att, {value:roll, success:ev.success, category:ev.category, who:attackerName, label:`«${w.name}» → ${targetName}`,
+      main: ev.success ? (roll===12 ? 'Критическое попадание' : 'Попадание') : outcome==='frag' ? 'Недолёт — осколки' : roll===13 ? 'Провал' : 'Промах'});
     return {ok:true, success:ev.success, jammed:false, speedUsed:false};
   }
   // Пункты «Атаковать» для меню жетона

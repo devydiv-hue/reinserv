@@ -33,6 +33,7 @@
 /*@include styles/09-dialogs-play-gm.css*/
 /*@include styles/10-theme-dark.css*/
 /*@include styles/11-phone-header.css*/
+/*@include styles/12-epic-rolls.css*/
 </style>
   <!-- Совместная сессия (лог бросков + правки от ГМ + комната голоса/видео/данных) — см. секцию
        #sessionPanel в конце файла. Сигналинг — через WebSocket к server.js (простой релей, без
@@ -268,7 +269,7 @@
         </div>
       </div>
       <div class="panel">
-        <h2>Спасброски от вредной среды</h2>
+        <h2>Спасброски</h2>
         <div class="field-row">
           <div class="field" style="max-width:120px;"><label>СИЗ</label><input type="number" id="fSiz"></div>
           <div class="field" style="max-width:160px;"><label>Пси-сопротивление</label><input type="number" id="fPsiSoprot"></div>
@@ -549,6 +550,9 @@
 </script>
 <script>
 /*@include scripts/23-trauma-table.js*/
+</script>
+<script>
+/*@include scripts/24-epic-rolls.js*/
 </script>
 </body>
 </html>
