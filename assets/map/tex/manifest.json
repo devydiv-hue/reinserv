@@ -1,0 +1,96 @@
+{
+ "version": 1793051788,
+ "pxPerCell": 128,
+ "textures": {
+  "sand": {
+   "file": "sand.webp",
+   "cells": 4,
+   "src": "https://polyhaven.com/a/aerial_sand"
+  },
+  "dust": {
+   "file": "dust.webp",
+   "cells": 4,
+   "src": "https://polyhaven.com/a/dirt_aerial_02"
+  },
+  "dirt": {
+   "file": "dirt.webp",
+   "cells": 4,
+   "src": "https://polyhaven.com/a/dirt_aerial_03"
+  },
+  "mud": {
+   "file": "mud.webp",
+   "cells": 1.5,
+   "src": "https://polyhaven.com/a/brown_mud_02"
+  },
+  "grass": {
+   "file": "grass.webp",
+   "cells": 1.5,
+   "src": "https://polyhaven.com/a/grass_path_2"
+  },
+  "rock": {
+   "file": "rock.webp",
+   "cells": 2,
+   "src": "https://polyhaven.com/a/rock_ground_02"
+  },
+  "gravel": {
+   "file": "gravel.webp",
+   "cells": 2,
+   "src": "https://polyhaven.com/a/gravel_ground_01"
+  },
+  "ash": {
+   "file": "ash.webp",
+   "cells": 1.5,
+   "src": "https://polyhaven.com/a/burned_ground_01"
+  },
+  "saltflat": {
+   "file": "saltflat.webp",
+   "cells": 2,
+   "src": "https://polyhaven.com/a/mud_cracked_dry_riverbed_002"
+  },
+  "asphalt": {
+   "file": "asphalt.webp",
+   "cells": 2,
+   "src": "https://polyhaven.com/a/asphalt_04"
+  },
+  "cracked": {
+   "file": "cracked.webp",
+   "cells": 2,
+   "src": "https://polyhaven.com/a/asphalt_02"
+  },
+  "concrete": {
+   "file": "concrete.webp",
+   "cells": 2,
+   "src": "https://polyhaven.com/a/dirty_concrete"
+  },
+  "tiles": {
+   "file": "tiles.webp",
+   "cells": 1,
+   "src": "https://polyhaven.com/a/interior_tiles"
+  },
+  "metal": {
+   "file": "metal.webp",
+   "cells": 1,
+   "src": "https://polyhaven.com/a/metal_plate"
+  },
+  "wood": {
+   "file": "wood.webp",
+   "cells": 1.5,
+   "src": "https://polyhaven.com/a/old_wood_floor"
+  },
+  "frost": {
+   "file": "frost.webp",
+   "cells": 2,
+   "src": "https://polyhaven.com/a/snow_03"
+  },
+  "cave": {
+   "file": "cave.webp",
+   "cells": 2,
+   "src": "https://polyhaven.com/a/rocks_ground_02"
+  },
+  "bedrock": {
+   "file": "bedrock.webp",
+   "cells": 2,
+   "src": "https://polyhaven.com/a/rock_face"
+  }
+ }
+}

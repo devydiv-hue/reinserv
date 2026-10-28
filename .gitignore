@@ -21,3 +21,10 @@ ngrok-authtoken.txt
 # Свои реакции Мастера (гифки на жетонах), загруженные на сервер.
 user-reactions/
 user-media/
+
+# Генератор спрайтов карт (tools/sprites): окружение Python, модели, кэш и промежуточные картинки — не исходники.
+tools/sprites/.venv/
+tools/sprites/models/
+tools/sprites/cache/
+tools/sprites/work/*
+!tools/sprites/work/choices.json

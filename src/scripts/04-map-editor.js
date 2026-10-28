@@ -476,6 +476,28 @@ const MapEditor = (function(){
   }
   // свои объекты: выбор файлов, окно параметров (по одному на файл), удаление
   function pickPng(at){ const inp = document.createElement('input'); inp.type = 'file'; inp.multiple = true; inp.accept = 'image/png,image/webp,image/jpeg'; inp.onchange = ()=>queuePng([].slice.call(inp.files || []), at); inp.click(); }
+  // Импорт пака: папка (или много файлов) одним окном — размер по «пикселям на клетку», наземные — по словам в пути,
+  // имена папок — метки для поиска. Свои паки (в т. ч. купленные) остаются в этом браузере — как и одиночные PNG.
+  const GROUND_RE = /floor|ground|decal|stain|blood|rug|carpet|puddle|path|road|grass|moss|leaves|debris_flat|marking|пол|пятн|ков[её]р|луж|трав|разметк/i;
+  function bulkPng(){
+    const inp = document.createElement('input'); inp.type = 'file'; inp.multiple = true; inp.webkitdirectory = true; inp.accept = 'image/png,image/webp,image/jpeg';
+    inp.onchange = ()=>{ const files = [].slice.call(inp.files || []).filter(f=>/^image\/(png|webp|jpeg)$/.test(f.type)).slice(0, 2000); if(!files.length) return uiAlert('В папке нет картинок PNG, WebP или JPG.');
+      const root = (files[0].webkitRelativePath || '').split('/')[0], ground = files.filter(f=>GROUND_RE.test(f.webkitRelativePath || f.name)).length;
+      dialog('Импорт пака ассетов', `<div class="me-f">Папка «${esc(root || 'выбранные файлы')}»: картинок ${files.length}${files.length===2000 ? ' (первые 2000)' : ''}, из них похожих на наземные — ${ground}.</div>
+        <div class="me-f-row"><label class="me-f">Пикселей на клетку пака<input type="number" name="ppc" min="16" max="1024" value="256"></label><label class="me-f">Клетка пака, м<input type="number" name="cm" min="0.5" max="10" step="0.5" value="1.5"></label></div>
+        <div class="muted me-note">Наши клетки — по ${TABLE_METERS_PER_CELL} м. Обычно паки рисуют 5 футов (1,5 м) на 256 или 300 px — посмотрите в описании пака. Размер в клетках: px ÷ (px на клетку) × (м пака ÷ ${TABLE_METERS_PER_CELL}).</div>
+        <label class="me-check"><input type="checkbox" name="auto" checked> Наземные (полы, пятна, ковры, лужи, трава) — по словам в имени файла или папки</label>
+        <label class="me-check"><input type="checkbox" name="tags" checked> Имена папок — метки для поиска в библиотеке</label>
+        <div class="muted me-note">Картинки сохраняются в этом браузере (как обычные свои объекты). Большой пак — это сотни мегабайт: браузер может попросить места. Лицензию пака соблюдайте сами: свои ассеты не уходят никуда, кроме вашего стола.</div>`, (f)=>{
+        const ppc = clamp(num(f.ppc.value, 256), 16, 1024), k = clamp(num(f.cm.value, 1.5), 0.5, 10)/TABLE_METERS_PER_CELL, auto = f.auto.checked, tags = f.tags.checked;
+        let done = 0, fail = 0; const q = files.slice(); setStatus('Импорт: 0 / ' + files.length);
+        const step = ()=>{ const file = q.shift(); if(!file){ setStatus(`Импортировано: ${done}${fail ? ', не открылось: ' + fail : ''}`); uiToast(`Пак загружен: ${done} объектов${fail ? ' (не открылось: ' + fail + ')' : ''}`, {icon:'📁'}); prefs.cat = 'custom'; prefs.search = ''; savePrefs(); renderSide(); requestRender(); return; }
+          const path = file.webkitRelativePath || file.name, dirs = path.split('/').slice(1, -1).join(' ').replace(/[_-]+/g, ' ');
+          CustomAssets.loadImage(URL.createObjectURL(file)).then(img=>{ URL.revokeObjectURL(img.src); const r2 = (v)=>Math.round(v*100)/100;
+            const meta = {name:file.name.replace(/\.[a-z0-9]+$/i, '').replace(/[_-]+/g, ' ').slice(0, 60), w:r2(clamp(img.naturalWidth/ppc*k, 0.25, 60)), h:r2(clamp(img.naturalHeight/ppc*k, 0.25, 60)), g:auto && GROUND_RE.test(path), tags:tags ? dirs.slice(0, 120) : ''};
+            return CustomAssets.fromFile(file, meta); }).then(()=>{ done++; }, ()=>{ fail++; }).then(()=>{ if((done + fail)%10===0) setStatus(`Импорт: ${done + fail} / ${files.length}`); setTimeout(step, 0); }); };
+        step(); }, {ok:'Импортировать'}); };
+    inp.click(); }
   function queuePng(files, at){ files = files.filter(f=>/^image\//.test(f.type)); const next = ()=>{ const f = files.shift(); if(f) customDialog(f, null, at, next); }; next(); }
   function customDialog(file, editId, at, onDone){
     const a = editId ? MapAssets.BY_ID[editId] : null; if(editId && !a) return;
@@ -517,9 +539,11 @@ const MapEditor = (function(){
   // нормализация после генерации — то же, что даст сохранение/загрузка
   function normalizeDoc(){ const n = MapFormat.fromJSON(MapFormat.toJSON(doc)); doc.objects = n.objects; doc.walls = n.walls; doc.paths = n.paths; doc.labels = n.labels; doc.gen = n.gen; }
   function seedOf(v){ v = String(v || '').trim(); if(!v) return 0; return /^\d+$/.test(v) ? (Number(v) >>> 0) || 1 : MapAssets.hashStr(v) || 1; }
-  function runGen(id, opts){ const g = MapGen.LIST.find(x=>x.id===id); if(!g) return;
-    mutate(()=>{ g.run(doc, opts); normalizeDoc(); sel.clear(); });
-    setStatus('Сгенерировано: ' + g.name + (doc.gen ? ' · зерно ' + doc.gen.seed : '')); if(typeof GmAdvice!=='undefined') GmAdvice.event('mapgen'); }
+  function runGen(id, opts){ const g = MapGen.LIST.find(x=>x.id===id); if(!g) return; let res = null;
+    mutate(()=>{ res = g.run(doc, opts); normalizeDoc(); sel.clear(); });
+    const extra = g.done ? g.done(doc, res) : ''; // дополнения: например, что выпало по таблице препятствий
+    setStatus('Сгенерировано: ' + g.name + (doc.gen ? ' · зерно ' + doc.gen.seed : '') + (extra ? ' · ' + extra : '')); if(extra) uiToast(extra, {icon:'🎲', ms:6000});
+    if(typeof GmAdvice!=='undefined') GmAdvice.event('mapgen'); }
   const GEN_LBL = [['none', 'без подписей'], ['buildings', 'здания и комнаты'], ['rooms', '+ помещения внутри зданий'], ['full', '+ мини-сцены и заголовок']], GEN_LSZ = [['small', 'мелкие'], ['normal', 'обычные'], ['large', 'крупные']];
   function generateDialog(pre){
     pre = pre || {}; const po = pre.opts || {}, cur = pre.id || (doc.gen && doc.gen.id) || MapGen.LIST[0].id;
@@ -546,6 +570,7 @@ const MapEditor = (function(){
         <label class="me-f">Размер${sel2('csize', po.csize || 'medium', [['small', 'маленький'], ['medium', 'средний'], ['full', 'во всю карту']])}</label></div><div class="me-f-row">
         <label class="me-f">Состояние${sel2('cstate', po.cstate || 'random', [['random', 'случайное'], ['living', 'обжитой'], ['abandoned', 'брошенный'], ['ravaged', 'разорённый']])}</label>
         <label class="me-f">Мини-сцены${sel2('scenes_camp', po.scenes, SC)}</label></div></fieldset>
+      ${MapGen.LIST.filter(g=>g.form).map(g=>`<fieldset class="me-gopt" data-for="${g.id}" data-xgen><legend>${esc(g.name)}</legend>${g.form(g.id===cur ? po : {})}</fieldset>`).join('')}
       <fieldset class="me-gopt"><legend>Подписи</legend><div class="me-f-row"><label class="me-f">Что подписать${sel2('labels', po.labels || 'buildings', LBL)}</label><label class="me-f">Размер${sel2('lsize', po.lsize, LSZ)}</label></div><div class="muted me-note">Подписи — обычные надписи карты: их видят и игроки на столе. Потом их можно поменять во вкладке «Карта», не перегенерируя карту.</div></fieldset>
       <fieldset class="me-gopt" data-for="rooms"><legend>Заготовки комнат и сцен</legend><div class="me-f-row"><label class="me-f">Как часто${sel2('prefabs', po.prefabs, [['none', 'не использовать'], ['some', 'иногда'], ['often', 'часто']])}</label>
         <div class="me-f"><span class="muted">${MapGen.prefabList().length} шт. (своих ${MapGen.userPrefabs().length})</span><button type="button" class="small" data-pfmanage>Заготовки…</button></div></div></fieldset>
@@ -554,10 +579,14 @@ const MapEditor = (function(){
       if(id==='city') Object.assign(opts, {density:f.density.value, ruin:f.ruin.value, theme:f.theme.value, scenes:f.scenes_city.value});
       if(id==='bunker') Object.assign(opts, {rooms:f.rooms.value, cond:f.cond.value, scenes:f.scenes_bunker.value});
       if(id==='camp') Object.assign(opts, {ctype:f.ctype.value, perim:f.perim.value, terr:f.terr.value, csize:f.csize.value, cstate:f.cstate.value, scenes:f.scenes_camp.value});
+      const xg = MapGen.LIST.find(x=>x.id===id && x.read); if(xg) Object.assign(opts, xg.read(f)); // генераторы из дополнений
       opts.prefabs = f.prefabs.value;
       runGen(id, opts);
     }, {ok:'Сгенерировать'});
     const pb = dl.form.querySelector('[data-pfmanage]'); if(pb) pb.addEventListener('click', ()=>{ dl.close(); prefabDialog(); });
+    // параметры генераторов из дополнений — только у выбранного (у встроенных это делает CSS)
+    const syncX = ()=>{ const v = dl.form.gen.value; dl.form.querySelectorAll('[data-xgen]').forEach(fs=>{ fs.style.display = fs.dataset.for===v ? '' : 'none'; }); };
+    dl.form.addEventListener('change', syncX); syncX();
   }
   // Заготовки: выделенные предметы → своя заготовка (комната или сцена) для генератора; список, расстановка, обмен файлом
   function prefabSaveDialog(){
@@ -680,7 +709,7 @@ const MapEditor = (function(){
     body.innerHTML = `<div class="me-lib-head"><input type="search" id="meSearch" class="me-search" placeholder="🔍 Найти объект…" value="${esc(prefs.search)}" aria-label="Найти объект">
       <div class="me-cats">${cats.map(([k, n])=>`<button type="button" class="me-cat${prefs.cat===k && !prefs.search?' on':''}" data-cat="${k}">${esc(n)}</button>`).join('')}</div>
       <div class="me-count muted">${list.length} ${list.length===1?'объект':'объектов'} · клик — выбрать, перетащить — сразу на карту</div>
-      ${prefs.cat==='custom' && !prefs.search ? `<div class="me-btnrow"><button type="button" class="small primary" data-act="pngadd">＋ Загрузить PNG</button></div><div class="muted me-note">PNG, WebP или JPG (лучше с прозрачным фоном). Файлы можно перетащить прямо на карту. Хранятся в этом браузере; на игровой стол уходят вместе с картой.</div>` : ''}</div>
+      ${prefs.cat==='custom' && !prefs.search ? `<div class="me-btnrow"><button type="button" class="small primary" data-act="pngadd">＋ Загрузить PNG</button><button type="button" class="small" data-act="pngbulk" title="Папка или много файлов сразу: свой пак ассетов (например, купленный набор для виртуальных столов)">📁 Импорт папки…</button></div><div class="muted me-note">PNG, WebP или JPG (лучше с прозрачным фоном). Файлы можно перетащить прямо на карту. Хранятся в этом браузере; на игровой стол уходят вместе с картой. «Импорт папки» — целый пак разом: размер по «пикселям на клетку», папки — метки для поиска.</div>` : ''}</div>
       <div class="me-assets" id="meAssets"></div>`;
     const grid = $('meAssets');
     list.forEach(a=>{ const b = document.createElement('button'); b.type = 'button'; b.className = 'me-asset' + (prefs.tool==='object' && prefs.asset===a.id ? ' on' : ''); b.dataset.asset = a.id; b.title = `${a.name} — ${a.w}×${a.h} кл.${a.v>1 ? ', вариантов: ' + a.v : ''}`;
@@ -754,6 +783,7 @@ const MapEditor = (function(){
       <label class="me-check"><input type="checkbox" data-hd ${MapTex.enabled ? 'checked' : ''}> HD-фактуры ландшафта, стен и объектов</label>
       <div class="muted me-note">Настройка этого браузера: действует и в редакторе, и на игровом столе. На слабом устройстве её можно выключить — останутся прежние плоские цвета.</div>
       ${doc.gen ? `<div class="me-genpart"><div class="me-prop-title">Генерация: ${esc((MapGen.LIST.find(x=>x.id===doc.gen.id) || {}).name || doc.gen.id)}</div><div class="muted me-note">Зерно <b>${doc.gen.seed}</b> · ${doc.gen.parts.length ? doc.gen.parts.length + (doc.gen.parts[0].k==='b' ? ' зданий' : doc.gen.parts[0].k==='z' ? ' зон' : ' комнат') : 'без частей'}</div>
+        ${doc.gen.note ? `<div class="me-gennote"><b>${esc(doc.gen.note.title)}</b><div>${esc(doc.gen.note.text)}</div><div class="muted me-note">Видно только вам: на стол игрокам заметка не уходит.</div><button type="button" class="small" data-act="note2gm" title="Добавить заметку в экран Мастера → «Заметки»">📝 В заметки Мастера</button></div>` : ''}
         <div class="me-f-row"><label class="me-f">Подписи<select data-genlab>${GEN_LBL.map(([k, n])=>`<option value="${k}" ${(doc.gen.opts.labels || 'buildings')===k ? 'selected' : ''}>${n}</option>`).join('')}</select></label><label class="me-f">Размер<select data-genlsize>${GEN_LSZ.map(([k, n])=>`<option value="${k}" ${(doc.gen.opts.lsize || 'normal')===k ? 'selected' : ''}>${n}</option>`).join('')}</select></label></div>
         <div class="me-btnrow"><button type="button" class="small" data-act="regen" title="Открыть генерацию с этим зерном и параметрами">Повторить / настроить…</button><button type="button" class="small" data-act="regennew" title="Те же параметры, новое зерно">🎲 Новый вариант</button></div></div>` : ''}
       <div class="me-btnrow"><button type="button" class="small" data-act="prefabs" title="Встроенные и свои заготовки комнат и сцен">Заготовки комнат и сцен…</button></div>
@@ -846,11 +876,13 @@ const MapEditor = (function(){
       case 'gen': generateDialog(); break;
       case 'regen': generateDialog(doc.gen); break;
       case 'regennew': if(doc.gen) runGen(doc.gen.id, Object.assign({}, doc.gen.opts, {seed:0})); break;
+      case 'note2gm': if(doc.gen && doc.gen.note && typeof GmScreen!=='undefined' && GmScreen.addNote){ GmScreen.addNote(doc.gen.note.title, doc.gen.note.text + '\n\nКарта: «' + doc.name + '», зерно ' + doc.gen.seed + '.'); uiToast('Заметка добавлена: экран Мастера → «Заметки»', {icon:'📝'}); } break;
       case 'reroll': rerollPart('same'); break;
       case 'pfsave': prefabSaveDialog(); break;
       case 'prefabs': prefabDialog(); break;
       case 'rerolltype': rerollPart('type'); break;
       case 'pngadd': pickPng(null); break;
+      case 'pngbulk': bulkPng(); break;
       case 'table': sendToTable(); break;
       case 'undo': undo(); break;
       case 'redo': redo(); break;

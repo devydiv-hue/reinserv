@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Выбор спрайтов</title>
+<style>
+  :root{ --void:#120d16; --card:#1f1922; --line:#3a3040; --text:#f0e8d6; --muted:#a89a84; --stamp:#c4482f; --ok:#5fbf72; --redo:#e2b24c; }
+  *{ box-sizing:border-box; } body{ margin:0; background:var(--void); color:var(--text); font:14px/1.4 'Roboto Condensed', Arial, sans-serif; }
+  header{ position:sticky; top:0; z-index:5; display:flex; flex-wrap:wrap; gap:10px; align-items:center; padding:10px 16px; background:#0c090f; border-bottom:1px solid var(--line); }
+  header h1{ margin:0; font-size:16px; letter-spacing:.04em; }
+  .prog{ flex:1 1 220px; min-width:160px; height:8px; border-radius:99px; background:#2a2230; overflow:hidden; } .prog i{ display:block; height:100%; background:var(--ok); }
+  select, input[type=search]{ background:#1a141e; color:var(--text); border:1px solid var(--line); border-radius:8px; padding:5px 8px; font:inherit; }
+  label{ color:var(--muted); font-size:13px; display:flex; gap:6px; align-items:center; }
+  .help{ color:var(--muted); font-size:12px; padding:6px 16px 0; } .help b{ color:var(--text); }
+  main{ padding:12px 16px 80px; display:grid; gap:12px; }
+  .card{ background:var(--card); border:1px solid var(--line); border-radius:12px; padding:10px 12px; scroll-margin-top:90px; }
+  .card.cur{ outline:2px solid var(--stamp); }
+  .head{ display:flex; gap:10px; align-items:baseline; flex-wrap:wrap; margin-bottom:8px; } .head b{ font-size:15px; } .head .muted{ color:var(--muted); font-size:12px; }
+  .state{ margin-left:auto; font-size:12px; padding:2px 8px; border-radius:99px; border:1px solid var(--line); color:var(--muted); }
+  .state.done{ color:#0c090f; background:var(--ok); border-color:var(--ok); } .state.redo{ color:#0c090f; background:var(--redo); border-color:var(--redo); }
+  .row{ display:flex; gap:10px; flex-wrap:wrap; align-items:flex-start; }
+  .opt{ position:relative; border:2px solid transparent; border-radius:10px; padding:0; background:none; cursor:pointer; color:var(--text); }
+  .opt:hover{ border-color:#6a5a70; } .opt.sel{ border-color:var(--ok); box-shadow:0 0 0 2px rgba(95,191,114,.35); }
+  .opt.keep.sel{ border-color:#8a9aa8; box-shadow:none; }
+  .opt canvas{ display:block; border-radius:8px; }
+  .opt .tag{ position:absolute; left:6px; top:6px; font-size:11px; padding:1px 6px; border-radius:99px; background:rgba(12,9,15,.75); }
+  .opt .num{ position:absolute; right:6px; top:6px; font-weight:700; font-size:12px; width:20px; height:20px; border-radius:50%; display:grid; place-items:center; background:rgba(12,9,15,.75); }
+  .missing{ width:120px; height:120px; display:grid; place-items:center; color:var(--muted); font-size:12px; border:1px dashed var(--line); border-radius:8px; }
+  .acts{ display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; }
+  .acts button{ font:inherit; font-size:12px; padding:4px 10px; border-radius:99px; border:1px solid var(--line); background:#2a2230; color:var(--text); cursor:pointer; }
+  .acts button.on{ background:var(--redo); color:#0c090f; border-color:var(--redo); }
+  .more{ text-align:center; color:var(--muted); padding:20px; }
+</style></head><body>
+<header>
+  <h1>Выбор спрайтов</h1>
+  <div class="prog"><i id="bar" style="width:0"></i></div><span id="cnt"></span>
+  <select id="cat"><option value="">Все разделы</option></select>
+  <label><input type="checkbox" id="todo" checked> только невыбранные</label>
+  <input type="search" id="q" placeholder="поиск: название, вариант">
+  <label>Размер <input type="range" id="zoom" min="56" max="200" value="104"></label>
+  <select id="bg"><option value="dust">грунт: сухая земля</option><option value="sand">песок</option><option value="concrete">бетон</option><option value="grass">трава</option><option value="tiles">кафель</option><option value="checker">шахматка</option></select>
+</header>
+<div class="help"><b>1–3</b> или щелчок — выбрать кандидата · <b>0</b> — оставить как сейчас · <b>R</b> — перегенерировать · <b>← →</b> / <b>J K</b> — карточки · выбор сохраняется сразу. Превью — на грунте с тенью, как на карте; клетка — по <span id="cellpx"></span> px.</div>
+<main id="list"></main><div class="more" id="more"></div>
+<script>
+let DATA = [], CH = {}, cur = 0, shown = [], TEXIMG = {}, TEXM = {};
+const $ = (id)=>document.getElementById(id), cell = ()=>+$('zoom').value;
+const imgCache = {}; function img(src){ if(imgCache[src]) return imgCache[src]; const p = new Promise(r=>{ const i = new Image(); i.onload = ()=>r(i); i.onerror = ()=>r(null); i.src = src; }); return imgCache[src] = p; }
+async function texPattern(c, id, px){ if(id==='checker'){ const t = document.createElement('canvas'); t.width = t.height = 16; const x = t.getContext('2d'); x.fillStyle = '#bbb'; x.fillRect(0,0,16,16); x.fillStyle = '#999'; x.fillRect(0,0,8,8); x.fillRect(8,8,8,8); return c.createPattern(t, 'repeat'); }
+  const im = await img('/tex/' + id + '.webp'); if(!im) return '#7a6a52'; const cells = (TEXM[id] || {}).cells || 2, pat = c.createPattern(im, 'repeat'); pat.setTransform(new DOMMatrix().scale(cells*px/im.width)); return pat; }
+async function draw(cv, it, src, shadow){
+  const px = cell(), pad = Math.round(px*0.25), W = it.w*px, H = it.h*px; cv.width = W + pad*2; cv.height = H + pad*2;
+  const c = cv.getContext('2d'); c.fillStyle = await texPattern(c, $('bg').value, px); c.fillRect(0, 0, cv.width, cv.height);
+  const im = src ? await img(src) : null; if(!im){ c.fillStyle = 'rgba(0,0,0,.5)'; c.fillRect(pad, pad, W, H); return; }
+  if(shadow){ c.save(); c.filter = `blur(${Math.max(1, px*0.06)}px) brightness(0)`; c.globalAlpha = 0.45; c.drawImage(im, pad + px*0.05, pad + px*0.065, W, H); c.restore(); }
+  c.imageSmoothingQuality = 'high'; c.drawImage(im, pad, pad, W, H);
+}
+function stateOf(it){ const p = CH[it.key]; return p==null ? '' : p==='keep' ? 'оставить как сейчас' : p==='redo' ? 'на перегенерацию' : 'выбран ' + (p + 1); }
+function card(it, idx){
+  const el = document.createElement('div'); el.className = 'card'; el.dataset.idx = idx; el.id = 'c_' + it.key;
+  const p = CH[it.key];
+  el.innerHTML = `<div class="head"><b>${it.name}</b><span>${it.vname}</span><span class="muted">${it.id} · ${it.w}×${it.h} кл.${it.g ? ' · наземный' : ''}</span><span class="state ${p==='redo' ? 'redo' : p!=null ? 'done' : ''}">${stateOf(it) || 'не выбран'}</span></div><div class="row"></div>
+    <div class="acts"><button data-act="keep">0 · оставить как сейчас</button><button data-act="redo" class="${p==='redo' ? 'on' : ''}">R · перегенерировать</button>${p!=null ? '<button data-act="clear">сбросить выбор</button>' : ''}</div>`;
+  const row = el.querySelector('.row');
+  const add = (label, src, pick, num, isKeep)=>{ const b = document.createElement('button'); b.className = 'opt' + (isKeep ? ' keep' : '') + (p===pick ? ' sel' : ''); b.dataset.pick = pick;
+    const cv = document.createElement('canvas'); b.appendChild(cv); b.insertAdjacentHTML('beforeend', `<span class="tag">${label}</span>${num ? `<span class="num">${num}</span>` : ''}`); row.appendChild(b); draw(cv, it, src, !it.g); };
+  add('как сейчас', `/img/init/${it.key}.png`, 'keep', '0', true);
+  it.cands.forEach((c, k)=>{ if(!c){ row.insertAdjacentHTML('beforeend', `<div class="missing">кандидат ${k + 1}<br>ещё не готов</div>`); return; }
+    add(c.mode==='t2i' ? 'с нуля' : 'по рисунку ' + Math.round(c.strength*100) + '%', `/img/cut/${it.key}_c${k}.webp`, k, String(k + 1)); });
+  return el;
+}
+function visible(){ const cat = $('cat').value, todo = $('todo').checked, q = $('q').value.trim().toLowerCase();
+  return DATA.filter(it=>(!cat || it.cat===cat) && (!todo || CH[it.key]==null) && (!q || (it.name + ' ' + it.vname + ' ' + it.id).toLowerCase().includes(q))); }
+let limit = 40;
+function render(keepCur){ shown = visible(); const list = $('list'); list.innerHTML = ''; if(!keepCur) cur = 0; cur = Math.min(cur, Math.max(0, shown.length - 1));
+  shown.slice(0, limit).forEach((it, i)=>list.appendChild(card(it, i))); $('more').textContent = shown.length > limit ? `показано ${limit} из ${shown.length} — листайте вниз` : shown.length ? '' : 'Здесь всё выбрано.';
+  mark(); stats(); $('cellpx').textContent = cell(); }
+function stats(){ const done = DATA.filter(it=>CH[it.key]!=null).length; $('cnt').textContent = `выбрано ${done} из ${DATA.length}`; $('bar').style.width = (done/DATA.length*100) + '%'; }
+function mark(){ document.querySelectorAll('.card.cur').forEach(e=>e.classList.remove('cur')); const el = document.querySelector(`.card[data-idx="${cur}"]`); if(el) el.classList.add('cur'); return el; }
+function go(d){ cur = Math.max(0, Math.min(shown.length - 1, cur + d)); if(cur >= limit - 5){ limit += 40; render(true); } const el = mark(); if(el) el.scrollIntoView({block:'start', behavior:'smooth'}); }
+async function choose(it, pick){ CH[it.key] = pick; if(pick===null) delete CH[it.key];
+  await fetch('/choice', {method:'POST', body:JSON.stringify({key:it.key, pick})});
+  const idx = shown.indexOf(it), el = document.querySelector(`.card[data-idx="${idx}"]`); if(el) el.replaceWith(card(it, idx)); mark(); stats();
+  if(pick!==null && $('todo').checked){ setTimeout(()=>{ render(true); const e = mark(); if(e) e.scrollIntoView({block:'start'}); }, 250); } else if(pick!==null) go(1); }
+document.addEventListener('click', (e)=>{ const c = e.target.closest('.card'); if(!c) return; const it = shown[+c.dataset.idx]; cur = +c.dataset.idx; mark();
+  const o = e.target.closest('.opt'); if(o){ const p = o.dataset.pick; choose(it, p==='keep' ? 'keep' : +p); return; }
+  const a = e.target.closest('[data-act]'); if(a){ const act = a.dataset.act; choose(it, act==='clear' ? null : act==='redo' && CH[it.key]==='redo' ? null : act); } });
+document.addEventListener('keydown', (e)=>{ if(e.target.matches('input, select')) return; const it = shown[cur]; if(!it) return;
+  if(e.key==='ArrowRight' || e.key==='j' || e.key==='о'){ e.preventDefault(); go(1); } else if(e.key==='ArrowLeft' || e.key==='k' || e.key==='л'){ e.preventDefault(); go(-1); }
+  else if(/^[1-3]$/.test(e.key) && it.cands[+e.key - 1]) choose(it, +e.key - 1); else if(e.key==='0') choose(it, 'keep'); else if(e.key==='r' || e.key==='к') choose(it, CH[it.key]==='redo' ? null : 'redo'); });
+addEventListener('scroll', ()=>{ if(innerHeight + scrollY > document.body.scrollHeight - 600 && shown.length > limit){ limit += 40; render(true); } });
+['cat', 'todo', 'q'].forEach(id=>$(id).addEventListener('input', ()=>{ limit = 40; render(); }));
+['zoom', 'bg'].forEach(id=>$(id).addEventListener('change', ()=>render(true)));
+(async()=>{ try{ TEXM = (await (await fetch('/tex/manifest.json')).json()).textures; }catch(e){}
+  const d = await (await fetch('/data')).json(); DATA = d.items; CH = d.choices || {};
+  const cats = [...new Set(DATA.map(x=>x.cat))]; $('cat').insertAdjacentHTML('beforeend', cats.map(c=>`<option value="${c}">${c}</option>`).join('')); render(); })();
+</script>
+</body></html>

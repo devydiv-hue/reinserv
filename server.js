@@ -298,6 +298,21 @@ function serveMedia(name, req, res) {
   });
 }
 
+// ---- Встроенные картинки карт: фото-фактуры грунтов и спрайты объектов (assets/map/tex, assets/map/sprites) ----
+// Манифесты — без кэша (по ним видно новую версию), картинки — с версией ?v= в ссылке, на неделю.
+const MAP_ASSET_DIR = path.join(DIR, 'assets', 'map');
+const MAP_ASSET_MIME = { webp: 'image/webp', png: 'image/png', jpg: 'image/jpeg', json: 'application/json; charset=utf-8' };
+function serveMapAsset(rel, res) {
+  const parts = rel.split('/');
+  if (parts.length !== 2 || !/^(tex|sprites)$/.test(parts[0]) || !/^[a-z0-9_-]{1,80}\.(webp|png|jpg|json)$/.test(parts[1])) { res.writeHead(404); res.end(); return; }
+  const file = path.join(MAP_ASSET_DIR, parts[0], parts[1]), ext = parts[1].split('.').pop();
+  fs.stat(file, (err, st) => {
+    if (err || !st.isFile()) { res.writeHead(404); res.end(); return; }
+    res.writeHead(200, { 'Content-Type': MAP_ASSET_MIME[ext], 'Content-Length': st.size, 'Cache-Control': ext === 'json' ? 'no-cache' : 'public, max-age=604800', 'X-Content-Type-Options': 'nosniff' });
+    fs.createReadStream(file).pipe(res);
+  });
+}
+
 // ---- PWA (установка на телефон/ПК как приложение, работа без сети): файлы из папки pwa/ ----
 const PWA_DIR = path.join(DIR, 'pwa');
 function servePwa(urlPath, res) {
@@ -326,6 +341,7 @@ const httpServer = http.createServer((req, res) => {
   if (urlPath.indexOf('/user-media/') === 0) { serveMedia(urlPath.slice(12), req, res); return; }
   if (urlPath.indexOf('/user-sounds/') === 0) { serveSound(USER_SOUND_DIR, urlPath.slice(13), res); return; }
   if (urlPath.indexOf('/assets/sounds/') === 0) { serveSound(ASSET_SOUND_DIR, urlPath.slice(15), res); return; }
+  if (urlPath.indexOf('/assets/map/') === 0) { serveMapAsset(urlPath.slice(12), res); return; }
   // PWA: манифест, сервис-воркер (обязательно из корня — тогда он обслуживает всё приложение) и иконки из папки pwa/
   if (urlPath === '/manifest.webmanifest' || urlPath === '/sw.js' || /^\/icons\/[a-z0-9-]+\.png$/.test(urlPath)) { servePwa(urlPath, res); return; }
   // Лёгкая проверка «жив ли сервер» — для хостинга (health check) и для самого листа: пока идёт сессия, он

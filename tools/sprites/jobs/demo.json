@@ -1,0 +1,14 @@
+[
+ {"id": "car_wreck", "v": 0, "w": 1, "h": 2, "subject": "an abandoned rusty sedan car wreck with a cracked windshield, flat tires and peeling paint"},
+ {"id": "barrel", "v": 0, "w": 1, "h": 1, "subject": "a rusty steel oil drum barrel, round lid with rim"},
+ {"id": "rubble_pile", "v": 0, "w": 2, "h": 2, "subject": "a pile of broken concrete rubble chunks with bent rebar and dust"},
+ {"id": "tank_wreck", "v": 0, "w": 2, "h": 3, "subject": "a destroyed rusty military battle tank wreck with turret and tracks"},
+ {"id": "crate_wood", "v": 0, "w": 1, "h": 1, "subject": "a weathered wooden supply crate made of planks"},
+ {"id": "monolith", "v": 2, "w": 2, "h": 2, "subject": "a tall black obsidian stone monolith slab with faint glowing cyan runes", "strength": 0.78},
+ {"id": "crystal_tree", "v": 0, "w": 2, "h": 2, "subject": "a strange tree made of jagged translucent pale blue crystals", "strength": 0.78},
+ {"id": "ship_hull", "v": 1, "w": 4, "h": 6, "subject": "a section of a crashed starship hull, ribbed grey metal plating with a torn breach exposing inner decks"},
+ {"id": "dead_tree", "v": 0, "w": 2, "h": 2, "subject": "a dead leafless gnarled tree crown with bare branches"},
+ {"id": "scrap_shack", "v": 0, "w": 3, "h": 3, "subject": "a ramshackle hut roof built from rusty corrugated metal sheets and planks"},
+ {"id": "tent", "v": 0, "w": 2, "h": 2, "subject": "a canvas camping tent roof, olive drab fabric with ropes"},
+ {"id": "campfire", "v": 0, "w": 1, "h": 1, "subject": "a small campfire with burning logs ringed with stones"}
+]

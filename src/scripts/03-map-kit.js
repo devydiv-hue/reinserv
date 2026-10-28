@@ -41,6 +41,17 @@ const MapFormat = (function(){
     {id:'sewer',    ch:'y', name:'Сточная вода', color:'#4b503f', sp:['#5a6048','#404535']},
     {id:'toxic',    ch:'z', name:'Токсичная жижа', color:'#6e8e29', sp:['#8eb239','#5c791f']},
     {id:'rad',      ch:'n', name:'Радиоактивный грунт', color:'#7d883c', sp:['#a5b748','#687231'], glow:true},
+    // Равнина, пещеры, промзоны (03b-map-wilds.js): фактуры — там же
+    {id:'bog',      ch:'b', name:'Болото', color:'#4b5238', sp:['#5d6644','#3a412b']},
+    {id:'acid',     ch:'i', name:'Кислотная вода', color:'#9a9638', sp:['#b8b448','#7a7628']},
+    {id:'copper',   ch:'o', name:'Медистый грунт', color:'#7c6a52', sp:['#5f8a78','#8e5a3c']},
+    {id:'glass',    ch:'j', name:'Оплавленное стекло', color:'#2e2c31', sp:['#46434a','#1e1d21']},
+    {id:'crystal',  ch:'f', name:'Кристаллическая корка', color:'#8c90a6', sp:['#b4bcd8','#6a6e86']},
+    {id:'frost',    ch:'F', name:'Иней', color:'#c3ccd0', sp:['#e4ecee','#a4b0b6']},
+    {id:'scrap',    ch:'S', name:'Россыпь металлолома', color:'#5f564c', sp:['#7a5a40','#4a4640']},
+    {id:'cave',     ch:'C', name:'Пол пещеры', color:'#4c4741', sp:['#5c5750','#3a3631']},
+    {id:'bedrock',  ch:'B', name:'Толща породы', color:'#24221f', sp:['#2e2b28','#1a1816']},
+    {id:'rustwater',ch:'W', name:'Ржавая вода', color:'#6e3a2c', sp:['#8a4a36','#562a20']},
   ];
   const T_BY_CH = {}, T_INDEX = {};
   TERRAIN.forEach((t, i)=>{ T_BY_CH[t.ch] = i; T_INDEX[t.id] = i; });
@@ -129,7 +140,10 @@ const MapFormat = (function(){
     const I = (v)=>Math.round(clamp(num(v, 0), 0, MAX_SIDE)), out = {id:gn.id, seed:Math.round(clamp(num(gn.seed, 1), 1, 4294967295)), opts:{}, parts:[]};
     if(/^[a-z]{1,16}$/.test(gn.cond || '')) out.cond = gn.cond;
     if(gn.title && typeof gn.title.text==='string') out.title = {x:r3(clamp(num(gn.title.x, 0), 0, MAX_SIDE)), y:r3(clamp(num(gn.title.y, 0), 0, MAX_SIDE)), text:str(gn.title.text, 60)};
-    const o = gn.opts && typeof gn.opts==='object' ? gn.opts : {}; ['density', 'ruin', 'theme', 'scenes', 'rooms', 'cond', 'prefabs', 'labels', 'lsize', 'ctype', 'perim', 'terr', 'csize', 'cstate'].forEach(k=>{ if(typeof o[k]==='string' && /^[a-z]{1,16}$/.test(o[k])) out.opts[k] = o[k]; });
+    // заметка Мастеру (препятствие Равнины: бросок, правило) — игрокам не уходит, см. MapStore.upload
+    if(gn.note && typeof gn.note.text==='string') out.note = {title:str(gn.note.title, 80), text:str(gn.note.text, 1200)};
+    const o = gn.opts && typeof gn.opts==='object' ? gn.opts : {}; ['density', 'ruin', 'theme', 'scenes', 'rooms', 'cond', 'prefabs', 'labels', 'lsize', 'ctype', 'perim', 'terr', 'csize', 'cstate',
+      'site', 'size', 'state', 'profile', 'fence', 'mode', 'events', 'roadside', 'land', 'ore', 'hazard'].forEach(k=>{ if(typeof o[k]==='string' && /^[a-z0-9_]{1,16}$/.test(o[k])) out.opts[k] = o[k]; });
     (Array.isArray(gn.parts) ? gn.parts : []).slice(0, 400).forEach(p=>{ if(!p || (p.k!=='b' && p.k!=='r' && p.k!=='z')) return; const q = {k:p.k, x:I(p.x), y:I(p.y), w:I(p.w), h:I(p.h)}; if(!q.w || !q.h) return;
       if(Array.isArray(p.lot) && p.lot.length===4) q.lot = p.lot.map(I);
       ['arch', 'st', 'shape', 'zone', 'role', 'scene'].forEach(k=>{ if(typeof p[k]==='string' && /^[a-z0-9_]{1,40}$/.test(p[k])) q[k] = p[k]; });
@@ -2987,8 +3001,11 @@ const MapAssets = (function(){
       if(!a.g && typeof MapTex!=='undefined' && MapTex.enabled){ const sh = MapTex.shadowFromImage(a); if(sh){ const m = ctx.getTransform(), px = Math.hypot(m.a, m.b), det = m.a*m.d - m.b*m.c, ox = 0.05*px, oy = 0.065*px; if(det){ const lx = (m.d*ox - m.c*oy)/det, ly = (-m.b*ox + m.a*oy)/det; ctx.drawImage(sh.cv, -a.w/2 - sh.pad + lx, -a.h/2 - sh.pad + ly, a.w + sh.pad*2, a.h + sh.pad*2); } } }
       ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high'; ctx.drawImage(a.img, -a.w/2, -a.h/2, a.w, a.h); ctx.restore(); return; }
     if(!a){ ctx.fillStyle = 'rgba(168,53,43,.5)'; ctx.fillRect(-0.5, -0.5, 1, 1); ctx.restore(); return; } // неизвестный ассет (карта из более новой версии)
+    const v = Math.min(a.v - 1, o.v || 0), ps = photoSprite(a, v);
+    if(ps){ // реалистичный спрайт этого варианта — картинкой с мягкой тенью, как свой объект
+      if(!a.g && typeof MapTex!=='undefined' && MapTex.enabled){ const sh = MapTex.shadowFromImage(ps); if(sh){ const m = ctx.getTransform(), px = Math.hypot(m.a, m.b), det = m.a*m.d - m.b*m.c, ox = 0.05*px, oy = 0.065*px; if(det){ const lx = (m.d*ox - m.c*oy)/det, ly = (-m.b*ox + m.a*oy)/det; ctx.drawImage(sh.cv, -a.w/2 - sh.pad + lx, -a.h/2 - sh.pad + ly, a.w + sh.pad*2, a.h + sh.pad*2); } } }
+      ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high'; ctx.drawImage(ps.img, -a.w/2, -a.h/2, a.w, a.h); ctx.restore(); return; }
     ctx.translate(-a.w/2, -a.h/2);
-    const v = Math.min(a.v - 1, o.v || 0);
     if(typeof MapTex!=='undefined' && MapTex.enabled && ctx.getTransform){
       const m = ctx.getTransform(), px = Math.hypot(m.a, m.b); // пикселей холста на клетку объекта
       const sp = MapTex.sprite(a, v, px);
@@ -3013,6 +3030,16 @@ const MapAssets = (function(){
     return {x0:o.x - ex, y0:o.y - ey, x1:o.x + ex, y1:o.y + ey, hw, hh};
   }
   const thumbs = {};
+  /* ---- реалистичные спрайты: assets/map/sprites (генерируются tools/sprites) — картинка вместо процедурного рисунка ----
+     Манифест {version, sprites:{id:{"<вариант>":"файл.webp"}}}; у варианта без картинки — процедурный рисунок. */
+  const SPR_DIR = '/assets/map/sprites/', sprImg = {}; let sprMan = null, sprState = 0;
+  function sprLoad(){ if(sprState || typeof fetch==='undefined' || typeof location==='undefined' || !/^https?:$/.test(location.protocol)) return; sprState = 1;
+    fetch(SPR_DIR + 'manifest.json', {cache:'no-cache'}).then(r=>r.ok ? r.json() : null).then(j=>{ sprMan = j && j.sprites && typeof j.sprites==='object' ? j : {sprites:{}}; sprNotify(); }).catch(()=>{ sprMan = {sprites:{}}; }); }
+  let sprT = 0; function sprNotify(){ clearTimeout(sprT); sprT = setTimeout(()=>{ for(const k in thumbs) delete thumbs[k]; try{ window.dispatchEvent(new Event('reincarnator-assets')); }catch(e){} }, 150); }
+  function photoSprite(a, v){ sprLoad(); if(!sprMan || a.custom) return null; const m = sprMan.sprites[a.id], f = m && m[v]; if(typeof f!=='string' || !/^[a-z0-9_-]{1,80}\.(webp|png)$/.test(f)) return null;
+    const key = a.id + ':' + v; let s = sprImg[key];
+    if(!s){ s = sprImg[key] = {w:a.w, h:a.h, img:null, _src:SPR_DIR + f + '?v=' + (Number(sprMan.version) || 1), shadow:null}; const img = new Image(); img.onload = ()=>{ s.img = img; sprNotify(); }; img.src = s._src; }
+    return s.img ? s : null; }
   function thumbnail(id, v, size){
     const ca = BY_ID[id]; if(ca && ca.custom){ const dpr = Math.min(2, window.devicePixelRatio || 1), cv = document.createElement('canvas'); cv.width = cv.height = Math.round(size*dpr); cv.style.width = cv.style.height = size + 'px';
       if(ca.img){ const c = cv.getContext('2d'), k = (size*dpr - 6*dpr)/Math.max(ca.w, ca.h), w = ca.w*k, h = ca.h*k; c.imageSmoothingQuality = 'high'; c.drawImage(ca.img, (cv.width - w)/2, (cv.height - h)/2, w, h); } return cv; } // свои — без кэша (картинка может догрузиться)
@@ -3024,7 +3051,9 @@ const MapAssets = (function(){
     return thumbs[key] = cv;
   }
   P.ash = '#5a5550'; P.ash2 = '#4a3a30'; P.sewer = '#4b503f'; P.dirt2 = '#6e5a40'; P.dirt3 = '#7d6548';
-  return { P, CATS, LIST, BY_ID, CUSTOM, drawObject, objectBounds, thumbnail, makeG, shade, hexA, hashStr, mulberry };
+  // kit — для дополнений (03b-map-wilds.js): регистрация объектов и те же помощники HD-рисунков
+  const kit = {A, hk, fx, bits, xb, hdRock, hdCanopy, hdBranches, VN, PV, shade, P};
+  return { P, CATS, LIST, BY_ID, CUSTOM, drawObject, objectBounds, thumbnail, makeG, shade, hexA, hashStr, mulberry, kit };
 })();
 
 /* ---------- свои объекты: PNG/WebP/JPG из файлов ----------
@@ -3317,10 +3346,30 @@ const MapTex = (function(){
       strokes(c, rnd, 160, 10, 40, 1, ['rgba(20,18,16,.4)', 'rgba(200,190,170,.2)']); },
   };
 
+  /* ---- фото-фактуры: assets/map/tex (CC0, Poly Haven, см. tools/sprites/fetch_textures.py) ----
+     Манифест и картинки грузятся фоном при первой отрисовке; пока не догрузились (или без сервера) — процедурная
+     фактура. Масштаб — из манифеста: сколько клеток (по 3 м) покрывает одна плитка картинки. */
+  const PHOTO_DIR = '/assets/map/tex/', photo = {}; let photoState = 0; // 0 — не запрашивали, 1 — грузятся, 2 — готово
+  function loadPhotos(){ if(photoState || typeof fetch==='undefined' || typeof location==='undefined' || !/^https?:$/.test(location.protocol)) return; photoState = 1;
+    fetch(PHOTO_DIR + 'manifest.json', {cache:'no-cache'}).then(r=>r.ok ? r.json() : null).then(j=>{ const ts = j && j.textures; if(!ts){ photoState = 2; return; } let left = 0;
+      Object.keys(ts).forEach(id=>{ const m = ts[id]; if(!m || typeof m.file!=='string' || !/^[a-z0-9_-]+\.(webp|jpg|png)$/.test(m.file) || !(m.cells > 0 && m.cells <= 16)) return; left++; const img = new Image();
+        img.onload = ()=>{ photo[id] = {img, cells:m.cells}; delete tex[id]; if(--left===0) photoState = 2; photoReady(); };
+        img.onerror = ()=>{ if(--left===0) photoState = 2; };
+        img.src = PHOTO_DIR + m.file + '?v=' + (Number(j.version) || 1); });
+      if(!left) photoState = 2; }).catch(()=>{ photoState = 2; }); }
+  // догрузились: объекты с этими материалами перерисуются заново, редактор и стол — по общему событию
+  let photoT = 0; function photoReady(){ clearTimeout(photoT); photoT = setTimeout(()=>{ sprites.clear(); spritePx = 0; try{ window.dispatchEvent(new Event('reincarnator-assets')); }catch(e){} }, 150); }
+
   /* ---- кэш текстур ---- */
   const tex = {};          // id → {cv, avg, pat}
   function texture(id){
     if(tex[id]) return tex[id];
+    loadPhotos();
+    const ph = photo[id];
+    if(ph){ const w = ph.img.naturalWidth, h = ph.img.naturalHeight, cv = canvas(w, h), c = cv.getContext('2d'); c.drawImage(ph.img, 0, 0);
+      const one = canvas(1, 1), oc = one.getContext('2d'); oc.drawImage(cv, 0, 0, 1, 1); const a = oc.getImageData(0, 0, 1, 1).data, pat = c.createPattern(cv, 'repeat');
+      if(pat && pat.setTransform && typeof DOMMatrix!=='undefined') pat.setTransform(new DOMMatrix().scale(ph.cells/w));
+      return tex[id] = {cv, avg:`rgb(${a[0]},${a[1]},${a[2]})`, pat, photo:true}; }
     const recipe = R[id]; if(!recipe) return null;
     const cv = canvas(S, S), c = cv.getContext('2d');
     try{ recipe(c, mulberry(hashStr('tex:' + id)), hashStr('seed:' + id)); }catch(e){ console.warn('[Карта] текстура', id, e); return tex[id] = null; }
@@ -3354,7 +3403,7 @@ const MapTex = (function(){
   }
   // постепенный прогрев: по одной текстуре за такт, чтобы не подвисал интерфейс
   function warm(ids, onEach){ const q = ids.filter(id=>R[id] && !(id in tex)); const step = ()=>{ const id = q.shift(); if(!id) return; texture(id); if(onEach) onEach(id); setTimeout(step, 0); }; setTimeout(step, 0); }
-  function swatch(id){ const t = tex[id]; if(!t) return null; if(!t.url){ const cv = canvas(48, 48); cv.getContext('2d').drawImage(t.cv, 0, 0, 160, 160, 0, 0, 48, 48); t.url = cv.toDataURL(); } return t.url; }
+  function swatch(id){ const t = tex[id]; if(!t) return null; if(!t.url){ const cv = canvas(48, 48), s = Math.min(160, t.cv.width); cv.getContext('2d').drawImage(t.cv, 0, 0, s, s, 0, 0, 48, 48); t.url = cv.toDataURL(); } return t.url; }
 
   /* ---- общий слой износа для объектов ---- */
   let grimeCv = null, grainCv = null;
@@ -3485,7 +3534,10 @@ const MapTex = (function(){
     while(spritePx > BUDGET && sprites.size > 1){ const k0 = sprites.keys().next().value, s0 = sprites.get(k0); sprites.delete(k0); spritePx -= s0.cv.width*s0.cv.height*(s0.shadow ? 2 : 1); }
     return sp;
   }
-  return { macroPattern2, shadowFromImage, get enabled(){ return enabled; }, setEnabled, setRelief(v){ reliefOn = !!v; sprites.clear(); spritePx = 0; }, terrainFill, pattern, macroPattern, warm, swatch, sprite, TERRAIN_IDS:Object.keys(R) };
+  // рецепт фактуры из дополнения (новые типы ландшафта); kit — те же помощники, что у встроенных рецептов
+  function addRecipe(id, fn){ if(typeof fn==='function' && !R[id]){ R[id] = fn; delete tex[id]; } }
+  const kit = {basePixels, specks, pebbles, stains, crackLines, strokes, W, rivet, mix, rgb, S, C};
+  return { macroPattern2, shadowFromImage, get enabled(){ return enabled; }, setEnabled, setRelief(v){ reliefOn = !!v; sprites.clear(); spritePx = 0; }, terrainFill, pattern, macroPattern, warm, swatch, sprite, get TERRAIN_IDS(){ return Object.keys(R); }, addRecipe, kit };
 })();
 
 /* ---------- отрисовка карты — общая для редактора и игрового стола ----------
@@ -3493,7 +3545,7 @@ const MapTex = (function(){
    k — пикселей на клетку на экране (для уровня детализации и толщины линий), view — видимая область
    в клетках (рисуется только она). hidden — скрытые слои (только в редакторе). */
 const MapRender = (function(){
-  const T = MapFormat.TERRAIN, P = MapAssets.P;
+  const T = MapFormat.TERRAIN, T_IDX = MapFormat.T_INDEX, P = MapAssets.P;
   const LAYERS = [ // снизу вверх
     {id:'terrain', name:'Ландшафт'}, {id:'paths', name:'Дороги и пути'}, {id:'ground', name:'Наземные объекты'},
     {id:'walls', name:'Стены'}, {id:'objects', name:'Объекты'}, {id:'labels', name:'Надписи'},
@@ -3501,7 +3553,7 @@ const MapRender = (function(){
   function cellHash(x, y, s){ let h = (x*374761393 + y*668265263 + (s||0)*2147483647) | 0; h = (h ^ (h >>> 13)) * 1274126177 | 0; return ((h ^ (h >>> 16)) >>> 0) / 4294967296; }
   const HD = ()=>typeof MapTex!=='undefined' && MapTex.enabled;
   // «Мягкие» типы (песок, пепел, грунт…) языками заходят на соседние твёрдые и менее мягкие — граница не по линейке
-  const SOFT = {sand:3, dust:2, dirt:2, mud:2, grass:2, mutant:4, ash:3, gravel:1, saltflat:2, rad:4, toxic:5};
+  const SOFT = {sand:3, dust:2, dirt:2, mud:2, grass:2, mutant:4, ash:3, gravel:1, saltflat:2, rad:4, toxic:5, bog:3, acid:5, rustwater:5, copper:2, frost:3, crystal:2, scrap:2, cave:1};
   const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
   function drawSpill(ctx, doc, x0, y0, x1, y1){
     const cols = doc.cols, rows = doc.rows, ter = doc.terrain, N = 4;
@@ -3523,6 +3575,39 @@ const MapRender = (function(){
       }
     }
   }
+  // Плавные стыки природных грунтов (HD): маска типа (пиксель на клетку) растягивается со сглаживанием — край расходится
+  // на полклетки в обе стороны; фактура заливает маску на отдельном холсте и ложится поверх только природных клеток
+  // (полы зданий, асфальт и толща породы остаются с чёткими краями). Порядок — от «твёрдых» к «текучим».
+  const BLEND = {rock:1, gravel:1, cave:1, glass:1, saltflat:1, dust:2, dirt:2, sand:2, copper:2, crystal:2, frost:2, scrap:2, ash:3, grass:3, mud:3, bog:3, mutant:4, rad:4, water:5, sewer:5, toxic:5, acid:5, rustwater:5};
+  let blendCv = null, maskCv = null, natCv = null;
+  function blendTerrain(ctx, doc, k, x0, y0, x1, y1){
+    const m = ctx.getTransform && ctx.getTransform(); if(!m || m.b || m.c || !ctx.canvas) return false;
+    const cols = doc.cols, rows = doc.rows, ter = doc.terrain, bx0 = Math.max(0, x0 - 1), by0 = Math.max(0, y0 - 1), bx1 = Math.min(cols, x1 + 1), by1 = Math.min(rows, y1 + 1), bw = bx1 - bx0, bh = by1 - by0;
+    if(bw < 2 || bh < 2) return false;
+    const ids = new Set(); for(let y=by0;y<by1;y++) for(let x=bx0;x<bx1;x++){ const t = T[ter[y*cols + x]]; if(t && BLEND[t.id]) ids.add(t.id); }
+    if(ids.size < 2) return false;
+    const W = ctx.canvas.width, H = ctx.canvas.height; if(W*H > 16e6) return false;
+    if(!blendCv){ blendCv = document.createElement('canvas'); maskCv = document.createElement('canvas'); natCv = document.createElement('canvas'); }
+    if(blendCv.width!==W || blendCv.height!==H){ blendCv.width = W; blendCv.height = H; }
+    if(maskCv.width!==bw || maskCv.height!==bh){ maskCv.width = natCv.width = bw; maskCv.height = natCv.height = bh; }
+    const bc = blendCv.getContext('2d'), mc = maskCv.getContext('2d'), img = mc.createImageData(bw, bh), d = img.data;
+    // маска природных клеток — без сглаживания (чёткая граница с полами и асфальтом, без швов между клетками)
+    const nc = natCv.getContext('2d'), nimg = nc.createImageData(bw, bh), nd = nimg.data;
+    for(let y=0;y<bh;y++) for(let x=0;x<bw;x++){ const t = T[ter[(by0 + y)*cols + bx0 + x]], i = (y*bw + x)*4; nd[i] = nd[i + 1] = nd[i + 2] = 255; nd[i + 3] = t && BLEND[t.id] ? 255 : 0; }
+    nc.putImageData(nimg, 0, 0);
+    // первый (самый «твёрдый») грунт — подложкой на всю природную область, остальные поверх с мягким краем:
+    // так переход непрерывен (без ступеньки на границе клетки, какая была бы поверх обычной заливки)
+    [...ids].sort((a, b)=>BLEND[a] - BLEND[b]).forEach((id, n)=>{
+      const ti = T_IDX[id], fill = MapTex.terrainFill(id, k); if(!fill) return;
+      bc.setTransform(1, 0, 0, 1, 0, 0); bc.globalCompositeOperation = 'source-over'; bc.clearRect(0, 0, W, H); bc.setTransform(m);
+      if(n===0){ bc.imageSmoothingEnabled = false; bc.drawImage(natCv, bx0, by0, bw, bh); }
+      else { for(let y=0;y<bh;y++) for(let x=0;x<bw;x++){ const i = (y*bw + x)*4; d[i] = d[i + 1] = d[i + 2] = 255; d[i + 3] = ter[(by0 + y)*cols + bx0 + x]===ti ? 255 : 0; }
+        mc.putImageData(img, 0, 0); bc.imageSmoothingEnabled = true; bc.imageSmoothingQuality = 'high'; bc.drawImage(maskCv, bx0 - 0.5, by0 - 0.5, bw + 1, bh + 1); }
+      bc.globalCompositeOperation = 'source-in'; bc.fillStyle = fill; bc.fillRect(bx0, by0, bw, bh);
+      bc.globalCompositeOperation = 'destination-in'; bc.imageSmoothingEnabled = false; bc.drawImage(natCv, bx0, by0, bw, bh);
+      ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(blendCv, 0, 0); ctx.restore(); });
+    return true;
+  }
   function drawTerrain(ctx, doc, k, v){
     const x0 = Math.max(0, Math.floor(v.x0)), y0 = Math.max(0, Math.floor(v.y0)), x1 = Math.min(doc.cols, Math.ceil(v.x1)), y1 = Math.min(doc.rows, Math.ceil(v.y1));
     const pad = 0.5/Math.max(1, k); // без щелей между клетками при дробном масштабе
@@ -3538,9 +3623,12 @@ const MapRender = (function(){
       }
     }
     if(hd){
-      if(k >= 10) drawSpill(ctx, doc, x0, y0, x1, y1);
+      const blended = k >= 6 && blendTerrain(ctx, doc, k, x0, y0, x1, y1);
+      if(k >= 10 && !blended) drawSpill(ctx, doc, x0, y0, x1, y1); // «языки» — только без плавных стыков (иначе снова резкий край)
       const mp = runs && runs.length && MapTex.macroPattern();
-      if(mp){ ctx.save(); ctx.globalCompositeOperation = 'multiply'; ctx.fillStyle = mp; for(let i=0;i<runs.length;i+=3) ctx.fillRect(runs[i], runs[i + 1], runs[i + 2] + pad, 1 + pad); const mp2 = MapTex.macroPattern2(); if(mp2){ ctx.fillStyle = mp2; for(let i=0;i<runs.length;i+=3) ctx.fillRect(runs[i], runs[i + 1], runs[i + 2] + pad, 1 + pad); } ctx.restore(); }
+      // разводы — одним контуром: у отрезков с нахлёстом умножение ложилось бы дважды (тёмные полосы по стыкам клеток)
+      if(mp){ const area = new Path2D(); for(let i=0;i<runs.length;i+=3) area.rect(runs[i], runs[i + 1], runs[i + 2], 1);
+        ctx.save(); ctx.globalCompositeOperation = 'multiply'; ctx.fillStyle = mp; ctx.fill(area); const mp2 = MapTex.macroPattern2(); if(mp2){ ctx.fillStyle = mp2; ctx.fill(area); } ctx.restore(); }
       return;
     }
     if(k < 10) return; // мелкая фактура — только при достаточном масштабе
@@ -3765,7 +3853,8 @@ const MapStore = (function(){
   function upload(doc){
     return new Promise((resolve, reject)=>{
       if(typeof session==='undefined' || session.role!=='gm' || !session.ws || session.ws.readyState!==WebSocket.OPEN) return reject(new Error('Нужна активная сессия Мастера'));
-      fetch('/map-upload', {method:'POST', headers:{'Content-Type':'application/json', 'X-Client-Id':session.myId}, body:JSON.stringify(MapFormat.toJSON(doc))})
+      const out = MapFormat.toJSON(doc); if(out.gen) delete out.gen.note; // заметка Мастеру к препятствию — не игрокам
+      fetch('/map-upload', {method:'POST', headers:{'Content-Type':'application/json', 'X-Client-Id':session.myId}, body:JSON.stringify(out)})
         .then(r=>r.json().then(j=>{ if(!r.ok || !j.url) throw new Error(j.error || ('Ошибка ' + r.status)); resolve(j.url); })).catch(reject);
     });
   }
@@ -3909,6 +3998,8 @@ const MapGen = (function(){
     {id:'lab', name:'Лаборатория', w:[9, 12], h:[8, 11], shapes:['rect', 'L', 'wings'], ext:['concrete', 'metal'], prog:['hall', 'lab', 'lab', 'server', 'storage', 'bath', 'office'], room:[8, 16], entry:['hall'], yard:['barrel_toxic', 'rad_sign', 'generator', 'transformer']},
   ];
   const ARCH_BY = {}; ARCH.forEach(a=>{ ARCH_BY[a.id] = a; });
+  const ARCH_X = []; // типы зданий из дополнений (addArch): мотель, закусочная, цех, пультовая…
+  function addArch(a){ if(!a || ARCH_BY[a.id]) return; ARCH_X.push(a); ARCH_BY[a.id] = a; }
   const THEMES = {live:['house', 'cottage', 'apartment', 'laundromat', 'cafe', 'bar', 'guardhouse', 'chapel'], trade:['grocery', 'pharmacy', 'hardware', 'bar', 'cafe', 'laundromat', 'warehouse'],
     industry:['garage', 'boxgarage', 'warehouse', 'boiler', 'substation', 'guardhouse', 'hardware', 'lab'], civic:['clinic', 'office', 'school', 'chapel', 'police', 'lab', 'pharmacy']};
   const RUIN_POOL = {low:['abandoned', 'barricaded', 'flooded', 'looted'], high:['burnt', 'collapsed', 'looted', 'raiders', 'overgrown']};
@@ -4220,10 +4311,12 @@ const MapGen = (function(){
   function building(g, bx0, by0, bx1, by1, ruined, front, force, exact){
     const fits = (a)=>a.id!==g.avoidArch && Math.min(a.w[0], a.h[0]) <= Math.min(bx1 - bx0, by1 - by0) && Math.max(a.w[0], a.h[0]) <= Math.max(bx1 - bx0, by1 - by0);
     const th = THEMES[g.opts.theme], pool = RUIN_POOL[g.opts.ruin];
+    // типы из дополнений (ARCH_X) — только в своей теме: у прежних районов колода та же, что и раньше (то же зерно — та же карта)
+    const AP = th && ARCH_X.some(a=>th.indexOf(a.id) >= 0) ? ARCH.concat(ARCH_X.filter(a=>th.indexOf(a.id) >= 0)) : ARCH;
     for(let t=0;t<(force ? 1 : 8);t++){
       let arch = force ? ARCH_BY[force] : null;
-      if(!arch && th && g.rnd() < 0.8) arch = g.bagFit('arch', ARCH, a=>fits(a) && th.indexOf(a.id) >= 0);
-      if(!arch) arch = g.bagFit('arch', ARCH, fits); if(!arch) return null;
+      if(!arch && th && g.rnd() < 0.8) arch = g.bagFit('arch', AP, a=>fits(a) && th.indexOf(a.id) >= 0);
+      if(!arch) arch = g.bagFit('arch', AP, fits); if(!arch) return null;
       const tries = force ? 16 : 6;
       for(let s=0;s<tries;s++){
         // последняя попытка при перегенерации — точно в прежнем пятне здания (оно расчищено)
@@ -4697,11 +4790,11 @@ const MapGen = (function(){
     others.forEach(p=>g.mark(p.x - 1, p.y - 1, p.w + 2, p.h + 2));
     doc.objects.forEach(o=>{ const a = MapAssets.BY_ID[o.a]; if(!a || a.g) return; const s = o.s || 1, q = Math.round(((o.r||0)%180 + 180)%180)===90, w = (q ? a.h : a.w)*s, h = (q ? a.w : a.h)*s; g.mark(Math.floor(o.x - w/2), Math.floor(o.y - h/2), Math.ceil(w), Math.ceil(h)); });
     seedUniqueness(g, doc, others); others.forEach(p=>g.built.push({arch:p.arch, shape:p.shape, w:p.w, h:p.h, rooms:p.rooms}));
-    g.bags.arch = g.shuffle(ARCH.filter(a=>!g.uses['arch:' + a.id])); g.bags.bstate = g.shuffle(BSTATES.filter(q=>!g.uses['bstate:' + q.id]));
+    const thX = THEMES[g.opts.theme], APX = thX ? ARCH.concat(ARCH_X.filter(a=>thX.indexOf(a.id) >= 0)) : ARCH; g.bags.arch = g.shuffle(APX.filter(a=>!g.uses['arch:' + a.id])); g.bags.bstate = g.shuffle(BSTATES.filter(q=>!g.uses['bstate:' + q.id]));
     g.avoidState = part.st; if(mode==='type') g.avoidArch = part.arch;
     let force = mode==='same' ? part.arch : null;
     if(mode==='type'){ // другой тип — сперва из ещё не встречавшихся на карте, по возможности в теме района
-      const lw = lot[2] - lot[0], lh = lot[3] - lot[1], th = THEMES[g.opts.theme], cand = ARCH.filter(a=>a.id!==part.arch && !g.uses['arch:' + a.id] && Math.min(a.w[0], a.h[0]) <= Math.min(lw, lh) && Math.max(a.w[0], a.h[0]) <= Math.max(lw, lh));
+      const lw = lot[2] - lot[0], lh = lot[3] - lot[1], th = THEMES[g.opts.theme], cand = APX.filter(a=>a.id!==part.arch && !g.uses['arch:' + a.id] && Math.min(a.w[0], a.h[0]) <= Math.min(lw, lh) && Math.max(a.w[0], a.h[0]) <= Math.max(lw, lh));
       const themed = th ? cand.filter(a=>th.indexOf(a.id) >= 0) : []; const c = themed.length ? themed : cand; if(c.length) force = g.pick(c).id; }
     const exact = {x:part.x, y:part.y, w:part.w, h:part.h};
     let b = building(g, lot[0], lot[1], lot[2], lot[3], undefined, undefined, force, exact);
@@ -4735,6 +4828,7 @@ const MapGen = (function(){
     stockroom:'Склад', chapel:'Молельный зал', arsenal:'Оружейная', cell:'Камера', lockerroom:'Раздевалка', lab:'Лаборатория', server:'Серверная', laundry:'Постирочная', laundry_big:'Прачечная',
     boilerroom:'Котельная', substation:'Трансформаторная', guard:'Пост охраны'};
   const LSIZE = {small:0.45, normal:0.65, large:0.9};
+  const TITLE_FULL = ['bunker', 'plains', 'caves']; // заголовок карты — только в режиме «+ мини-сцены и заголовок»
   function applyLabels(doc){
     const gn = doc.gen; if(!gn) return; const mode = gn.opts.labels || 'buildings', sz = LSIZE[gn.opts.lsize] || LSIZE.normal;
     const old = new Set(gn.parts.map(p=>p.label).filter(Boolean)); gn.parts.forEach(p=>{ delete p.label; });
@@ -4749,7 +4843,10 @@ const MapGen = (function(){
       else add(p.x + p.w/2, p.y + Math.min(0.15 + sz*0.6, p.h/2), p.name, sz);
       if(mode==='full' && p.scene){ const n = sceneName(p.scene); if(n) add(p.x + p.w/2, p.y + p.h - Math.min(sz*0.65, p.h/3), '⚑ ' + n, sz*0.75, '#9c2f1c'); }
     });
-    if(gn.title && (mode==='full' || gn.id!=='bunker')) add(gn.title.x, gn.title.y, gn.title.text, sz*1.35, gn.id==='bunker' ? '#9c2f1c' : '#1e1b18');
+    if(gn.title && (mode==='full' || TITLE_FULL.indexOf(gn.id) < 0)) add(gn.title.x, gn.title.y, gn.title.text, sz*1.35, gn.id==='bunker' ? '#9c2f1c' : '#1e1b18');
   }
-  return { LIST, wallsFromMask, partAt, partTitle, reroll, applyLabels, prefabList, userPrefabs, saveUserPrefabs, validPrefab, PF_GROUPS };
+  // Дополнения (03b-map-wilds.js): свой генератор в списке и общие части — контекст, здания, мебель, подписи
+  function register(gen){ if(gen && gen.id && !LIST.some(x=>x.id===gen.id)) LIST.push(gen); }
+  const kit = {ctxFor, reset, furnish, placeSpecs, placeScene, building, partOf, addArch, ARCH_BY, THEMES, ROLES, ROLE_NAME, BSTATES, wallsFromMask};
+  return { LIST, wallsFromMask, partAt, partTitle, reroll, applyLabels, prefabList, userPrefabs, saveUserPrefabs, validPrefab, PF_GROUPS, register, kit };
 })();

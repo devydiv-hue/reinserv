@@ -104,6 +104,9 @@
   .me-maprow.on .me-mapname{ color:var(--stamp); }
   .me-mapname{ flex:1; font-weight:700; }
   .me-genlist{ display:flex; flex-direction:column; gap:6px; }
+  .me-gennote{ margin:6px 0; padding:7px 9px; border-radius:8px; border:1px solid rgba(156,47,28,.45); background:rgba(156,47,28,.07); font-size:12.5px; display:flex; flex-direction:column; gap:4px; }
+  .me-gennote b{ color:var(--stamp); }
+  .me-gennote button{ align-self:flex-start; }
   @media (max-width:900px){ .me-side{ flex-basis:220px; } .me-assets{ grid-template-columns:repeat(2, 1fr); } }
   /* Телефон: всё в столбец и с прокруткой; верхняя строка и инструменты — горизонтальной лентой; холст — полэкрана */
   @media (max-width:700px){

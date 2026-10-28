@@ -232,6 +232,9 @@ const GmScreen = (function(){
     uiToast(`🎲 ${el.textContent.trim()}: [${rolls.join(', ')}]${m ? (m>0 ? ' +' : ' −') + Math.abs(m) : ''} = ${sum}`, {icon:'к' + s, ms:6000});
   }
   function curNote(){ return notes.find(n=>n.id===prefs.note) || notes[0] || null; }
+  // Заметка извне (редактор карт: препятствие Равнины) — первой в списке и выбранной
+  function addNote(title, text){ const x = {id:'n' + uidS(), title:String(title || 'Заметка').slice(0, 80), text:String(text || '').slice(0, 20000), updated:Date.now()};
+    notes.unshift(x); prefs.note = x.id; editing = false; store(NOTES_KEY, notes); savePrefs(); if(isOpen && prefs.tab==='notes') render(); return x.id; }
   function renderNotes(){
     const sub = `<div class="rx-seg gs-notes-sub"><button type="button" data-nsub="notes" class="${prefs.nsub!=='items' ? 'on' : ''}">Заметки</button><button type="button" data-nsub="items" class="${prefs.nsub==='items' ? 'on' : ''}" title="Предметы к встрече: из каталога, по таблицам Находок, свои — выдать игроку одной кнопкой">Предметы к встрече</button></div>`;
     if(prefs.nsub==='items'){ body.innerHTML = sub + '<div class="pi-root"></div>'; if(typeof PrepItems!=='undefined') PrepItems.render(body.querySelector('.pi-root')); return; }
@@ -356,6 +359,6 @@ const GmScreen = (function(){
   }
 
   function init(){ build(); }
-  return { init, open, close, toggle, refresh, render, setTab, renderRich, get isOpen(){ return isOpen; } };
+  return { init, open, close, toggle, refresh, render, setTab, renderRich, addNote, get isOpen(){ return isOpen; } };
 })();
 try{ GmScreen.init(); }catch(e){ console.error('[Экран Мастера] не удалось запустить', e); }

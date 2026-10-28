@@ -4,7 +4,7 @@
 // карты и картинки своих объектов (/user-maps, /user-assets) — «сначала сеть», копия на случай обрыва.
 // WebSocket, загрузки (POST) и /healthz сервис-воркер не трогает.
 'use strict';
-const VERSION = 'reinc-v5';
+const VERSION = 'reinc-v6';
 const SHELL = ['./', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png', 'icons/favicon-32.png'];
 
 self.addEventListener('install', (e)=>{
@@ -38,6 +38,7 @@ self.addEventListener('fetch', (e)=>{
     if(p.startsWith('/icons/') || p==='/manifest.webmanifest' || p.startsWith('/user-reactions/') || /^\/user-media\/[a-z0-9]+\.(gif|webp|png|jpg)$/.test(p)){ e.respondWith(cacheFirst(req)); return; }
     if(p.startsWith('/user-media/')) return; // ролики: браузер сам просит куски (Range) — мимо кэша
     if(p.startsWith('/user-maps/') || p.startsWith('/user-assets/')){ e.respondWith(networkFirst(req)); return; }
+    if(p.startsWith('/assets/map/')){ e.respondWith(url.search && !p.endsWith('.json') ? cacheFirst(req) : networkFirst(req)); return; } // фактуры и спрайты карт: картинки с версией — из кэша
     return;
   }
   if(url.hostname==='fonts.googleapis.com' || url.hostname==='fonts.gstatic.com'){ e.respondWith(cacheFirst(req)); }

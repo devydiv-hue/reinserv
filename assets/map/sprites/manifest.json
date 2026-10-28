@@ -1,0 +1,1342 @@
+{
+ "version": 1793179094,
+ "sprites": {
+  "accel_ring": {
+   "0": "accel_ring_0.webp",
+   "1": "accel_ring_1.webp",
+   "2": "accel_ring_2.webp"
+  },
+  "aerocar": {
+   "0": "aerocar_0.webp",
+   "1": "aerocar_1.webp",
+   "2": "aerocar_2.webp",
+   "3": "aerocar_3.webp"
+  },
+  "ammo_crate": {
+   "0": "ammo_crate_0.webp",
+   "1": "ammo_crate_1.webp",
+   "2": "ammo_crate_2.webp",
+   "3": "ammo_crate_3.webp",
+   "4": "ammo_crate_4.webp"
+  },
+  "animal_pen": {
+   "0": "animal_pen_0.webp",
+   "1": "animal_pen_1.webp",
+   "2": "animal_pen_2.webp"
+  },
+  "anom_electro": {
+   "0": "anom_electro_0.webp",
+   "1": "anom_electro_1.webp",
+   "2": "anom_electro_2.webp",
+   "3": "anom_electro_3.webp"
+  },
+  "anom_gravity": {
+   "0": "anom_gravity_0.webp",
+   "1": "anom_gravity_1.webp",
+   "2": "anom_gravity_2.webp"
+  },
+  "anom_thermal": {
+   "0": "anom_thermal_0.webp",
+   "1": "anom_thermal_1.webp",
+   "2": "anom_thermal_2.webp",
+   "3": "anom_thermal_3.webp"
+  },
+  "antenna": {
+   "0": "antenna_0.webp",
+   "1": "antenna_1.webp",
+   "2": "antenna_2.webp"
+  },
+  "antigrav_car": {
+   "0": "antigrav_car_0.webp",
+   "1": "antigrav_car_1.webp",
+   "2": "antigrav_car_2.webp"
+  },
+  "apartment_block": {
+   "0": "apartment_block_0.webp",
+   "1": "apartment_block_1.webp",
+   "4": "apartment_block_4.webp"
+  },
+  "apc_wreck": {
+   "0": "apc_wreck_0.webp",
+   "1": "apc_wreck_1.webp",
+   "2": "apc_wreck_2.webp"
+  },
+  "arena_pit": {
+   "0": "arena_pit_0.webp",
+   "1": "arena_pit_1.webp",
+   "2": "arena_pit_2.webp"
+  },
+  "artifact": {
+   "0": "artifact_0.webp",
+   "1": "artifact_1.webp",
+   "2": "artifact_2.webp",
+   "3": "artifact_3.webp"
+  },
+  "banner": {
+   "0": "banner_0.webp",
+   "1": "banner_1.webp",
+   "2": "banner_2.webp",
+   "3": "banner_3.webp",
+   "4": "banner_4.webp"
+  },
+  "barbed_wire": {
+   "0": "barbed_wire_0.webp",
+   "1": "barbed_wire_1.webp",
+   "2": "barbed_wire_2.webp",
+   "3": "barbed_wire_3.webp"
+  },
+  "barge": {
+   "0": "barge_0.webp",
+   "1": "barge_1.webp",
+   "2": "barge_2.webp"
+  },
+  "barracks": {
+   "0": "barracks_0.webp",
+   "1": "barracks_1.webp",
+   "2": "barracks_2.webp",
+   "3": "barracks_3.webp"
+  },
+  "barrel": {
+   "0": "barrel_0.webp",
+   "1": "barrel_1.webp",
+   "2": "barrel_2.webp",
+   "3": "barrel_3.webp"
+  },
+  "barrel_toxic": {
+   "0": "barrel_toxic_0.webp",
+   "1": "barrel_toxic_1.webp",
+   "2": "barrel_toxic_2.webp"
+  },
+  "barrels_group": {
+   "0": "barrels_group_0.webp",
+   "1": "barrels_group_1.webp",
+   "2": "barrels_group_2.webp",
+   "3": "barrels_group_3.webp"
+  },
+  "barricade": {
+   "0": "barricade_0.webp",
+   "1": "barricade_1.webp",
+   "2": "barricade_2.webp"
+  },
+  "barricade_car": {
+   "0": "barricade_car_0.webp",
+   "1": "barricade_car_1.webp",
+   "2": "barricade_car_2.webp"
+  },
+  "bathtub": {
+   "0": "bathtub_0.webp",
+   "1": "bathtub_1.webp",
+   "2": "bathtub_2.webp"
+  },
+  "bear_trap": {
+   "0": "bear_trap_0.webp",
+   "1": "bear_trap_1.webp",
+   "2": "bear_trap_2.webp"
+  },
+  "beast_bones": {
+   "0": "beast_bones_0.webp",
+   "2": "beast_bones_2.webp"
+  },
+  "bed": {
+   "0": "bed_0.webp",
+   "1": "bed_1.webp",
+   "2": "bed_2.webp",
+   "3": "bed_3.webp"
+  },
+  "big_tent": {
+   "0": "big_tent_0.webp",
+   "1": "big_tent_1.webp",
+   "2": "big_tent_2.webp"
+  },
+  "bio_tank": {
+   "0": "bio_tank_0.webp",
+   "1": "bio_tank_1.webp",
+   "2": "bio_tank_2.webp"
+  },
+  "blood": {
+   "0": "blood_0.webp",
+   "1": "blood_1.webp",
+   "2": "blood_2.webp"
+  },
+  "boiler": {
+   "0": "boiler_0.webp",
+   "1": "boiler_1.webp",
+   "2": "boiler_2.webp"
+  },
+  "bone_field": {
+   "0": "bone_field_0.webp",
+   "1": "bone_field_1.webp",
+   "2": "bone_field_2.webp",
+   "3": "bone_field_3.webp"
+  },
+  "bone_pile": {
+   "0": "bone_pile_0.webp",
+   "1": "bone_pile_1.webp",
+   "2": "bone_pile_2.webp",
+   "3": "bone_pile_3.webp"
+  },
+  "bookshelf": {
+   "0": "bookshelf_0.webp",
+   "1": "bookshelf_1.webp",
+   "2": "bookshelf_2.webp"
+  },
+  "boulder": {
+   "0": "boulder_0.webp",
+   "1": "boulder_1.webp",
+   "2": "boulder_2.webp",
+   "3": "boulder_3.webp",
+   "4": "boulder_4.webp"
+  },
+  "bridge": {
+   "0": "bridge_0.webp",
+   "1": "bridge_1.webp"
+  },
+  "broken_window": {
+   "0": "broken_window_0.webp",
+   "1": "broken_window_1.webp"
+  },
+  "buggy": {
+   "0": "buggy_0.webp",
+   "1": "buggy_1.webp",
+   "2": "buggy_2.webp"
+  },
+  "bunk": {
+   "0": "bunk_0.webp",
+   "1": "bunk_1.webp"
+  },
+  "bunker": {
+   "0": "bunker_0.webp",
+   "1": "bunker_1.webp",
+   "2": "bunker_2.webp",
+   "3": "bunker_3.webp"
+  },
+  "bus_stop": {
+   "0": "bus_stop_0.webp"
+  },
+  "bus_wreck": {
+   "0": "bus_wreck_0.webp",
+   "1": "bus_wreck_1.webp",
+   "2": "bus_wreck_2.webp",
+   "3": "bus_wreck_3.webp"
+  },
+  "cable_bridge": {
+   "0": "cable_bridge_0.webp",
+   "1": "cable_bridge_1.webp",
+   "2": "cable_bridge_2.webp"
+  },
+  "cactus": {
+   "0": "cactus_0.webp",
+   "1": "cactus_1.webp",
+   "2": "cactus_2.webp"
+  },
+  "cage": {
+   "0": "cage_0.webp",
+   "1": "cage_1.webp",
+   "2": "cage_2.webp",
+   "3": "cage_3.webp",
+   "4": "cage_4.webp"
+  },
+  "campfire": {
+   "0": "campfire_0.webp",
+   "1": "campfire_1.webp",
+   "2": "campfire_2.webp",
+   "3": "campfire_3.webp"
+  },
+  "canopy": {
+   "0": "canopy_0.webp",
+   "1": "canopy_1.webp",
+   "2": "canopy_2.webp",
+   "4": "canopy_4.webp"
+  },
+  "car_burnt": {
+   "0": "car_burnt_0.webp",
+   "1": "car_burnt_1.webp",
+   "2": "car_burnt_2.webp",
+   "3": "car_burnt_3.webp"
+  },
+  "car_wreck": {
+   "0": "car_wreck_0.webp",
+   "1": "car_wreck_1.webp",
+   "10": "car_wreck_10.webp",
+   "11": "car_wreck_11.webp",
+   "12": "car_wreck_12.webp",
+   "13": "car_wreck_13.webp",
+   "3": "car_wreck_3.webp",
+   "4": "car_wreck_4.webp",
+   "5": "car_wreck_5.webp",
+   "6": "car_wreck_6.webp",
+   "7": "car_wreck_7.webp",
+   "8": "car_wreck_8.webp",
+   "9": "car_wreck_9.webp"
+  },
+  "caravan_cart": {
+   "0": "caravan_cart_0.webp",
+   "1": "caravan_cart_1.webp",
+   "2": "caravan_cart_2.webp"
+  },
+  "carts": {
+   "0": "carts_0.webp",
+   "1": "carts_1.webp",
+   "2": "carts_2.webp"
+  },
+  "catacomb_niche": {
+   "0": "catacomb_niche_0.webp",
+   "1": "catacomb_niche_1.webp",
+   "2": "catacomb_niche_2.webp",
+   "3": "catacomb_niche_3.webp"
+  },
+  "checkpoint": {
+   "0": "checkpoint_0.webp",
+   "1": "checkpoint_1.webp",
+   "2": "checkpoint_2.webp"
+  },
+  "chimney": {
+   "0": "chimney_0.webp",
+   "1": "chimney_1.webp",
+   "2": "chimney_2.webp"
+  },
+  "cocoon": {
+   "0": "cocoon_0.webp",
+   "1": "cocoon_1.webp",
+   "2": "cocoon_2.webp",
+   "3": "cocoon_3.webp"
+  },
+  "collector": {
+   "0": "collector_0.webp",
+   "1": "collector_1.webp",
+   "2": "collector_2.webp",
+   "3": "collector_3.webp",
+   "4": "collector_4.webp"
+  },
+  "column": {
+   "0": "column_0.webp",
+   "1": "column_1.webp",
+   "2": "column_2.webp",
+   "3": "column_3.webp",
+   "4": "column_4.webp"
+  },
+  "container_stack": {
+   "0": "container_stack_0.webp",
+   "1": "container_stack_1.webp",
+   "2": "container_stack_2.webp"
+  },
+  "containment_pod": {
+   "0": "containment_pod_0.webp",
+   "1": "containment_pod_1.webp",
+   "2": "containment_pod_2.webp"
+  },
+  "conveyor": {
+   "0": "conveyor_0.webp",
+   "1": "conveyor_1.webp",
+   "2": "conveyor_2.webp"
+  },
+  "cooling_tower": {
+   "0": "cooling_tower_0.webp",
+   "1": "cooling_tower_1.webp"
+  },
+  "corpse": {
+   "0": "corpse_0.webp",
+   "1": "corpse_1.webp",
+   "2": "corpse_2.webp"
+  },
+  "cover_concrete": {
+   "0": "cover_concrete_0.webp",
+   "1": "cover_concrete_1.webp",
+   "2": "cover_concrete_2.webp"
+  },
+  "crane_beam": {
+   "0": "crane_beam_0.webp",
+   "1": "crane_beam_1.webp"
+  },
+  "crate_metal": {
+   "0": "crate_metal_0.webp",
+   "1": "crate_metal_1.webp",
+   "2": "crate_metal_2.webp"
+  },
+  "crate_wood": {
+   "0": "crate_wood_0.webp",
+   "1": "crate_wood_1.webp",
+   "2": "crate_wood_2.webp",
+   "3": "crate_wood_3.webp"
+  },
+  "crater": {
+   "0": "crater_0.webp",
+   "1": "crater_1.webp",
+   "2": "crater_2.webp",
+   "3": "crater_3.webp"
+  },
+  "crossroad": {
+   "0": "crossroad_0.webp",
+   "1": "crossroad_1.webp",
+   "2": "crossroad_2.webp"
+  },
+  "cryo_pod": {
+   "0": "cryo_pod_0.webp",
+   "1": "cryo_pod_1.webp",
+   "2": "cryo_pod_2.webp",
+   "3": "cryo_pod_3.webp"
+  },
+  "crystal_growth": {
+   "0": "crystal_growth_0.webp",
+   "1": "crystal_growth_1.webp",
+   "2": "crystal_growth_2.webp",
+   "3": "crystal_growth_3.webp"
+  },
+  "crystal_tree": {
+   "0": "crystal_tree_0.webp",
+   "1": "crystal_tree_1.webp",
+   "2": "crystal_tree_2.webp",
+   "3": "crystal_tree_3.webp"
+  },
+  "czech_hedgehog": {
+   "0": "czech_hedgehog_0.webp",
+   "1": "czech_hedgehog_1.webp",
+   "2": "czech_hedgehog_2.webp",
+   "3": "czech_hedgehog_3.webp"
+  },
+  "dead_tree": {
+   "0": "dead_tree_0.webp",
+   "1": "dead_tree_1.webp",
+   "2": "dead_tree_2.webp",
+   "3": "dead_tree_3.webp",
+   "4": "dead_tree_4.webp"
+  },
+  "display_window": {
+   "1": "display_window_1.webp"
+  },
+  "door": {
+   "0": "door_0.webp",
+   "1": "door_1.webp",
+   "2": "door_2.webp",
+   "3": "door_3.webp"
+  },
+  "double_door": {
+   "0": "double_door_0.webp",
+   "1": "double_door_1.webp",
+   "2": "double_door_2.webp"
+  },
+  "drill_rig": {
+   "0": "drill_rig_0.webp",
+   "1": "drill_rig_1.webp",
+   "2": "drill_rig_2.webp"
+  },
+  "dry_bush": {
+   "1": "dry_bush_1.webp",
+   "2": "dry_bush_2.webp",
+   "3": "dry_bush_3.webp"
+  },
+  "drying_rack": {
+   "0": "drying_rack_0.webp",
+   "1": "drying_rack_1.webp",
+   "2": "drying_rack_2.webp",
+   "3": "drying_rack_3.webp"
+  },
+  "dump_truck": {
+   "0": "dump_truck_0.webp",
+   "2": "dump_truck_2.webp"
+  },
+  "dumpster": {
+   "0": "dumpster_0.webp",
+   "1": "dumpster_1.webp",
+   "2": "dumpster_2.webp",
+   "3": "dumpster_3.webp"
+  },
+  "dune": {
+   "0": "dune_0.webp",
+   "1": "dune_1.webp",
+   "2": "dune_2.webp",
+   "3": "dune_3.webp",
+   "4": "dune_4.webp"
+  },
+  "electric_panel": {
+   "0": "electric_panel_0.webp",
+   "1": "electric_panel_1.webp",
+   "2": "electric_panel_2.webp",
+   "3": "electric_panel_3.webp"
+  },
+  "excavator": {
+   "0": "excavator_0.webp",
+   "1": "excavator_1.webp",
+   "2": "excavator_2.webp"
+  },
+  "field_kitchen": {
+   "0": "field_kitchen_0.webp",
+   "1": "field_kitchen_1.webp",
+   "2": "field_kitchen_2.webp",
+   "3": "field_kitchen_3.webp"
+  },
+  "food_court": {
+   "0": "food_court_0.webp",
+   "1": "food_court_1.webp",
+   "2": "food_court_2.webp"
+  },
+  "fortress_tower": {
+   "0": "fortress_tower_0.webp",
+   "1": "fortress_tower_1.webp"
+  },
+  "fridge": {
+   "0": "fridge_0.webp",
+   "1": "fridge_1.webp",
+   "2": "fridge_2.webp"
+  },
+  "fridge_display": {
+   "1": "fridge_display_1.webp",
+   "2": "fridge_display_2.webp"
+  },
+  "fuel_pump": {
+   "0": "fuel_pump_0.webp",
+   "1": "fuel_pump_1.webp",
+   "2": "fuel_pump_2.webp",
+   "3": "fuel_pump_3.webp"
+  },
+  "gantry_crane": {
+   "0": "gantry_crane_0.webp",
+   "1": "gantry_crane_1.webp",
+   "2": "gantry_crane_2.webp"
+  },
+  "garden_bed": {
+   "0": "garden_bed_0.webp",
+   "1": "garden_bed_1.webp",
+   "3": "garden_bed_3.webp",
+   "4": "garden_bed_4.webp"
+  },
+  "gas_station": {
+   "0": "gas_station_0.webp",
+   "1": "gas_station_1.webp",
+   "2": "gas_station_2.webp",
+   "3": "gas_station_3.webp"
+  },
+  "gate_metal": {
+   "0": "gate_metal_0.webp",
+   "1": "gate_metal_1.webp",
+   "2": "gate_metal_2.webp"
+  },
+  "generator": {
+   "0": "generator_0.webp",
+   "1": "generator_1.webp",
+   "2": "generator_2.webp"
+  },
+  "geyser": {
+   "0": "geyser_0.webp",
+   "1": "geyser_1.webp",
+   "2": "geyser_2.webp",
+   "3": "geyser_3.webp"
+  },
+  "glow_mushrooms": {
+   "0": "glow_mushrooms_0.webp",
+   "1": "glow_mushrooms_1.webp",
+   "2": "glow_mushrooms_2.webp"
+  },
+  "grand_arch": {
+   "1": "grand_arch_1.webp"
+  },
+  "greenhouse": {
+   "0": "greenhouse_0.webp",
+   "1": "greenhouse_1.webp",
+   "2": "greenhouse_2.webp",
+   "3": "greenhouse_3.webp"
+  },
+  "hangar": {
+   "0": "hangar_0.webp",
+   "1": "hangar_1.webp",
+   "2": "hangar_2.webp"
+  },
+  "helipad": {
+   "0": "helipad_0.webp",
+   "1": "helipad_1.webp"
+  },
+  "hospital_bed": {
+   "0": "hospital_bed_0.webp",
+   "1": "hospital_bed_1.webp",
+   "2": "hospital_bed_2.webp"
+  },
+  "house_mid": {
+   "0": "house_mid_0.webp",
+   "1": "house_mid_1.webp",
+   "2": "house_mid_2.webp",
+   "3": "house_mid_3.webp",
+   "4": "house_mid_4.webp",
+   "5": "house_mid_5.webp"
+  },
+  "house_small": {
+   "0": "house_small_0.webp",
+   "1": "house_small_1.webp",
+   "2": "house_small_2.webp",
+   "3": "house_small_3.webp",
+   "4": "house_small_4.webp",
+   "5": "house_small_5.webp"
+  },
+  "hydrant": {
+   "0": "hydrant_0.webp",
+   "1": "hydrant_1.webp",
+   "2": "hydrant_2.webp"
+  },
+  "jersey": {
+   "0": "jersey_0.webp",
+   "1": "jersey_1.webp",
+   "2": "jersey_2.webp"
+  },
+  "junk_mound": {
+   "0": "junk_mound_0.webp",
+   "1": "junk_mound_1.webp",
+   "2": "junk_mound_2.webp"
+  },
+  "kiosk": {
+   "0": "kiosk_0.webp",
+   "1": "kiosk_1.webp",
+   "2": "kiosk_2.webp",
+   "3": "kiosk_3.webp"
+  },
+  "lab_bench": {
+   "0": "lab_bench_0.webp",
+   "1": "lab_bench_1.webp",
+   "2": "lab_bench_2.webp"
+  },
+  "lab_ruin": {
+   "0": "lab_ruin_0.webp",
+   "1": "lab_ruin_1.webp"
+  },
+  "ladder": {
+   "0": "ladder_0.webp",
+   "1": "ladder_1.webp",
+   "2": "ladder_2.webp"
+  },
+  "lamp": {
+   "0": "lamp_0.webp",
+   "1": "lamp_1.webp",
+   "2": "lamp_2.webp"
+  },
+  "lamp_post": {
+   "0": "lamp_post_0.webp",
+   "1": "lamp_post_1.webp"
+  },
+  "landmine": {
+   "0": "landmine_0.webp",
+   "1": "landmine_1.webp",
+   "2": "landmine_2.webp"
+  },
+  "lathe": {
+   "0": "lathe_0.webp",
+   "1": "lathe_1.webp",
+   "2": "lathe_2.webp"
+  },
+  "latrine": {
+   "0": "latrine_0.webp",
+   "1": "latrine_1.webp",
+   "2": "latrine_2.webp"
+  },
+  "locker": {
+   "0": "locker_0.webp",
+   "2": "locker_2.webp"
+  },
+  "maintenance_hatch": {
+   "0": "maintenance_hatch_0.webp",
+   "1": "maintenance_hatch_1.webp",
+   "2": "maintenance_hatch_2.webp",
+   "3": "maintenance_hatch_3.webp"
+  },
+  "mall": {
+   "0": "mall_0.webp",
+   "1": "mall_1.webp"
+  },
+  "manhole": {
+   "0": "manhole_0.webp",
+   "1": "manhole_1.webp",
+   "2": "manhole_2.webp",
+   "3": "manhole_3.webp"
+  },
+  "market_stall": {
+   "0": "market_stall_0.webp",
+   "1": "market_stall_1.webp"
+  },
+  "market_tent": {
+   "0": "market_tent_0.webp",
+   "1": "market_tent_1.webp",
+   "2": "market_tent_2.webp"
+  },
+  "medkit": {
+   "0": "medkit_0.webp",
+   "1": "medkit_1.webp",
+   "2": "medkit_2.webp"
+  },
+  "megablock": {
+   "0": "megablock_0.webp",
+   "1": "megablock_1.webp",
+   "2": "megablock_2.webp"
+  },
+  "megatower": {
+   "0": "megatower_0.webp",
+   "2": "megatower_2.webp"
+  },
+  "metro_car": {
+   "0": "metro_car_0.webp",
+   "1": "metro_car_1.webp",
+   "2": "metro_car_2.webp",
+   "3": "metro_car_3.webp",
+   "4": "metro_car_4.webp"
+  },
+  "mine_cart": {
+   "0": "mine_cart_0.webp",
+   "1": "mine_cart_1.webp",
+   "2": "mine_cart_2.webp"
+  },
+  "mine_field": {
+   "0": "mine_field_0.webp",
+   "1": "mine_field_1.webp",
+   "2": "mine_field_2.webp",
+   "3": "mine_field_3.webp"
+  },
+  "mine_headframe": {
+   "0": "mine_headframe_0.webp",
+   "1": "mine_headframe_1.webp"
+  },
+  "mine_props": {
+   "0": "mine_props_0.webp",
+   "1": "mine_props_1.webp",
+   "2": "mine_props_2.webp",
+   "3": "mine_props_3.webp"
+  },
+  "mineral_spikes": {
+   "0": "mineral_spikes_0.webp",
+   "1": "mineral_spikes_1.webp",
+   "2": "mineral_spikes_2.webp",
+   "3": "mineral_spikes_3.webp"
+  },
+  "moisture_trap": {
+   "0": "moisture_trap_0.webp",
+   "1": "moisture_trap_1.webp",
+   "2": "moisture_trap_2.webp"
+  },
+  "monolith": {
+   "0": "monolith_0.webp",
+   "1": "monolith_1.webp",
+   "2": "monolith_2.webp",
+   "3": "monolith_3.webp",
+   "4": "monolith_4.webp"
+  },
+  "monument": {
+   "0": "monument_0.webp",
+   "1": "monument_1.webp"
+  },
+  "mutant_plant": {
+   "0": "mutant_plant_0.webp",
+   "1": "mutant_plant_1.webp",
+   "2": "mutant_plant_2.webp"
+  },
+  "mutant_tree": {
+   "0": "mutant_tree_0.webp",
+   "1": "mutant_tree_1.webp",
+   "2": "mutant_tree_2.webp"
+  },
+  "nature_ruins": {
+   "0": "nature_ruins_0.webp",
+   "1": "nature_ruins_1.webp",
+   "2": "nature_ruins_2.webp"
+  },
+  "office_desk": {
+   "0": "office_desk_0.webp",
+   "1": "office_desk_1.webp"
+  },
+  "oil_drum_fire": {
+   "0": "oil_drum_fire_0.webp",
+   "1": "oil_drum_fire_1.webp",
+   "2": "oil_drum_fire_2.webp"
+  },
+  "ore_vein": {
+   "0": "ore_vein_0.webp",
+   "1": "ore_vein_1.webp",
+   "2": "ore_vein_2.webp",
+   "3": "ore_vein_3.webp"
+  },
+  "overpass_pillar": {
+   "0": "overpass_pillar_0.webp",
+   "1": "overpass_pillar_1.webp"
+  },
+  "pack_animal": {
+   "0": "pack_animal_0.webp",
+   "1": "pack_animal_1.webp"
+  },
+  "pallet": {
+   "0": "pallet_0.webp",
+   "1": "pallet_1.webp"
+  },
+  "pantry_shelves": {
+   "0": "pantry_shelves_0.webp",
+   "1": "pantry_shelves_1.webp"
+  },
+  "parking": {
+   "1": "parking_1.webp",
+   "2": "parking_2.webp"
+  },
+  "partition": {
+   "0": "partition_0.webp",
+   "1": "partition_1.webp",
+   "2": "partition_2.webp"
+  },
+  "phone_booth": {
+   "0": "phone_booth_0.webp",
+   "1": "phone_booth_1.webp"
+  },
+  "pickup_rust": {
+   "0": "pickup_rust_0.webp",
+   "1": "pickup_rust_1.webp",
+   "2": "pickup_rust_2.webp"
+  },
+  "pillbox": {
+   "0": "pillbox_0.webp",
+   "1": "pillbox_1.webp",
+   "2": "pillbox_2.webp",
+   "3": "pillbox_3.webp"
+  },
+  "pipe_corner": {
+   "0": "pipe_corner_0.webp",
+   "1": "pipe_corner_1.webp"
+  },
+  "pipe_forest": {
+   "0": "pipe_forest_0.webp",
+   "1": "pipe_forest_1.webp",
+   "2": "pipe_forest_2.webp",
+   "3": "pipe_forest_3.webp"
+  },
+  "pipe_rack": {
+   "0": "pipe_rack_0.webp",
+   "1": "pipe_rack_1.webp",
+   "2": "pipe_rack_2.webp"
+  },
+  "pipe_straight": {
+   "0": "pipe_straight_0.webp",
+   "1": "pipe_straight_1.webp",
+   "2": "pipe_straight_2.webp"
+  },
+  "plane_wreck": {
+   "0": "plane_wreck_0.webp",
+   "2": "plane_wreck_2.webp"
+  },
+  "platform_edge": {
+   "0": "platform_edge_0.webp",
+   "1": "platform_edge_1.webp",
+   "2": "platform_edge_2.webp"
+  },
+  "polyhedron": {
+   "0": "polyhedron_0.webp",
+   "1": "polyhedron_1.webp",
+   "2": "polyhedron_2.webp",
+   "3": "polyhedron_3.webp",
+   "4": "polyhedron_4.webp"
+  },
+  "power_pylon": {
+   "0": "power_pylon_0.webp",
+   "1": "power_pylon_1.webp",
+   "2": "power_pylon_2.webp"
+  },
+  "press": {
+   "0": "press_0.webp",
+   "1": "press_1.webp",
+   "2": "press_2.webp"
+  },
+  "puddle": {
+   "0": "puddle_0.webp",
+   "1": "puddle_1.webp",
+   "2": "puddle_2.webp",
+   "3": "puddle_3.webp",
+   "4": "puddle_4.webp"
+  },
+  "pump_jack": {
+   "0": "pump_jack_0.webp",
+   "1": "pump_jack_1.webp",
+   "2": "pump_jack_2.webp"
+  },
+  "pump_station": {
+   "0": "pump_station_0.webp",
+   "1": "pump_station_1.webp",
+   "2": "pump_station_2.webp",
+   "3": "pump_station_3.webp"
+  },
+  "rad_sign": {
+   "0": "rad_sign_0.webp",
+   "1": "rad_sign_1.webp",
+   "2": "rad_sign_2.webp",
+   "3": "rad_sign_3.webp"
+  },
+  "radar": {
+   "0": "radar_0.webp",
+   "2": "radar_2.webp"
+  },
+  "radio": {
+   "0": "radio_0.webp",
+   "1": "radio_1.webp",
+   "2": "radio_2.webp"
+  },
+  "radio_dish": {
+   "0": "radio_dish_0.webp",
+   "1": "radio_dish_1.webp",
+   "2": "radio_dish_2.webp",
+   "3": "radio_dish_3.webp"
+  },
+  "radio_mast": {
+   "0": "radio_mast_0.webp",
+   "1": "radio_mast_1.webp",
+   "2": "radio_mast_2.webp"
+  },
+  "ramp": {
+   "1": "ramp_1.webp"
+  },
+  "ravine": {
+   "0": "ravine_0.webp",
+   "1": "ravine_1.webp",
+   "2": "ravine_2.webp",
+   "3": "ravine_3.webp"
+  },
+  "reeds": {
+   "0": "reeds_0.webp",
+   "1": "reeds_1.webp",
+   "2": "reeds_2.webp"
+  },
+  "restaurant_table": {
+   "0": "restaurant_table_0.webp",
+   "1": "restaurant_table_1.webp",
+   "2": "restaurant_table_2.webp"
+  },
+  "rift": {
+   "0": "rift_0.webp",
+   "1": "rift_1.webp",
+   "2": "rift_2.webp",
+   "3": "rift_3.webp",
+   "4": "rift_4.webp"
+  },
+  "road_billboard": {
+   "2": "road_billboard_2.webp",
+   "3": "road_billboard_3.webp"
+  },
+  "road_sign": {
+   "1": "road_sign_1.webp",
+   "2": "road_sign_2.webp",
+   "3": "road_sign_3.webp",
+   "4": "road_sign_4.webp"
+  },
+  "robot_wreck": {
+   "0": "robot_wreck_0.webp",
+   "1": "robot_wreck_1.webp",
+   "2": "robot_wreck_2.webp",
+   "3": "robot_wreck_3.webp"
+  },
+  "rock_big": {
+   "0": "rock_big_0.webp",
+   "1": "rock_big_1.webp",
+   "2": "rock_big_2.webp",
+   "3": "rock_big_3.webp",
+   "4": "rock_big_4.webp"
+  },
+  "rocks_scatter": {
+   "0": "rocks_scatter_0.webp",
+   "1": "rocks_scatter_1.webp",
+   "2": "rocks_scatter_2.webp",
+   "3": "rocks_scatter_3.webp"
+  },
+  "roof_vent": {
+   "0": "roof_vent_0.webp",
+   "1": "roof_vent_1.webp",
+   "2": "roof_vent_2.webp"
+  },
+  "rubble_big": {
+   "0": "rubble_big_0.webp",
+   "1": "rubble_big_1.webp",
+   "2": "rubble_big_2.webp"
+  },
+  "rubble_pile": {
+   "0": "rubble_pile_0.webp",
+   "1": "rubble_pile_1.webp",
+   "2": "rubble_pile_2.webp",
+   "3": "rubble_pile_3.webp"
+  },
+  "rug": {
+   "0": "rug_0.webp",
+   "1": "rug_1.webp",
+   "2": "rug_2.webp"
+  },
+  "ruin_corner": {
+   "0": "ruin_corner_0.webp",
+   "1": "ruin_corner_1.webp",
+   "2": "ruin_corner_2.webp"
+  },
+  "ruin_house": {
+   "0": "ruin_house_0.webp",
+   "1": "ruin_house_1.webp",
+   "2": "ruin_house_2.webp",
+   "3": "ruin_house_3.webp"
+  },
+  "safe": {
+   "0": "safe_0.webp",
+   "1": "safe_1.webp",
+   "2": "safe_2.webp"
+  },
+  "sandbags_arc": {
+   "0": "sandbags_arc_0.webp",
+   "1": "sandbags_arc_1.webp",
+   "2": "sandbags_arc_2.webp"
+  },
+  "sandbags_line": {
+   "0": "sandbags_line_0.webp",
+   "1": "sandbags_line_1.webp"
+  },
+  "sarcophagus": {
+   "0": "sarcophagus_0.webp",
+   "1": "sarcophagus_1.webp",
+   "2": "sarcophagus_2.webp"
+  },
+  "satellite": {
+   "0": "satellite_0.webp",
+   "1": "satellite_1.webp",
+   "2": "satellite_2.webp"
+  },
+  "scrap_pile": {
+   "0": "scrap_pile_0.webp",
+   "1": "scrap_pile_1.webp",
+   "2": "scrap_pile_2.webp",
+   "3": "scrap_pile_3.webp"
+  },
+  "scrap_shack": {
+   "0": "scrap_shack_0.webp",
+   "1": "scrap_shack_1.webp",
+   "2": "scrap_shack_2.webp",
+   "3": "scrap_shack_3.webp"
+  },
+  "scrap_tower": {
+   "0": "scrap_tower_0.webp",
+   "1": "scrap_tower_1.webp",
+   "2": "scrap_tower_2.webp"
+  },
+  "searchlight": {
+   "0": "searchlight_0.webp",
+   "1": "searchlight_1.webp",
+   "2": "searchlight_2.webp"
+  },
+  "semi_truck": {
+   "0": "semi_truck_0.webp",
+   "2": "semi_truck_2.webp"
+  },
+  "server_rack": {
+   "0": "server_rack_0.webp",
+   "1": "server_rack_1.webp",
+   "2": "server_rack_2.webp"
+  },
+  "settlement_gate": {
+   "0": "settlement_gate_0.webp",
+   "1": "settlement_gate_1.webp"
+  },
+  "sewer_grate": {
+   "0": "sewer_grate_0.webp",
+   "1": "sewer_grate_1.webp",
+   "2": "sewer_grate_2.webp",
+   "3": "sewer_grate_3.webp"
+  },
+  "shelf": {
+   "0": "shelf_0.webp",
+   "1": "shelf_1.webp",
+   "2": "shelf_2.webp"
+  },
+  "ship_hull": {
+   "0": "ship_hull_0.webp",
+   "1": "ship_hull_1.webp",
+   "2": "ship_hull_2.webp",
+   "3": "ship_hull_3.webp",
+   "4": "ship_hull_4.webp"
+  },
+  "ship_nozzle": {
+   "0": "ship_nozzle_0.webp",
+   "1": "ship_nozzle_1.webp",
+   "2": "ship_nozzle_2.webp"
+  },
+  "shipping_container": {
+   "0": "shipping_container_0.webp",
+   "1": "shipping_container_1.webp",
+   "2": "shipping_container_2.webp",
+   "3": "shipping_container_3.webp",
+   "4": "shipping_container_4.webp"
+  },
+  "shop": {
+   "0": "shop_0.webp",
+   "1": "shop_1.webp",
+   "2": "shop_2.webp"
+  },
+  "shower": {
+   "0": "shower_0.webp",
+   "1": "shower_1.webp",
+   "2": "shower_2.webp"
+  },
+  "signpost": {
+   "0": "signpost_0.webp",
+   "1": "signpost_1.webp",
+   "2": "signpost_2.webp"
+  },
+  "silo": {
+   "0": "silo_0.webp",
+   "1": "silo_1.webp",
+   "2": "silo_2.webp"
+  },
+  "sink": {
+   "0": "sink_0.webp",
+   "1": "sink_1.webp"
+  },
+  "skull_totem": {
+   "0": "skull_totem_0.webp",
+   "1": "skull_totem_1.webp",
+   "2": "skull_totem_2.webp"
+  },
+  "sky_bridge": {
+   "0": "sky_bridge_0.webp",
+   "1": "sky_bridge_1.webp"
+  },
+  "skywalk": {
+   "0": "skywalk_0.webp",
+   "1": "skywalk_1.webp"
+  },
+  "slag_pool": {
+   "0": "slag_pool_0.webp",
+   "1": "slag_pool_1.webp"
+  },
+  "sleeping_bag": {
+   "0": "sleeping_bag_0.webp",
+   "1": "sleeping_bag_1.webp",
+   "2": "sleeping_bag_2.webp",
+   "3": "sleeping_bag_3.webp"
+  },
+  "sofa": {
+   "0": "sofa_0.webp",
+   "1": "sofa_1.webp",
+   "2": "sofa_2.webp"
+  },
+  "solar_panels": {
+   "0": "solar_panels_0.webp",
+   "1": "solar_panels_1.webp",
+   "2": "solar_panels_2.webp"
+  },
+  "stairs": {
+   "0": "stairs_0.webp",
+   "1": "stairs_1.webp",
+   "2": "stairs_2.webp"
+  },
+  "stairs_down": {
+   "0": "stairs_down_0.webp",
+   "1": "stairs_down_1.webp",
+   "2": "stairs_down_2.webp",
+   "3": "stairs_down_3.webp"
+  },
+  "stalagmites": {
+   "0": "stalagmites_0.webp",
+   "1": "stalagmites_1.webp",
+   "2": "stalagmites_2.webp"
+  },
+  "statue_head": {
+   "0": "statue_head_0.webp",
+   "1": "statue_head_1.webp",
+   "2": "statue_head_2.webp"
+  },
+  "statue_judge": {
+   "2": "statue_judge_2.webp"
+  },
+  "stove": {
+   "0": "stove_0.webp",
+   "1": "stove_1.webp",
+   "2": "stove_2.webp"
+  },
+  "stretcher": {
+   "0": "stretcher_0.webp",
+   "1": "stretcher_1.webp",
+   "2": "stretcher_2.webp"
+  },
+  "stumps": {
+   "0": "stumps_0.webp",
+   "1": "stumps_1.webp",
+   "2": "stumps_2.webp"
+  },
+  "table_dining": {
+   "0": "table_dining_0.webp",
+   "1": "table_dining_1.webp",
+   "3": "table_dining_3.webp"
+  },
+  "table_small": {
+   "0": "table_small_0.webp",
+   "1": "table_small_1.webp",
+   "2": "table_small_2.webp"
+  },
+  "tank_big": {
+   "0": "tank_big_0.webp",
+   "1": "tank_big_1.webp",
+   "2": "tank_big_2.webp"
+  },
+  "tank_horiz": {
+   "0": "tank_horiz_0.webp",
+   "1": "tank_horiz_1.webp"
+  },
+  "tank_wreck": {
+   "0": "tank_wreck_0.webp",
+   "1": "tank_wreck_1.webp",
+   "2": "tank_wreck_2.webp",
+   "3": "tank_wreck_3.webp"
+  },
+  "tent": {
+   "0": "tent_0.webp",
+   "1": "tent_1.webp",
+   "2": "tent_2.webp",
+   "3": "tent_3.webp"
+  },
+  "terminal": {
+   "0": "terminal_0.webp",
+   "1": "terminal_1.webp",
+   "2": "terminal_2.webp"
+  },
+  "tesla_mast": {
+   "0": "tesla_mast_0.webp",
+   "1": "tesla_mast_1.webp",
+   "2": "tesla_mast_2.webp"
+  },
+  "tire_stack": {
+   "0": "tire_stack_0.webp",
+   "1": "tire_stack_1.webp",
+   "2": "tire_stack_2.webp"
+  },
+  "toilet": {
+   "0": "toilet_0.webp",
+   "1": "toilet_1.webp"
+  },
+  "toxic_puddle": {
+   "0": "toxic_puddle_0.webp",
+   "1": "toxic_puddle_1.webp",
+   "2": "toxic_puddle_2.webp",
+   "3": "toxic_puddle_3.webp"
+  },
+  "transformer": {
+   "0": "transformer_0.webp",
+   "1": "transformer_1.webp",
+   "2": "transformer_2.webp"
+  },
+  "trash": {
+   "0": "trash_0.webp",
+   "1": "trash_1.webp",
+   "2": "trash_2.webp",
+   "3": "trash_3.webp"
+  },
+  "tree_sparse": {
+   "0": "tree_sparse_0.webp",
+   "1": "tree_sparse_1.webp",
+   "2": "tree_sparse_2.webp",
+   "3": "tree_sparse_3.webp",
+   "4": "tree_sparse_4.webp"
+  },
+  "tripwire": {
+   "0": "tripwire_0.webp",
+   "1": "tripwire_1.webp",
+   "2": "tripwire_2.webp"
+  },
+  "trophy_pole": {
+   "0": "trophy_pole_0.webp",
+   "1": "trophy_pole_1.webp",
+   "2": "trophy_pole_2.webp"
+  },
+  "turnstiles": {
+   "0": "turnstiles_0.webp",
+   "1": "turnstiles_1.webp",
+   "2": "turnstiles_2.webp",
+   "3": "turnstiles_3.webp"
+  },
+  "turret": {
+   "0": "turret_0.webp",
+   "1": "turret_1.webp",
+   "2": "turret_2.webp"
+  },
+  "tv": {
+   "0": "tv_0.webp",
+   "1": "tv_1.webp",
+   "2": "tv_2.webp"
+  },
+  "valve": {
+   "0": "valve_0.webp",
+   "1": "valve_1.webp",
+   "2": "valve_2.webp"
+  },
+  "vault_door": {
+   "0": "vault_door_0.webp",
+   "2": "vault_door_2.webp"
+  },
+  "vending": {
+   "1": "vending_1.webp",
+   "2": "vending_2.webp"
+  },
+  "war_mech": {
+   "0": "war_mech_0.webp",
+   "1": "war_mech_1.webp",
+   "2": "war_mech_2.webp"
+  },
+  "war_rig": {
+   "0": "war_rig_0.webp",
+   "1": "war_rig_1.webp",
+   "2": "war_rig_2.webp"
+  },
+  "wardrobe": {
+   "2": "wardrobe_2.webp"
+  },
+  "warehouse": {
+   "0": "warehouse_0.webp",
+   "1": "warehouse_1.webp",
+   "2": "warehouse_2.webp"
+  },
+  "washing": {
+   "0": "washing_0.webp",
+   "1": "washing_1.webp",
+   "2": "washing_2.webp"
+  },
+  "watchtower": {
+   "0": "watchtower_0.webp",
+   "1": "watchtower_1.webp",
+   "2": "watchtower_2.webp",
+   "3": "watchtower_3.webp"
+  },
+  "water_cistern": {
+   "0": "water_cistern_0.webp",
+   "1": "water_cistern_1.webp",
+   "2": "water_cistern_2.webp",
+   "3": "water_cistern_3.webp"
+  },
+  "water_tower": {
+   "0": "water_tower_0.webp",
+   "1": "water_tower_1.webp",
+   "2": "water_tower_2.webp"
+  },
+  "weapon_rack": {
+   "0": "weapon_rack_0.webp",
+   "1": "weapon_rack_1.webp",
+   "2": "weapon_rack_2.webp"
+  },
+  "web_mass": {
+   "0": "web_mass_0.webp",
+   "1": "web_mass_1.webp",
+   "2": "web_mass_2.webp"
+  },
+  "windmill": {
+   "0": "windmill_0.webp",
+   "1": "windmill_1.webp",
+   "2": "windmill_2.webp"
+  },
+  "window": {
+   "0": "window_0.webp",
+   "1": "window_1.webp",
+   "2": "window_2.webp"
+  },
+  "workbench": {
+   "0": "workbench_0.webp",
+   "1": "workbench_1.webp",
+   "2": "workbench_2.webp"
+  },
+  "yard": {
+   "0": "yard_0.webp",
+   "1": "yard_1.webp",
+   "2": "yard_2.webp"
+  },
+  "zebra": {
+   "0": "zebra_0.webp",
+   "1": "zebra_1.webp",
+   "2": "zebra_2.webp"
+  }
+ }
+}
