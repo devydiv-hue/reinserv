@@ -49,8 +49,9 @@ def fetch(ph):
 
 def main():
     os.makedirs(OUT, exist_ok=True); os.makedirs(CACHE, exist_ok=True)
-    man = {}
+    mp = os.path.join(OUT, 'manifest.json'); man = json.load(open(mp, encoding='utf-8')).get('textures', {}) if os.path.exists(mp) else {}
     for tid, (ph, cells, bright, sat) in MAP.items():
+        if tid in man and 'polyhaven' not in man[tid].get('src', ''): continue # выбранная сгенерированная (apply_tex.py) — не трогать
         im = Image.open(fetch(ph)).convert('RGB')
         px = max(256, int(round(cells*PX_PER_CELL))) # мелкие полы — не меньше 256 px, масштаб задаёт cells
         im = im.resize((px, px), Image.LANCZOS)

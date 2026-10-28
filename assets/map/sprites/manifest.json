@@ -1,5 +1,5 @@
 {
- "version": 1793179094,
+ "version": 1793196876,
  "sprites": {
   "accel_ring": {
    "0": "accel_ring_0.webp",
@@ -54,6 +54,8 @@
   "apartment_block": {
    "0": "apartment_block_0.webp",
    "1": "apartment_block_1.webp",
+   "2": "apartment_block_2.webp",
+   "3": "apartment_block_3.webp",
    "4": "apartment_block_4.webp"
   },
   "apc_wreck": {
@@ -135,6 +137,7 @@
   },
   "beast_bones": {
    "0": "beast_bones_0.webp",
+   "1": "beast_bones_1.webp",
    "2": "beast_bones_2.webp"
   },
   "bed": {
@@ -147,6 +150,11 @@
    "0": "big_tent_0.webp",
    "1": "big_tent_1.webp",
    "2": "big_tent_2.webp"
+  },
+  "billboard": {
+   "0": "billboard_0.webp",
+   "1": "billboard_1.webp",
+   "2": "billboard_2.webp"
   },
   "bio_tank": {
    "0": "bio_tank_0.webp",
@@ -189,7 +197,8 @@
   },
   "bridge": {
    "0": "bridge_0.webp",
-   "1": "bridge_1.webp"
+   "1": "bridge_1.webp",
+   "2": "bridge_2.webp"
   },
   "broken_window": {
    "0": "broken_window_0.webp",
@@ -202,7 +211,8 @@
   },
   "bunk": {
    "0": "bunk_0.webp",
-   "1": "bunk_1.webp"
+   "1": "bunk_1.webp",
+   "2": "bunk_2.webp"
   },
   "bunker": {
    "0": "bunker_0.webp",
@@ -211,7 +221,8 @@
    "3": "bunker_3.webp"
   },
   "bus_stop": {
-   "0": "bus_stop_0.webp"
+   "0": "bus_stop_0.webp",
+   "1": "bus_stop_1.webp"
   },
   "bus_wreck": {
    "0": "bus_wreck_0.webp",
@@ -246,6 +257,7 @@
    "0": "canopy_0.webp",
    "1": "canopy_1.webp",
    "2": "canopy_2.webp",
+   "3": "canopy_3.webp",
    "4": "canopy_4.webp"
   },
   "car_burnt": {
@@ -261,6 +273,7 @@
    "11": "car_wreck_11.webp",
    "12": "car_wreck_12.webp",
    "13": "car_wreck_13.webp",
+   "2": "car_wreck_2.webp",
    "3": "car_wreck_3.webp",
    "4": "car_wreck_4.webp",
    "5": "car_wreck_5.webp",
@@ -285,10 +298,25 @@
    "2": "catacomb_niche_2.webp",
    "3": "catacomb_niche_3.webp"
   },
+  "chair": {
+   "0": "chair_0.webp",
+   "2": "chair_2.webp"
+  },
+  "chalkboard": {
+   "0": "chalkboard_0.webp",
+   "1": "chalkboard_1.webp",
+   "2": "chalkboard_2.webp"
+  },
+  "checkout": {
+   "0": "checkout_0.webp",
+   "1": "checkout_1.webp",
+   "2": "checkout_2.webp"
+  },
   "checkpoint": {
    "0": "checkpoint_0.webp",
    "1": "checkpoint_1.webp",
-   "2": "checkpoint_2.webp"
+   "2": "checkpoint_2.webp",
+   "3": "checkpoint_3.webp"
   },
   "chimney": {
    "0": "chimney_0.webp",
@@ -427,12 +455,12 @@
   },
   "drying_rack": {
    "0": "drying_rack_0.webp",
-   "1": "drying_rack_1.webp",
    "2": "drying_rack_2.webp",
    "3": "drying_rack_3.webp"
   },
   "dump_truck": {
    "0": "dump_truck_0.webp",
+   "1": "dump_truck_1.webp",
    "2": "dump_truck_2.webp"
   },
   "dumpster": {
@@ -453,6 +481,11 @@
    "1": "electric_panel_1.webp",
    "2": "electric_panel_2.webp",
    "3": "electric_panel_3.webp"
+  },
+  "escalator": {
+   "0": "escalator_0.webp",
+   "1": "escalator_1.webp",
+   "2": "escalator_2.webp"
   },
   "excavator": {
    "0": "excavator_0.webp",
@@ -480,6 +513,7 @@
    "2": "fridge_2.webp"
   },
   "fridge_display": {
+   "0": "fridge_display_0.webp",
    "1": "fridge_display_1.webp",
    "2": "fridge_display_2.webp"
   },
@@ -497,6 +531,7 @@
   "garden_bed": {
    "0": "garden_bed_0.webp",
    "1": "garden_bed_1.webp",
+   "2": "garden_bed_2.webp",
    "3": "garden_bed_3.webp",
    "4": "garden_bed_4.webp"
   },
@@ -528,6 +563,7 @@
    "2": "glow_mushrooms_2.webp"
   },
   "grand_arch": {
+   "0": "grand_arch_0.webp",
    "1": "grand_arch_1.webp"
   },
   "greenhouse": {
@@ -543,7 +579,8 @@
   },
   "helipad": {
    "0": "helipad_0.webp",
-   "1": "helipad_1.webp"
+   "1": "helipad_1.webp",
+   "2": "helipad_2.webp"
   },
   "hospital_bed": {
    "0": "hospital_bed_0.webp",
@@ -608,7 +645,8 @@
   },
   "lamp_post": {
    "0": "lamp_post_0.webp",
-   "1": "lamp_post_1.webp"
+   "1": "lamp_post_1.webp",
+   "2": "lamp_post_2.webp"
   },
   "landmine": {
    "0": "landmine_0.webp",
@@ -627,6 +665,7 @@
   },
   "locker": {
    "0": "locker_0.webp",
+   "1": "locker_1.webp",
    "2": "locker_2.webp"
   },
   "maintenance_hatch": {
@@ -637,7 +676,8 @@
   },
   "mall": {
    "0": "mall_0.webp",
-   "1": "mall_1.webp"
+   "1": "mall_1.webp",
+   "2": "mall_2.webp"
   },
   "manhole": {
    "0": "manhole_0.webp",
@@ -647,7 +687,8 @@
   },
   "market_stall": {
    "0": "market_stall_0.webp",
-   "1": "market_stall_1.webp"
+   "1": "market_stall_1.webp",
+   "2": "market_stall_2.webp"
   },
   "market_tent": {
    "0": "market_tent_0.webp",
@@ -666,6 +707,7 @@
   },
   "megatower": {
    "0": "megatower_0.webp",
+   "1": "megatower_1.webp",
    "2": "megatower_2.webp"
   },
   "metro_car": {
@@ -716,7 +758,8 @@
   },
   "monument": {
    "0": "monument_0.webp",
-   "1": "monument_1.webp"
+   "1": "monument_1.webp",
+   "2": "monument_2.webp"
   },
   "mutant_plant": {
    "0": "mutant_plant_0.webp",
@@ -735,7 +778,8 @@
   },
   "office_desk": {
    "0": "office_desk_0.webp",
-   "1": "office_desk_1.webp"
+   "1": "office_desk_1.webp",
+   "2": "office_desk_2.webp"
   },
   "oil_drum_fire": {
    "0": "oil_drum_fire_0.webp",
@@ -754,15 +798,19 @@
   },
   "pack_animal": {
    "0": "pack_animal_0.webp",
-   "1": "pack_animal_1.webp"
+   "1": "pack_animal_1.webp",
+   "3": "pack_animal_3.webp"
   },
   "pallet": {
    "0": "pallet_0.webp",
-   "1": "pallet_1.webp"
+   "1": "pallet_1.webp",
+   "2": "pallet_2.webp",
+   "3": "pallet_3.webp"
   },
   "pantry_shelves": {
    "0": "pantry_shelves_0.webp",
-   "1": "pantry_shelves_1.webp"
+   "1": "pantry_shelves_1.webp",
+   "2": "pantry_shelves_2.webp"
   },
   "parking": {
    "1": "parking_1.webp",
@@ -775,7 +823,8 @@
   },
   "phone_booth": {
    "0": "phone_booth_0.webp",
-   "1": "phone_booth_1.webp"
+   "1": "phone_booth_1.webp",
+   "2": "phone_booth_2.webp"
   },
   "pickup_rust": {
    "0": "pickup_rust_0.webp",
@@ -810,6 +859,7 @@
   },
   "plane_wreck": {
    "0": "plane_wreck_0.webp",
+   "1": "plane_wreck_1.webp",
    "2": "plane_wreck_2.webp"
   },
   "platform_edge": {
@@ -860,6 +910,7 @@
   },
   "radar": {
    "0": "radar_0.webp",
+   "1": "radar_1.webp",
    "2": "radar_2.webp"
   },
   "radio": {
@@ -887,6 +938,11 @@
    "2": "ravine_2.webp",
    "3": "ravine_3.webp"
   },
+  "reception": {
+   "0": "reception_0.webp",
+   "1": "reception_1.webp",
+   "2": "reception_2.webp"
+  },
   "reeds": {
    "0": "reeds_0.webp",
    "1": "reeds_1.webp",
@@ -909,6 +965,7 @@
    "3": "road_billboard_3.webp"
   },
   "road_sign": {
+   "0": "road_sign_0.webp",
    "1": "road_sign_1.webp",
    "2": "road_sign_2.webp",
    "3": "road_sign_3.webp",
@@ -977,7 +1034,8 @@
   },
   "sandbags_line": {
    "0": "sandbags_line_0.webp",
-   "1": "sandbags_line_1.webp"
+   "1": "sandbags_line_1.webp",
+   "2": "sandbags_line_2.webp"
   },
   "sarcophagus": {
    "0": "sarcophagus_0.webp",
@@ -988,6 +1046,11 @@
    "0": "satellite_0.webp",
    "1": "satellite_1.webp",
    "2": "satellite_2.webp"
+  },
+  "school_desk": {
+   "0": "school_desk_0.webp",
+   "1": "school_desk_1.webp",
+   "2": "school_desk_2.webp"
   },
   "scrap_pile": {
    "0": "scrap_pile_0.webp",
@@ -1013,7 +1076,8 @@
   },
   "semi_truck": {
    "0": "semi_truck_0.webp",
-   "2": "semi_truck_2.webp"
+   "2": "semi_truck_2.webp",
+   "3": "semi_truck_3.webp"
   },
   "server_rack": {
    "0": "server_rack_0.webp",
@@ -1022,7 +1086,8 @@
   },
   "settlement_gate": {
    "0": "settlement_gate_0.webp",
-   "1": "settlement_gate_1.webp"
+   "1": "settlement_gate_1.webp",
+   "2": "settlement_gate_2.webp"
   },
   "sewer_grate": {
    "0": "sewer_grate_0.webp",
@@ -1076,7 +1141,8 @@
   },
   "sink": {
    "0": "sink_0.webp",
-   "1": "sink_1.webp"
+   "1": "sink_1.webp",
+   "2": "sink_2.webp"
   },
   "skull_totem": {
    "0": "skull_totem_0.webp",
@@ -1104,7 +1170,8 @@
   "sofa": {
    "0": "sofa_0.webp",
    "1": "sofa_1.webp",
-   "2": "sofa_2.webp"
+   "2": "sofa_2.webp",
+   "3": "sofa_3.webp"
   },
   "solar_panels": {
    "0": "solar_panels_0.webp",
@@ -1133,6 +1200,8 @@
    "2": "statue_head_2.webp"
   },
   "statue_judge": {
+   "0": "statue_judge_0.webp",
+   "1": "statue_judge_1.webp",
    "2": "statue_judge_2.webp"
   },
   "stove": {
@@ -1153,6 +1222,7 @@
   "table_dining": {
    "0": "table_dining_0.webp",
    "1": "table_dining_1.webp",
+   "2": "table_dining_2.webp",
    "3": "table_dining_3.webp"
   },
   "table_small": {
@@ -1198,7 +1268,8 @@
   },
   "toilet": {
    "0": "toilet_0.webp",
-   "1": "toilet_1.webp"
+   "1": "toilet_1.webp",
+   "2": "toilet_2.webp"
   },
   "toxic_puddle": {
    "0": "toxic_puddle_0.webp",
@@ -1257,9 +1328,11 @@
   },
   "vault_door": {
    "0": "vault_door_0.webp",
+   "1": "vault_door_1.webp",
    "2": "vault_door_2.webp"
   },
   "vending": {
+   "0": "vending_0.webp",
    "1": "vending_1.webp",
    "2": "vending_2.webp"
   },
@@ -1274,6 +1347,8 @@
    "2": "war_rig_2.webp"
   },
   "wardrobe": {
+   "0": "wardrobe_0.webp",
+   "1": "wardrobe_1.webp",
    "2": "wardrobe_2.webp"
   },
   "warehouse": {

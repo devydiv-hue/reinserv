@@ -344,7 +344,7 @@
 "cat": "city",
 "name": "Многоквартирный дом",
 "vname": "Огневая точка",
-"subject": "flat roof of a soviet apartment block with vents and parapet",
+"subject": "flat concrete roof of a soviet apartment block, ring of sandbags with a machine gun nest, ammo boxes",
 "cands": [
 {
 "mode": "i2i",
@@ -357,7 +357,8 @@
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "apartment_block",
@@ -368,7 +369,7 @@
 "cat": "city",
 "name": "Многоквартирный дом",
 "vname": "Частичное обрушение",
-"subject": "flat roof of a soviet apartment block with vents and parapet, collapsed",
+"subject": "flat concrete roof of a soviet apartment block, one corner collapsed into a hole with rubble and rebar",
 "cands": [
 {
 "mode": "i2i",
@@ -381,7 +382,8 @@
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "apartment_block",
@@ -564,16 +566,19 @@
 "cands": [
 {
 "mode": "i2i",
-"strength": 0.62
+"strength": 0.55
 },
 {
 "mode": "i2i",
-"strength": 0.8
+"strength": 0.7
 },
 {
-"mode": "t2i"
+"mode": "i2i",
+"strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "yard",
@@ -932,7 +937,7 @@
 "cat": "city",
 "name": "Брошенный автомобиль",
 "vname": "Седан, расстрелян",
-"subject": "abandoned rusty car wreck, sedan",
+"subject": "roof of an abandoned rusty sedan riddled with bullet holes, shattered windshield",
 "cands": [
 {
 "mode": "i2i",
@@ -945,7 +950,8 @@
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "car_wreck",
@@ -1700,7 +1706,7 @@
 "cat": "city",
 "name": "Пролёт моста",
 "vname": "Обрушенный пролёт",
-"subject": "road bridge span seen from above, collapsed",
+"subject": "road bridge span with collapsed middle section, broken concrete deck ends, gap with rubble",
 "cands": [
 {
 "mode": "i2i",
@@ -1713,7 +1719,8 @@
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "overpass_pillar",
@@ -1820,7 +1827,7 @@
 "cat": "city",
 "name": "Фонарный столб",
 "vname": "Погнутый",
-"subject": "street lamp post seen from above",
+"subject": "top of a bent street lamp, lamp head on a curved metal arm",
 "cands": [
 {
 "mode": "i2i",
@@ -1833,7 +1840,8 @@
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "lamp_post",
@@ -1868,20 +1876,20 @@
 "cat": "city",
 "name": "Дорожный знак",
 "vname": "Стоп",
-"subject": "road sign on a pole seen from above",
+"subject": "top of a stop sign, thin grey edge of the octagonal plate on a round pole",
 "cands": [
 {
 "mode": "i2i",
-"strength": 0.62
+"strength": 0.85
 },
 {
-"mode": "i2i",
-"strength": 0.8
+"mode": "t2i"
 },
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "road_sign",
@@ -2012,7 +2020,7 @@
 "cat": "city",
 "name": "Остановка",
 "vname": "Разбитая",
-"subject": "bus stop shelter roof, broken, cracked",
+"subject": "flat roof of a bus stop shelter, cracked plexiglass roof panels, metal frame",
 "cands": [
 {
 "mode": "i2i",
@@ -2025,7 +2033,8 @@
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "bus_stop",
@@ -2036,7 +2045,7 @@
 "cat": "city",
 "name": "Остановка",
 "vname": "Обрушенная",
-"subject": "bus stop shelter roof, collapsed",
+"subject": "collapsed bus stop shelter, bent metal frame and fallen roof panel lying flat",
 "cands": [
 {
 "mode": "i2i",
@@ -2049,7 +2058,8 @@
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "kiosk",
@@ -2372,20 +2382,20 @@
 "cat": "city",
 "name": "Телефонная будка",
 "vname": "Разбитая будка",
-"subject": "telephone booth roof, broken, cracked",
+"subject": "roof of a smashed phone booth, broken glass scattered around",
 "cands": [
 {
 "mode": "i2i",
-"strength": 0.62
+"strength": 0.85
 },
 {
-"mode": "i2i",
-"strength": 0.8
+"mode": "t2i"
 },
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "megatower",
@@ -2420,7 +2430,7 @@
 "cat": "mega",
 "name": "Супернебоскрёб",
 "vname": "Верх обрушен",
-"subject": "roof of a futuristic megatower skyscraper, collapsed",
+"subject": "futuristic skyscraper roof with top floors collapsed, broken floors, exposed beams, rubble",
 "cands": [
 {
 "mode": "i2i",
@@ -2433,7 +2443,8 @@
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "megatower",
@@ -2684,7 +2695,7 @@
 "cat": "mega",
 "name": "Монумент",
 "vname": "Свергнут",
-"subject": "stone monument statue on a pedestal",
+"subject": "toppled stone statue lying flat next to its empty pedestal, broken pieces",
 "cands": [
 {
 "mode": "i2i",
@@ -2697,7 +2708,8 @@
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "grand_arch",
@@ -2708,20 +2720,20 @@
 "cat": "mega",
 "name": "Арка-ворота",
 "vname": "Арка",
-"subject": "monumental stone arch gate",
+"subject": "top of a monumental stone arch gate, long flat stone roof slab with carved cornice",
 "cands": [
 {
 "mode": "i2i",
-"strength": 0.62
+"strength": 0.85
 },
 {
-"mode": "i2i",
-"strength": 0.8
+"mode": "t2i"
 },
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "grand_arch",
@@ -2998,21 +3010,21 @@
 "cat": "mega",
 "name": "Посадочная площадка",
 "vname": "С брошенным вертолётом",
-"subject": "rooftop helipad with H marking",
+"subject": "rooftop helipad with H marking and an abandoned rusty helicopter with rotor blades",
 "cands": [
 {
 "mode": "i2i",
-"strength": 0.55
+"strength": 0.62
 },
 {
 "mode": "i2i",
-"strength": 0.7
+"strength": 0.8
 },
 {
-"mode": "i2i",
-"strength": 0.85
+"mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "sky_bridge",
@@ -3071,20 +3083,20 @@
 "cat": "mega",
 "name": "Голо-билборд",
 "vname": "Голограмма",
-"subject": "holographic billboard frame",
+"subject": "top edge of a long thin holographic billboard, narrow metal beam with cyan glowing strip",
 "cands": [
 {
 "mode": "i2i",
-"strength": 0.62
+"strength": 0.85
 },
 {
-"mode": "i2i",
-"strength": 0.8
+"mode": "t2i"
 },
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "billboard",
@@ -3095,20 +3107,20 @@
 "cat": "mega",
 "name": "Голо-билборд",
 "vname": "Красная реклама",
-"subject": "holographic billboard frame, red",
+"subject": "top edge of a long thin advertising billboard, narrow metal beam with red glowing strip",
 "cands": [
 {
 "mode": "i2i",
-"strength": 0.62
+"strength": 0.85
 },
 {
-"mode": "i2i",
-"strength": 0.8
+"mode": "t2i"
 },
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "billboard",
@@ -3119,20 +3131,20 @@
 "cat": "mega",
 "name": "Голо-билборд",
 "vname": "Разбит",
-"subject": "holographic billboard frame, broken, cracked",
+"subject": "top edge of a long thin broken billboard, bent metal beam, shattered glass shards around",
 "cands": [
 {
 "mode": "i2i",
-"strength": 0.62
+"strength": 0.85
 },
 {
-"mode": "i2i",
-"strength": 0.8
+"mode": "t2i"
 },
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "statue_judge",
@@ -3143,20 +3155,20 @@
 "cat": "mega",
 "name": "Статуя стража закона",
 "vname": "Страж закона",
-"subject": "statue of a helmeted law enforcer",
+"subject": "bronze statue of a helmeted law enforcer, top of round helmet, shoulder pads, square pedestal",
 "cands": [
 {
 "mode": "i2i",
-"strength": 0.62
+"strength": 0.85
 },
 {
-"mode": "i2i",
-"strength": 0.8
+"mode": "t2i"
 },
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "statue_judge",
@@ -3167,20 +3179,20 @@
 "cat": "mega",
 "name": "Статуя стража закона",
 "vname": "Обезглавлен",
-"subject": "statue of a helmeted law enforcer",
+"subject": "beheaded bronze statue, broken neck stump, shoulder pads, head lying on the square pedestal",
 "cands": [
 {
 "mode": "i2i",
-"strength": 0.62
+"strength": 0.85
 },
 {
-"mode": "i2i",
-"strength": 0.8
+"mode": "t2i"
 },
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "statue_judge",
@@ -3263,7 +3275,7 @@
 "cat": "trade",
 "name": "Торговый центр",
 "vname": "Лагерь на крыше",
-"subject": "roof of a shopping mall with glass atrium",
+"subject": "shopping mall roof with glass atrium and a survivor camp, tents, tarps, campfire, barrels",
 "cands": [
 {
 "mode": "i2i",
@@ -3276,7 +3288,8 @@
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "shop",
@@ -3407,7 +3420,7 @@
 "cat": "trade",
 "name": "Прилавок рынка",
 "vname": "Оружие и патроны",
-"subject": "market stall table with goods",
+"subject": "market table with rifles, pistols and ammo boxes laid out on canvas",
 "cands": [
 {
 "mode": "i2i",
@@ -3420,7 +3433,8 @@
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "market_tent",
@@ -3647,20 +3661,20 @@
 "cat": "trade",
 "name": "Витрина",
 "vname": "С товаром",
-"subject": "shop display window",
+"subject": "shop display window along a wall, thin glass pane, mannequins and clothes behind it",
 "cands": [
 {
 "mode": "i2i",
-"strength": 0.62
+"strength": 0.85
 },
 {
-"mode": "i2i",
-"strength": 0.8
+"mode": "t2i"
 },
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "display_window",
@@ -3743,7 +3757,7 @@
 "cat": "trade",
 "name": "Касса",
 "vname": "Касса",
-"subject": "supermarket checkout counter",
+"subject": "supermarket checkout counter, black conveyor belt, cash register with scanner",
 "cands": [
 {
 "mode": "i2i",
@@ -3756,7 +3770,8 @@
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "checkout",
@@ -3767,7 +3782,7 @@
 "cat": "trade",
 "name": "Касса",
 "vname": "Вскрыта",
-"subject": "supermarket checkout counter, looted, broken open",
+"subject": "looted supermarket checkout counter, smashed open cash register, empty drawer, scattered coins",
 "cands": [
 {
 "mode": "i2i",
@@ -3780,7 +3795,8 @@
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "checkout",
@@ -3791,7 +3807,7 @@
 "cat": "trade",
 "name": "Касса",
 "vname": "Опрокинута",
-"subject": "supermarket checkout counter, tipped over",
+"subject": "supermarket checkout counter tipped over on its side, conveyor belt, debris",
 "cands": [
 {
 "mode": "i2i",
@@ -3804,7 +3820,8 @@
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "carts",
@@ -3959,7 +3976,7 @@
 "cat": "trade",
 "name": "Эскалатор",
 "vname": "Стоит",
-"subject": "escalator",
+"subject": "flat escalator, two metal handrails and grooved steps between them",
 "cands": [
 {
 "mode": "i2i",
@@ -3972,7 +3989,8 @@
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "escalator",
@@ -3983,7 +4001,7 @@
 "cat": "trade",
 "name": "Эскалатор",
 "vname": "Обрушен пролёт",
-"subject": "escalator, collapsed",
+"subject": "flat escalator with collapsed middle section, broken steps, hole",
 "cands": [
 {
 "mode": "i2i",
@@ -3996,7 +4014,8 @@
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "escalator",
@@ -4007,7 +4026,7 @@
 "cat": "trade",
 "name": "Эскалатор",
 "vname": "Засыпан обломками",
-"subject": "escalator",
+"subject": "flat escalator buried under concrete rubble",
 "cands": [
 {
 "mode": "i2i",
@@ -4020,7 +4039,8 @@
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "pallet",
@@ -4079,7 +4099,7 @@
 "cat": "trade",
 "name": "Паллета с ящиками",
 "vname": "С бочками",
-"subject": "wooden pallet with cargo, barrels",
+"subject": "wooden pallet with four oil barrels, round barrel lids",
 "cands": [
 {
 "mode": "i2i",
@@ -4092,7 +4112,8 @@
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "pallet",
@@ -4103,7 +4124,7 @@
 "cat": "trade",
 "name": "Паллета с ящиками",
 "vname": "В плёнке",
-"subject": "wooden pallet with cargo",
+"subject": "wooden pallet with cargo boxes wrapped in shiny plastic stretch film",
 "cands": [
 {
 "mode": "i2i",
@@ -4116,7 +4137,8 @@
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "fridge_display",
@@ -4127,7 +4149,7 @@
 "cat": "trade",
 "name": "Холодильная витрина",
 "vname": "Полная",
-"subject": "refrigerated display case, full",
+"subject": "open-top refrigerated supermarket display case full of food packages",
 "cands": [
 {
 "mode": "i2i",
@@ -4140,7 +4162,8 @@
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "fridge_display",
@@ -4199,20 +4222,20 @@
 "cat": "trade",
 "name": "Торговый автомат",
 "vname": "Газировка",
-"subject": "vending machine",
+"subject": "top of a soda vending machine, flat red metal cabinet top, vent grille",
 "cands": [
 {
 "mode": "i2i",
-"strength": 0.62
+"strength": 0.85
 },
 {
-"mode": "i2i",
-"strength": 0.8
+"mode": "t2i"
 },
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "vending",
@@ -4415,7 +4438,7 @@
 "cat": "life",
 "name": "Двухъярусная койка",
 "vname": "Сломанная",
-"subject": "bunk bed, broken, cracked",
+"subject": "broken metal bunk bed, torn grey mattress on the top bunk, bent frame",
 "cands": [
 {
 "mode": "i2i",
@@ -4428,7 +4451,8 @@
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "sofa",
@@ -4511,7 +4535,7 @@
 "cat": "life",
 "name": "Диван",
 "vname": "С пледом",
-"subject": "sofa",
+"subject": "sofa with a checkered plaid blanket on it",
 "cands": [
 {
 "mode": "i2i",
@@ -4524,7 +4548,8 @@
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "table_dining",
@@ -4563,16 +4588,19 @@
 "cands": [
 {
 "mode": "i2i",
-"strength": 0.62
+"strength": 0.55
 },
 {
 "mode": "i2i",
-"strength": 0.8
+"strength": 0.7
 },
 {
-"mode": "t2i"
+"mode": "i2i",
+"strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "table_dining",
@@ -4583,7 +4611,7 @@
 "cat": "life",
 "name": "Обеденный стол",
 "vname": "Перевёрнут",
-"subject": "dining table with chairs, tipped over",
+"subject": "overturned dining table upside down with legs up, chairs knocked over",
 "cands": [
 {
 "mode": "i2i",
@@ -4596,7 +4624,8 @@
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "table_dining",
@@ -4631,7 +4660,7 @@
 "cat": "life",
 "name": "Стул",
 "vname": "Деревянный",
-"subject": "chair, wooden",
+"subject": "wooden chair, square wooden seat and top of the backrest",
 "cands": [
 {
 "mode": "i2i",
@@ -4644,7 +4673,8 @@
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "chair",
@@ -4679,7 +4709,7 @@
 "cat": "life",
 "name": "Стул",
 "vname": "Пластиковый",
-"subject": "chair, plastic",
+"subject": "white plastic garden chair, seat and curved backrest",
 "cands": [
 {
 "mode": "i2i",
@@ -4692,7 +4722,8 @@
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "chair",
@@ -4727,20 +4758,20 @@
 "cat": "life",
 "name": "Шкаф",
 "vname": "Закрыт",
-"subject": "wardrobe, closed",
+"subject": "top of a closed wooden wardrobe, flat dusty wooden top panel",
 "cands": [
 {
 "mode": "i2i",
-"strength": 0.62
+"strength": 0.85
 },
 {
-"mode": "i2i",
-"strength": 0.8
+"mode": "t2i"
 },
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "wardrobe",
@@ -4751,20 +4782,20 @@
 "cat": "life",
 "name": "Шкаф",
 "vname": "Открыт, одежда",
-"subject": "wardrobe, open",
+"subject": "top of a wooden wardrobe with doors swung open, clothes spilled on the floor",
 "cands": [
 {
 "mode": "i2i",
-"strength": 0.62
+"strength": 0.85
 },
 {
-"mode": "i2i",
-"strength": 0.8
+"mode": "t2i"
 },
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "wardrobe",
@@ -4991,7 +5022,7 @@
 "cat": "life",
 "name": "Раковина",
 "vname": "Разбита",
-"subject": "sink, broken, cracked",
+"subject": "broken sink, cracked basin, shards",
 "cands": [
 {
 "mode": "i2i",
@@ -5004,7 +5035,8 @@
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "toilet",
@@ -5063,7 +5095,7 @@
 "cat": "life",
 "name": "Унитаз",
 "vname": "Разбит",
-"subject": "toilet, broken, cracked",
+"subject": "smashed toilet, broken bowl, shards, puddle",
 "cands": [
 {
 "mode": "i2i",
@@ -5076,7 +5108,8 @@
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "shower",
@@ -5279,7 +5312,7 @@
 "cat": "life",
 "name": "Офисный стол с терминалом",
 "vname": "Разгромлен",
-"subject": "office desk with computer, broken, cracked",
+"subject": "smashed office desk, broken computer monitor, scattered papers, overturned chair",
 "cands": [
 {
 "mode": "i2i",
@@ -5292,7 +5325,8 @@
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "hospital_bed",
@@ -5447,7 +5481,7 @@
 "cat": "life",
 "name": "Школьная парта",
 "vname": "С учебниками",
-"subject": "school desk",
+"subject": "school desk with textbooks and notebooks, chair tucked in",
 "cands": [
 {
 "mode": "i2i",
@@ -5460,7 +5494,8 @@
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "school_desk",
@@ -5471,7 +5506,7 @@
 "cat": "life",
 "name": "Школьная парта",
 "vname": "Пустая",
-"subject": "school desk, empty",
+"subject": "empty school desk and chair",
 "cands": [
 {
 "mode": "i2i",
@@ -5484,7 +5519,8 @@
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "school_desk",
@@ -5495,7 +5531,7 @@
 "cat": "life",
 "name": "Школьная парта",
 "vname": "Исцарапанная, мусор",
-"subject": "school desk, litter",
+"subject": "scratched school desk with trash and paper on top, chair",
 "cands": [
 {
 "mode": "i2i",
@@ -5508,7 +5544,8 @@
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "chalkboard",
@@ -5519,20 +5556,20 @@
 "cat": "life",
 "name": "Классная доска",
 "vname": "С формулами",
-"subject": "school chalkboard",
+"subject": "top of a long wall chalkboard, narrow wooden frame edge and chalk tray with white chalk",
 "cands": [
 {
 "mode": "i2i",
-"strength": 0.62
+"strength": 0.85
 },
 {
-"mode": "i2i",
-"strength": 0.8
+"mode": "t2i"
 },
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "chalkboard",
@@ -5543,20 +5580,20 @@
 "cat": "life",
 "name": "Классная доска",
 "vname": "С рисунками",
-"subject": "school chalkboard",
+"subject": "top of a long wall chalkboard, narrow wooden frame edge and chalk tray with colored chalk",
 "cands": [
 {
 "mode": "i2i",
-"strength": 0.62
+"strength": 0.85
 },
 {
-"mode": "i2i",
-"strength": 0.8
+"mode": "t2i"
 },
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "chalkboard",
@@ -5567,7 +5604,7 @@
 "cat": "life",
 "name": "Классная доска",
 "vname": "Разбитая",
-"subject": "school chalkboard, broken, cracked",
+"subject": "cracked school chalkboard fallen flat on the floor, broken in two, chalk dust",
 "cands": [
 {
 "mode": "i2i",
@@ -5580,7 +5617,8 @@
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "reception",
@@ -5591,20 +5629,20 @@
 "cat": "life",
 "name": "Стойка ресепшена",
 "vname": "Стойка",
-"subject": "reception counter desk",
+"subject": "L-shaped reception counter top, computer monitor, papers",
 "cands": [
 {
 "mode": "i2i",
-"strength": 0.62
+"strength": 0.85
 },
 {
-"mode": "i2i",
-"strength": 0.8
+"mode": "t2i"
 },
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "reception",
@@ -5615,7 +5653,7 @@
 "cat": "life",
 "name": "Стойка ресепшена",
 "vname": "Разграблена",
-"subject": "reception counter desk, looted, broken open",
+"subject": "looted reception counter, drawers pulled out, scattered papers, broken monitor",
 "cands": [
 {
 "mode": "i2i",
@@ -5628,7 +5666,8 @@
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "reception",
@@ -5639,7 +5678,7 @@
 "cat": "life",
 "name": "Стойка ресепшена",
 "vname": "Баррикада из стойки",
-"subject": "reception counter desk",
+"subject": "reception counter turned into a barricade, sandbags and furniture stacked against it",
 "cands": [
 {
 "mode": "i2i",
@@ -5652,7 +5691,8 @@
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "restaurant_table",
@@ -5759,20 +5799,20 @@
 "cat": "life",
 "name": "Шкафчики",
 "vname": "Вскрыты",
-"subject": "row of metal lockers, looted, broken open",
+"subject": "row of metal lockers, flat dented tops, doors hanging open, scattered clothes",
 "cands": [
 {
 "mode": "i2i",
-"strength": 0.62
+"strength": 0.85
 },
 {
-"mode": "i2i",
-"strength": 0.8
+"mode": "t2i"
 },
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "locker",
@@ -5927,7 +5967,7 @@
 "cat": "life",
 "name": "Полки подсобки",
 "vname": "Разграблены, банки разбиты",
-"subject": "pantry shelves with jars and cans, broken, cracked, looted, broken open",
+"subject": "looted pantry shelves, broken jars and spilled cans on the shelf tops",
 "cands": [
 {
 "mode": "i2i",
@@ -5940,7 +5980,8 @@
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "tank_big",
@@ -7511,7 +7552,7 @@
 "cat": "military",
 "name": "КПП",
 "vname": "Рейдерский",
-"subject": "military checkpoint with barrier, raider spikes",
+"subject": "raider checkpoint, barrier of scrap metal with spikes, tires and oil barrels",
 "cands": [
 {
 "mode": "i2i",
@@ -7524,7 +7565,8 @@
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "sandbags_arc",
@@ -7563,16 +7605,19 @@
 "cands": [
 {
 "mode": "i2i",
-"strength": 0.62
+"strength": 0.55
 },
 {
 "mode": "i2i",
-"strength": 0.8
+"strength": 0.7
 },
 {
-"mode": "t2i"
+"mode": "i2i",
+"strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "sandbags_arc",
@@ -7655,7 +7700,7 @@
 "cat": "military",
 "name": "Мешки с песком (ряд)",
 "vname": "С бойницами",
-"subject": "straight sandbag wall",
+"subject": "straight sandbag wall with firing slits between the bags",
 "cands": [
 {
 "mode": "i2i",
@@ -7668,7 +7713,8 @@
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "czech_hedgehog",
@@ -7779,16 +7825,19 @@
 "cands": [
 {
 "mode": "i2i",
-"strength": 0.62
+"strength": 0.55
 },
 {
 "mode": "i2i",
-"strength": 0.8
+"strength": 0.7
 },
 {
-"mode": "t2i"
+"mode": "i2i",
+"strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "barbed_wire",
@@ -7827,16 +7876,19 @@
 "cands": [
 {
 "mode": "i2i",
-"strength": 0.62
+"strength": 0.55
 },
 {
 "mode": "i2i",
-"strength": 0.8
+"strength": 0.7
 },
 {
-"mode": "t2i"
+"mode": "i2i",
+"strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "barbed_wire",
@@ -7851,16 +7903,19 @@
 "cands": [
 {
 "mode": "i2i",
-"strength": 0.62
+"strength": 0.55
 },
 {
 "mode": "i2i",
-"strength": 0.8
+"strength": 0.7
 },
 {
-"mode": "t2i"
+"mode": "i2i",
+"strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "watchtower",
@@ -8351,7 +8406,7 @@
 "cat": "military",
 "name": "Гермодверь убежища",
 "vname": "Открыта",
-"subject": "heavy bunker vault door, open",
+"subject": "heavy round steel bunker vault door swung open beside the doorway",
 "cands": [
 {
 "mode": "i2i",
@@ -8364,7 +8419,8 @@
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "vault_door",
@@ -8423,7 +8479,7 @@
 "cat": "military",
 "name": "Радар",
 "vname": "Решётчатая антенна",
-"subject": "radar dish",
+"subject": "lattice radar antenna, long rectangular grid array on a rotating base",
 "cands": [
 {
 "mode": "i2i",
@@ -8436,7 +8492,8 @@
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "radar",
@@ -9839,7 +9896,7 @@
 "cat": "waste",
 "name": "Остов самолёта",
 "vname": "Военный транспортник",
-"subject": "crashed airplane wreck, military, fungus spores",
+"subject": "crashed military cargo plane wreck, broken fuselage and wings, fungus growth",
 "cands": [
 {
 "mode": "i2i",
@@ -9852,7 +9909,8 @@
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "plane_wreck",
@@ -10295,7 +10353,7 @@
 "cat": "waste",
 "name": "Ворота поселения",
 "vname": "Выбитые ворота",
-"subject": "settlement gate",
+"subject": "smashed settlement gate, broken wooden gate leaves lying open, scrap metal posts",
 "cands": [
 {
 "mode": "i2i",
@@ -10308,7 +10366,8 @@
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "oil_drum_fire",
@@ -10439,7 +10498,7 @@
 "cat": "camp",
 "name": "Огородная грядка",
 "vname": "Мутировавшие тыквы",
-"subject": "vegetable garden bed",
+"subject": "raised wooden garden bed with huge mutated pumpkins and vines",
 "cands": [
 {
 "mode": "i2i",
@@ -10452,7 +10511,8 @@
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "garden_bed",
@@ -10655,7 +10715,7 @@
 "cat": "camp",
 "name": "Навес на столбах",
 "vname": "Маскировочная сеть",
-"subject": "canopy shelter on poles",
+"subject": "camouflage net stretched over four poles, green and brown netting",
 "cands": [
 {
 "mode": "i2i",
@@ -10668,7 +10728,8 @@
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "canopy",
@@ -10707,16 +10768,19 @@
 "cands": [
 {
 "mode": "i2i",
-"strength": 0.62
+"strength": 0.55
 },
 {
 "mode": "i2i",
-"strength": 0.8
+"strength": 0.7
 },
 {
-"mode": "t2i"
+"mode": "i2i",
+"strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "drying_rack",
@@ -10731,16 +10795,19 @@
 "cands": [
 {
 "mode": "i2i",
-"strength": 0.62
+"strength": 0.55
 },
 {
 "mode": "i2i",
-"strength": 0.8
+"strength": 0.7
 },
 {
-"mode": "t2i"
+"mode": "i2i",
+"strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "drying_rack",
@@ -11234,7 +11301,7 @@
 "cat": "camp",
 "name": "Вьючное животное",
 "vname": "Мутировавший вол",
-"subject": "two-headed mutant cow pack animal",
+"subject": "two-headed mutant ox, broad back and spine, two heads, saddle bags",
 "cands": [
 {
 "mode": "i2i",
@@ -11247,7 +11314,8 @@
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "pack_animal",
@@ -11258,7 +11326,7 @@
 "cat": "camp",
 "name": "Вьючное животное",
 "vname": "Мёртвый",
-"subject": "two-headed mutant cow pack animal",
+"subject": "dead two-headed mutant cow lying on its side, blood",
 "cands": [
 {
 "mode": "i2i",
@@ -11271,7 +11339,8 @@
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "arena_pit",
@@ -11854,7 +11923,9 @@
 "mode": "i2i",
 "strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "anom_electro",
@@ -11879,7 +11950,9 @@
 "mode": "i2i",
 "strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "anom_electro",
@@ -11904,7 +11977,9 @@
 "mode": "i2i",
 "strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "anom_electro",
@@ -11954,7 +12029,9 @@
 "mode": "i2i",
 "strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "anom_thermal",
@@ -11979,7 +12056,9 @@
 "mode": "i2i",
 "strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "anom_thermal",
@@ -12004,7 +12083,9 @@
 "mode": "i2i",
 "strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "anom_thermal",
@@ -12079,7 +12160,9 @@
 "mode": "i2i",
 "strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "toxic_puddle",
@@ -12104,7 +12187,9 @@
 "mode": "i2i",
 "strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "toxic_puddle",
@@ -12129,7 +12214,9 @@
 "mode": "i2i",
 "strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "crystal_growth",
@@ -12264,16 +12351,19 @@
 "cands": [
 {
 "mode": "i2i",
-"strength": 0.62
+"strength": 0.55
 },
 {
 "mode": "i2i",
-"strength": 0.8
+"strength": 0.7
 },
 {
-"mode": "t2i"
+"mode": "i2i",
+"strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "mutant_tree",
@@ -12288,16 +12378,19 @@
 "cands": [
 {
 "mode": "i2i",
-"strength": 0.62
+"strength": 0.55
 },
 {
 "mode": "i2i",
-"strength": 0.8
+"strength": 0.7
 },
 {
-"mode": "t2i"
+"mode": "i2i",
+"strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "glow_mushrooms",
@@ -14671,7 +14764,9 @@
 "mode": "i2i",
 "strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "rocks_scatter",
@@ -14696,7 +14791,9 @@
 "mode": "i2i",
 "strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "rocks_scatter",
@@ -14721,7 +14818,9 @@
 "mode": "i2i",
 "strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "rocks_scatter",
@@ -14746,7 +14845,9 @@
 "mode": "i2i",
 "strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "dune",
@@ -14896,7 +14997,9 @@
 "mode": "i2i",
 "strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "ravine",
@@ -14921,7 +15024,9 @@
 "mode": "i2i",
 "strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "ravine",
@@ -14946,7 +15051,9 @@
 "mode": "i2i",
 "strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "ravine",
@@ -14971,7 +15078,9 @@
 "mode": "i2i",
 "strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "dead_tree",
@@ -14986,16 +15095,19 @@
 "cands": [
 {
 "mode": "i2i",
-"strength": 0.62
+"strength": 0.55
 },
 {
 "mode": "i2i",
-"strength": 0.8
+"strength": 0.7
 },
 {
-"mode": "t2i"
+"mode": "i2i",
+"strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "dead_tree",
@@ -15010,16 +15122,19 @@
 "cands": [
 {
 "mode": "i2i",
-"strength": 0.62
+"strength": 0.55
 },
 {
 "mode": "i2i",
-"strength": 0.8
+"strength": 0.7
 },
 {
-"mode": "t2i"
+"mode": "i2i",
+"strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "dead_tree",
@@ -15034,16 +15149,19 @@
 "cands": [
 {
 "mode": "i2i",
-"strength": 0.62
+"strength": 0.55
 },
 {
 "mode": "i2i",
-"strength": 0.8
+"strength": 0.7
 },
 {
-"mode": "t2i"
+"mode": "i2i",
+"strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "dead_tree",
@@ -15058,16 +15176,19 @@
 "cands": [
 {
 "mode": "i2i",
-"strength": 0.62
+"strength": 0.55
 },
 {
 "mode": "i2i",
-"strength": 0.8
+"strength": 0.7
 },
 {
-"mode": "t2i"
+"mode": "i2i",
+"strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "dead_tree",
@@ -15082,16 +15203,19 @@
 "cands": [
 {
 "mode": "i2i",
-"strength": 0.62
+"strength": 0.55
 },
 {
 "mode": "i2i",
-"strength": 0.8
+"strength": 0.7
 },
 {
-"mode": "t2i"
+"mode": "i2i",
+"strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "tree_sparse",
@@ -15106,16 +15230,19 @@
 "cands": [
 {
 "mode": "i2i",
-"strength": 0.62
+"strength": 0.55
 },
 {
 "mode": "i2i",
-"strength": 0.8
+"strength": 0.7
 },
 {
-"mode": "t2i"
+"mode": "i2i",
+"strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "tree_sparse",
@@ -15130,16 +15257,19 @@
 "cands": [
 {
 "mode": "i2i",
-"strength": 0.62
+"strength": 0.55
 },
 {
 "mode": "i2i",
-"strength": 0.8
+"strength": 0.7
 },
 {
-"mode": "t2i"
+"mode": "i2i",
+"strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "tree_sparse",
@@ -15154,16 +15284,19 @@
 "cands": [
 {
 "mode": "i2i",
-"strength": 0.62
+"strength": 0.55
 },
 {
 "mode": "i2i",
-"strength": 0.8
+"strength": 0.7
 },
 {
-"mode": "t2i"
+"mode": "i2i",
+"strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "tree_sparse",
@@ -15178,16 +15311,19 @@
 "cands": [
 {
 "mode": "i2i",
-"strength": 0.62
+"strength": 0.55
 },
 {
 "mode": "i2i",
-"strength": 0.8
+"strength": 0.7
 },
 {
-"mode": "t2i"
+"mode": "i2i",
+"strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "tree_sparse",
@@ -15202,16 +15338,19 @@
 "cands": [
 {
 "mode": "i2i",
-"strength": 0.62
+"strength": 0.55
 },
 {
 "mode": "i2i",
-"strength": 0.8
+"strength": 0.7
 },
 {
-"mode": "t2i"
+"mode": "i2i",
+"strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "cactus",
@@ -15226,16 +15365,19 @@
 "cands": [
 {
 "mode": "i2i",
-"strength": 0.62
+"strength": 0.55
 },
 {
 "mode": "i2i",
-"strength": 0.8
+"strength": 0.7
 },
 {
-"mode": "t2i"
+"mode": "i2i",
+"strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "cactus",
@@ -15250,16 +15392,19 @@
 "cands": [
 {
 "mode": "i2i",
-"strength": 0.62
+"strength": 0.55
 },
 {
 "mode": "i2i",
-"strength": 0.8
+"strength": 0.7
 },
 {
-"mode": "t2i"
+"mode": "i2i",
+"strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "cactus",
@@ -15322,16 +15467,19 @@
 "cands": [
 {
 "mode": "i2i",
-"strength": 0.62
+"strength": 0.55
 },
 {
 "mode": "i2i",
-"strength": 0.8
+"strength": 0.7
 },
 {
-"mode": "t2i"
+"mode": "i2i",
+"strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "dry_bush",
@@ -15346,16 +15494,19 @@
 "cands": [
 {
 "mode": "i2i",
-"strength": 0.62
+"strength": 0.55
 },
 {
 "mode": "i2i",
-"strength": 0.8
+"strength": 0.7
 },
 {
-"mode": "t2i"
+"mode": "i2i",
+"strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "dry_bush",
@@ -15370,16 +15521,19 @@
 "cands": [
 {
 "mode": "i2i",
-"strength": 0.62
+"strength": 0.55
 },
 {
 "mode": "i2i",
-"strength": 0.8
+"strength": 0.7
 },
 {
-"mode": "t2i"
+"mode": "i2i",
+"strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "mutant_plant",
@@ -15466,16 +15620,19 @@
 "cands": [
 {
 "mode": "i2i",
-"strength": 0.62
+"strength": 0.55
 },
 {
 "mode": "i2i",
-"strength": 0.8
+"strength": 0.7
 },
 {
-"mode": "t2i"
+"mode": "i2i",
+"strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "stumps",
@@ -15490,16 +15647,19 @@
 "cands": [
 {
 "mode": "i2i",
-"strength": 0.62
+"strength": 0.55
 },
 {
 "mode": "i2i",
-"strength": 0.8
+"strength": 0.7
 },
 {
-"mode": "t2i"
+"mode": "i2i",
+"strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "stumps",
@@ -15514,16 +15674,19 @@
 "cands": [
 {
 "mode": "i2i",
-"strength": 0.62
+"strength": 0.55
 },
 {
 "mode": "i2i",
-"strength": 0.8
+"strength": 0.7
 },
 {
-"mode": "t2i"
+"mode": "i2i",
+"strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "reeds",
@@ -15548,7 +15711,9 @@
 "mode": "i2i",
 "strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "reeds",
@@ -15695,7 +15860,9 @@
 "mode": "i2i",
 "strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "crater",
@@ -15720,7 +15887,9 @@
 "mode": "i2i",
 "strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "crater",
@@ -15745,7 +15914,9 @@
 "mode": "i2i",
 "strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "crater",
@@ -15770,7 +15941,9 @@
 "mode": "i2i",
 "strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "beast_bones",
@@ -15805,7 +15978,7 @@
 "cat": "nature",
 "name": "Кости огромного зверя",
 "vname": "Древний, в мху",
-"subject": "skeleton of a giant beast",
+"subject": "huge skeleton of a giant beast lying flat, ribs and long spine, overgrown with green moss",
 "cands": [
 {
 "mode": "i2i",
@@ -15818,7 +15991,8 @@
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "beast_bones",
@@ -15867,7 +16041,9 @@
 "mode": "i2i",
 "strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "puddle",
@@ -15892,7 +16068,9 @@
 "mode": "i2i",
 "strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "puddle",
@@ -15917,7 +16095,9 @@
 "mode": "i2i",
 "strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "puddle",
@@ -15942,7 +16122,9 @@
 "mode": "i2i",
 "strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "puddle",
@@ -15967,7 +16149,9 @@
 "mode": "i2i",
 "strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "door",
@@ -16414,16 +16598,19 @@
 "cands": [
 {
 "mode": "i2i",
-"strength": 0.62
+"strength": 0.55
 },
 {
 "mode": "i2i",
-"strength": 0.8
+"strength": 0.7
 },
 {
-"mode": "t2i"
+"mode": "i2i",
+"strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "partition",
@@ -16462,16 +16649,19 @@
 "cands": [
 {
 "mode": "i2i",
-"strength": 0.62
+"strength": 0.55
 },
 {
 "mode": "i2i",
-"strength": 0.8
+"strength": 0.7
 },
 {
-"mode": "t2i"
+"mode": "i2i",
+"strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "partition",
@@ -17051,7 +17241,9 @@
 "mode": "i2i",
 "strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "barricade",
@@ -17162,16 +17354,19 @@
 "cands": [
 {
 "mode": "i2i",
-"strength": 0.62
+"strength": 0.55
 },
 {
 "mode": "i2i",
-"strength": 0.8
+"strength": 0.7
 },
 {
-"mode": "t2i"
+"mode": "i2i",
+"strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "barricade_car",
@@ -17186,16 +17381,19 @@
 "cands": [
 {
 "mode": "i2i",
-"strength": 0.62
+"strength": 0.55
 },
 {
 "mode": "i2i",
-"strength": 0.8
+"strength": 0.7
 },
 {
-"mode": "t2i"
+"mode": "i2i",
+"strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "bear_trap",
@@ -17846,7 +18044,9 @@
 "mode": "i2i",
 "strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "corpse",
@@ -17943,7 +18143,9 @@
 "mode": "i2i",
 "strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "blood",
@@ -17968,7 +18170,9 @@
 "mode": "i2i",
 "strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "blood",
@@ -17993,7 +18197,9 @@
 "mode": "i2i",
 "strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "sleeping_bag",
@@ -18632,16 +18838,19 @@
 "cands": [
 {
 "mode": "i2i",
-"strength": 0.62
+"strength": 0.55
 },
 {
 "mode": "i2i",
-"strength": 0.8
+"strength": 0.7
 },
 {
-"mode": "t2i"
+"mode": "i2i",
+"strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "pipe_forest",
@@ -20641,7 +20850,9 @@
 "mode": "i2i",
 "strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "slag_pool",
@@ -20666,7 +20877,9 @@
 "mode": "i2i",
 "strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "ore_vein",
@@ -21133,7 +21346,7 @@
 "cat": "industry",
 "name": "Карьерный самосвал",
 "vname": "С породой",
-"subject": "mining dump truck",
+"subject": "giant mining dump truck, yellow cab, bed loaded with grey rock and ore, fills the frame",
 "cands": [
 {
 "mode": "i2i",
@@ -21146,7 +21359,8 @@
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "dump_truck",
@@ -21425,16 +21639,19 @@
 "cands": [
 {
 "mode": "i2i",
-"strength": 0.62
+"strength": 0.55
 },
 {
 "mode": "i2i",
-"strength": 0.8
+"strength": 0.7
 },
 {
-"mode": "t2i"
+"mode": "i2i",
+"strength": 0.85
 }
-]
+],
+"pad": 0.14,
+"round": 2
 },
 {
 "id": "container_stack",
@@ -21493,7 +21710,7 @@
 "cat": "waste",
 "name": "Брошенная фура",
 "vname": "Рефрижератор",
-"subject": "semi truck with trailer",
+"subject": "refrigerated semi truck, cab and long white trailer roof with cooling unit, fills the frame",
 "cands": [
 {
 "mode": "i2i",
@@ -21506,7 +21723,8 @@
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "semi_truck",
@@ -21541,7 +21759,7 @@
 "cat": "waste",
 "name": "Брошенная фура",
 "vname": "Сложилась, груз выпал",
-"subject": "semi truck with trailer",
+"subject": "jackknifed semi truck, cab at an angle to the trailer, spilled cargo boxes",
 "cands": [
 {
 "mode": "i2i",
@@ -21554,7 +21772,8 @@
 {
 "mode": "t2i"
 }
-]
+],
+"round": 2
 },
 {
 "id": "road_billboard",

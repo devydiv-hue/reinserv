@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Проверка спрайтов</title>
+<style>
+  :root{ --void:#120d16; --card:#1f1922; --line:#3a3040; --text:#f0e8d6; --muted:#a89a84; --bad:#e0503a; --hint:#e2b24c; }
+  *{ box-sizing:border-box; } body{ margin:0; background:var(--void); color:var(--text); font:14px/1.4 'Roboto Condensed', Arial, sans-serif; }
+  header{ position:sticky; top:0; z-index:5; display:flex; flex-wrap:wrap; gap:10px; align-items:center; padding:10px 16px; background:#0c090f; border-bottom:1px solid var(--line); }
+  header h1{ margin:0; font-size:16px; } header a{ color:var(--muted); }
+  select, input[type=search]{ background:#1a141e; color:var(--text); border:1px solid var(--line); border-radius:8px; padding:5px 8px; font:inherit; }
+  label{ color:var(--muted); font-size:13px; display:flex; gap:6px; align-items:center; }
+  .help{ color:var(--muted); font-size:12px; padding:6px 16px 0; } .help b{ color:var(--text); }
+  main{ padding:12px 16px 60px; display:flex; flex-wrap:wrap; gap:8px; align-items:flex-start; }
+  .t{ position:relative; border:2px solid transparent; border-radius:8px; padding:0; background:none; cursor:pointer; color:var(--text); }
+  .t:hover{ border-color:#6a5a70; } .t canvas{ display:block; border-radius:6px; }
+  .t .nm{ position:absolute; left:4px; bottom:4px; right:4px; font-size:10px; padding:1px 4px; border-radius:4px; background:rgba(12,9,15,.72); text-align:left; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .t.bad{ border-color:var(--bad); } .t.bad::after{ content:'переделать'; position:absolute; top:4px; left:4px; font-size:11px; font-weight:700; padding:1px 6px; border-radius:99px; background:var(--bad); color:#fff; }
+  .t .hint{ position:absolute; right:5px; top:5px; width:9px; height:9px; border-radius:50%; background:var(--hint); box-shadow:0 0 0 2px rgba(12,9,15,.7); }
+  #big{ position:fixed; inset:0; z-index:9; display:none; place-items:center; background:rgba(8,6,10,.85); } #big canvas{ max-width:94vw; max-height:90vh; border-radius:10px; }
+</style></head><body>
+<header>
+  <h1>Проверка спрайтов</h1><span id="cnt"></span>
+  <select id="cat"><option value="">Все разделы</option></select>
+  <label><input type="checkbox" id="only"> только отмеченные</label>
+  <label><input type="checkbox" id="hintonly"> только с жёлтой точкой</label>
+  <input type="search" id="q" placeholder="поиск">
+  <label>Размер <input type="range" id="zoom" min="40" max="160" value="72"></label>
+  <select id="bg"><option value="dust">сухая земля</option><option value="sand">песок</option><option value="concrete">бетон</option><option value="grass">трава</option><option value="tiles">кафель</option></select>
+  <a href="/">← к выбору</a>
+</header>
+<div class="help">Выбранные спрайты после новой вырезки фона — на грунте с тенью, как на карте. <b>Щелчок</b> — отметить «переделать от старого рисунка» (обрезан, неполный, ошмётки), ещё щелчок — снять.
+  <b>Правая кнопка</b> — крупно. <span style="color:var(--hint)">●</span> — объект, возможно, упирается в край кадра (подсказка, не приговор: дома и контейнеры по задумке занимают кадр целиком). Отметки сохраняются сразу.</div>
+<main id="list"></main><div id="big"></div>
+<script>
+let DATA = [], RE = new Set(), EDGE = {}, TEXM = {};
+const $ = (id)=>document.getElementById(id);
+const imgCache = {}; function img(src){ if(imgCache[src]) return imgCache[src]; return imgCache[src] = new Promise(r=>{ const i = new Image(); i.onload = ()=>r(i); i.onerror = ()=>r(null); i.src = src; }); }
+async function pattern(c, px){ const id = $('bg').value, im = await img('/tex/' + id + '.webp'); if(!im) return '#6b5a40'; const p = c.createPattern(im, 'repeat'); p.setTransform(new DOMMatrix().scale(((TEXM[id] || {}).cells || 2)*px/im.width)); return p; }
+async function draw(cv, it, px){
+  const pad = Math.round(px*0.2), W = it.w*px, H = it.h*px; cv.width = W + pad*2; cv.height = H + pad*2; const c = cv.getContext('2d');
+  c.fillStyle = await pattern(c, px); c.fillRect(0, 0, cv.width, cv.height);
+  c.strokeStyle = 'rgba(0,0,0,.18)'; c.lineWidth = 1; for(let x = 0; x <= it.w; x++){ c.beginPath(); c.moveTo(pad + x*px + .5, pad); c.lineTo(pad + x*px + .5, pad + H); c.stroke(); } for(let y = 0; y <= it.h; y++){ c.beginPath(); c.moveTo(pad, pad + y*px + .5); c.lineTo(pad + W, pad + y*px + .5); c.stroke(); }
+  const im = await img(`/img/cut/${it.key}_c${it.pick}.webp`); if(!im) return;
+  c.save(); c.filter = `blur(${Math.max(1, px*0.06)}px) brightness(0)`; c.globalAlpha = 0.45; c.drawImage(im, pad + px*0.05, pad + px*0.065, W, H); c.restore();
+  c.imageSmoothingQuality = 'high'; c.drawImage(im, pad, pad, W, H);
+}
+function tile(it){ const z = +$('zoom').value, px = Math.max(10, Math.min(z, z*2.6/Math.max(it.w, it.h)));
+  const b = document.createElement('button'); b.className = 't' + (RE.has(it.key) ? ' bad' : ''); b.title = `${it.name} · ${it.vname} (${it.key})`;
+  const cv = document.createElement('canvas'); b.appendChild(cv); b.insertAdjacentHTML('beforeend', `<span class="nm">${it.name} · ${it.vname}</span>${(EDGE[it.key + '_c' + it.pick] || 0) > 0.02 ? '<span class="hint"></span>' : ''}`);
+  draw(cv, it, px);
+  b.onclick = async ()=>{ const on = !RE.has(it.key); on ? RE.add(it.key) : RE.delete(it.key); b.classList.toggle('bad', on); stats();
+    await fetch('/recheck', {method:'POST', body:JSON.stringify({key:it.key, on})}); };
+  b.oncontextmenu = (e)=>{ e.preventDefault(); const big = $('big'), cv2 = document.createElement('canvas'); big.innerHTML = ''; big.appendChild(cv2); big.style.display = 'grid';
+    draw(cv2, it, Math.min(128, Math.floor(Math.min(innerWidth*0.9/it.w, innerHeight*0.85/it.h)))); };
+  return b; }
+$('big').onclick = ()=>{ $('big').style.display = 'none'; };
+function render(){ const cat = $('cat').value, only = $('only').checked, ho = $('hintonly').checked, q = $('q').value.trim().toLowerCase(), list = $('list'); list.innerHTML = '';
+  DATA.filter(it=>(!cat || it.cat===cat) && (!only || RE.has(it.key)) && (!ho || (EDGE[it.key + '_c' + it.pick] || 0) > 0.02) && (!q || (it.name + ' ' + it.vname + ' ' + it.key).toLowerCase().includes(q)))
+    .forEach(it=>list.appendChild(tile(it))); stats(); }
+function stats(){ $('cnt').textContent = `спрайтов ${DATA.length}, отмечено ${DATA.filter(it=>RE.has(it.key)).length}`; }
+['cat', 'only', 'hintonly', 'q'].forEach(id=>$(id).addEventListener('input', render)); ['zoom', 'bg'].forEach(id=>$(id).addEventListener('change', render));
+(async()=>{ try{ TEXM = (await (await fetch('/tex/manifest.json')).json()).textures; }catch(e){}
+  const d = await (await fetch('/data')).json(); RE = new Set(d.recheck || []); EDGE = d.edge || {};
+  DATA = d.items.filter(it=>Number.isInteger(d.choices[it.key])).map(it=>Object.assign(it, {pick: d.choices[it.key]}));
+  $('cat').insertAdjacentHTML('beforeend', [...new Set(DATA.map(x=>x.cat))].map(c=>`<option value="${c}">${c}</option>`).join('')); render(); })();
+</script>
+</body></html>

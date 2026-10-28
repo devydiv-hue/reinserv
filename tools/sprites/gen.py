@@ -25,6 +25,11 @@ STYLE_G = ('top-down view from directly above, orthographic overhead photo of {s
 NEG = ('perspective, side view, isometric, three-quarter view, horizon, sky, landscape, people, person, hands, text, '
        'watermark, logo, signature, frame, border, cartoon, drawing, illustration, painting, 3d render, blurry, lowres, '
        'cropped, cut off, multiple objects, collage, grid')
+# второй круг (job['round'] == 2): короче — весь промпт влезает в 77 токенов CLIP (у первого хвост про фон обрезался),
+# строго в надир; в негативе — вид спереди, лица, тоннели, «маленький объект на улице»
+STYLE2 = 'nadir top-down photo, camera pointing straight down, orthographic, {s}, photorealistic, detailed, soft overcast light, single object, plain light grey background'
+NEG2 = ('perspective, side view, isometric, front view, frontal, facade, elevation, face looking at camera, upright, vanishing point, '
+        'tunnel, street scene, tiny, horizon, people, text, watermark, frame, cartoon, drawing, 3d render, blurry, cropped, cut off, collage')
 BUCKETS = [(1024, 1024), (896, 1152), (832, 1216), (768, 1344), (640, 1536), (1152, 896), (1216, 832), (1344, 768), (1536, 640)]
 BG = (196, 194, 188)
 
@@ -51,14 +56,15 @@ def main():
     for p in (i2i, t2i): p.enable_model_cpu_offload(); p.set_progress_bar_config(disable=True)
     t0 = time.time()
     for n, (job, k, c) in enumerate(todo, 1):
-        size = bucket(job['w'], job['h']); prompt = (STYLE_G if job.get('g') else STYLE).format(s=job['subject'])
-        g = torch.Generator('cuda').manual_seed(1000 + k*7919 + job['v']*31)
+        size = bucket(job['w'], job['h']); r2 = job.get('round') == 2; neg = NEG2 if r2 else NEG
+        prompt = (STYLE2 if r2 else STYLE_G if job.get('g') else STYLE).format(s=job['subject'])
+        g = torch.Generator('cuda').manual_seed(1000 + k*7919 + job['v']*31 + (500009 if r2 else 0))
         try:
             if c['mode'] == 'i2i':
-                img = i2i(prompt=prompt, negative_prompt=NEG, image=init_image(job, size), strength=c['strength'],
+                img = i2i(prompt=prompt, negative_prompt=neg, image=init_image(job, size), strength=c['strength'],
                           num_inference_steps=34, guidance_scale=6.0, generator=g).images[0]
             else:
-                img = t2i(prompt=prompt, negative_prompt=NEG, width=size[0], height=size[1], num_inference_steps=30,
+                img = t2i(prompt=prompt, negative_prompt=neg, width=size[0], height=size[1], num_inference_steps=30,
                           guidance_scale=6.0, generator=g).images[0]
         except Exception as e:
             print('ошибка', job['id'], job['v'], k, e, flush=True); continue

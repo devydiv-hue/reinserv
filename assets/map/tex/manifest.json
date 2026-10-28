@@ -1,81 +1,81 @@
 {
- "version": 1793051788,
+ "version": 1793199602,
  "pxPerCell": 128,
  "textures": {
   "sand": {
    "file": "sand.webp",
-   "cells": 4,
-   "src": "https://polyhaven.com/a/aerial_sand"
+   "cells": 8,
+   "src": "RealVisXL V5.0 (tools/sprites/gen_tex.py)"
   },
   "dust": {
    "file": "dust.webp",
-   "cells": 4,
-   "src": "https://polyhaven.com/a/dirt_aerial_02"
+   "cells": 8,
+   "src": "RealVisXL V5.0 (tools/sprites/gen_tex.py)"
   },
   "dirt": {
    "file": "dirt.webp",
-   "cells": 4,
-   "src": "https://polyhaven.com/a/dirt_aerial_03"
+   "cells": 8,
+   "src": "RealVisXL V5.0 (tools/sprites/gen_tex.py)"
   },
   "mud": {
    "file": "mud.webp",
-   "cells": 1.5,
-   "src": "https://polyhaven.com/a/brown_mud_02"
+   "cells": 6,
+   "src": "RealVisXL V5.0 (tools/sprites/gen_tex.py)"
   },
   "grass": {
    "file": "grass.webp",
-   "cells": 1.5,
-   "src": "https://polyhaven.com/a/grass_path_2"
+   "cells": 6,
+   "src": "RealVisXL V5.0 (tools/sprites/gen_tex.py)"
   },
   "rock": {
    "file": "rock.webp",
-   "cells": 2,
-   "src": "https://polyhaven.com/a/rock_ground_02"
+   "cells": 8,
+   "src": "RealVisXL V5.0 (tools/sprites/gen_tex.py)"
   },
   "gravel": {
    "file": "gravel.webp",
-   "cells": 2,
-   "src": "https://polyhaven.com/a/gravel_ground_01"
+   "cells": 4,
+   "src": "RealVisXL V5.0 (tools/sprites/gen_tex.py)"
   },
   "ash": {
    "file": "ash.webp",
-   "cells": 1.5,
-   "src": "https://polyhaven.com/a/burned_ground_01"
+   "cells": 6,
+   "src": "RealVisXL V5.0 (tools/sprites/gen_tex.py)"
   },
   "saltflat": {
    "file": "saltflat.webp",
-   "cells": 2,
-   "src": "https://polyhaven.com/a/mud_cracked_dry_riverbed_002"
+   "cells": 8,
+   "src": "RealVisXL V5.0 (tools/sprites/gen_tex.py)"
   },
   "asphalt": {
    "file": "asphalt.webp",
-   "cells": 2,
-   "src": "https://polyhaven.com/a/asphalt_04"
+   "cells": 6,
+   "src": "RealVisXL V5.0 (tools/sprites/gen_tex.py)"
   },
   "cracked": {
    "file": "cracked.webp",
-   "cells": 2,
-   "src": "https://polyhaven.com/a/asphalt_02"
+   "cells": 6,
+   "src": "RealVisXL V5.0 (tools/sprites/gen_tex.py)"
   },
   "concrete": {
    "file": "concrete.webp",
-   "cells": 2,
-   "src": "https://polyhaven.com/a/dirty_concrete"
+   "cells": 6,
+   "src": "RealVisXL V5.0 (tools/sprites/gen_tex.py)"
   },
   "tiles": {
    "file": "tiles.webp",
-   "cells": 1,
-   "src": "https://polyhaven.com/a/interior_tiles"
+   "cells": 2,
+   "src": "RealVisXL V5.0 (tools/sprites/gen_tex.py)"
   },
   "metal": {
    "file": "metal.webp",
-   "cells": 1,
-   "src": "https://polyhaven.com/a/metal_plate"
+   "cells": 2,
+   "src": "RealVisXL V5.0 (tools/sprites/gen_tex.py)"
   },
   "wood": {
    "file": "wood.webp",
-   "cells": 1.5,
-   "src": "https://polyhaven.com/a/old_wood_floor"
+   "cells": 2,
+   "src": "RealVisXL V5.0 (tools/sprites/gen_tex.py)"
   },
   "frost": {
    "file": "frost.webp",
@@ -84,13 +84,78 @@
   },
   "cave": {
    "file": "cave.webp",
-   "cells": 2,
-   "src": "https://polyhaven.com/a/rocks_ground_02"
+   "cells": 3.0,
+   "src": "RealVisXL V5.0 (tools/sprites/gen_tex.py)"
   },
   "bedrock": {
    "file": "bedrock.webp",
+   "cells": 3.0,
+   "src": "RealVisXL V5.0 (tools/sprites/gen_tex.py)"
+  },
+  "acid": {
+   "file": "acid.webp",
+   "cells": 6,
+   "src": "RealVisXL V5.0 (tools/sprites/gen_tex.py)"
+  },
+  "bog": {
+   "file": "bog.webp",
+   "cells": 6,
+   "src": "RealVisXL V5.0 (tools/sprites/gen_tex.py)"
+  },
+  "carpet": {
+   "file": "carpet.webp",
    "cells": 2,
-   "src": "https://polyhaven.com/a/rock_face"
+   "src": "RealVisXL V5.0 (tools/sprites/gen_tex.py)"
+  },
+  "copper": {
+   "file": "copper.webp",
+   "cells": 6,
+   "src": "RealVisXL V5.0 (tools/sprites/gen_tex.py)"
+  },
+  "crystal": {
+   "file": "crystal.webp",
+   "cells": 2,
+   "src": "RealVisXL V5.0 (tools/sprites/gen_tex.py)"
+  },
+  "glass": {
+   "file": "glass.webp",
+   "cells": 6,
+   "src": "RealVisXL V5.0 (tools/sprites/gen_tex.py)"
+  },
+  "mutant": {
+   "file": "mutant.webp",
+   "cells": 6,
+   "src": "RealVisXL V5.0 (tools/sprites/gen_tex.py)"
+  },
+  "rad": {
+   "file": "rad.webp",
+   "cells": 4,
+   "src": "RealVisXL V5.0 (tools/sprites/gen_tex.py)"
+  },
+  "rustwater": {
+   "file": "rustwater.webp",
+   "cells": 6,
+   "src": "RealVisXL V5.0 (tools/sprites/gen_tex.py)"
+  },
+  "scrap": {
+   "file": "scrap.webp",
+   "cells": 3.0,
+   "src": "RealVisXL V5.0 (tools/sprites/gen_tex.py)"
+  },
+  "sewer": {
+   "file": "sewer.webp",
+   "cells": 6,
+   "src": "RealVisXL V5.0 (tools/sprites/gen_tex.py)"
+  },
+  "toxic": {
+   "file": "toxic.webp",
+   "cells": 6,
+   "src": "RealVisXL V5.0 (tools/sprites/gen_tex.py)"
+  },
+  "water": {
+   "file": "water.webp",
+   "cells": 6,
+   "src": "RealVisXL V5.0 (tools/sprites/gen_tex.py)"
   }
  }
 }

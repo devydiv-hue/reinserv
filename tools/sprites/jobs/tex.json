@@ -1,0 +1,206 @@
+[
+ {
+  "id": "sand",
+  "name": "Песок",
+  "subject": "desert sand ground with fine wind ripples and scattered small pebbles",
+  "cells": 4
+ },
+ {
+  "id": "dust",
+  "name": "Сухая земля",
+  "subject": "dry dusty wasteland earth, sun-baked cracked soil with pebbles, dry twigs, dead grass bits, footprints",
+  "cells": 4
+ },
+ {
+  "id": "dirt",
+  "name": "Грунт",
+  "subject": "compacted brown dirt ground with small stones and clods",
+  "cells": 4
+ },
+ {
+  "id": "mud",
+  "name": "Грязь",
+  "subject": "wet dark brown mud with small puddles and boot prints",
+  "cells": 3,
+  "subject2": "wet glossy dark brown mud with puddles of water, boot prints and tire ruts",
+  "neg": "dry, cracked, dust"
+ },
+ {
+  "id": "grass",
+  "name": "Сухая трава",
+  "subject": "sparse dry yellowed grass tufts on dusty soil",
+  "cells": 3
+ },
+ {
+  "id": "mutant",
+  "name": "Мутировавшая поросль",
+  "subject": "dark soil covered by thin sickly purple-tinted mutated moss, mold film and thin withered stalks",
+  "cells": 3
+ },
+ {
+  "id": "rock",
+  "name": "Скальный грунт",
+  "subject": "rough flat rocky ground, weathered stone slabs with cracks and grit",
+  "cells": 4
+ },
+ {
+  "id": "gravel",
+  "name": "Щебень",
+  "subject": "grey crushed stone gravel ground",
+  "cells": 2
+ },
+ {
+  "id": "ash",
+  "name": "Пепел",
+  "subject": "grey ash and charred debris on burnt ground",
+  "cells": 3
+ },
+ {
+  "id": "saltflat",
+  "name": "Солончак",
+  "subject": "white salt flat crust with polygonal cracks",
+  "cells": 4
+ },
+ {
+  "id": "asphalt",
+  "name": "Асфальт",
+  "subject": "old weathered grey asphalt road surface with fine aggregate and stains",
+  "cells": 3
+ },
+ {
+  "id": "cracked",
+  "name": "Битый асфальт",
+  "subject": "heavily cracked broken old asphalt with dry weeds in the cracks",
+  "cells": 3
+ },
+ {
+  "id": "concrete",
+  "name": "Бетон",
+  "subject": "large old cast concrete slab yard, few long expansion joints, cracks, oil stains, dirt and chipped spots",
+  "cells": 3,
+  "subject2": "worn grey concrete floor slab surface with hairline cracks, stains, scuffs and dust, poured concrete",
+  "neg": "paving stones, bricks, blocks, tiles, diagonal pattern"
+ },
+ {
+  "id": "tiles",
+  "name": "Кафель",
+  "subject": "dirty old beige square ceramic floor tiles, cracked, grime in grout",
+  "cells": 2
+ },
+ {
+  "id": "metal",
+  "name": "Металлический пол",
+  "subject": "rusty worn steel diamond plate floor",
+  "cells": 2,
+  "subject2": "worn steel diamond tread plate floor, raised diamond pattern, scratches, rust spots, grime",
+  "neg": "tiles, bricks, wood"
+ },
+ {
+  "id": "wood",
+  "name": "Дощатый пол",
+  "subject": "old worn dusty wooden floor boards",
+  "cells": 2
+ },
+ {
+  "id": "carpet",
+  "name": "Ковролин",
+  "subject": "dirty worn brown office carpet with stains",
+  "cells": 2
+ },
+ {
+  "id": "water",
+  "name": "Вода",
+  "subject": "murky shallow dark green-grey water surface with small ripples",
+  "cells": 3,
+  "subject2": "surface of murky dark grey-green standing water in a flooded ruin, small ripples, floating leaves and debris, dull reflection of overcast sky",
+  "neg": "grass, moss, islands, land, plants, flat color"
+ },
+ {
+  "id": "sewer",
+  "name": "Сточная вода",
+  "subject": "sewage water, dark murky green-brown with floating scum",
+  "cells": 3,
+  "subject2": "surface of dark brown-green sewage water with floating foam scum, oily film and bits of trash",
+  "neg": "grass, moss, islands, land, plants, flat color"
+ },
+ {
+  "id": "toxic",
+  "name": "Токсичная жижа",
+  "subject": "bright green toxic sludge with bubbles and oily sheen",
+  "cells": 3,
+  "subject2": "pool of thick glossy toxic green chemical sludge, bubbles, oily rainbow sheen, dark crusted streaks",
+  "neg": "flat color, plastic, grass, moss, uniform"
+ },
+ {
+  "id": "rad",
+  "name": "Радиоактивный грунт",
+  "subject": "contaminated soil with sickly yellow-green crust and specks",
+  "cells": 3,
+  "subject2": "contaminated dark wasteland soil with patches of sickly yellow-green crystalline crust, specks and stains",
+  "neg": "flat color, grass, moss, uniform"
+ },
+ {
+  "id": "bog",
+  "name": "Болото",
+  "subject": "swamp bog with patches of dark water, moss and rotting reeds",
+  "cells": 3
+ },
+ {
+  "id": "acid",
+  "name": "Кислотная вода",
+  "subject": "yellow acidic liquid with foam and corroded edges of crust",
+  "cells": 3,
+  "subject2": "pool of murky yellow acidic liquid with foam, corroded bits and dissolving debris, chemical sheen",
+  "neg": "flat color, plastic, uniform"
+ },
+ {
+  "id": "copper",
+  "name": "Медистый грунт",
+  "subject": "mineral soil with green copper oxide and rusty orange stains",
+  "cells": 3
+ },
+ {
+  "id": "glass",
+  "name": "Оплавленное стекло",
+  "subject": "black melted glassy fused sand surface, trinitite, shiny",
+  "cells": 3
+ },
+ {
+  "id": "crystal",
+  "name": "Кристаллическая корка",
+  "subject": "pale blue-grey crystalline mineral crust ground",
+  "cells": 3
+ },
+ {
+  "id": "frost",
+  "name": "Иней",
+  "subject": "frozen ground covered with hoarfrost and ice crystals",
+  "cells": 3
+ },
+ {
+  "id": "scrap",
+  "name": "Россыпь металлолома",
+  "subject": "ground covered with scattered rusty scrap metal pieces, bolts and debris",
+  "cells": 3
+ },
+ {
+  "id": "cave",
+  "name": "Пол пещеры",
+  "subject": "dark cave floor of packed grit and dust with small pebbles and flat rock patches",
+  "cells": 3
+ },
+ {
+  "id": "bedrock",
+  "name": "Толща породы",
+  "subject": "dark solid rough rock surface",
+  "cells": 4,
+  "subject2": "solid dark grey rock face, rough massive stone with fractures and mineral veins, no gaps",
+  "neg": "cobblestones, pebbles, separate stones, bricks"
+ },
+ {
+  "id": "rustwater",
+  "name": "Ржавая вода",
+  "subject": "rusty red-brown stagnant water with orange scum",
+  "cells": 3
+ }
+]

@@ -28,3 +28,6 @@ tools/sprites/models/
 tools/sprites/cache/
 tools/sprites/work/*
 !tools/sprites/work/choices.json
+!tools/sprites/work/tex/
+tools/sprites/work/tex/*
+!tools/sprites/work/tex/choices.json

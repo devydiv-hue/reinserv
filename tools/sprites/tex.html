@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Выбор фактур пола</title>
+<style>
+  :root{ --void:#120d16; --card:#1f1922; --line:#3a3040; --text:#f0e8d6; --muted:#a89a84; --ok:#7fb069; --accent:#e2b24c; }
+  *{ box-sizing:border-box; } body{ margin:0; background:var(--void); color:var(--text); font:14px/1.4 'Roboto Condensed', Arial, sans-serif; }
+  header{ position:sticky; top:0; z-index:5; display:flex; flex-wrap:wrap; gap:10px; align-items:center; padding:10px 16px; background:#0c090f; border-bottom:1px solid var(--line); }
+  header h1{ margin:0; font-size:16px; } header a{ color:var(--muted); } label{ color:var(--muted); font-size:13px; display:flex; gap:6px; align-items:center; }
+  .help{ color:var(--muted); font-size:12px; padding:6px 16px 0; max-width:1100px; } .help b{ color:var(--text); }
+  main{ padding:12px 16px 60px; display:flex; flex-direction:column; gap:14px; }
+  .row{ background:var(--card); border:1px solid var(--line); border-radius:10px; padding:10px; }
+  .row h2{ margin:0 0 8px; font-size:15px; display:flex; gap:12px; align-items:center; flex-wrap:wrap; } .row h2 small{ color:var(--muted); font-weight:400; }
+  .row.done h2::after{ content:'выбрано'; font-size:11px; padding:1px 8px; border-radius:99px; background:var(--ok); color:#111; }
+  .cands{ display:flex; gap:8px; flex-wrap:wrap; }
+  .c{ border:3px solid transparent; border-radius:8px; padding:0; background:none; cursor:pointer; color:var(--text); position:relative; }
+  .c:hover{ border-color:#6a5a70; } .c.on{ border-color:var(--accent); } .c canvas{ display:block; border-radius:5px; }
+  .c span{ position:absolute; left:6px; top:6px; font-size:11px; padding:1px 6px; border-radius:99px; background:rgba(12,9,15,.75); }
+  .ctl{ display:flex; gap:16px; flex-wrap:wrap; margin-top:8px; } .ctl input[type=range]{ width:160px; } .ctl output{ min-width:3em; color:var(--text); }
+</style></head><body>
+<header>
+  <h1>Фактуры пола</h1><span id="cnt"></span>
+  <label>Превью <input type="range" id="px" min="24" max="128" value="48"> px на клетку</label>
+  <label><input type="checkbox" id="grid" checked> сетка клеток</label>
+  <label><input type="checkbox" id="refs" checked> предметы для масштаба</label>
+  <a href="/">← спрайты</a>
+</header>
+<div class="help">Каждый грунт — замощён (видно, как стыкуется и повторяется), с сеткой клеток по 3 м и предметами для масштаба (бочка, машина).
+  <b>Щелчок</b> по варианту — выбрать; «как сейчас» — оставить нынешнюю фактуру. <b>Клеток на картинку</b> — масштаб: больше — мельче узор
+  (камни, плитка, доски должны быть правдоподобного размера). <b>Яркость</b> — подогнать тон к соседним грунтам. Всё сохраняется сразу.</div>
+<main id="list"></main>
+<script>
+const $ = (id)=>document.getElementById(id); let D = null;
+const cache = {}; function img(src){ return cache[src] || (cache[src] = new Promise(r=>{ const i = new Image(); i.onload = ()=>r(i); i.onerror = ()=>r(null); i.src = src; })); }
+async function draw(cv, t, k, ch){
+  const px = +$('px').value, N = 6, W = N*px; cv.width = W; cv.height = Math.round(W*0.62); const c = cv.getContext('2d'), H = cv.height;
+  const src = k==='keep' ? (t.cur ? '/tex/' + t.cur.file : null) : `/img/tex/${t.id}_c${k}.png`, cells = k==='keep' ? (t.cur ? t.cur.cells : 2) : ch.cells, br = k==='keep' ? 1 : ch.bright;
+  c.fillStyle = '#3a3330'; c.fillRect(0, 0, W, H);
+  const im = src && await img(src);
+  if(im){ const p = c.createPattern(im, 'repeat'); p.setTransform(new DOMMatrix().scale(cells*px/im.width)); c.filter = `brightness(${br})`; c.fillStyle = p; c.fillRect(0, 0, W, H); c.filter = 'none'; }
+  else { c.fillStyle = '#8a8070'; c.font = '13px sans-serif'; c.fillText('процедурная (рисуется в коде)', 10, 22); }
+  if($('grid').checked){ c.strokeStyle = 'rgba(0,0,0,.25)'; c.lineWidth = 1; for(let x=0;x<=N;x++){ c.beginPath(); c.moveTo(x*px + .5, 0); c.lineTo(x*px + .5, H); c.stroke(); } for(let y=0;y*px<=H;y++){ c.beginPath(); c.moveTo(0, y*px + .5); c.lineTo(W, y*px + .5); c.stroke(); } }
+  if($('refs').checked){ for(const [f, x, y, w, h] of [['barrel_0.webp', 1, 1, 1, 1], ['car_wreck_0.webp', 3, 0.5, 1, 2]]){ const s = await img('/spr/' + f); if(!s) continue;
+    c.save(); c.filter = `blur(${px*0.06}px) brightness(0)`; c.globalAlpha = 0.45; c.drawImage(s, x*px + px*0.05, y*px + px*0.07, w*px, h*px); c.restore(); c.drawImage(s, x*px, y*px, w*px, h*px); } }
+}
+function row(t){
+  const ch = D.choices[t.id] || {}, el = document.createElement('div'); el.className = 'row' + (ch.pick!=null ? ' done' : '');
+  const st = {cells:ch.cells || t.cells, bright:ch.bright || 1};
+  el.innerHTML = `<h2>${t.name} <small>${t.id} · сейчас: ${t.cur ? 'фото, ' + t.cur.cells + ' кл.' : 'процедурная'}</small></h2><div class="cands"></div>
+    <div class="ctl"><label>Клеток на картинку <input type="range" min="1" max="8" step="0.5" value="${st.cells}" data-k="cells"><output>${st.cells}</output></label>
+    <label>Яркость <input type="range" min="0.6" max="1.4" step="0.02" value="${st.bright}" data-k="bright"><output>${st.bright}</output></label></div>`;
+  const box = el.querySelector('.cands'), ks = ['keep'].concat(t.cands);
+  const redraw = ()=>box.querySelectorAll('.c').forEach(b=>draw(b.querySelector('canvas'), t, b.dataset.k==='keep' ? 'keep' : +b.dataset.k, st));
+  ks.forEach(k=>{ const b = document.createElement('button'); b.className = 'c' + (String(ch.pick)===String(k) ? ' on' : ''); b.dataset.k = k; b.innerHTML = `<canvas></canvas><span>${k==='keep' ? 'как сейчас' : 'вариант ' + (k + 1)}</span>`;
+    b.onclick = ()=>{ box.querySelectorAll('.c').forEach(x=>x.classList.toggle('on', x===b)); el.classList.add('done'); save(t.id, {pick:k, cells:st.cells, bright:st.bright}); }; box.appendChild(b); });
+  el.querySelectorAll('input[type=range]').forEach(r=>r.oninput = ()=>{ st[r.dataset.k] = +r.value; r.nextElementSibling.textContent = r.value; redraw(); clearTimeout(r._t); r._t = setTimeout(()=>{ const cur = D.choices[t.id]; if(cur) save(t.id, Object.assign({}, cur, {cells:st.cells, bright:st.bright})); }, 300); });
+  redraw(); return el;
+}
+async function save(id, v){ D.choices[id] = v; stats(); await fetch('/texchoice', {method:'POST', body:JSON.stringify({id, v})}); }
+function stats(){ $('cnt').textContent = `грунтов ${D.items.length}, выбрано ${D.items.filter(t=>D.choices[t.id]).length}`; }
+function render(){ const l = $('list'); l.innerHTML = ''; D.items.forEach(t=>l.appendChild(row(t))); stats(); }
+['px', 'grid', 'refs'].forEach(id=>$(id).addEventListener('change', render));
+(async()=>{ D = await (await fetch('/texdata')).json(); render(); })();
+</script>
+</body></html>

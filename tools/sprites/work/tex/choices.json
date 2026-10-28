@@ -1,0 +1,157 @@
+{
+ "dust": {
+  "pick": 2,
+  "cells": 4,
+  "bright": 1
+ },
+ "sand": {
+  "pick": 1,
+  "cells": 4,
+  "bright": 1
+ },
+ "dirt": {
+  "pick": 2,
+  "cells": 4,
+  "bright": 1
+ },
+ "mud": {
+  "pick": 1,
+  "cells": 3,
+  "bright": 1
+ },
+ "grass": {
+  "pick": 1,
+  "cells": 3,
+  "bright": 1
+ },
+ "mutant": {
+  "pick": 2,
+  "cells": 3,
+  "bright": 1
+ },
+ "rock": {
+  "pick": 0,
+  "cells": 4,
+  "bright": 1
+ },
+ "gravel": {
+  "pick": 1,
+  "cells": 2,
+  "bright": 1
+ },
+ "ash": {
+  "pick": 1,
+  "cells": 3,
+  "bright": 1
+ },
+ "saltflat": {
+  "pick": 1,
+  "cells": 4,
+  "bright": 1
+ },
+ "asphalt": {
+  "pick": 1,
+  "cells": 3,
+  "bright": 1
+ },
+ "cracked": {
+  "pick": 0,
+  "cells": 3,
+  "bright": 1
+ },
+ "concrete": {
+  "pick": 3,
+  "cells": 3,
+  "bright": 1
+ },
+ "tiles": {
+  "pick": 2,
+  "cells": 2,
+  "bright": 1
+ },
+ "metal": {
+  "pick": 2,
+  "cells": 2,
+  "bright": 1
+ },
+ "wood": {
+  "pick": 2,
+  "cells": 2,
+  "bright": 1
+ },
+ "carpet": {
+  "pick": 2,
+  "cells": 2,
+  "bright": 1
+ },
+ "water": {
+  "pick": 3,
+  "cells": 3,
+  "bright": 1
+ },
+ "sewer": {
+  "pick": 4,
+  "cells": 3,
+  "bright": 1
+ },
+ "toxic": {
+  "pick": 4,
+  "cells": 3,
+  "bright": 1
+ },
+ "rad": {
+  "pick": 5,
+  "cells": 2,
+  "bright": 1
+ },
+ "bog": {
+  "pick": 1,
+  "cells": 3,
+  "bright": 1
+ },
+ "acid": {
+  "pick": 4,
+  "cells": 3,
+  "bright": 1
+ },
+ "copper": {
+  "pick": 1,
+  "cells": 3,
+  "bright": 1
+ },
+ "glass": {
+  "pick": 2,
+  "cells": 3,
+  "bright": 1
+ },
+ "crystal": {
+  "pick": 0,
+  "cells": 1,
+  "bright": 1
+ },
+ "frost": {
+  "pick": "keep",
+  "cells": 2,
+  "bright": 1
+ },
+ "scrap": {
+  "pick": 2,
+  "cells": 1.5,
+  "bright": 1
+ },
+ "cave": {
+  "pick": 1,
+  "cells": 1.5,
+  "bright": 1
+ },
+ "rustwater": {
+  "pick": 2,
+  "cells": 3,
+  "bright": 1
+ },
+ "bedrock": {
+  "pick": 4,
+  "cells": 1.5,
+  "bright": 1
+ }
+}

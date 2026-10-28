@@ -19291,6 +19291,16 @@ const MapTex = (function(){
   // заливка клеток типа id при масштабе k (пикселей на клетку): вблизи — фактура, издалека — её средний цвет
   function terrainFill(id, k){ const t = texture(id); if(!t) return null; return k < 6 || !t.pat ? t.avg : t.pat; }
   function pattern(id){ const t = texture(id); return t && t.pat; }
+  // «высота» грунта для смешивания по рельефу: яркость фактуры (светлое — выпуклое), 256×256 на плитку, без среднего,
+  // в долях разброса; cells — сколько клеток покрывает плитка
+  const heights = {};
+  let heightSn = 0;
+  function heightMap(id){ const t = texture(id); if(!t) return null; if(heights[id] && heights[id].t===t) return heights[id]; const n = 256, cv = canvas(n, n), c = cv.getContext('2d', {willReadFrequently:true});
+    c.filter = 'blur(1.5px)'; for(const dx of [-n, 0, n]) for(const dy of [-n, 0, n]) c.drawImage(t.cv, dx, dy, n, n); c.filter = 'none'; // с заворотом — без шва на краю
+    const d = c.getImageData(0, 0, n, n).data, h = new Float32Array(n*n); let sm = 0, sq = 0;
+    for(let i=0;i<n*n;i++){ const v = (0.299*d[i*4] + 0.587*d[i*4 + 1] + 0.114*d[i*4 + 2])/255; h[i] = v; sm += v; sq += v*v; }
+    const mean = sm/(n*n), sd = Math.sqrt(Math.max(1e-6, sq/(n*n) - mean*mean)); for(let i=0;i<n*n;i++) h[i] = Math.max(-2.5, Math.min(2.5, (h[i] - mean)/sd))/2.5;
+    return heights[id] = {h, n, t, sn:++heightSn, cells:t.photo && photo[id] ? photo[id].cells : CELLS}; } // t — от какой фактуры (догрузилось фото — пересчёт)
   // крупные разводы поверх всего ландшафта (период 24 клетки) — убирают повтор плиток текстуры
   let macro = null;
   function macroPattern(){
@@ -19447,7 +19457,7 @@ const MapTex = (function(){
   // рецепт фактуры из дополнения (новые типы ландшафта); kit — те же помощники, что у встроенных рецептов
   function addRecipe(id, fn){ if(typeof fn==='function' && !R[id]){ R[id] = fn; delete tex[id]; } }
   const kit = {basePixels, specks, pebbles, stains, crackLines, strokes, W, rivet, mix, rgb, S, C};
-  return { macroPattern2, shadowFromImage, get enabled(){ return enabled; }, setEnabled, setRelief(v){ reliefOn = !!v; sprites.clear(); spritePx = 0; }, terrainFill, pattern, macroPattern, warm, swatch, sprite, get TERRAIN_IDS(){ return Object.keys(R); }, addRecipe, kit };
+  return { macroPattern2, shadowFromImage, get enabled(){ return enabled; }, setEnabled, setRelief(v){ reliefOn = !!v; sprites.clear(); spritePx = 0; }, terrainFill, pattern, heightMap, macroPattern, warm, swatch, sprite, get TERRAIN_IDS(){ return Object.keys(R); }, addRecipe, kit };
 })();
 
 /* ---------- отрисовка карты — общая для редактора и игрового стола ----------
@@ -19485,38 +19495,77 @@ const MapRender = (function(){
       }
     }
   }
-  // Плавные стыки природных грунтов (HD): маска типа (пиксель на клетку) растягивается со сглаживанием — край расходится
-  // на полклетки в обе стороны; фактура заливает маску на отдельном холсте и ложится поверх только природных клеток
-  // (полы зданий, асфальт и толща породы остаются с чёткими краями). Порядок — от «твёрдых» к «текучим».
-  const BLEND = {rock:1, gravel:1, cave:1, glass:1, saltflat:1, dust:2, dirt:2, sand:2, copper:2, crystal:2, frost:2, scrap:2, ash:3, grass:3, mud:3, bog:3, mutant:4, rad:4, water:5, sewer:5, toxic:5, acid:5, rustwater:5};
-  let blendCv = null, maskCv = null, natCv = null;
+  // Плавные стыки природных грунтов (HD), «мягкий рельеф»: граница каждого грунта — размытая маска клеток, порог которой
+  // сдвинут бесшовным шумом (край неровный, сетка клеток не читается) и разницей высот фактур (яркость: светлое выше) —
+  // верхний грунт сперва проступает на своих выпуклостях и затекает во впадины нижнего (песок — в трещины глины, щебень —
+  // между плитами). Фактура заливает маску на отдельном холсте и ложится только на природные клетки (кафель, доски,
+  // ковролин, металл и толща породы — с чёткими краями; асфальт и бетон — плавно). Внутри сгенерированных зданий и снаружи
+  // смешивается по отдельности. Порядок — от «твёрдых» к «текучим». Маски считаются на всю карту и кэшируются.
+  const BLEND = {asphalt:0, cracked:0, concrete:0, rock:1, gravel:1, cave:1, glass:1, saltflat:1, dust:2, dirt:2, sand:2, copper:2, crystal:2, frost:2, scrap:2, ash:3, grass:3, mud:3, bog:3, mutant:4, rad:4, water:5, sewer:5, toxic:5, acid:5, rustwater:5};
+  const EDGE = {blur:2.4, amp:0.9, w:0.08, h:0.15}; // размытие маски (клеток), сила шума, ширина мягкой полосы, вес рельефа
+  let blendCv = null, natCv = null, cellCv = null;
+  // бесшовный шум для края: 256 px на 12 клеток, три октавы
+  let edgeNoise = null; const EN = 256, EN_CELLS = 12;
+  function edgeNoiseTile(){ if(edgeNoise) return edgeNoise; const n = new Float32Array(EN*EN), oct = [[4, 0.55], [8, 0.3], [24, 0.15]];
+    oct.forEach(([g, wgt], o)=>{ const r = MapAssets.mulberry(9001 + o), v = Array.from({length:g*g}, ()=>r()), at = (i, j)=>v[((j%g + g)%g)*g + (i%g + g)%g], sm = (t)=>t*t*(3 - 2*t);
+      for(let y=0;y<EN;y++) for(let x=0;x<EN;x++){ const fx = x/EN*g, fy = y/EN*g, ix = Math.floor(fx), iy = Math.floor(fy), tx = sm(fx - ix), ty = sm(fy - iy);
+        const a = at(ix, iy), b = at(ix + 1, iy), c = at(ix, iy + 1), d = at(ix + 1, iy + 1); n[y*EN + x] += wgt*(a + (b - a)*tx + (c - a)*ty + (a - b - c + d)*tx*ty); } });
+    return edgeNoise = n; }
+  const hAt = (hm, wx, wy)=>{ const u = ((wx/hm.cells)%1 + 1)%1, v = ((wy/hm.cells)%1 + 1)%1; return hm.h[Math.floor(v*hm.n)*hm.n + Math.floor(u*hm.n)]; };
+  // кэш мягких масок на всю карту: ключ — содержимое клеток, область (внутри/снаружи), грунт, разрешение, высоты фактур
+  const layers = new Map(); let layerPx = 0; const LAYER_BUDGET = 24e6;
+  function softLayer(cols, rows, on, R, top, under, key){
+    let L = layers.get(key); if(L){ layers.delete(key); layers.set(key, L); return L; }
+    if(!cellCv) cellCv = document.createElement('canvas'); if(cellCv.width!==cols || cellCv.height!==rows){ cellCv.width = cols; cellCv.height = rows; }
+    const cc = cellCv.getContext('2d'), ci = cc.createImageData(cols, rows); for(let i=0;i<cols*rows;i++){ ci.data[i*4] = ci.data[i*4 + 1] = ci.data[i*4 + 2] = 255; ci.data[i*4 + 3] = on[i] ? 255 : 0; } cc.putImageData(ci, 0, 0);
+    const W = cols*R, H = rows*R, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    const hc = cv.getContext('2d', {willReadFrequently:true}); hc.filter = `blur(${EDGE.blur*R*0.5}px)`; hc.imageSmoothingEnabled = true; hc.drawImage(cellCv, -R*0.5, -R*0.5, W + R, H + R); hc.filter = 'none';
+    const im = hc.getImageData(0, 0, W, H), d = im.data, nz = edgeNoiseTile(), sc = EN/(EN_CELLS*R);
+    for(let y=0;y<H;y++){ const ny = Math.floor(y*sc)%EN, wy = (y + 0.5)/R; for(let x=0;x<W;x++){ const i = (y*W + x)*4, m = d[i + 3]/255; d[i] = d[i + 1] = d[i + 2] = 255; if(m < 0.004 || m > 0.996) continue;
+      const wx = (x + 0.5)/R, t = 0.5 + (nz[ny*EN + Math.floor(x*sc)%EN] - 0.5)*EDGE.amp - (top ? EDGE.h*(hAt(top, wx, wy) - (under ? hAt(under, wx, wy) : 0)) : 0);
+      const u = Math.min(1, Math.max(0, (m - t + EDGE.w)/(2*EDGE.w))); d[i + 3] = u*u*(3 - 2*u)*255; } }
+    hc.putImageData(im, 0, 0); L = cv; layers.set(key, L); layerPx += W*H;
+    while(layerPx > LAYER_BUDGET && layers.size > 1){ const k0 = layers.keys().next().value, c0 = layers.get(k0); layerPx -= c0.width*c0.height; layers.delete(k0); }
+    return L; }
+  // клетки внутри сгенерированных зданий (doc.gen.parts) — их полы не размываются наружу и наоборот; кэш по списку частей
+  const indoorCache = new WeakMap();
+  function indoor(doc){ const ps = doc.gen && doc.gen.parts; if(!ps || !ps.length) return null; let m = indoorCache.get(ps); if(m && m.length===doc.cols*doc.rows) return m;
+    m = new Uint8Array(doc.cols*doc.rows); ps.forEach(p=>{ if(p.k!=='b') return; for(let y=Math.max(0, p.y);y<Math.min(doc.rows, p.y + p.h);y++) for(let x=Math.max(0, p.x);x<Math.min(doc.cols, p.x + p.w);x++) m[y*doc.cols + x] = 1; });
+    indoorCache.set(ps, m); return m; }
   function blendTerrain(ctx, doc, k, x0, y0, x1, y1){
     const m = ctx.getTransform && ctx.getTransform(); if(!m || m.b || m.c || !ctx.canvas) return false;
     const cols = doc.cols, rows = doc.rows, ter = doc.terrain, bx0 = Math.max(0, x0 - 1), by0 = Math.max(0, y0 - 1), bx1 = Math.min(cols, x1 + 1), by1 = Math.min(rows, y1 + 1), bw = bx1 - bx0, bh = by1 - by0;
     if(bw < 2 || bh < 2) return false;
-    const ids = new Set(); for(let y=by0;y<by1;y++) for(let x=bx0;x<bx1;x++){ const t = T[ter[y*cols + x]]; if(t && BLEND[t.id]) ids.add(t.id); }
-    if(ids.size < 2) return false;
     const W = ctx.canvas.width, H = ctx.canvas.height; if(W*H > 16e6) return false;
-    if(!blendCv){ blendCv = document.createElement('canvas'); maskCv = document.createElement('canvas'); natCv = document.createElement('canvas'); }
+    if(!blendCv){ blendCv = document.createElement('canvas'); natCv = document.createElement('canvas'); }
     if(blendCv.width!==W || blendCv.height!==H){ blendCv.width = W; blendCv.height = H; }
-    if(maskCv.width!==bw || maskCv.height!==bh){ maskCv.width = natCv.width = bw; maskCv.height = natCv.height = bh; }
-    const bc = blendCv.getContext('2d'), mc = maskCv.getContext('2d'), img = mc.createImageData(bw, bh), d = img.data;
-    // маска природных клеток — без сглаживания (чёткая граница с полами и асфальтом, без швов между клетками)
-    const nc = natCv.getContext('2d'), nimg = nc.createImageData(bw, bh), nd = nimg.data;
-    for(let y=0;y<bh;y++) for(let x=0;x<bw;x++){ const t = T[ter[(by0 + y)*cols + bx0 + x]], i = (y*bw + x)*4; nd[i] = nd[i + 1] = nd[i + 2] = 255; nd[i + 3] = t && BLEND[t.id] ? 255 : 0; }
-    nc.putImageData(nimg, 0, 0);
-    // первый (самый «твёрдый») грунт — подложкой на всю природную область, остальные поверх с мягким краем:
-    // так переход непрерывен (без ступеньки на границе клетки, какая была бы поверх обычной заливки)
-    [...ids].sort((a, b)=>BLEND[a] - BLEND[b]).forEach((id, n)=>{
-      const ti = T_IDX[id], fill = MapTex.terrainFill(id, k); if(!fill) return;
-      bc.setTransform(1, 0, 0, 1, 0, 0); bc.globalCompositeOperation = 'source-over'; bc.clearRect(0, 0, W, H); bc.setTransform(m);
-      if(n===0){ bc.imageSmoothingEnabled = false; bc.drawImage(natCv, bx0, by0, bw, bh); }
-      else { for(let y=0;y<bh;y++) for(let x=0;x<bw;x++){ const i = (y*bw + x)*4; d[i] = d[i + 1] = d[i + 2] = 255; d[i + 3] = ter[(by0 + y)*cols + bx0 + x]===ti ? 255 : 0; }
-        mc.putImageData(img, 0, 0); bc.imageSmoothingEnabled = true; bc.imageSmoothingQuality = 'high'; bc.drawImage(maskCv, bx0 - 0.5, by0 - 0.5, bw + 1, bh + 1); }
-      bc.globalCompositeOperation = 'source-in'; bc.fillStyle = fill; bc.fillRect(bx0, by0, bw, bh);
-      bc.globalCompositeOperation = 'destination-in'; bc.imageSmoothingEnabled = false; bc.drawImage(natCv, bx0, by0, bw, bh);
-      ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(blendCv, 0, 0); ctx.restore(); });
-    return true;
+    if(natCv.width!==bw || natCv.height!==bh){ natCv.width = bw; natCv.height = bh; }
+    const bc = blendCv.getContext('2d'), nc = natCv.getContext('2d'), nimg = nc.createImageData(bw, bh), nd = nimg.data;
+    // разрешение маски — по масштабу ступенями (меньше пересчётов при зуме), на больших картах ниже
+    const R = [4, 8, 12, 16, 24].reduce((a, r)=>r <= Math.max(4, k/4) ? r : a, 4), Rm = Math.min(R, Math.max(2, Math.floor(Math.sqrt(4e6/(cols*rows)))));
+    const inB = indoor(doc); let sig = 2166136261; for(let i=0;i<ter.length;i++) sig = Math.imul(sig ^ (ter[i] + (inB && inB[i] ? 97 : 0)), 16777619);
+    sig = (sig >>> 0).toString(36) + ':' + cols + 'x' + rows; let any = false;
+    // внутри сгенерированных зданий и снаружи — по отдельности: мягкий край не просачивается сквозь стену
+    (inB ? [0, 1] : [0]).forEach(reg=>{
+      const nat = (i)=>{ const t = T[ter[i]]; return t && BLEND[t.id]!=null && (!inB || inB[i]===reg); };
+      const ids = new Set(); for(let y=by0;y<by1;y++) for(let x=bx0;x<bx1;x++) if(nat(y*cols + x)) ids.add(T[ter[y*cols + x]].id);
+      if(ids.size < 2) return; any = true;
+      // маска области — без сглаживания (чёткая граница с полами и стенами, без швов между клетками)
+      for(let y=0;y<bh;y++) for(let x=0;x<bw;x++){ const i = (y*bw + x)*4; nd[i] = nd[i + 1] = nd[i + 2] = 255; nd[i + 3] = nat((by0 + y)*cols + bx0 + x) ? 255 : 0; }
+      nc.putImageData(nimg, 0, 0);
+      // первый (самый «твёрдый») грунт — подложкой на всю область, остальные поверх с мягким краем
+      const order = [...ids].sort((a, b)=>BLEND[a] - BLEND[b]), hb = MapTex.heightMap(order[0]);
+      order.forEach((id, n)=>{
+        const ti = T_IDX[id], fill = MapTex.terrainFill(id, k); if(!fill) return;
+        bc.setTransform(1, 0, 0, 1, 0, 0); bc.globalCompositeOperation = 'source-over'; bc.clearRect(0, 0, W, H); bc.setTransform(m);
+        if(n===0){ bc.imageSmoothingEnabled = false; bc.drawImage(natCv, bx0, by0, bw, bh); }
+        else { const ht = MapTex.heightMap(id), key = [sig, reg, id, Rm, ht ? ht.sn : 0, hb ? hb.sn : 0].join('|');
+          const L = layers.get(key) || softLayer(cols, rows, Uint8Array.from(ter, (v, i)=>v===ti && nat(i) ? 1 : 0), Rm, ht, hb, key);
+          bc.imageSmoothingEnabled = true; bc.imageSmoothingQuality = 'high'; bc.drawImage(L, bx0*Rm, by0*Rm, bw*Rm, bh*Rm, bx0, by0, bw, bh); }
+        bc.globalCompositeOperation = 'source-in'; bc.fillStyle = fill; bc.fillRect(bx0, by0, bw, bh);
+        bc.globalCompositeOperation = 'destination-in'; bc.imageSmoothingEnabled = false; bc.drawImage(natCv, bx0, by0, bw, bh);
+        ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(blendCv, 0, 0); ctx.restore(); }); });
+    return any;
   }
   function drawTerrain(ctx, doc, k, v){
     const x0 = Math.max(0, Math.floor(v.x0)), y0 = Math.max(0, Math.floor(v.y0)), x1 = Math.min(doc.cols, Math.ceil(v.x1)), y1 = Math.min(doc.rows, Math.ceil(v.y1));
@@ -20672,11 +20721,80 @@ const MapGen = (function(){
     const rm = {x:part.x, y:part.y, w:part.w, h:part.h, role:part.role, entries}; furnish(g, rm, {state:'intact'});
     delete part.scene; return true;
   }
+  /* ---------- Утряска: физически возможная расстановка после любого генератора ----------
+     Генераторы ставят предметы по своим правилам (занятость клеток, сцены, свалки под углом), но не знают о стенах,
+     ямах и чужих предметах. Здесь по очереди (раньше поставленное — главнее) каждый предмет проверяется:
+     не стоит на стене или ограде (кроме дверей, окон и того, что ставится в проём), не наезжает на другой предмет,
+     не стоит в яме и не лежит ямой под стеной или предметом, деревья — не на асфальте, полу и дорогах, ямы и площадки —
+     не в зданиях, всё — в пределах карты и не в толще породы. Нарушитель сдвигается на ближайшее допустимое место
+     в той же части карты (в том же здании или так же снаружи), а если места нет — убирается. */
+  const SET_WALL = /^(door|double_door|window|gate_metal|broken_window|display_window|vault_door|settlement_gate|partition|barricade|barricade_car|turnstiles|platform_edge|barbed_wire|sandbags_line|sandbags_arc|ladder|web_mass|bridge|skywalk|sky_bridge|cable_bridge)$/;
+  const SET_HIGH = /^(window|broken_window|display_window)$/;                                         // окна — выше мебели, она под ними стоит
+  const SET_HOLE = /^(crater|ravine|rift|anom_gravity|geyser|slag_pool|toxic_puddle|arena_pit)$/;    // впадины: в них ничего не стоит
+  const SET_AREA = /^(yard|crossroad|zebra|parking|helipad|animal_pen|arena_pit)$/;                    // площадки — только снаружи
+  const SET_TREE = /^(dead_tree|tree_sparse|mutant_tree|crystal_tree)$/, SET_PLANT = /^(cactus|dry_bush|mutant_plant|stumps|reeds|mineral_spikes)$/;
+  const SET_KEEP = /^(stairs|stairs_down|ladder|vault_door|mine_headframe|door|double_door|gate_metal|window)$/; // ключевое — не убирается
+  const SET_PAVE = {parking:'cracked', helipad:'concrete'};
+  const PAVED = /^(asphalt|cracked|concrete|tiles|wood|carpet|metal)$/, FLOOR = /^(tiles|wood|carpet|metal)$/, SOLID = /^(bedrock|void)$/;
+  function settle(doc, fixed){
+    const BY = MapAssets.BY_ID, T = MapFormat.TERRAIN, {cols, rows} = doc;
+    const ter = (x, y)=>{ x = Math.floor(x); y = Math.floor(y); return x<0 || y<0 || x>=cols || y>=rows ? 'void' : (T[doc.terrain[y*cols + x]] || {}).id || 'void'; };
+    const box = (o, x, y)=>{ const a = BY[o.a], s = o.s || 1, t = (o.r || 0)*Math.PI/180; return {x, y, hw:a.w*s/2, hh:a.h*s/2, c:Math.cos(t), s:Math.sin(t), a, id:o.a}; };
+    const corners = (b, m)=>{ const hw = Math.max(0.05, b.hw - m), hh = Math.max(0.05, b.hh - m); return [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]].map(([u, v])=>[b.x + u*b.c - v*b.s, b.y + u*b.s + v*b.c]); };
+    const segHit = (p, q, b, m)=>{ // отрезок стены и прямоугольник предмета (в его системе координат), m — допуск у края
+      const hw = b.hw - m, hh = b.hh - m; if(hw <= 0 || hh <= 0) return false; const L = (pt)=>{ const dx = pt[0] - b.x, dy = pt[1] - b.y; return [dx*b.c + dy*b.s, -dx*b.s + dy*b.c]; };
+      const P0 = L(p), P1 = L(q), dx = P1[0] - P0[0], dy = P1[1] - P0[1]; let t0 = 0, t1 = 1;
+      const cl = (pp, qq)=>{ if(pp===0) return qq >= 0; const t = qq/pp; if(pp < 0){ if(t > t1) return false; if(t > t0) t0 = t; } else { if(t < t0) return false; if(t < t1) t1 = t; } return true; };
+      return cl(-dx, P0[0] + hw) && cl(dx, hw - P0[0]) && cl(-dy, P0[1] + hh) && cl(dy, hh - P0[1]); };
+    const sat = (A, B, ma, mb)=>{ // пересечение двух повёрнутых прямоугольников с допуском
+      const ax = [[A.c, A.s], [-A.s, A.c], [B.c, B.s], [-B.s, B.c]], ha = [A.hw - ma, A.hh - ma], hb = [B.hw - mb, B.hh - mb]; if(ha[0] <= 0 || ha[1] <= 0 || hb[0] <= 0 || hb[1] <= 0) return false;
+      const dx = B.x - A.x, dy = B.y - A.y;
+      return ax.every(([nx, ny])=>{ const ra = ha[0]*Math.abs(A.c*nx + A.s*ny) + ha[1]*Math.abs(-A.s*nx + A.c*ny), rb = hb[0]*Math.abs(B.c*nx + B.s*ny) + hb[1]*Math.abs(-B.s*nx + B.c*ny); return Math.abs(dx*nx + dy*ny) < ra + rb; }); };
+    const dSeg = (x, y, p, q)=>{ const dx = q[0] - p[0], dy = q[1] - p[1], L = dx*dx + dy*dy || 1, t = Math.max(0, Math.min(1, ((x - p[0])*dx + (y - p[1])*dy)/L)); return Math.hypot(x - p[0] - t*dx, y - p[1] - t*dy); };
+    const onRoad = (x, y)=>doc.paths.some(p=>/^(road|highway|rail|sidewalk)$/.test(p.kind) && p.points.some((pt, i)=>i && dSeg(x, y, p.points[i - 1], pt) < p.width/2 + 0.2));
+    const part = (x, y)=>{ const p = partAt(doc, x, y); return p && p.k==='b' ? p : null; };
+    const segs = []; doc.walls.forEach(w=>w.points.forEach((pt, i)=>{ if(i) segs.push([w.points[i - 1], pt]); }));
+    const placed = [];
+    function bad(o, b){ const a = b.a, id = o.a, cs = corners(b, 0.05);
+      if(cs.some(([x, y])=>x < -0.01 || y < -0.01 || x > cols + 0.01 || y > rows + 0.01)) return true;
+      if(!SET_WALL.test(id)){ const m = a.g ? 0.1 : 0.15; if(segs.some(([p, q])=>segHit(p, q, b, m))) return true; }
+      if(cs.concat([[b.x, b.y]]).some(([x, y])=>SOLID.test(ter(x, y)))) return true;
+      const B = part(b.x, b.y), t = ter(b.x, b.y);
+      const ruined = B && /^(overgrown|collapsed)$/.test(B.st || '');
+      if(SET_TREE.test(id) && (PAVED.test(t) || (B && !ruined) || onRoad(b.x, b.y))) return true;
+      if(SET_PLANT.test(id) && ((FLOOR.test(t) || B) && !ruined || t==='asphalt' || onRoad(b.x, b.y) && id!=='reeds')) return true;
+      if(SET_AREA.test(id) && (B || FLOOR.test(t))) return true;
+      if(SET_HOLE.test(id) && (B || FLOOR.test(t)) && !(id==='slag_pool' || id==='toxic_puddle' || id==='crater' && B && B.st==='collapsed')) return true;
+      for(const q of placed){ if(q.o===o) continue; const qa = q.b.a, qid = q.o.a;
+        if(!a.g && !qa.g){ if(SET_WALL.test(id) && SET_WALL.test(qid) || SET_HIGH.test(id) || SET_HIGH.test(qid)) continue; if(sat(b, q.b, 0.12, 0.12)) return true; }
+        else if(SET_HOLE.test(id) && !qa.g || SET_HOLE.test(qid) && !a.g){ if(sat(b, q.b, 0.2, 0.2)) return true; }
+        else if(SET_HOLE.test(id) && SET_HOLE.test(qid)){ if(sat(b, q.b, Math.min(b.hw, b.hh)*0.35, Math.min(q.b.hw, q.b.hh)*0.35)) return true; } }
+      return false; }
+    const keep = []; let moved = 0;
+    // сначала то, что трогать нельзя (стоит не от генератора), потом предметы, потом наземное — ямы подстраиваются под предметы
+    const order = doc.objects.filter(o=>BY[o.a]).map((o, i)=>({o, i, k:fixed && fixed.has(o) ? 0 : BY[o.a].g ? 2 : 1})).sort((p, q)=>p.k - q.k || p.i - q.i);
+    for(const {o, k} of order){ const b = box(o, o.x, o.y);
+      if(k===0 || BY[o.a].custom || !bad(o, b)){ placed.push({o, b}); keep.push(o); continue; }
+      const p0 = part(o.x, o.y), axis = Math.abs(((o.r || 0)%90)) < 0.01, st = axis ? 1 : 0.5; let got = null;
+      for(let r=st;r<=4 && !got;r+=st){ const ring = [];
+        for(let dx=-r;dx<=r;dx+=st) for(let dy=-r;dy<=r;dy+=st) if(Math.max(Math.abs(dx), Math.abs(dy))===r) ring.push([dx, dy]);
+        ring.sort((p, q)=>Math.hypot(p[0], p[1]) - Math.hypot(q[0], q[1]));
+        for(const [dx, dy] of ring){ const x = o.x + dx, y = o.y + dy; if(part(x, y)!==p0) continue; const nb = box(o, x, y); if(!bad(o, nb)){ got = nb; break; } } }
+      if(got){ o.x = Math.round(got.x*1000)/1000; o.y = Math.round(got.y*1000)/1000; placed.push({o, b:got}); keep.push(o); moved++; }
+      else if(SET_KEEP.test(o.a)){ placed.push({o, b}); keep.push(o); } }
+    const ks = new Set(keep), n0 = doc.objects.length; doc.objects = doc.objects.filter(o=>!BY[o.a] || ks.has(o));
+    // разметка парковки и площадки — на покрытии, а не на голой земле: под ними кладётся битый асфальт / бетон
+    doc.objects.forEach(o=>{ const pave = SET_PAVE[o.a]; if(!pave || fixed && fixed.has(o)) return; const b = box(o, o.x, o.y), w = Math.abs(b.hw*b.c) + Math.abs(b.hh*b.s), h = Math.abs(b.hw*b.s) + Math.abs(b.hh*b.c);
+      for(let y=Math.max(0, Math.round(o.y - h));y<Math.min(rows, Math.round(o.y + h));y++) for(let x=Math.max(0, Math.round(o.x - w));x<Math.min(cols, Math.round(o.x + w));x++) if(!PAVED.test(ter(x, y)) && !part(x + 0.5, y + 0.5)) doc.terrain[y*cols + x] = MapFormat.T_INDEX[pave]; });
+    return {moved, removed:n0 - doc.objects.length};
+  }
   const LIST = [
     {id:'city', name:'Руины городского квартала', run:(d, o)=>{ cityRuins(d, o); applyLabels(d); }},
     {id:'bunker', name:'Подземный комплекс / бункер', run:(d, o)=>{ bunker(d, o); applyLabels(d); }},
     {id:'camp', name:'Лагерь', run:(d, o)=>{ wasteCamp(d, o); applyLabels(d); }},
   ];
+  const settled = (gen)=>{ const run = gen.run; gen.run = (d, o)=>{ const r = run(d, o); settle(d); return r; }; return gen; };
+  LIST.forEach(settled);
   const STATE_NAME = {}; BSTATES.forEach(q=>{ STATE_NAME[q.id] = q.name; });
   // Часть (здание/комната), в которой лежит точка
   function partAt(doc, x, y){ const ps = doc.gen && doc.gen.parts || []; return ps.find(p=>x >= p.x - 0.01 && y >= p.y - 0.01 && x <= p.x + p.w + 0.01 && y <= p.y + p.h + 0.01) || null; }
@@ -20729,7 +20847,8 @@ const MapGen = (function(){
     delete part.scene; const sp = {none:0, normal:0.35, many:0.7}[g.opts.scenes]; if(g.rnd() < (sp == null ? 0.35 : sp)){ const id = placeScene(g, rm); if(id) part.scene = id; }
     return true;
   }
-  function reroll(doc, part, mode){ const ok = part.k==='b' ? rerollBuilding(doc, part, mode) : part.k==='z' ? rerollZone(doc, part, mode) : rerollRoom(doc, part, mode); applyLabels(doc); return ok; }
+  function reroll(doc, part, mode){ const before = new Set(doc.objects); // утряска — только нового: остальное (и поставленное Мастером) не двигается
+    const ok = part.k==='b' ? rerollBuilding(doc, part, mode) : part.k==='z' ? rerollZone(doc, part, mode) : rerollRoom(doc, part, mode); settle(doc, before); applyLabels(doc); return ok; }
   // Подписи сгенерированного: строятся заново по сведениям о генерации (меняются без перегенерации карты).
   // labels: none — без подписей; buildings — здания (тип · состояние) и комнаты бункера; rooms — ещё и помещения внутри
   // зданий; full — ещё мини-сцены (красным) и общий заголовок. Свои надписи Мастера не трогаются.
@@ -20756,9 +20875,9 @@ const MapGen = (function(){
     if(gn.title && (mode==='full' || TITLE_FULL.indexOf(gn.id) < 0)) add(gn.title.x, gn.title.y, gn.title.text, sz*1.35, gn.id==='bunker' ? '#9c2f1c' : '#1e1b18');
   }
   // Дополнения (03b-map-wilds.js): свой генератор в списке и общие части — контекст, здания, мебель, подписи
-  function register(gen){ if(gen && gen.id && !LIST.some(x=>x.id===gen.id)) LIST.push(gen); }
+  function register(gen){ if(gen && gen.id && !LIST.some(x=>x.id===gen.id)) LIST.push(settled(gen)); }
   const kit = {ctxFor, reset, furnish, placeSpecs, placeScene, building, partOf, addArch, ARCH_BY, THEMES, ROLES, ROLE_NAME, BSTATES, wallsFromMask};
-  return { LIST, wallsFromMask, partAt, partTitle, reroll, applyLabels, prefabList, userPrefabs, saveUserPrefabs, validPrefab, PF_GROUPS, register, kit };
+  return { LIST, settle, wallsFromMask, partAt, partTitle, reroll, applyLabels, prefabList, userPrefabs, saveUserPrefabs, validPrefab, PF_GROUPS, register, kit };
 })();
 </script>
 <script>
