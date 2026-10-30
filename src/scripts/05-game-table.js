@@ -466,8 +466,14 @@ const GameTable = (function(){
     requestRender({draw, bg, fx:true});
     if(ops.some(op=>op.op==='combat-set')) renderCombat();
     if(ops.some(op=>op.op==='combat-set' && !op.combat)) firstDmgSeen = {}; // бой закончен — «первый урон в бою» снова доступен
+    // «Скорость» — первая успешная атака В БОЮ: с началом и концом боя трекера бонус снова доступен всем (и отметка на карточке листа)
+    const fightNow = !!st().combat; if(fightNow!==fightWas){ fightWas = fightNow; speedSeen = {}; restoreSpeedBonus(); }
     if(typeof Bestiary!=='undefined') Bestiary.onTableChanged(); // открытая карточка существа — свежие ОЗ, травмы, оружие
   }
+  let fightWas = false;
+  function restoreSpeedBonus(){ if(typeof character==='undefined' || !character || !character.weapons) return; let ch = false;
+    character.weapons.forEach(w=>{ if(w && w.skorost && !w.speedBonusAvailable){ w.speedBonusAvailable = true; ch = true; } });
+    if(ch) renderAll(); }
   // Своё действие: авторитет применяет сразу, игрок отправляет Мастеру
   function act(cmd){
     if(isAuthority()){
@@ -1669,7 +1675,7 @@ const GameTable = (function(){
     menuEl.innerHTML = (title ? `<div class="gt-menu-title">${escapeHtml(title)}</div>` : '') + items.map(it=>{
       if(it==='-') return '<hr>';
       if(it.html) return it.html;
-      return `<button type="button" class="${it.danger?'danger':''}" data-mi="${it.id}">${escapeHtml(it.label)}</button>`;
+      return `<button type="button" class="${it.danger?'danger':''}${it.attn?' attn':''}" data-mi="${it.id}">${escapeHtml(it.label)}</button>`;
     }).join('');
     const handlers = {};
     items.forEach(it=>{ if(it.id) handlers[it.id] = it.run; });
@@ -1699,7 +1705,7 @@ const GameTable = (function(){
       if(t.kind==='player' && typeof Bestiary!=='undefined' && attackerSheet(t)) items.push({id:'tobst', label:'📖 В бестиарий…', run:()=>Bestiary.fromSheet(attackerSheet(t), {name:tokenName(t, vitalsFor(t)), player:(session.players[t.ownerId] && session.players[t.ownerId].name) || ''})});
       items.push({id:'size', run:(size)=>act({c:'token-update', id:t.id, patch:{size}}),
         html:`<div class="gt-menu-sizes">${Object.keys(SIZE_CELLS).map(s=>`<button type="button" data-size="${s}" class="${t.size===s?'active':''}">${SIZE_LABELS[s].split(' ')[0]}</button>`).join('')}</div>`});
-      if(t.kind==='gm') items.push({id:'hide', label:t.hidden ? 'Показать игрокам' : 'Скрыть от игроков', run:()=>act({c:'token-update', id:t.id, patch:{hidden:!t.hidden}})});
+      if(t.kind==='gm') items.push({id:'hide', label:t.hidden ? '👁 Показать игрокам' : 'Скрыть от игроков', attn:!!t.hidden, run:()=>act({c:'token-update', id:t.id, patch:{hidden:!t.hidden}})}); // скрыт — пункт подсвечен (attn)
       if(typeof Reactions!=='undefined' && Reactions.manualAllowed(t)) items.push({id:'rx', label:'🎞 Реакция…', run:()=>{ const r = viewport.getBoundingClientRect(); Reactions.pickForToken(t.id, r.left + p.x, r.top + p.y); }});
       if(typeof TargetRolls!=='undefined') items.push({id:'tr', label:t.kind==='gm' ? '🎯 Бросок цели…' : '🎯 Потребовать бросок…', run:()=>TargetRolls.open(t.kind==='gm' ? {src:t.id, targets:ids.filter(x=>x!==t.id)} : {targets:ids})});
       { const cov = (t.marks || []).some(m=>m.k==='cover'); // укрытие: броня «если персонаж в укрытии, то +1 к защите» (characterGearEffects)
@@ -2347,6 +2353,7 @@ const GameTable = (function(){
   const lastAttackReqs = {};   // attackId -> {req, from} — для переброса способностями существ (Малая цель, Уход техника СДК…)
   const pendingAttacks = {};   // attackId -> контекст своей атаки (для «Скорости» и переброса после ответа Мастера)
   let firstDmgSeen = {};       // «первый урон в бою наносит раны N»: атакующий|оружие → уже был (сброс — когда бой трекера закончен)
+  let speedSeen = {};          // «Скорость»: атакующий|оружие → бонусное попадание за этот бой уже было (сброс — начало и конец боя трекера)
 
   function npcWeapon(t){ // оружие жетона Мастера выдано Мастером — доступно всегда; условные черты — по силе NPC
     const p = t && t.weaponText ? parseWeaponStats(t.weaponText) : null;
@@ -2681,7 +2688,7 @@ const GameTable = (function(){
         const cAtt = from ? (session.players[from] && session.players[from].character) : attackerSheet(att), why = cAtt ? dualWieldBlock(cAtt) : null;
         if(why){ res.extra.push({weaponIdx:idx, ok:false, success:false, jammed:false, speedUsed:false, reason:why}); return; } }
       const sub = Object.assign({}, req, {attackId:String(req.attackId || '').slice(0, 60) + '~' + (i + 2), weaponIdx:idx, fireMode:x.fireMode, rolls:x.rolls,
-        rerollOf:null, series:null, speedAvailable:!!x.speedAvailable && !(isSame && speedSpent)});
+        rerollOf:null, series:null, speedAvailable:!!x.speedAvailable && !(isSame && speedSpent), speedSpent:isSame && speedSpent});
       const r = resolveOne(sub, from, i + 2);
       if(r.speedUsed && isSame) speedSpent = true;
       res.extra.push({weaponIdx:idx, ok:!!r.ok, success:!!r.success, jammed:!!r.jammed, speedUsed:!!r.speedUsed, reason:r.ok ? '' : r.reason});
@@ -2761,8 +2768,10 @@ const GameTable = (function(){
     if(ev.success && !jammed){
       const tSheet = tgt.kind==='player' ? attackerSheet(tgt) : null;
       const targetHp = tgt.kind==='gm' ? tgt.hp : (tSheet ? tSheet.hpCurrent : null); // для «раны 6, если у цели 10+ ОЗ»
-      const plan = weaponHitPlan(Object.assign({}, w, {speedBonusAvailable:!!req.speedAvailable}), fireMode, roll, ev.category, {targetHp});
-      speedUsed = plan.speedUsed;
+      // «Скорость»: в бою трекера — один раз за бой на атакующего и оружие (у существ Мастера тоже); вне боя — отметка на карточке листа
+      const spKey = att.id + '|' + (w.name || ''), spOk = authState.combat ? !speedSeen[spKey] : (att.kind==='player' ? !!req.speedAvailable : !speedSeen[spKey]);
+      const plan = weaponHitPlan(Object.assign({}, w, {speedBonusAvailable:spOk && !req.speedSpent}), fireMode, roll, ev.category, {targetHp});
+      speedUsed = plan.speedUsed; if(speedUsed) speedSeen[spKey] = true;
       // защитные вещи листов: у цели — входящие, у атакующего — свои исходящие (characterGearEffects): «Кинетический щит» — МУ
       // −[попадания атаки], «Генератор щита» — МУ −4 при стрельбе энергией/температурой/взрывом; у цели ещё «Гаситель кинетики»
       // (раны −1 с попадания) и броня «в укрытии +1 к защите» (отметка «В укрытии» на жетоне)
@@ -2836,6 +2845,7 @@ const GameTable = (function(){
       }
     }
     if(Object.keys(patch).length) execCommand({c:'token-update', id:tgt.id, patch});
+    if(speedUsed) rec.speedKey = att.id + '|' + (w.name || ''); // отмена атаки вернёт и бонус «Скорости»
     attackRecords.push(rec); saveAttackRecords();
     recordAndShareQuickRoll({ mapAttack:true, attackId, attacker:attackerName, target:targetName, weaponName:w.name, fireMode, rolls, roll, mode,
                               success:ev.success, category:ev.category, jammed, unprotected, slow:!!w.slow, hits, total, robot:tokenNature(tgt)==='robot',
@@ -2889,7 +2899,7 @@ const GameTable = (function(){
       if(Object.keys(patch).length) execCommand({c:'token-update', id:tgt.id, patch});
     }
     if(rec.hpApplied && rec.targetKind==='player' && rec.ownerId) changeCharacterHp(rec.ownerId, rec.hpDelta!=null ? -rec.hpDelta : rec.total);
-    rec.undone = true; saveAttackRecords();
+    rec.undone = true; if(rec.speedKey) delete speedSeen[rec.speedKey]; saveAttackRecords();
     recordAndShareQuickRoll({mapAttackUndo:true, attackId, text: rec.label + (asReroll ? ' (переброс)' : '')});
   }
   function canUndoAttack(id){ return isAuthority() && attackRecords.some(r=>r.attackId===id && !r.undone); }

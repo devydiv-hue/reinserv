@@ -159,7 +159,7 @@ function highlightWeaponTags(text){
 // у оружия вроде «Автомат «Бархан»» слово "автомат" в САМОМ НАЗВАНИИ не должно считаться чертой само
 // по себе, черта определяется только явным тегом в стат-блоке.
 function hasWeaponTag(statText, word){
-  return new RegExp('(^|[,.;]\\s*)' + word + '(\\s*[,.;]|$)', 'i').test(statText||'');
+  return new RegExp('(^|[,.;\\[(]\\s*)' + word + '(\\s*[,.;\\])]|$)', 'i').test(statText||''); // в бестиарии стат-блок в скобках: […, скорость]
 }
 // Ат/МУ — обязательные признаки "это оружие" (нет совпадения — кнопка не показывается, предмет как
 // был просто текстом, так и остаётся). Пр — ИМЕННО "Пр" с маленькой "р" (Парирование, встречается не у
@@ -518,10 +518,10 @@ function weaponHitPlan(w, fireMode, roll, category, opts){
   if(fireMode==='burst') hitCount = category+3;
   else if(fireMode==='suppress') hitCount = category;
   else hitCount = (w.razryv || w.pul) ? 1 : category; // Разрыв/Пул — "оружие наносит лишь одно попадание"
-  // "Скорость" — первая успешная атака В БОЮ наносит на 1 попадание больше. Бой этот лист не
-  // отслеживает — "доступность" живёт как ручной чекбокс на карточке (см. speedBonusAvailable),
-  // включённый по умолчанию при экипировке/замене оружия, снимается при использовании и
-  // возвращается игроком вручную после боя (см. toggleWeaponSpeedBonus/renderWeapons).
+  // "Скорость" — первая успешная атака В БОЮ наносит на 1 попадание больше. Доступность — отметка на карточке
+  // (speedBonusAvailable): включена при экипировке, снимается при использовании. На игровом столе бой ведёт трекер:
+  // там бонус считается сам (раз за бой на атакующего и оружие, у существ Мастера тоже), а отметка листа возвращается
+  // с началом и концом боя (GameTable: speedSeen/restoreSpeedBonus). Без стола игрок возвращает отметку вручную.
   const speedUsed = !!(w.skorost && w.speedBonusAvailable);
   if(speedUsed) hitCount += 1;
   // "Мощь позволяет наносить к12 ран" — раны за попадание берутся из уже брошенного к12 (тот самый,
@@ -539,7 +539,7 @@ function weaponHitPlan(w, fireMode, roll, category, opts){
   const pulShot = !!(fireMode==='attack' && w.pul);
   return {
     hits: (pulShot ? 1 : Math.max(1, hitCount || 0)) + Math.max(0, Math.round(+w.extraHits || 0)), // успешная атака — хотя бы одно попадание; «наносит +1 попадание» — сверху
-    rollsPerHit: pulShot ? Math.max(1, category || 0) : 1,
+    rollsPerHit: pulShot ? Math.max(1, category || 0) + (speedUsed ? 1 : 0) : 1, // Пул+Скорость: попадание то же одно, но к12 на один больше
     pulShot, speedUsed,
     woundsFor: (k12)=> Math.max(1, (moshhActive ? k12 : rollBaseWounds()) + razryvBonus)
   };

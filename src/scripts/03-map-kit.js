@@ -4819,7 +4819,7 @@ const MapGen = (function(){
      не в зданиях, всё — в пределах карты и не в толще породы. Нарушитель сдвигается на ближайшее допустимое место
      в той же части карты (в том же здании или так же снаружи), а если места нет — убирается. */
   const SET_WALL = /^(door|double_door|window|gate_metal|broken_window|display_window|vault_door|settlement_gate|partition|barricade|barricade_car|turnstiles|platform_edge|barbed_wire|sandbags_line|sandbags_arc|ladder|web_mass|bridge|skywalk|sky_bridge|cable_bridge)$/;
-  const SET_HIGH = /^(window|broken_window|display_window)$/;                                         // окна — выше мебели, она под ними стоит
+  const SET_HIGH = /^(window|broken_window|display_window|skywalk|sky_bridge|bridge|cable_bridge|gantry_crane|crane_beam)$/; // окна, переходы и краны — выше: под ними можно стоять
   const SET_HOLE = /^(crater|ravine|rift|anom_gravity|geyser|slag_pool|toxic_puddle|arena_pit)$/;    // впадины: в них ничего не стоит
   const SET_AREA = /^(yard|crossroad|zebra|parking|helipad|animal_pen|arena_pit)$/;                    // площадки — только снаружи
   const SET_TREE = /^(dead_tree|tree_sparse|mutant_tree|crystal_tree)$/, SET_PLANT = /^(cactus|dry_bush|mutant_plant|stumps|reeds|mineral_spikes)$/;

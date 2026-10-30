@@ -554,5 +554,6 @@ const MapWilds = (function(){
       <label class="me-f">У дороги${sel('roadside', po.roadside || 'random', [['random', 'случайно'], ['gas', 'заправка'], ['motel', 'мотель'], ['diner', 'закусочная'], ['none', 'ничего']])}</label></div><div class="me-f-row">
       <label class="me-f">Местность${sel('hland', po.land || 'random', [['random', 'случайная'], ['desert', 'пустыня'], ['plains', 'Равнина'], ['ruins', 'пригород в руинах']])}</label><label class="me-f">Мини-сцены${sel('scenes_hw', po.scenes || 'normal', SC)}</label></div>`,
     read:(f)=>({events:f.events.value, roadside:f.roadside.value, land:f.hland.value, scenes:f.scenes_hw.value})});
-  return {PT, plains, industry, caves, highway};
+  // kit — помощники для других дополнений генератора (03d-map-more-gen.js)
+  return {PT, plains, industry, caves, highway, kit:{ctx, mkPut, vIdx, each, blob, chaikin, lineDist, r2, crossLine, pointAt, scatter, land, fenceRect, hazard, WILD, SALT, sel, SC}};
 })();
