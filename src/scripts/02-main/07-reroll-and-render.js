@@ -51,6 +51,7 @@ function showRerollPopup(statKey, mod, mode){
     renderAll();
     closeRerollPopup();
     _rerollingKey = {key:statKey==='map_ability' && isMist ? 'mistika' : statKey, at:Date.now()}; // исход нового броска заменит прежний (кость духов, саматха)
+    if(/^(burst|suppress)_weapon\d$/.test(statKey)) _ammoRerollKey = statKey; // переброс очереди — коробку не списывать второй раз
     openRollPicker(statKey, window.innerWidth/2, window.innerHeight/2, mod); // тот же модификатор, что и у перебрасываемого броска
   };
   const el = document.createElement('div');

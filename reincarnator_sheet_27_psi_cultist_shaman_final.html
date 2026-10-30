@@ -3482,7 +3482,7 @@ const ITEM_CATALOG = {
       {name:'Пистолет-трубка', weight:'Крш.', price:100, avail:'Дефицитная', desc:'Дл12, Ат−4, МУ7 патрон, ПР2/шарики, раны 2, клинит.'},
       {name:'Самодельный меч', weight:'2 Вещи', price:800, avail:'Дефицитная', desc:'Ат+4, Пр−1, МУ10 удар, раны 2. При силе 2 и ниже — медленное. Первый урон в бою наносит раны 3.'},
       {name:'Топорик из пластин', weight:'1 Вещь', price:550, avail:'Дефицитная', desc:'Ат+2, Пр−4, МУ10 удар, Сл2, разрыв, травма. Если сила 5+, то ещё пул.'},
-      {name:'Автомат-трубка', weight:'2 Вещи', price:800, avail:'Редкая', desc:'Дл30, Ат−2, МУ8 патрон, Сл2, раны 2, автомат, клинит, скорость.'},
+      {name:'Автомат-трубка', weight:'2 Вещи', price:800, avail:'Редкая', desc:'Дл30, Ат−2, МУ8 патрон, ПР2/шарики, Сл2, раны 2, автомат, клинит, скорость.'},
       {name:'Копьё дикарей', weight:'2 Вещи', price:650, avail:'Редкая', desc:'Ат+3, Пр−5, МУ11 удар, Сл2, пул, раны 2.'},
       {name:'Лёгкий арбалет', weight:'2 Вещи', price:700, avail:'Редкая', desc:'Дл24, Ат−4, МУ11 патрон, ПР5/болты, Сл2, пул, раны 2, однозарядное.'},
       {name:'Пистолет СДК', weight:'Крш.', price:450, avail:'Редкая', desc:'Дл15, Ат−3, МУ9 патрон, ПР2/9мм, медленное, раны 2.'},
@@ -9366,6 +9366,61 @@ window.toggleWeaponSpeedBonus = function(idx){
   character.weapons[idx].speedBonusAvailable = !character.weapons[idx].speedBonusAvailable;
   renderAll();
 };
+/* ---- Патроны: длинная очередь и подавляющий огонь тратят коробку (1 заряд) ----
+   Тип заряда — из «ПР N/<заряд>» в тексте оружия (9мм, 12,7мм, шарики, дробь, «искра», МАБ…). Сперва — отдельная
+   коробка (предмет с этим зарядом в названии до « — », не оружие и не набор): одна коробка — один предмет, у предмета
+   со счётчиком (ПР) — минус 1. Иначе — коробки внутри строки стартового набора («Пистолет «Шина» + 3 коробки 9 мм
+   патронов + …», «Шарики (2 коробки)», «2 батареи «искра»»): число уменьшается, последняя убирается из строки, сам
+   предмет остаётся. Нет коробки — поп-ап с типом заряда, выстрел всё равно состоялся (Мастер решит). */
+const AMMO_KINDS = [ // [признак в тексте ПР, подпись, признак в названии коробки (по порядку предпочтения)]
+  [/шарик/i, 'шарики', [/шарик/i]], [/картеч/i, 'картечь', [/картеч/i]], [/дроб/i, 'дробь', [/дроб/i, /картеч/i]],
+  [/искр/i, '«искра»', [/искр/i]], [/МАБ/, 'МАБ', [/малая батарея МАБ/i, /МАБ/]], [/болт/i, 'болты', [/болт/i]],
+  [/стрел/i, 'стрелы', [/стрел/i]], [/ракет/i, 'ракеты', [/ракет/i]]];
+function weaponAmmoKind(statText){
+  const m = /ПР\s*\d+\s*\/\s*([^.;]+)/.exec(String(statText||'')); if(!m) return null;
+  const s = m[1].split(/,(?!\d)/)[0].trim(); if(!s) return null; // «12,7мм, Сл2» → «12,7мм»
+  const mm = /(\d+(?:[.,]\d+)?)\s*мм/i.exec(s);
+  if(mm){ const n = mm[1].replace('.', ','), re = new RegExp('(^|[^\\d,])' + n.replace(',', '[,.]') + '\\s*мм', 'i'); return {label:n + ' мм', match:[re]}; }
+  const k = AMMO_KINDS.find(x=>x[0].test(s)); if(k) return {label:k[1], match:k[2]};
+  return {label:s, match:[new RegExp(s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i')]};
+}
+// Списать коробку под оружие слота idx; mode — подпись режима для журнала и поп-апа. Возвращает true, если списано
+function spendAmmoBox(c, idx, mode){
+  const w = c && sheetWeaponEffective(c, idx); if(!w) return false;
+  const kind = weaponAmmoKind(w.statText); if(!kind) return false; // у оружия нет расхода (ближний бой и т.п.)
+  const cats = ['on_body', 'pockets', 'tiny', 'backpack'], head = (it)=>String(it.name||'').split(' — ')[0];
+  const done = (what)=>{ logEvent(c, `${mode} из «${w.name}»: списана коробка — ${what}.`); if(typeof uiToast==='function') uiToast(`Списано: ${what}`, {icon:'📦', ms:3000}); return true; };
+  const isBox = (x)=>{ const h = head(x); return !/\+|\d+\s+(коробк|коробок|батаре)|(^|[^А-Яа-яё])(Дл|Ат)\s*[−+-]?\d/i.test(h) && !(c.weapons || []).some(sl=>sl && sl.itemId===x.id); };
+  for(const re of kind.match) for(const cat of cats){
+    const it = (c.inventory[cat] || []).find(x=>isBox(x) && re.test(head(x))); if(!it) continue;
+    if(it.uses!=null && it.uses > 1) it.uses -= 1; else c.inventory[cat] = c.inventory[cat].filter(x=>x!==it);
+    return done(head(it));
+  }
+  // коробки внутри строки набора: «N коробк(а|и|ок) <заряд>» или «<заряд> (N коробки)»
+  const unit = (w0, n)=>{ const b = /^батаре/i.test(w0), m10 = n%10, m100 = n%100, one = m10===1 && m100!==11, few = m10>=2 && m10<=4 && (m100<12 || m100>14);
+    return b ? (one ? 'батарея' : few ? 'батареи' : 'батарей') : (one ? 'коробка' : few ? 'коробки' : 'коробок'); };
+  const PH = [/(\s*\+\s*)?(\d+)\s+(коробк[аиу]?|коробок|батаре[яиюй])\s+([^+,;()—]*[^\s+,;()—])/gi, /([^+,;()—]*?)\s*\((\d+)\s+(коробк[аиу]?|коробок|батаре[яиюй])\)/gi];
+  // сперва строки, где коробки — весь предмет («3 коробки 9 мм — заряды…», «Шарики (2 коробки)»), потом наборы
+  const hits = [];
+  for(const re of kind.match) for(const cat of cats) for(const it of (c.inventory[cat] || [])){
+    const name = String(it.name || ''), h = head(it); let hit = null;
+    for(const P of PH){ P.lastIndex = 0; let m; while((m = P.exec(name))){ const what = P===PH[0] ? m[4] : m[1]; if(re.test(what)){ hit = {P, m, what}; break; } } if(hit) break; }
+    if(hit) hits.push(Object.assign(hit, {cat, it, own:hit.m.index===0 && hit.m[0].trim().length >= h.trim().length - 1}));
+    if(hits.some(x=>x.own)) break;
+  }
+  const hit = hits.find(x=>x.own) || hits[0];
+  if(hit){ const {P, m, it, cat} = hit, name = String(it.name), n = +m[2] - 1, idx = m.index, len = m[0].length;
+    if(n===0 && hit.own){ c.inventory[cat] = c.inventory[cat].filter(x=>x!==it); return done(`${hit.what.trim()} (последняя коробка)`); }
+    let rep; if(P===PH[0]) rep = n > 0 ? `${m[1] || ''}${n} ${unit(m[3], n)} ${m[4]}` : ''; else rep = n > 0 ? `${m[1]} (${n} ${unit(m[3], n)})` : m[1];
+    let out = name.slice(0, idx) + rep + name.slice(idx + len);
+    if(P===PH[0] && n===0 && !m[1]) out = out.replace(/^\s*\+\s*/, '').replace(/\s*\+\s*\+\s*/, ' + ').trim(); // была первой в строке
+    it.name = out; return done(`${hit.what.trim()} (1 из ${m[2]}) в «${head({name})}»`); }
+  logEvent(c, `${mode} из «${w.name}»: нет коробки патронов (${kind.label}) для списания.`);
+  uiAlert(`${mode} из «${w.name}»: в инвентаре нет коробки патронов для списания.\nНужен заряд: ${kind.label}.`, {icon:'⚠', title:'Нет патронов'});
+  return false;
+}
+const FIRE_MODE_NAME = {burst:'Длинная очередь', suppress:'Подавляющий огонь'};
+let _ammoRerollKey = null; // переброс очереди/подавления из листа (doReroll) — коробка уже списана первым броском
 // Резолв попаданий после УСПЕШНОЙ атаки (или клинит-замятия) — вызывается из executeRoll ниже для
 // любого броска с statKey вида attack_weapon*/burst_weapon*/suppress_weapon*. Не трогает d20-часть
 // (это уже сделал executeRoll/recordAndShareRoll) — только то, что происходит ПОСЛЕ: сколько попаданий,
@@ -9385,6 +9440,8 @@ function resolveWeaponAttackOutcome(statKey, roll, success, category){
   const w = sheetWeaponEffective(character, idx); // условные черты по силе, раны кубиками и т.п.
   // Однозарядное: выстрел разряжает оружие, до перезарядки (действие, кнопка на карточке) атаковать им нельзя
   if(slot.odnozaryadnoe && slot.loaded!==false){ slot.loaded = false; setTimeout(()=>renderAll(), 0); }
+  // Очередь/подавление тратят коробку — и при промахе, и при клините; переброс того же броска второй раз не тратит
+  if(FIRE_MODE_NAME[fireMode]){ if(_ammoRerollKey===statKey) _ammoRerollKey = null; else if(spendAmmoBox(character, idx, FIRE_MODE_NAME[fireMode])) setTimeout(()=>renderAll(), 0); }
   if(w.klinit && roll===13){
     recordAndShareQuickRoll({weaponJam:true, weaponName:w.name});
     return 'jammed';
@@ -10881,6 +10938,7 @@ function showRerollPopup(statKey, mod, mode){
     renderAll();
     closeRerollPopup();
     _rerollingKey = {key:statKey==='map_ability' && isMist ? 'mistika' : statKey, at:Date.now()}; // исход нового броска заменит прежний (кость духов, саматха)
+    if(/^(burst|suppress)_weapon\d$/.test(statKey)) _ammoRerollKey = statKey; // переброс очереди — коробку не списывать второй раз
     openRollPicker(statKey, window.innerWidth/2, window.innerHeight/2, mod); // тот же модификатор, что и у перебрасываемого броска
   };
   const el = document.createElement('div');
@@ -23805,11 +23863,11 @@ const GameTable = (function(){
         const res = resolveAttack(msg.req, from);
         if(!res.ok){ sendMsg({type:'gt-reject', reason:res.reason}, from); return; }
         sendMsg({type:'gt-attack-result', attackId:String(msg.req.attackId), success:res.success, jammed:res.jammed, speedUsed:res.speedUsed,
-          extra:(res.extra || []).map(x=>({weaponIdx:x.weaponIdx, ok:!!x.ok, speedUsed:!!x.speedUsed, reason:String(x.reason || '').slice(0, 120)}))}, from);
+          extra:(res.extra || []).map(x=>({weaponIdx:x.weaponIdx, n:x.n, ok:!!x.ok, speedUsed:!!x.speedUsed, reason:String(x.reason || '').slice(0, 120)}))}, from);
         break;
       }
       case 'gt-attack-result': if(fromGm(msg)) afterAttackResult(String(msg.attackId), {success:!!msg.success, jammed:!!msg.jammed, speedUsed:!!msg.speedUsed,
-        extra:(Array.isArray(msg.extra) ? msg.extra : []).slice(0, 4).map(x=>({weaponIdx:x && (x.weaponIdx===0 || x.weaponIdx===1) ? x.weaponIdx : null, ok:!!(x && x.ok), speedUsed:!!(x && x.speedUsed), reason:String(x && x.reason || '').slice(0, 120)}))}); break;
+        extra:(Array.isArray(msg.extra) ? msg.extra : []).slice(0, 4).map(x=>({weaponIdx:x && (x.weaponIdx===0 || x.weaponIdx===1) ? x.weaponIdx : null, n:x && Number.isInteger(x.n) && x.n >= 0 && x.n < 4 ? x.n : null, ok:!!(x && x.ok), speedUsed:!!(x && x.speedUsed), reason:String(x && x.reason || '').slice(0, 120)}))}); break;
     }
   }
 
@@ -25842,11 +25900,14 @@ const GameTable = (function(){
     let changed = false;
     if(res.speedUsed && slot && slot.speedBonusAvailable){ slot.speedBonusAvailable = false; changed = true; }
     if(slot && slot.odnozaryadnoe && slot.loaded!==false){ slot.loaded = false; changed = true; } // выстрел разрядил однозарядное
+    // очередь/подавление — коробка патронов (переброс заменяет атаку и второй раз не тратит)
+    if(!ctx.rerollOf && FIRE_MODE_NAME[ctx.fireMode] && spendAmmoBox(character, ctx.weaponIdx, FIRE_MODE_NAME[ctx.fireMode])) changed = true;
     (res.extra || []).forEach(x=>{ // остальные атаки того же действия (второе оружие, «атаковать дважды»)
       const s2 = character.weapons && character.weapons[x.weaponIdx];
       if(!x.ok){ if(x.reason) toast(`${s2 && s2.name ? '«' + s2.name + '»: ' : ''}${x.reason}`); return; }
       if(x.speedUsed && s2 && s2.speedBonusAvailable){ s2.speedBonusAvailable = false; changed = true; }
-      if(s2 && s2.odnozaryadnoe && s2.loaded!==false){ s2.loaded = false; changed = true; } });
+      if(s2 && s2.odnozaryadnoe && s2.loaded!==false){ s2.loaded = false; changed = true; }
+      const fm = ctx.plan && ctx.plan[x.n] && ctx.plan[x.n].fireMode; if(FIRE_MODE_NAME[fm] && spendAmmoBox(character, x.weaponIdx, FIRE_MODE_NAME[fm])) changed = true; });
     if(changed) renderAll();
     if(!res.jammed){
       _mapAttackCtx = Object.assign({}, ctx, {rerollOf:attackId, plan:null}); // переброс — только этой атаки, без остальных атак серии
@@ -25927,12 +25988,12 @@ const GameTable = (function(){
       if(isSame ? ++same > Math.max(0, (res.w.attacksPerAction || 1) - 1) : (!req.dual || ++others > 1)) return;
       if(!isSame){ // второе оружие: двуручное парой — «Две пушки», размер 1+, сила (dualWieldBlock)
         const cAtt = from ? (session.players[from] && session.players[from].character) : attackerSheet(att), why = cAtt ? dualWieldBlock(cAtt) : null;
-        if(why){ res.extra.push({weaponIdx:idx, ok:false, success:false, jammed:false, speedUsed:false, reason:why}); return; } }
+        if(why){ res.extra.push({weaponIdx:idx, n:i, ok:false, success:false, jammed:false, speedUsed:false, reason:why}); return; } }
       const sub = Object.assign({}, req, {attackId:String(req.attackId || '').slice(0, 60) + '~' + (i + 2), weaponIdx:idx, fireMode:x.fireMode, rolls:x.rolls,
         rerollOf:null, series:null, speedAvailable:!!x.speedAvailable && !(isSame && speedSpent), speedSpent:isSame && speedSpent});
       const r = resolveOne(sub, from, i + 2);
       if(r.speedUsed && isSame) speedSpent = true;
-      res.extra.push({weaponIdx:idx, ok:!!r.ok, success:!!r.success, jammed:!!r.jammed, speedUsed:!!r.speedUsed, reason:r.ok ? '' : r.reason});
+      res.extra.push({weaponIdx:idx, n:i, ok:!!r.ok, success:!!r.success, jammed:!!r.jammed, speedUsed:!!r.speedUsed, reason:r.ok ? '' : r.reason}); // n — номер в серии (режим огня — ctx.plan[n])
     });
     // «Шрапнельная пушка»: «проверьте атаку по каждой цели на линии шириной 3 м» — линия от атакующего через цель до предела
     // дальности (3×Дл); каждый жетон на ней (и свои тоже) — отдельная проверка: к20 бросает стол тем же режимом жеста, дистанция

@@ -564,11 +564,11 @@ const GameTable = (function(){
         const res = resolveAttack(msg.req, from);
         if(!res.ok){ sendMsg({type:'gt-reject', reason:res.reason}, from); return; }
         sendMsg({type:'gt-attack-result', attackId:String(msg.req.attackId), success:res.success, jammed:res.jammed, speedUsed:res.speedUsed,
-          extra:(res.extra || []).map(x=>({weaponIdx:x.weaponIdx, ok:!!x.ok, speedUsed:!!x.speedUsed, reason:String(x.reason || '').slice(0, 120)}))}, from);
+          extra:(res.extra || []).map(x=>({weaponIdx:x.weaponIdx, n:x.n, ok:!!x.ok, speedUsed:!!x.speedUsed, reason:String(x.reason || '').slice(0, 120)}))}, from);
         break;
       }
       case 'gt-attack-result': if(fromGm(msg)) afterAttackResult(String(msg.attackId), {success:!!msg.success, jammed:!!msg.jammed, speedUsed:!!msg.speedUsed,
-        extra:(Array.isArray(msg.extra) ? msg.extra : []).slice(0, 4).map(x=>({weaponIdx:x && (x.weaponIdx===0 || x.weaponIdx===1) ? x.weaponIdx : null, ok:!!(x && x.ok), speedUsed:!!(x && x.speedUsed), reason:String(x && x.reason || '').slice(0, 120)}))}); break;
+        extra:(Array.isArray(msg.extra) ? msg.extra : []).slice(0, 4).map(x=>({weaponIdx:x && (x.weaponIdx===0 || x.weaponIdx===1) ? x.weaponIdx : null, n:x && Number.isInteger(x.n) && x.n >= 0 && x.n < 4 ? x.n : null, ok:!!(x && x.ok), speedUsed:!!(x && x.speedUsed), reason:String(x && x.reason || '').slice(0, 120)}))}); break;
     }
   }
 
@@ -2601,11 +2601,14 @@ const GameTable = (function(){
     let changed = false;
     if(res.speedUsed && slot && slot.speedBonusAvailable){ slot.speedBonusAvailable = false; changed = true; }
     if(slot && slot.odnozaryadnoe && slot.loaded!==false){ slot.loaded = false; changed = true; } // выстрел разрядил однозарядное
+    // очередь/подавление — коробка патронов (переброс заменяет атаку и второй раз не тратит)
+    if(!ctx.rerollOf && FIRE_MODE_NAME[ctx.fireMode] && spendAmmoBox(character, ctx.weaponIdx, FIRE_MODE_NAME[ctx.fireMode])) changed = true;
     (res.extra || []).forEach(x=>{ // остальные атаки того же действия (второе оружие, «атаковать дважды»)
       const s2 = character.weapons && character.weapons[x.weaponIdx];
       if(!x.ok){ if(x.reason) toast(`${s2 && s2.name ? '«' + s2.name + '»: ' : ''}${x.reason}`); return; }
       if(x.speedUsed && s2 && s2.speedBonusAvailable){ s2.speedBonusAvailable = false; changed = true; }
-      if(s2 && s2.odnozaryadnoe && s2.loaded!==false){ s2.loaded = false; changed = true; } });
+      if(s2 && s2.odnozaryadnoe && s2.loaded!==false){ s2.loaded = false; changed = true; }
+      const fm = ctx.plan && ctx.plan[x.n] && ctx.plan[x.n].fireMode; if(FIRE_MODE_NAME[fm] && spendAmmoBox(character, x.weaponIdx, FIRE_MODE_NAME[fm])) changed = true; });
     if(changed) renderAll();
     if(!res.jammed){
       _mapAttackCtx = Object.assign({}, ctx, {rerollOf:attackId, plan:null}); // переброс — только этой атаки, без остальных атак серии
@@ -2686,12 +2689,12 @@ const GameTable = (function(){
       if(isSame ? ++same > Math.max(0, (res.w.attacksPerAction || 1) - 1) : (!req.dual || ++others > 1)) return;
       if(!isSame){ // второе оружие: двуручное парой — «Две пушки», размер 1+, сила (dualWieldBlock)
         const cAtt = from ? (session.players[from] && session.players[from].character) : attackerSheet(att), why = cAtt ? dualWieldBlock(cAtt) : null;
-        if(why){ res.extra.push({weaponIdx:idx, ok:false, success:false, jammed:false, speedUsed:false, reason:why}); return; } }
+        if(why){ res.extra.push({weaponIdx:idx, n:i, ok:false, success:false, jammed:false, speedUsed:false, reason:why}); return; } }
       const sub = Object.assign({}, req, {attackId:String(req.attackId || '').slice(0, 60) + '~' + (i + 2), weaponIdx:idx, fireMode:x.fireMode, rolls:x.rolls,
         rerollOf:null, series:null, speedAvailable:!!x.speedAvailable && !(isSame && speedSpent), speedSpent:isSame && speedSpent});
       const r = resolveOne(sub, from, i + 2);
       if(r.speedUsed && isSame) speedSpent = true;
-      res.extra.push({weaponIdx:idx, ok:!!r.ok, success:!!r.success, jammed:!!r.jammed, speedUsed:!!r.speedUsed, reason:r.ok ? '' : r.reason});
+      res.extra.push({weaponIdx:idx, n:i, ok:!!r.ok, success:!!r.success, jammed:!!r.jammed, speedUsed:!!r.speedUsed, reason:r.ok ? '' : r.reason}); // n — номер в серии (режим огня — ctx.plan[n])
     });
     // «Шрапнельная пушка»: «проверьте атаку по каждой цели на линии шириной 3 м» — линия от атакующего через цель до предела
     // дальности (3×Дл); каждый жетон на ней (и свои тоже) — отдельная проверка: к20 бросает стол тем же режимом жеста, дистанция

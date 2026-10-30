@@ -472,6 +472,61 @@ window.toggleWeaponSpeedBonus = function(idx){
   character.weapons[idx].speedBonusAvailable = !character.weapons[idx].speedBonusAvailable;
   renderAll();
 };
+/* ---- Патроны: длинная очередь и подавляющий огонь тратят коробку (1 заряд) ----
+   Тип заряда — из «ПР N/<заряд>» в тексте оружия (9мм, 12,7мм, шарики, дробь, «искра», МАБ…). Сперва — отдельная
+   коробка (предмет с этим зарядом в названии до « — », не оружие и не набор): одна коробка — один предмет, у предмета
+   со счётчиком (ПР) — минус 1. Иначе — коробки внутри строки стартового набора («Пистолет «Шина» + 3 коробки 9 мм
+   патронов + …», «Шарики (2 коробки)», «2 батареи «искра»»): число уменьшается, последняя убирается из строки, сам
+   предмет остаётся. Нет коробки — поп-ап с типом заряда, выстрел всё равно состоялся (Мастер решит). */
+const AMMO_KINDS = [ // [признак в тексте ПР, подпись, признак в названии коробки (по порядку предпочтения)]
+  [/шарик/i, 'шарики', [/шарик/i]], [/картеч/i, 'картечь', [/картеч/i]], [/дроб/i, 'дробь', [/дроб/i, /картеч/i]],
+  [/искр/i, '«искра»', [/искр/i]], [/МАБ/, 'МАБ', [/малая батарея МАБ/i, /МАБ/]], [/болт/i, 'болты', [/болт/i]],
+  [/стрел/i, 'стрелы', [/стрел/i]], [/ракет/i, 'ракеты', [/ракет/i]]];
+function weaponAmmoKind(statText){
+  const m = /ПР\s*\d+\s*\/\s*([^.;]+)/.exec(String(statText||'')); if(!m) return null;
+  const s = m[1].split(/,(?!\d)/)[0].trim(); if(!s) return null; // «12,7мм, Сл2» → «12,7мм»
+  const mm = /(\d+(?:[.,]\d+)?)\s*мм/i.exec(s);
+  if(mm){ const n = mm[1].replace('.', ','), re = new RegExp('(^|[^\\d,])' + n.replace(',', '[,.]') + '\\s*мм', 'i'); return {label:n + ' мм', match:[re]}; }
+  const k = AMMO_KINDS.find(x=>x[0].test(s)); if(k) return {label:k[1], match:k[2]};
+  return {label:s, match:[new RegExp(s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i')]};
+}
+// Списать коробку под оружие слота idx; mode — подпись режима для журнала и поп-апа. Возвращает true, если списано
+function spendAmmoBox(c, idx, mode){
+  const w = c && sheetWeaponEffective(c, idx); if(!w) return false;
+  const kind = weaponAmmoKind(w.statText); if(!kind) return false; // у оружия нет расхода (ближний бой и т.п.)
+  const cats = ['on_body', 'pockets', 'tiny', 'backpack'], head = (it)=>String(it.name||'').split(' — ')[0];
+  const done = (what)=>{ logEvent(c, `${mode} из «${w.name}»: списана коробка — ${what}.`); if(typeof uiToast==='function') uiToast(`Списано: ${what}`, {icon:'📦', ms:3000}); return true; };
+  const isBox = (x)=>{ const h = head(x); return !/\+|\d+\s+(коробк|коробок|батаре)|(^|[^А-Яа-яё])(Дл|Ат)\s*[−+-]?\d/i.test(h) && !(c.weapons || []).some(sl=>sl && sl.itemId===x.id); };
+  for(const re of kind.match) for(const cat of cats){
+    const it = (c.inventory[cat] || []).find(x=>isBox(x) && re.test(head(x))); if(!it) continue;
+    if(it.uses!=null && it.uses > 1) it.uses -= 1; else c.inventory[cat] = c.inventory[cat].filter(x=>x!==it);
+    return done(head(it));
+  }
+  // коробки внутри строки набора: «N коробк(а|и|ок) <заряд>» или «<заряд> (N коробки)»
+  const unit = (w0, n)=>{ const b = /^батаре/i.test(w0), m10 = n%10, m100 = n%100, one = m10===1 && m100!==11, few = m10>=2 && m10<=4 && (m100<12 || m100>14);
+    return b ? (one ? 'батарея' : few ? 'батареи' : 'батарей') : (one ? 'коробка' : few ? 'коробки' : 'коробок'); };
+  const PH = [/(\s*\+\s*)?(\d+)\s+(коробк[аиу]?|коробок|батаре[яиюй])\s+([^+,;()—]*[^\s+,;()—])/gi, /([^+,;()—]*?)\s*\((\d+)\s+(коробк[аиу]?|коробок|батаре[яиюй])\)/gi];
+  // сперва строки, где коробки — весь предмет («3 коробки 9 мм — заряды…», «Шарики (2 коробки)»), потом наборы
+  const hits = [];
+  for(const re of kind.match) for(const cat of cats) for(const it of (c.inventory[cat] || [])){
+    const name = String(it.name || ''), h = head(it); let hit = null;
+    for(const P of PH){ P.lastIndex = 0; let m; while((m = P.exec(name))){ const what = P===PH[0] ? m[4] : m[1]; if(re.test(what)){ hit = {P, m, what}; break; } } if(hit) break; }
+    if(hit) hits.push(Object.assign(hit, {cat, it, own:hit.m.index===0 && hit.m[0].trim().length >= h.trim().length - 1}));
+    if(hits.some(x=>x.own)) break;
+  }
+  const hit = hits.find(x=>x.own) || hits[0];
+  if(hit){ const {P, m, it, cat} = hit, name = String(it.name), n = +m[2] - 1, idx = m.index, len = m[0].length;
+    if(n===0 && hit.own){ c.inventory[cat] = c.inventory[cat].filter(x=>x!==it); return done(`${hit.what.trim()} (последняя коробка)`); }
+    let rep; if(P===PH[0]) rep = n > 0 ? `${m[1] || ''}${n} ${unit(m[3], n)} ${m[4]}` : ''; else rep = n > 0 ? `${m[1]} (${n} ${unit(m[3], n)})` : m[1];
+    let out = name.slice(0, idx) + rep + name.slice(idx + len);
+    if(P===PH[0] && n===0 && !m[1]) out = out.replace(/^\s*\+\s*/, '').replace(/\s*\+\s*\+\s*/, ' + ').trim(); // была первой в строке
+    it.name = out; return done(`${hit.what.trim()} (1 из ${m[2]}) в «${head({name})}»`); }
+  logEvent(c, `${mode} из «${w.name}»: нет коробки патронов (${kind.label}) для списания.`);
+  uiAlert(`${mode} из «${w.name}»: в инвентаре нет коробки патронов для списания.\nНужен заряд: ${kind.label}.`, {icon:'⚠', title:'Нет патронов'});
+  return false;
+}
+const FIRE_MODE_NAME = {burst:'Длинная очередь', suppress:'Подавляющий огонь'};
+let _ammoRerollKey = null; // переброс очереди/подавления из листа (doReroll) — коробка уже списана первым броском
 // Резолв попаданий после УСПЕШНОЙ атаки (или клинит-замятия) — вызывается из executeRoll ниже для
 // любого броска с statKey вида attack_weapon*/burst_weapon*/suppress_weapon*. Не трогает d20-часть
 // (это уже сделал executeRoll/recordAndShareRoll) — только то, что происходит ПОСЛЕ: сколько попаданий,
@@ -491,6 +546,8 @@ function resolveWeaponAttackOutcome(statKey, roll, success, category){
   const w = sheetWeaponEffective(character, idx); // условные черты по силе, раны кубиками и т.п.
   // Однозарядное: выстрел разряжает оружие, до перезарядки (действие, кнопка на карточке) атаковать им нельзя
   if(slot.odnozaryadnoe && slot.loaded!==false){ slot.loaded = false; setTimeout(()=>renderAll(), 0); }
+  // Очередь/подавление тратят коробку — и при промахе, и при клините; переброс того же броска второй раз не тратит
+  if(FIRE_MODE_NAME[fireMode]){ if(_ammoRerollKey===statKey) _ammoRerollKey = null; else if(spendAmmoBox(character, idx, FIRE_MODE_NAME[fireMode])) setTimeout(()=>renderAll(), 0); }
   if(w.klinit && roll===13){
     recordAndShareQuickRoll({weaponJam:true, weaponName:w.name});
     return 'jammed';
