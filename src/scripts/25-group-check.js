@@ -589,13 +589,10 @@ const GroupCheck = (function(){
   }
   function rollNumbers(cards, ms, every){ const end = performance.now() + Dms(ms), t = setInterval(()=>{ const done = performance.now() >= end || !view;
     cards.forEach(({el})=>{ const n = el.querySelector('.gc-c-die .gc-dn'); if(n && el.classList.contains('rolling')) n.textContent = done ? '' : 1 + Math.floor(Math.random()*20); }); if(done) clearInterval(t); }, every || 80); }
-  // надпись исхода — своя у каждой сцены
-  const VERDICT = {oath:['Клятва исполнена', 'Клятва нарушена'], link:['Разумы едины', 'Связь оборвана'], frozen:['Мгновение ваше', 'Время упущено'],
-    stars:['Звёзды сошлись', 'Звёзды не сошлись'], bridge:['Мост выдержал', 'Мост рухнул']};
   function finalVerdict(r, animate){
-    endState = r.ok ? 'win' : 'lose'; setFx(endState); const ac = fxColor(), c = center(), vv = VERDICT[C.scene] || ['Группа справилась', 'Провал'];
-    $.vMain.textContent = r.ok ? vv[0] : vv[1];
-    $.vSub.textContent = `${r.ok ? 'Группа справилась' : 'Провал'} · ${r.total} ${catWord(r.total)} успеха из ${r.need} · ${r.title}`;
+    endState = r.ok ? 'win' : 'lose'; setFx(endState); const ac = fxColor(), c = center();
+    $.vMain.textContent = r.ok ? 'Коллективный успех' : 'Общий провал'; // одна надпись исхода для всех сцен
+    $.vSub.textContent = `${r.total} ${catWord(r.total)} успеха из ${r.need} · ${r.title}`;
     $.verdict.className = 'gc-verdict show ' + endState; $.core.classList.add(endState); ctlButtons();
     const fig = $.deco.firstElementChild; if(fig) fig.classList.add(endState==='win' ? 'won' : 'lost');
     if(C.scene==='link'){ const eye = $.deco.querySelector('.gc-eye'); if(eye){ eye.classList.add(r.ok ? 'wide' : 'shut'); if(!r.ok) eye.getAnimations().forEach(a=>a.cancel()); } } // открытый глаз так и остаётся
