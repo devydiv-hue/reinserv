@@ -222,6 +222,12 @@ function sanitizeRollEntry(e){
       return out;
     }
     if(e.loot){ Object.assign(out, { loot:true, target:str(e.target, 60), text:str(e.text, 700) }); return out; } // находка (см. lootGive)
+    if(e.groupCheck){ // групповая проверка (GroupCheck): к20 за каждого участника бросает Мастер, категории успеха складываются
+      Object.assign(out, { groupCheck:true, title:str(e.title, 60), need:Math.max(1, int(e.need, 1)), total:Math.max(0, int(e.total, 0)), ok:!!e.ok, mod:int(e.mod, 0),
+        list:(Array.isArray(e.list) ? e.list : []).slice(0, 12).map(x=>({ name:str(x && x.name, 40), stat:str(x && x.stat, 40), roll:int(x && x.roll, 0), max:int(x && x.max, 0),
+          success:!!(x && x.success), category:Math.max(0, Math.min(3, int(x && x.category, 0))) })) });
+      return out;
+    }
     if(e.weaponJam){ out.weaponJam = true; out.weaponName = str(e.weaponName, 120); return out; }
     if(e.weaponHits){
       out.weaponHits = true; out.weaponName = str(e.weaponName, 120); out.fireMode = str(e.fireMode, 20);
@@ -362,6 +368,10 @@ function detailedQuickEntry(e, undoneAttacks){
     if(undone) body += ' · <b>отменено Мастером</b>';
     return {cls:(e.outcome==='none' ? 'failure' : 'success') + (undone ? ' undone' : ''),
       html:`<span class="who">${escapeHtml(e.attacker||e.player||'?')}</span><span class="rest">${body}</span>`, undoable:!undone};
+  }
+  if(e.groupCheck){
+    const items = (e.list||[]).map(x=>`${escapeHtml(x.name)} (${escapeHtml(x.stat)}): к20=${x.roll} / Макс.${x.max} — ${x.success ? 'КУ' + x.category : 'провал'}`);
+    return {cls:e.ok ? 'success' : 'failure', html:`<span class="who">${escapeHtml(e.player||'?')}</span><span class="rest">◎ Групповая проверка «${escapeHtml(e.title||'')}»: ${e.ok ? '<b>успех</b>' : '<b>провал</b>'} — ${e.total} из ${e.need} категорий успеха${e.mod ? ` (модификатор ${e.mod > 0 ? '+' : '−'}${Math.abs(e.mod)})` : ''}${items.length ? ': ' + items.join('; ') : ''}</span>`};
   }
   if(e.initiative){
     const items = (e.list||[]).map(x=>{
@@ -543,6 +553,10 @@ function formatQuickRollEntry(e, undoneAttacks){
   }
   if(e.loot){
     return {cls:'', html:`<span class="who">${who}</span><span class="rest">${LOOT_SHOVEL_SVG} Находка → ${escapeHtml(e.target)}: ${escapeHtml(e.text)}</span>`};
+  }
+  if(e.groupCheck){
+    const items = (e.list||[]).map(x=>`${escapeHtml(x.name)} (${escapeHtml(x.stat)}): к20=${x.roll} / Макс.${x.max} — ${x.success ? 'КУ' + x.category : 'провал'}`);
+    return {cls:e.ok ? 'success' : 'failure', html:`<span class="who">${who}</span><span class="rest">◎ Групповая проверка «${escapeHtml(e.title||'')}»: ${e.ok ? '<b>успех</b>' : '<b>провал</b>'} — ${e.total} из ${e.need} категорий успеха${e.mod ? ` (модификатор ${e.mod > 0 ? '+' : '−'}${Math.abs(e.mod)})` : ''}${items.length ? ': ' + items.join('; ') : ''}</span>`};
   }
   if(e.initiative){
     const items = (e.list||[]).map(x=>{

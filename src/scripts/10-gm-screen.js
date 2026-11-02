@@ -39,7 +39,7 @@ const GmScreen = (function(){
       <button type="button" class="gs-dock-btn gs-move" aria-pressed="false" aria-label="Перемещать экран Мастера по краям экрана">${MOVE_ICON}</button>
       <button type="button" class="gs-dock-btn gs-pin" aria-pressed="true" aria-label="Булавка: капли на месте или медленно ползут по краям экрана">${PIN_ICON}</button>
       <div class="gs-title">Экран Мастера</div>
-      <div class="gs-tabs"><button type="button" data-tab="players">Игроки</button><button type="button" data-tab="scenes">Сцены</button><button type="button" data-tab="notes">Заметки</button><button type="button" data-tab="reactions">Реакции</button><button type="button" data-tab="epic" title="Эпичные броски: сцена на весь экран у всех за столом">Эпичные</button><button type="button" data-tab="chron" title="Летопись сессии: броски, бои, «повержен», выдачи, ваши записи">Летопись</button></div>
+      <div class="gs-tabs"><button type="button" data-tab="players">Игроки</button><button type="button" data-tab="scenes">Сцены</button><button type="button" data-tab="notes">Заметки</button><button type="button" data-tab="reactions">Реакции</button><button type="button" data-tab="epic" title="Эпичные броски: сцена на весь экран у всех за столом">Эпичные</button><button type="button" data-tab="group" title="Групповая проверка: у каждого своя характеристика, категории успеха складываются">Групповая</button><button type="button" data-tab="chron" title="Летопись сессии: броски, бои, «повержен», выдачи, ваши записи">Летопись</button></div>
       <div class="gs-body"></div>`;
     document.body.appendChild(panel);
     body = panel.querySelector('.gs-body');
@@ -90,6 +90,7 @@ const GmScreen = (function(){
     else if(prefs.tab==='scenes') body.innerHTML = scenesHtml();
     else if(prefs.tab==='reactions'){ body.innerHTML = '<div class="rx-cfg"></div>'; if(typeof Reactions!=='undefined') Reactions.renderConfig(body.firstChild); }
     else if(prefs.tab==='epic'){ body.innerHTML = '<div class="ep-cfg-root"></div>'; if(typeof EpicRolls!=='undefined') EpicRolls.renderConfig(body.firstChild); }
+    else if(prefs.tab==='group'){ body.innerHTML = '<div class="gc-cfg-root"></div>'; if(typeof GroupCheck!=='undefined') GroupCheck.renderConfig(body.firstChild); }
     else if(prefs.tab==='chron'){ body.innerHTML = '<div class="ch-root"></div>'; if(typeof Chronicle!=='undefined') Chronicle.render(body.firstChild); }
     else renderNotes();
     if(typeof NoteMedia!=='undefined') NoteMedia.hydrate(body); // картинки и ролики заметок — из хранилища браузера

@@ -708,6 +708,7 @@ function handleIncomingMessage(msg){
   const fromGm = session.role==='player' && !!fromId && fromId===session.gmId;
   if(typeof SessionExtras!=='undefined' && SessionExtras.handle(msg)) return; // встреча, раздатки, пауза, связь
   if(typeof EpicRolls!=='undefined' && EpicRolls.handle(msg)) return; // эпичные броски: настройки и метки Мастера, сцены
+  if(typeof GroupCheck!=='undefined' && GroupCheck.handle(msg)) return; // групповая проверка: состояние от Мастера, «Готов» игрока
   if(typeof TargetRolls!=='undefined' && TargetRolls.handle(msg)) return; // бросок цели: запрос Мастера и ответ игрока
   if(typeof PcAbilities!=='undefined' && PcAbilities.handle(msg)) return; // способность персонажа со стола — Мастеру
   if(msg.type==='roll'){
@@ -755,6 +756,7 @@ function handleIncomingMessage(msg){
       sendLogView(fromId); // вид лога: подробный, если Мастер допустил этого игрока
       if(typeof SessionExtras!=='undefined') SessionExtras.onPlayerHello(fromId); // пауза, список «кому», замер связи
       if(typeof EpicRolls!=='undefined') EpicRolls.onPlayerHello(fromId); // настройки эпичных бросков и метки D20
+      if(typeof GroupCheck!=='undefined') GroupCheck.onPlayerHello(fromId); // идёт групповая проверка — сцена и ему
       sendMsg({type:'xp-checklist-sync', checklist: session.xpChecklist}, fromId); // догоняющий игрок сразу видит уже отмеченные деяния этой встречи
       gtHook(g=>g.onPlayerHello(fromId)); // game-table snapshot этому игроку
       sbHook(s=>s.onPlayerHello(fromId)); // soundboard snapshot — музыка догоняет позицию
@@ -762,7 +764,7 @@ function handleIncomingMessage(msg){
     }
   } else if(msg.type==='peer-left'){
     RoomTransport.teardownPeer(msg.id);
-    if(session.role==='gm' && session.players[msg.id]){ delete session.players[msg.id]; renderPlayersList(); }
+    if(session.role==='gm' && session.players[msg.id]){ delete session.players[msg.id]; renderPlayersList(); if(typeof GroupCheck!=='undefined') GroupCheck.onPeerLeft(msg.id); }
     else if(session.role==='player' && msg.id===session.gmId){
       session.gmName = null; updateSessionStatusUI();
     }
