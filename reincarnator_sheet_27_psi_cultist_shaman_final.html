@@ -2501,7 +2501,8 @@ html[data-theme="dark"] .gs-dock-btn.active{ color:#ff9b7f; }
   /* ============================================================
      ГРУППОВАЯ ПРОВЕРКА (модуль GroupCheck): сцена на весь экран у всех — рунное ядро в центре, карточки участников вокруг,
      нити от «Готов» к ядру; внизу — своя характеристика и кнопка «Готов». --gcfx — цвет акцента (сцена, исход или свой).
-     Классы сцены: .s-oath (Круг клятвы), .s-link (Связь разумов), .s-frozen (Остановленное мгновение).
+     Классы сцены: .s-oath (Круг клятвы), .s-link (Связь разумов), .s-frozen (Остановленное мгновение), .s-stars (Созвездие),
+     .s-bridge (Мост над пропастью). Фигура сцены — слой .gc-deco; .gc-u — место меры успеха (.on — заполнено, .bonus — сверх нужного).
      ============================================================ */
   .gc-stage{ --gcfx:#9a8cff; position:fixed; inset:0; z-index:10150; overflow:hidden; isolation:isolate; color:var(--vellum-bright); font-family:var(--font);
     -webkit-user-select:none; user-select:none; }
@@ -2515,7 +2516,10 @@ html[data-theme="dark"] .gs-dock-btn.active{ color:#ff9b7f; }
   .gc-threads{ position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:1; overflow:visible; }
   .gc-th{ stroke:color-mix(in srgb, var(--gcfx) 30%, transparent); stroke-width:1; stroke-dasharray:2 7; }
   .gc-th.on{ stroke:var(--gcfx); stroke-width:2.2; stroke-dasharray:10 8; filter:drop-shadow(0 0 5px var(--gcfx)); animation:gcFlow 1.1s linear infinite; }
-  .gc-th.web{ stroke-width:.8; opacity:.5; } .gc-th.web.on{ stroke-width:1.4; opacity:.75; }
+  .gc-th{ fill:none; } .gc-th.web{ stroke-width:.8; opacity:.5; } .gc-th.web.on{ stroke-width:1.4; opacity:.75; }
+  .gc-th.dead{ stroke:rgba(208,85,58,.55); stroke-dasharray:3 9; filter:none; animation:none; }
+  .gc-threads.surge .gc-th.on{ stroke-width:3.6; filter:drop-shadow(0 0 9px var(--gcfx)); animation-duration:.35s; }
+  .s-link .gc-th.on{ stroke-dasharray:none; stroke-linecap:round; }
   @keyframes gcFlow{ to{ stroke-dashoffset:-36; } }
   .gc-core{ position:absolute; z-index:2; opacity:0; pointer-events:none; }
   .gc-core > svg{ position:absolute; inset:-6%; width:112%; height:112%; overflow:visible; filter:drop-shadow(0 0 10px color-mix(in srgb, var(--gcfx) 55%, transparent)); }
@@ -2583,7 +2587,7 @@ html[data-theme="dark"] .gs-dock-btn.active{ color:#ff9b7f; }
   .gc-vignette{ position:absolute; inset:0; z-index:5; pointer-events:none; opacity:.55; background:radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,.85) 100%); }
   .gc-vignette.pulse{ background:radial-gradient(ellipse at center, transparent 36%, color-mix(in srgb, var(--gcfx) 45%, black) 100%); }
   .gc-flash{ position:absolute; inset:0; background:#fff7e6; opacity:0; z-index:7; pointer-events:none; mix-blend-mode:screen; }
-  .gc-bar{ position:absolute; left:0; right:0; height:0; background:#000; z-index:8; pointer-events:none; }
+  .gc-bar{ position:absolute; left:0; right:0; height:0; background:#000; z-index:1; pointer-events:none; } /* под карточками: не закрывает значения */
   .gc-bar.top{ top:0; } .gc-bar.bot{ bottom:0; }
   .gc-ctl{ position:absolute; right:max(14px, env(safe-area-inset-right, 0px)); bottom:max(14px, env(safe-area-inset-bottom, 0px)); z-index:9; display:flex; flex-wrap:wrap; gap:8px; justify-content:flex-end; }
   .gc-ctl button{ font:12px var(--font); letter-spacing:.06em; text-transform:uppercase; color:var(--vellum-bright); background:rgba(12,9,15,.82); border:1px solid rgba(246,236,212,.25);
@@ -2609,6 +2613,63 @@ html[data-theme="dark"] .gs-dock-btn.active{ color:#ff9b7f; }
   .gc-nums{ align-items:center; } .gc-nums input[type=number]{ width:58px; font:12.5px var(--font); color:var(--vellum-bright); background:rgba(0,0,0,.38); border:1px solid rgba(246,236,212,.18); border-radius:10px; padding:4px 6px; }
   .gc-live{ margin:4px 0 8px; padding:8px 10px; border-radius:12px; border:1px solid rgba(154,140,255,.55); background:rgba(139,123,255,.12); font-size:12.5px; }
   .gc-live.reveal{ border-color:rgba(226,178,76,.6); background:rgba(226,178,76,.1); }
+
+  /* ---------- фигуры сцен (.gc-deco) ---------- */
+  .gc-deco{ position:absolute; inset:0; width:100%; height:100%; pointer-events:none; overflow:visible; opacity:0; }
+  .gc-crack{ position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:5; }
+  .gc-crack path{ fill:none; stroke:rgba(230,242,250,.85); stroke-width:1.6; filter:drop-shadow(0 0 3px rgba(200,230,255,.8)); }
+  .gc-beam{ position:absolute; width:clamp(70px, 9vw, 130px); opacity:0; z-index:2; pointer-events:none; transform-origin:50% 100%; mix-blend-mode:screen;
+    background:linear-gradient(90deg, transparent, color-mix(in srgb, var(--gcfx) 55%, transparent) 30%, #fff8e8 50%, color-mix(in srgb, var(--gcfx) 55%, transparent) 70%, transparent);
+    filter:blur(2px); -webkit-mask:linear-gradient(to top, #000 70%, transparent); mask:linear-gradient(to top, #000 70%, transparent); }
+  .gc-stage:not(.s-oath) .gc-core > svg{ display:none; } /* рунные кольца — только у круга клятвы */
+  .gc-ui{ transform-box:fill-box; transform-origin:center; }
+  .gc-u .gc-u-bg{ fill:rgba(12,9,15,.75); stroke:color-mix(in srgb, var(--gcfx) 45%, transparent); stroke-width:1.2; stroke-dasharray:3 3; }
+  .gc-u.on .gc-u-bg{ stroke:#e2b24c; stroke-dasharray:none; fill:rgba(60,40,10,.75); filter:drop-shadow(0 0 6px #e2b24c); }
+  .gc-u.bonus .gc-u-bg{ stroke:#f0d48a; }
+  .gc-u-core{ fill:color-mix(in srgb, var(--gcfx) 35%, transparent); } .gc-u.on .gc-u-core{ fill:#fff3c9; filter:drop-shadow(0 0 5px #e2b24c); }
+  /* Круг клятвы: ритуальный круг на полу */
+  .gc-floor{ fill:none; stroke:color-mix(in srgb, var(--gcfx) 55%, transparent); stroke-width:1.6; }
+  .gc-floor.in{ stroke-width:1; stroke-dasharray:6 6; opacity:.7; } .gc-floor.st{ stroke-width:1; opacity:.45; }
+  .gc-oath.lit .gc-floor{ stroke:var(--gcfx); filter:drop-shadow(0 0 8px var(--gcfx)); }
+  .gc-oath.won .gc-floor{ stroke:#e2b24c; filter:drop-shadow(0 0 10px #e2b24c); } .gc-oath.lost .gc-floor{ stroke:rgba(208,85,58,.6); stroke-dasharray:14 10 4 10; }
+  .gc-sig{ fill:none; stroke:color-mix(in srgb, var(--gcfx) 55%, transparent); stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
+  .gc-u.on .gc-sig{ stroke:#fff3c9; }
+  /* Связь разумов: глаз изнанки и синапсы */
+  .gc-spoke{ stroke:color-mix(in srgb, var(--gcfx) 25%, transparent); stroke-width:1; stroke-dasharray:2 6; }
+  .gc-eye{ transform:scaleY(.35); transition:transform .9s cubic-bezier(.4,1.4,.5,1); }
+  .gc-eye.wide{ transform:scaleY(1.08); } .gc-eye.shut{ transform:scaleY(.04); transition-duration:1.4s; }
+  .gc-eye-w{ fill:rgba(220,240,255,.08); stroke:var(--gcfx); stroke-width:1.6; filter:drop-shadow(0 0 10px var(--gcfx)); }
+  .gc-eye-l{ fill:none; stroke:color-mix(in srgb, var(--gcfx) 70%, white); stroke-width:2.4; }
+  .gc-iris{ fill:none; stroke:var(--gcfx); stroke-width:3; stroke-dasharray:4 3; opacity:.8; animation:gcSpin 12s linear infinite; transform-box:fill-box; transform-origin:center; }
+  .gc-pupil{ fill:rgba(6,4,10,.85); stroke:color-mix(in srgb, var(--gcfx) 60%, transparent); stroke-width:1; }
+  .gc-link.won .gc-iris{ stroke:#e2b24c; filter:drop-shadow(0 0 10px #e2b24c); } .gc-link.lost .gc-eye-w{ stroke:#d0553a; }
+  @keyframes gcSpin{ to{ transform:rotate(360deg); } }
+  /* Остановленное мгновение: циферблат */
+  .gc-clock-f{ fill:rgba(207,227,239,.04); stroke:color-mix(in srgb, var(--gcfx) 55%, transparent); stroke-width:1.6; } .gc-clock-f.in{ fill:none; stroke-width:.8; stroke-dasharray:2 5; }
+  .gc-tk{ stroke:color-mix(in srgb, var(--gcfx) 40%, transparent); stroke-width:1; } .gc-tk.h{ stroke:var(--gcfx); stroke-width:2.4; }
+  .gc-num{ fill:color-mix(in srgb, var(--gcfx) 75%, transparent); font-family:var(--font-display); font-size:15px; font-weight:700; text-anchor:middle; dominant-baseline:central; letter-spacing:.04em; }
+  .gc-hand line{ stroke:#e8eef2; stroke-linecap:round; } .gc-hand.h line{ stroke-width:5; } .gc-hand.m line{ stroke-width:3; } .gc-hand.s line{ stroke:#d0553a; stroke-width:1.4; }
+  .gc-clock.lost{ filter:grayscale(1) brightness(.6); } .gc-clock.won .gc-clock-f{ stroke:#e2b24c; filter:drop-shadow(0 0 10px #e2b24c); }
+  /* Созвездие: небо */
+  .gc-tw{ fill:#eef1ff; animation:gcTwinkle 4s ease-in-out infinite; }
+  @keyframes gcTwinkle{ 0%,100%{ opacity:.25; } 50%{ opacity:.95; } }
+  .gc-milky ellipse{ fill:rgba(140,150,220,.07); filter:blur(30px); }
+  .gc-cl{ stroke:rgba(214,220,255,.18); stroke-width:1; stroke-dasharray:3 6; } .gc-cl.on{ stroke:#f4e6b8; stroke-dasharray:none; stroke-width:1.6; filter:drop-shadow(0 0 4px #f4e6b8); }
+  .gc-u-star{ fill:rgba(214,220,255,.15); } .gc-u.on .gc-u-star{ fill:#fff6d6; filter:drop-shadow(0 0 8px #fff3c9); }
+  .s-stars .gc-u .gc-u-bg{ stroke-dasharray:2 2; fill:transparent; } .s-stars .gc-u.on .gc-u-bg{ fill:transparent; stroke:transparent; filter:none; }
+  .gc-sky.dark .gc-tw, .gc-sky.lost .gc-tw{ opacity:.15; animation:none; } .gc-sky.won .gc-cl.on{ stroke:#ffe9a0; stroke-width:2.2; }
+  /* Мост над пропастью */
+  .gc-cliff{ fill:#1d1712; stroke:#5a4632; stroke-width:2; filter:drop-shadow(0 0 12px rgba(0,0,0,.9)); }
+  .gc-fog ellipse{ fill:rgba(160,170,190,.08); filter:blur(18px); } .gc-fog{ animation:gcFog 14s ease-in-out infinite alternate; opacity:.6; }
+  @keyframes gcFog{ to{ transform:translateX(40px); } }
+  .gc-rope{ fill:none; stroke:#8a6a44; stroke-width:2.2; stroke-linecap:round; }
+  .gc-slot{ fill:rgba(0,0,0,.25); stroke:rgba(240,180,92,.45); stroke-width:1.2; stroke-dasharray:5 4; }
+  .gc-plank{ opacity:0; transform-box:fill-box; transform-origin:center; } .gc-u.on .gc-plank{ opacity:1; }
+  .gc-plank rect{ fill:#8a6a44; stroke:#3a2a1a; stroke-width:1.5; } .gc-plank line{ stroke:#5e4630; stroke-width:1.2; }
+  .gc-bridge.won .gc-plank rect{ fill:#b08850; filter:drop-shadow(0 0 6px #f0b45c); } .gc-bridge.won .gc-rope{ stroke:#f0b45c; }
+  .s-bridge .gc-u .gc-u-bg{ display:none; }
+  .s-bridge .gc-sum{ transform:translateY(-34%); } /* сумма — над мостом */
+  @media (prefers-reduced-motion: reduce){ .gc-tw, .gc-fog, .gc-iris{ animation:none; } }
 </style>
   <!-- Совместная сессия (лог бросков + правки от ГМ + комната голоса/видео/данных) — см. секцию
        #sessionPanel в конце файла. Сигналинг — через WebSocket к server.js (простой релей, без
@@ -35880,9 +35941,11 @@ const GroupCheck = (function(){
     ['Знания культуры', CULTURE], ['Знания старого мира', OLDWORLD], ['Знания нового мира', NEWWORLD]];
   const STAT_OK = new Set(ALL_STATS);
   const SCENES = {
-    oath:  {name:'Круг клятвы', desc:'Рунные кольца над столом; «Готов» зажигает знак игрока и тянет луч к центру. Кольца сжимаются — вспышка.'},
-    link:  {name:'Связь разумов', desc:'Пси-сеть: нити между участниками, по ним бежит пульс, изнанка мерцает. Сеть сходится в точку — разряд.'},
-    frozen:{name:'Остановленное мгновение', desc:'Мир серый, кадр сужается, стучит сердце, тикают часы; кости падают в замедлении — щелчок, и время идёт.'}
+    oath:  {name:'Круг клятвы', desc:'Ритуальный круг на полу с печатями по числу нужных категорий, рунные кольца над ним. Бросок — столб света из круга.'},
+    link:  {name:'Связь разумов', desc:'Живые нити тянутся к глазу изнанки, вокруг — синапсы. Бросок — разряд по сети, глаз открывается; каждая категория зажигает синапс.'},
+    frozen:{name:'Остановленное мгновение', desc:'Серый мир, кинокадр, циферблат за суммой: стрелки застыли, стекло времени трескается, кости падают в замедлении — щелчок, и время идёт.'},
+    stars: {name:'Созвездие', desc:'Ночное небо: нужное число категорий — пустые звёзды созвездия. Звездопад к участникам, каждая категория зажигает звезду.'},
+    bridge:{name:'Мост над пропастью', desc:'Пропасть с туманом и искрами снизу: каждая категория успеха укладывает доску. Не хватило досок — мост рушится.'}
   };
   const ACCENTS = {gold:'#e2b24c', psi:'#9a8cff', blood:'#d0553a', teal:'#4fd1a5'};
   const DEFAULT = {scene:'oath', intensity:100, tempo:1.2, shake:true, dim:true, accent:'auto', custom:'#4fd1a5', sound:true, volume:60, title:'', mod:-3, need:3};
@@ -36008,6 +36071,14 @@ const GroupCheck = (function(){
       this.env(gn, t, a || .005, peak, Math.max(.01, dur - (a || .005))); s.connect(fl); fl.connect(gn); gn.connect(this.bus); s.start(t); s.stop(t + dur + .05); },
     // фон, пока собираются: тихий гул на всё время сбора (останавливается заменой шины)
     ambient(kind){ if(!this.on) return; const c = this.ctx, t = c.currentTime, fl = c.createBiquadFilter(), gn = c.createGain();
+      if(kind==='bridge'){ // ветер в пропасти: шум сквозь полосовой фильтр, частота гуляет
+        const s = c.createBufferSource(), lfo = c.createOscillator(), lg = c.createGain(); s.buffer = this.noiseBuf; s.loop = true; fl.type = 'bandpass'; fl.frequency.value = 380; fl.Q.value = .9;
+        lfo.frequency.value = .13; lg.gain.value = 240; lfo.connect(lg); lg.connect(fl.frequency); gn.gain.setValueAtTime(.0001, t); gn.gain.exponentialRampToValueAtTime(.12, t + 2);
+        s.connect(fl); fl.connect(gn); gn.connect(this.bus); s.start(); lfo.start(); this.amb.push(s, lfo, {stop(){ try{ gn.gain.setTargetAtTime(.0001, c.currentTime, .3); }catch(e){} }}); return; }
+      if(kind==='stars'){ // высокая тихая гармония с дрожанием
+        [523.25, 783.99, 1046.5, 1318.5].forEach((f, i)=>{ const o = c.createOscillator(), g2 = c.createGain(), lfo = c.createOscillator(), lg = c.createGain(); o.type = 'sine'; o.frequency.value = f;
+          lfo.frequency.value = .2 + i*.07; lg.gain.value = .006; g2.gain.value = .008; lfo.connect(lg); lg.connect(g2.gain); o.connect(g2); g2.connect(gn); o.start(); lfo.start(); this.amb.push(o, lfo); });
+        gn.gain.setValueAtTime(.0001, t); gn.gain.exponentialRampToValueAtTime(1, t + 2.5); gn.connect(this.bus); this.amb.push({stop(){ try{ gn.gain.setTargetAtTime(.0001, c.currentTime, .3); }catch(e){} }}); return; }
       fl.type = 'lowpass'; fl.frequency.value = kind==='frozen' ? 380 : 620; gn.gain.setValueAtTime(.0001, t); gn.gain.exponentialRampToValueAtTime(kind==='frozen' ? .05 : .07, t + 1.6);
       const fs = kind==='link' ? [73.4, 73.9, 110, 146.8] : kind==='frozen' ? [49, 49.3, 73.4] : [55, 55.5, 82.4, 164.8];
       fs.forEach(f=>{ const o = c.createOscillator(); o.type = kind==='link' ? 'triangle' : 'sawtooth'; o.frequency.value = f; const lfo = c.createOscillator(), lg = c.createGain(); lfo.frequency.value = rnd(.05, .2); lg.gain.value = f*.006; lfo.connect(lg); lg.connect(o.frequency); o.connect(fl); o.start(); lfo.start(); this.amb.push(o, lfo); });
@@ -36032,8 +36103,12 @@ const GroupCheck = (function(){
   };
   ['pointerdown', 'keydown'].forEach(ev=>document.addEventListener(ev, ()=>{ if(!SFX.ctx || SFX.ctx.state!=='running') SFX.init(); }, {capture:true, passive:true}));
 
-  /* ---------- сцена ---------- */
+  /* ---------- сцена ----------
+     Общее: затемнение, ядро с суммой в центре, карточки участников вокруг, частицы на холсте. У каждой сцены — своя фигура
+     (слой .gc-deco) и своя мера успеха: нужное число категорий видно сразу пустыми местами (знаки на круге, синапсы вокруг
+     глаза, метки на циферблате, звёзды созвездия, доски моста), каждая выпавшая категория заполняет одно место. */
   let root = null, $ = null, canvas = null, g = null, W = 0, H = 0, view = null, playedId = '', closedId = '', minimized = false, ambTimer = 0, sceneId = 0;
+  let units = [], litUnits = 0, endState = '', handTimer = 0; // места меры успеха: координаты; сколько заполнено; итог сцены ('win'|'lose')
   const D20 = (n)=>`<svg viewBox="-110 -110 220 220" aria-hidden="true"><polygon class="gc-df a" points="0,-100 86.6,-50 86.6,50 0,100 -86.6,50 -86.6,-50"/>
     <polygon class="gc-df b" points="0,-56 48.5,28 -48.5,28"/><polyline class="gc-de" points="0,-100 0,-56 86.6,-50 48.5,28 86.6,50 0,100 48.5,28 -48.5,28 0,100 -86.6,50 -48.5,28 -86.6,-50 0,-56 -48.5,28"/>
     <polygon class="gc-de" points="0,-100 86.6,-50 86.6,50 0,100 -86.6,50 -86.6,-50"/><text class="gc-dn" x="0" y="8">${n}</text></svg>`;
@@ -36042,28 +36117,33 @@ const GroupCheck = (function(){
     root = document.createElement('div'); root.className = 'gc-stage'; root.hidden = true; root.setAttribute('role', 'dialog'); root.setAttribute('aria-label', 'Групповая проверка');
     root.innerHTML = `<div class="gc-shake">
         <div class="gc-world"><div class="gc-dim"></div><div class="gc-tint"></div></div>
+        <svg class="gc-deco" aria-hidden="true"></svg>
+        <div class="gc-bar top"></div><div class="gc-bar bot"></div>
         <svg class="gc-threads" aria-hidden="true"></svg>
+        <div class="gc-beam"></div>
         <div class="gc-core"><svg viewBox="-260 -260 520 520" aria-hidden="true"><defs>
             <path id="gcRingA" d="M -228 0 a 228 228 0 1 1 456 0 a 228 228 0 1 1 -456 0"/><path id="gcRingB" d="M -170 0 a 170 170 0 1 0 340 0 a 170 170 0 1 0 -340 0"/></defs>
           <g class="gc-ring r1"><circle r="244" fill="none" stroke="var(--gcfx)" stroke-width="1.6" opacity=".7"/><circle r="212" fill="none" stroke="var(--gcfx)" stroke-width="1" opacity=".45" stroke-dasharray="3 9"/>
-            <text font-family="Cinzel, serif" font-size="19" letter-spacing="6" fill="var(--gcfx)"><textPath href="#gcRingA">ОДНА СУДЬБА НА ВСЕХ ✦ ОБЩАЯ ПРОВЕРКА ✦ ПЛЕЧОМ К ПЛЕЧУ ✦ ОДНА СУДЬБА НА ВСЕХ ✦ ОБЩАЯ ПРОВЕРКА ✦</textPath></text></g>
+            <text font-family="Cinzel, serif" font-size="19" letter-spacing="6" fill="var(--gcfx)"><textPath href="#gcRingA">ОДНА СУДЬБА НА ВСЕХ ✦ ОБЩАЯ КЛЯТВА ✦ ПЛЕЧОМ К ПЛЕЧУ ✦ ОДНА СУДЬБА НА ВСЕХ ✦ ОБЩАЯ КЛЯТВА ✦</textPath></text></g>
           <g class="gc-ring r2"><circle r="186" fill="none" stroke="var(--gcfx)" stroke-width="1" opacity=".5"/>
-            <text font-family="Cinzel, serif" font-size="14" letter-spacing="5" fill="var(--gcfx)" opacity=".85"><textPath href="#gcRingB">КЛЯТВА ✧ СВЯЗЬ ✧ ИЗНАНКА ✧ КЛЯТВА ✧ СВЯЗЬ ✧ ИЗНАНКА ✧ КЛЯТВА ✧ СВЯЗЬ ✧</textPath></text></g>
+            <text font-family="Cinzel, serif" font-size="14" letter-spacing="5" fill="var(--gcfx)" opacity=".85"><textPath href="#gcRingB">СЛОВО ✧ КРОВЬ ✧ ПЕЧАТЬ ✧ СЛОВО ✧ КРОВЬ ✧ ПЕЧАТЬ ✧ СЛОВО ✧ КРОВЬ ✧</textPath></text></g>
           <g class="gc-ring r3"><polygon points="0,-140 121,70 -121,70" fill="none" stroke="var(--gcfx)" stroke-width="1.4" opacity=".55"/><polygon points="0,140 121,-70 -121,-70" fill="none" stroke="var(--gcfx)" stroke-width="1.4" opacity=".55"/></g></svg>
           <div class="gc-sum"><b class="gc-sum-n">0</b><span class="gc-sum-need">из 3</span><i>категорий успеха</i></div></div>
         <canvas class="gc-fx"></canvas>
         <div class="gc-cards"></div>
+        <svg class="gc-crack" aria-hidden="true"></svg>
         <div class="gc-head"><div class="gc-title"></div><div class="gc-sub"></div></div>
         <div class="gc-me"></div>
         <div class="gc-verdict"><div class="gc-v-main"></div><div class="gc-v-sub"></div></div>
-        <div class="gc-vignette"></div><div class="gc-flash"></div><div class="gc-bar top"></div><div class="gc-bar bot"></div>
+        <div class="gc-vignette"></div><div class="gc-flash"></div>
       </div>
       <div class="gc-ctl"></div>`;
     document.body.appendChild(root);
     const q = (s)=>root.querySelector(s);
-    $ = {shake:q('.gc-shake'), world:q('.gc-world'), dim:q('.gc-dim'), tint:q('.gc-tint'), threads:q('.gc-threads'), core:q('.gc-core'), r1:q('.gc-ring.r1'), r2:q('.gc-ring.r2'), r3:q('.gc-ring.r3'),
-      sum:q('.gc-sum'), sumN:q('.gc-sum-n'), sumNeed:q('.gc-sum-need'), cards:q('.gc-cards'), head:q('.gc-head'), title:q('.gc-title'), sub:q('.gc-sub'), me:q('.gc-me'),
-      verdict:q('.gc-verdict'), vMain:q('.gc-v-main'), vSub:q('.gc-v-sub'), vignette:q('.gc-vignette'), flash:q('.gc-flash'), barTop:q('.gc-bar.top'), barBot:q('.gc-bar.bot'), ctl:q('.gc-ctl')};
+    $ = {shake:q('.gc-shake'), world:q('.gc-world'), dim:q('.gc-dim'), tint:q('.gc-tint'), deco:q('.gc-deco'), threads:q('.gc-threads'), beam:q('.gc-beam'), core:q('.gc-core'),
+      r1:q('.gc-ring.r1'), r2:q('.gc-ring.r2'), r3:q('.gc-ring.r3'), sum:q('.gc-sum'), sumN:q('.gc-sum-n'), sumNeed:q('.gc-sum-need'), cards:q('.gc-cards'), crack:q('.gc-crack'),
+      head:q('.gc-head'), title:q('.gc-title'), sub:q('.gc-sub'), me:q('.gc-me'), verdict:q('.gc-verdict'), vMain:q('.gc-v-main'), vSub:q('.gc-v-sub'), vignette:q('.gc-vignette'),
+      flash:q('.gc-flash'), barTop:q('.gc-bar.top'), barBot:q('.gc-bar.bot'), ctl:q('.gc-ctl')};
     canvas = q('.gc-fx'); g = canvas.getContext('2d');
     root.addEventListener('click', onStageClick);
     addEventListener('resize', ()=>{ if(root && !root.hidden){ resize(); layout(); } });
@@ -36075,10 +36155,12 @@ const GroupCheck = (function(){
   const K = ()=>(C.intensity/100)*(reduceMotion ? .45 : 1), N = (b)=>Math.max(1, Math.round(b*K()));
   const Dms = (ms)=>ms*C.tempo, wait = (ms)=>new Promise(r=>setTimeout(r, Dms(ms)));
   const anim = (el, fr, ms, o)=>el.animate(fr, Object.assign({duration:Dms(ms), fill:'forwards', easing:'cubic-bezier(.2,.7,.2,1)'}, o || {}));
+  const SCENE_FX = {oath:'#9a8cff', link:'#7fe3ff', frozen:'#cfe3ef', stars:'#d6dcff', bridge:'#f0b45c'};
   function accent(kind){ if(C.accent==='custom') return C.custom; if(C.accent!=='auto') return ACCENTS[C.accent];
-    return kind==='win' ? ACCENTS.gold : kind==='lose' ? ACCENTS.blood : C.scene==='frozen' ? '#cfe3ef' : C.scene==='link' ? '#7fe3ff' : ACCENTS.psi; }
+    return kind==='win' ? ACCENTS.gold : kind==='lose' ? ACCENTS.blood : SCENE_FX[C.scene] || ACCENTS.psi; }
   const setFx = (kind)=>root.style.setProperty('--gcfx', accent(kind));
   const fxColor = ()=>getComputedStyle(root).getPropertyValue('--gcfx').trim() || '#9a8cff';
+  const seeded = (n)=>{ let s = (n + 1)*9301 + 49297; return ()=>{ s = (s*9301 + 49297)%233280; return s/233280; }; };
 
   /* ---------- частицы ---------- */
   let parts = [], rafOn = false, last = 0;
@@ -36087,30 +36169,41 @@ const GroupCheck = (function(){
   function tick(now){
     const dt = Math.min(.05, (now - last)/1000); last = now; g.clearRect(0, 0, W, H);
     parts = parts.filter(p=>{ p.life += dt; if(p.life >= p.max) return false; if(p.update) p.update(p, dt);
-      p.vy += p.ay*dt; const d = Math.pow(p.drag, dt*60); p.vx *= d; p.vy *= d; p.x += p.vx*dt; p.y += p.vy*dt;
+      p.vy += p.ay*dt; const d = Math.pow(p.drag, dt*60); p.vx *= d; p.vy *= d; p.x += p.vx*dt; p.y += p.vy*dt; if(p.vr) p.rot = (p.rot || 0) + p.vr*dt;
       const k = 1 - p.life/p.max; g.globalCompositeOperation = p.add ? 'lighter' : 'source-over'; g.globalAlpha = Math.max(0, Math.min(1, k*p.alpha));
       if(p.type==='dot'){ g.fillStyle = p.color; g.beginPath(); g.arc(p.x, p.y, Math.max(.3, p.size*(.35 + .65*k)), 0, 6.283); g.fill(); }
-      else if(p.type==='spark'){ g.strokeStyle = p.color; g.lineWidth = Math.max(.6, p.size*k); g.beginPath(); g.moveTo(p.x, p.y); g.lineTo(p.x - p.vx*.035, p.y - p.vy*.035); g.stroke(); }
+      else if(p.type==='spark'){ g.strokeStyle = p.color; g.lineWidth = Math.max(.6, p.size*k); g.beginPath(); g.moveTo(p.x, p.y); g.lineTo(p.x - p.vx*(p.tail || .035), p.y - p.vy*(p.tail || .035)); g.stroke(); }
       else if(p.type==='ring'){ const r = p.r0 + (p.r1 - p.r0)*(1 - k*k); g.strokeStyle = p.color; g.lineWidth = Math.max(.5, p.size*k); g.beginPath(); g.arc(p.x, p.y, r, 0, 6.283); g.stroke(); }
+      else if(p.type==='shard'){ g.save(); g.translate(p.x, p.y); g.rotate(p.rot || 0); g.fillStyle = p.color; g.strokeStyle = 'rgba(255,255,255,.6)'; g.lineWidth = .8;
+        g.beginPath(); g.moveTo(-p.size, -p.size*.5); g.lineTo(p.size*.9, -p.size*.2); g.lineTo(-p.size*.2, p.size); g.closePath(); g.fill(); g.stroke(); g.restore(); }
+      else if(p.type==='bolt'){ g.strokeStyle = p.color; g.lineWidth = 2*k + .5; g.beginPath(); p.pts.forEach((q, i)=>i ? g.lineTo(q[0], q[1]) : g.moveTo(q[0], q[1])); g.stroke(); }
       return true; });
     g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
     if(parts.length) requestAnimationFrame(tick); else { rafOn = false; g.clearRect(0, 0, W, H); } }
-  const center = ()=>{ const r = $.core.getBoundingClientRect(); return {x:r.left + r.width/2, y:r.top + r.height/2, r:r.width/2}; };
+  // центр и радиус ядра — по раскладке, не по экрану: ядро само «вырастает» и пульсирует анимацией масштаба
+  const center = ()=>{ const el = $.core; return {x:el.offsetLeft + el.offsetWidth/2, y:el.offsetTop + el.offsetHeight/2, r:el.offsetWidth/2}; };
   const cardPt = (el)=>{ const r = el.getBoundingClientRect(); return {x:r.left + r.width/2, y:r.top + r.height/2}; };
   function ring(x, y, r0, r1, color, size, dur){ spawn({type:'ring', x, y, r0, r1, size, color, max:dur}); }
-  function burst(x, y, count, color, o){ o = o || {}; for(let i=0;i<count;i++){ const a = rnd(0, 6.283), sp = rnd(o.min || 120, o.max || 620);
+  function burst(x, y, count, color, o){ o = o || {}; for(let i=0;i<count;i++){ const a = o.a!=null ? o.a + rnd(-o.spread || -.5, o.spread || .5) : rnd(0, 6.283), sp = rnd(o.min || 120, o.max || 620);
     spawn({type:'spark', x, y, vx:Math.cos(a)*sp, vy:Math.sin(a)*sp, ay:o.g || 0, drag:.94, size:rnd(1.2, 2.6), color, max:rnd(.35, o.life || .9)}); } }
   function motesTo(tx, ty, count, color, R){ for(let i=0;i<count;i++){ const a = rnd(0, 6.283), r = (R || Math.max(W, H)*.6)*rnd(.6, 1);
     spawn({x:tx + Math.cos(a)*r, y:ty + Math.sin(a)*r, size:rnd(1.4, 3.4), color, max:rnd(1, 1.6), a, r, update(p, dt){ p.r *= Math.pow(.16, dt); p.a += dt*2.2; p.x = tx + Math.cos(p.a)*p.r; p.y = ty + Math.sin(p.a)*p.r; }}); } }
-  function pulseAlong(a, b, color, dur, size){ spawn({x:a.x, y:a.y, size:size || 4, color, max:dur || .9, update(p){ const t = Math.min(1, p.life/p.max), e = t*t*(3 - 2*t); p.x = a.x + (b.x - a.x)*e; p.y = a.y + (b.y - a.y)*e; }}); }
+  // огонёк по пути: прямо или по живой нити («Связь разумов» — кривая, которая колышется)
+  function pulseAlong(a, b, color, dur, size, curved){ spawn({x:a.x, y:a.y, size:size || 4, color, max:dur || .9, update(p){ const t = Math.min(1, p.life/p.max), e = t*t*(3 - 2*t);
+    if(curved){ const q = curveCtl(a, b); p.x = (1 - e)*(1 - e)*a.x + 2*(1 - e)*e*q.x + e*e*b.x; p.y = (1 - e)*(1 - e)*a.y + 2*(1 - e)*e*q.y + e*e*b.y; } else { p.x = a.x + (b.x - a.x)*e; p.y = a.y + (b.y - a.y)*e; } }}); }
+  function bolt(a, b, color, life){ const pts = [[a.x, a.y]], n = 7, dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy) || 1;
+    for(let i=1;i<n;i++){ const t = i/n, j = rnd(-1, 1)*L*.08; pts.push([a.x + dx*t - dy/L*j, a.y + dy*t + dx/L*j]); } pts.push([b.x, b.y]); spawn({type:'bolt', pts, color, max:life || .35}); }
   function shake(power, ms){ if(!C.shake || reduceMotion || power < 1) return; const f = [];
     for(let i=0;i<9;i++){ const k = 1 - i/9; f.push({transform:`translate(${rnd(-1, 1)*power*k}px, ${rnd(-1, 1)*power*k}px)`}); } f.push({transform:'none'}); $.shake.animate(f, {duration:ms, easing:'ease-out'}); }
   const flash = (peak, ms)=>$.flash.animate([{opacity:0}, {opacity:peak, offset:.15}, {opacity:0}], {duration:ms, easing:'ease-out'});
+  // контрольная точка живой нити: изгиб колышется во времени
+  function curveCtl(a, b){ const mx = (a.x + b.x)/2, my = (a.y + b.y)/2, dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy) || 1, t = performance.now()/700, ph = (a.x*.013 + a.y*.007);
+    const w = L*.18*Math.sin(t + ph); return {x:mx - dy/L*w, y:my + dx/L*w}; }
 
-  /* ---------- раскладка карточек и нитей ---------- */
+  /* ---------- раскладка карточек, нитей и фигуры сцены ---------- */
   function layout(){
     if(!view) return; const cards = [...$.cards.children], n = cards.length, narrow = W < 720;
-    // кольцо — между заголовком и своей карточкой снизу, чтобы карточки участников их не перекрывали
+    // кольцо — между заголовком и своей карточкой снизу, чтобы карточки участников их не перекрывали;
     // низ — общий для сбора (своя карточка) и итога (надпись исхода на том же месте): раскладка не прыгает при броске
     const top = $.head.getBoundingClientRect().bottom + 12, bottom = Math.min($.me.hidden ? H : $.me.getBoundingClientRect().top - 12, H - Math.max(narrow ? 190 : 215, H*.13 + 115));
     const cols = Math.max(1, Math.min(n, W < 420 ? 2 : 3)), rowsH = Math.ceil(n/cols)*94; // узкий экран: карточки рядами сверху, ядро под ними
@@ -36123,15 +36216,70 @@ const GroupCheck = (function(){
     else { const rx = Math.min(W*.38, 470), ry = Math.max(coreSize*.5, Math.min((bottom - top)/2 - 56, 250));
       cards.forEach((el, i)=>{ const a = -Math.PI/2 + (n===1 ? 0 : (i/n)*Math.PI*2) + (n===2 ? Math.PI/2 : 0), x = W/2 + Math.cos(a)*rx, y = cy + Math.sin(a)*ry;
         el.style.width = ''; el.style.left = (x - 78) + 'px'; el.style.top = (y - 52) + 'px'; }); }
-    drawThreads();
+    buildDeco(Math.max(view.need, view.phase==='reveal' ? view.total : 0)); drawThreads();
   }
   function drawThreads(){
-    if(!view) return; const c = center(), cards = [...$.cards.children]; $.threads.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    if(!view) return; const c = center(), cards = [...$.cards.children], live = C.scene==='link'; $.threads.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    const d = (a, b)=>{ if(!live) return `M${a.x} ${a.y} L${b.x} ${b.y}`; const q = curveCtl(a, b); return `M${a.x} ${a.y} Q${q.x} ${q.y} ${b.x} ${b.y}`; };
     let html = '';
-    cards.forEach(el=>{ const p = cardPt(el), on = el.classList.contains('ready'); html += `<line class="gc-th${on ? ' on' : ''}" data-id="${esc(el.dataset.id)}" x1="${p.x}" y1="${p.y}" x2="${c.x}" y2="${c.y}"/>`; });
-    if(C.scene==='link') for(let i=0;i<cards.length;i++) for(let j=i + 1;j<cards.length;j++){ const a = cardPt(cards[i]), b = cardPt(cards[j]), on = cards[i].classList.contains('ready') && cards[j].classList.contains('ready');
-      html += `<line class="gc-th web${on ? ' on' : ''}" x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}"/>`; }
+    cards.forEach(el=>{ const p = cardPt(el), cls = el.classList.contains('lose') ? ' dead' : el.classList.contains('ready') ? ' on' : ''; html += `<path class="gc-th${cls}" d="${d(p, c)}"/>`; });
+    if(live) for(let i=0;i<cards.length;i++) for(let j=i + 1;j<cards.length;j++){ const on = cards[i].classList.contains('ready') && cards[j].classList.contains('ready');
+      html += `<path class="gc-th web${on ? ' on' : ''}" d="${d(cardPt(cards[i]), cardPt(cards[j]))}"/>`; }
+    if(C.scene==='stars'){ const lit = cards.filter(el=>el.classList.contains('ready')); for(let i=1;i<lit.length;i++){ const a = cardPt(lit[i - 1]), b = cardPt(lit[i]); html += `<path class="gc-th web on" d="M${a.x} ${a.y} L${b.x} ${b.y}"/>`; } }
     $.threads.innerHTML = html;
+  }
+  // фигура сцены и места меры успеха (n — сколько мест: нужное, а после броска — сколько набрали, если больше)
+  function unitPos(i, n, c){
+    const a = -Math.PI/2 + (i/n)*Math.PI*2;
+    if(C.scene==='oath') return {x:c.x + Math.cos(a)*c.r*1.55, y:c.y + c.r*.62 + Math.sin(a)*c.r*.46};
+    if(C.scene==='link') return {x:c.x + Math.cos(a)*c.r*1.32, y:c.y + Math.sin(a)*c.r*1.05};
+    if(C.scene==='frozen') return {x:c.x + Math.cos(a)*c.r*1.08, y:c.y + Math.sin(a)*c.r*1.08};
+    if(C.scene==='stars'){ const R = seeded(i), rr = c.r*(1.05 + R()*.5), aa = a + (R() - .5)*(Math.PI/n)*.8; return {x:c.x + Math.cos(aa)*rr*1.45, y:c.y + Math.sin(aa)*rr*.95}; } // созвездие обрамляет сумму, линии её не перечёркивают
+    const span = bridgeSpan(c); return {x:c.x - span/2 + (i + .5)*span/n, y:c.y + c.r*.16}; // мост — по линии центра, сумма над ним
+  }
+  const bridgeSpan = (c)=>Math.min(W < 720 ? W*.86 : W*.56, 960);
+  function sigil(i, s){ const R = seeded(i*7 + 3), p = []; for(let k=0;k<4;k++) p.push([(Math.round(R()*2) - 1)*s, (Math.round(R()*2) - 1)*s]);
+    return 'M' + p.map(q=>q[0].toFixed(1) + ' ' + q[1].toFixed(1)).join(' L') + ` M${(-s*.7).toFixed(1)} ${(s*1.25).toFixed(1)} L${(s*.7).toFixed(1)} ${(s*1.25).toFixed(1)}`; }
+  function buildDeco(n){
+    const c = center(); units = []; for(let i=0;i<n;i++) units.push(unitPos(i, n, c));
+    $.deco.setAttribute('viewBox', `0 0 ${W} ${H}`); const need = view ? view.need : n; let h = '';
+    const U = (i, inner, x, y)=>`<g class="gc-u${i < litUnits ? ' on' : ''}${i >= need ? ' bonus' : ''}" data-i="${i}" transform="translate(${x.toFixed(1)} ${y.toFixed(1)})"><g class="gc-ui">${inner}</g></g>`;
+    if(C.scene==='oath'){ // ритуальный круг на полу: двойной эллипс, пентаграмма, знаки участников клятвы
+      const fx = c.x, fy = c.y + c.r*.62, rx = c.r*1.55, ry = c.r*.46, star = [0, 2, 4, 1, 3, 0].map(k=>{ const a = -Math.PI/2 + k/5*Math.PI*2; return `${(fx + Math.cos(a)*rx*.78).toFixed(1)},${(fy + Math.sin(a)*ry*.78).toFixed(1)}`; }).join(' ');
+      h = `<g class="gc-oath"><ellipse class="gc-floor" cx="${fx}" cy="${fy}" rx="${rx}" ry="${ry}"/><ellipse class="gc-floor in" cx="${fx}" cy="${fy}" rx="${rx*.84}" ry="${ry*.84}"/>
+        <polyline class="gc-floor st" points="${star}"/>${units.map((u, i)=>U(i, `<circle class="gc-u-bg" r="13"/><path class="gc-sig" d="${sigil(i, 6)}"/>`, u.x, u.y)).join('')}</g>`;
+    } else if(C.scene==='link'){ // глаз изнанки: сумма — в зрачке; вокруг синапсы
+      const rx = c.r*1.02, ry = c.r*.56;
+      h = `<g class="gc-link">${units.map(u=>`<line class="gc-spoke" x1="${c.x}" y1="${c.y}" x2="${u.x.toFixed(1)}" y2="${u.y.toFixed(1)}"/>`).join('')}
+        <g class="gc-eye${endState==='win' ? ' wide' : endState==='lose' ? ' shut' : ''}" style="transform-origin:${c.x}px ${c.y}px"><path class="gc-eye-w" d="M${c.x - rx} ${c.y} Q${c.x} ${c.y - ry*2} ${c.x + rx} ${c.y} Q${c.x} ${c.y + ry*2} ${c.x - rx} ${c.y} Z"/>
+          <circle class="gc-iris" cx="${c.x}" cy="${c.y}" r="${c.r*.5}"/><circle class="gc-pupil" cx="${c.x}" cy="${c.y}" r="${c.r*.34}"/>
+          <path class="gc-eye-l" d="M${c.x - rx} ${c.y} Q${c.x} ${c.y - ry*2} ${c.x + rx} ${c.y}"/><path class="gc-eye-l" d="M${c.x - rx} ${c.y} Q${c.x} ${c.y + ry*2} ${c.x + rx} ${c.y}"/></g>
+        ${units.map((u, i)=>U(i, `<circle class="gc-u-bg" r="10"/><circle class="gc-u-core" r="4"/>`, u.x, u.y)).join('')}</g>`;
+    } else if(C.scene==='frozen'){ // циферблат за суммой: стрелки встают, метки — мера успеха
+      const R = c.r*1.42, num = ['XII','I','II','III','IV','V','VI','VII','VIII','IX','X','XI'];
+      let ticks = ''; for(let k=0;k<60;k++){ const a = k/60*Math.PI*2, r0 = k%5 ? R*.95 : R*.88; ticks += `<line class="gc-tk${k%5 ? '' : ' h'}" x1="${(c.x + Math.sin(a)*r0).toFixed(1)}" y1="${(c.y - Math.cos(a)*r0).toFixed(1)}" x2="${(c.x + Math.sin(a)*R).toFixed(1)}" y2="${(c.y - Math.cos(a)*R).toFixed(1)}"/>`; }
+      h = `<g class="gc-clock${endState==='lose' ? ' broken' : ''}"><circle class="gc-clock-f" cx="${c.x}" cy="${c.y}" r="${R}"/><circle class="gc-clock-f in" cx="${c.x}" cy="${c.y}" r="${R*.8}"/>${ticks}
+        ${num.map((t, k)=>{ const a = k/12*Math.PI*2; return `<text class="gc-num" x="${(c.x + Math.sin(a)*R*.72).toFixed(1)}" y="${(c.y - Math.cos(a)*R*.72).toFixed(1)}">${t}</text>`; }).join('')}
+        <g class="gc-hand h" style="transform-origin:${c.x}px ${c.y}px;transform:rotate(${hands.h}deg)"><line x1="${c.x}" y1="${c.y + R*.08}" x2="${c.x}" y2="${c.y - R*.42}"/></g>
+        <g class="gc-hand m" style="transform-origin:${c.x}px ${c.y}px;transform:rotate(${hands.m}deg)"><line x1="${c.x}" y1="${c.y + R*.1}" x2="${c.x}" y2="${c.y - R*.62}"/></g>
+        <g class="gc-hand s" style="transform-origin:${c.x}px ${c.y}px;transform:rotate(${hands.s}deg)"><line x1="${c.x}" y1="${c.y + R*.14}" x2="${c.x}" y2="${c.y - R*.84}"/></g>
+        ${units.map((u, i)=>U(i, `<rect class="gc-u-bg" x="-7" y="-7" width="14" height="14" transform="rotate(45)"/><circle class="gc-u-core" r="3"/>`, u.x, u.y)).join('')}</g>`;
+    } else if(C.scene==='stars'){ // ночное небо: мерцание, созвездие из пустых звёзд
+      const R = seeded(97); let bg = ''; for(let k=0;k<160;k++){ const r = R(); bg += `<circle class="gc-tw" cx="${(R()*W).toFixed(0)}" cy="${(R()*H).toFixed(0)}" r="${(.4 + r*1.4).toFixed(2)}" style="animation-delay:-${(R()*5).toFixed(2)}s;animation-duration:${(2.5 + R()*4).toFixed(2)}s"/>`; }
+      let lines = ''; for(let i=1;i<units.length;i++) lines += `<line class="gc-cl${i < litUnits ? ' on' : ''}" data-i="${i}" x1="${units[i - 1].x.toFixed(1)}" y1="${units[i - 1].y.toFixed(1)}" x2="${units[i].x.toFixed(1)}" y2="${units[i].y.toFixed(1)}"/>`;
+      h = `<g class="gc-sky${endState==='lose' ? ' dark' : ''}">${bg}<g class="gc-milky"><ellipse cx="${W*.5}" cy="${H*.45}" rx="${W*.7}" ry="${H*.12}" transform="rotate(-18 ${W*.5} ${H*.45})"/></g>${lines}
+        ${units.map((u, i)=>U(i, `<circle class="gc-u-bg" r="9"/><path class="gc-u-star" d="M0 -12 L2.2 -2.2 L12 0 L2.2 2.2 L0 12 L-2.2 2.2 L-12 0 L-2.2 -2.2 Z"/><circle class="gc-u-core" r="2.6"/>`, u.x, u.y)).join('')}</g>`;
+    } else { // мост над пропастью: края, туман, верёвки, пустые места под доски
+      const span = bridgeSpan(c), x0 = c.x - span/2, x1 = c.x + span/2, by = c.y + c.r*.16, R = seeded(31), pw = span/units.length;
+      const edge = (x, dir)=>{ let pts = `${dir < 0 ? 0 : W},0 `; for(let y=0;y<=H + 40;y+=40) pts += `${(x + dir*(R()*26 - 4)).toFixed(0)},${y} `; return pts + `${dir < 0 ? 0 : W},${H}`; };
+      h = `<g class="gc-bridge${endState==='lose' ? ' fell' : endState==='win' ? ' done' : ''}"><defs><linearGradient id="gcAbyss" x1="0" x2="1"><stop offset="0" stop-color="#050404"/><stop offset=".5" stop-color="#0d1218"/><stop offset="1" stop-color="#050404"/></linearGradient></defs>
+        <rect x="${x0 - 30}" y="0" width="${span + 60}" height="${H}" fill="url(#gcAbyss)"/>
+        <g class="gc-fog"><ellipse cx="${c.x - span*.2}" cy="${H*.3}" rx="${span*.35}" ry="40"/><ellipse cx="${c.x + span*.25}" cy="${H*.62}" rx="${span*.4}" ry="52"/><ellipse cx="${c.x}" cy="${H*.85}" rx="${span*.3}" ry="36"/></g>
+        <polygon class="gc-cliff" points="${edge(x0, -1)}"/><polygon class="gc-cliff" points="${edge(x1, 1)}"/>
+        <path class="gc-rope" d="M${x0 - 14} ${by - 17} Q${c.x} ${by - 4} ${x1 + 14} ${by - 17}"/><path class="gc-rope" d="M${x0 - 14} ${by + 17} Q${c.x} ${by + 30} ${x1 + 14} ${by + 17}"/>
+        ${units.map((u, i)=>{ const sag = Math.sin((i + .5)/units.length*Math.PI)*13; return U(i, `<rect class="gc-slot" x="${(-pw/2 + 3).toFixed(1)}" y="-14" width="${(pw - 6).toFixed(1)}" height="28" rx="3"/><g class="gc-plank"><rect x="${(-pw/2 + 3).toFixed(1)}" y="-14" width="${(pw - 6).toFixed(1)}" height="28" rx="3"/><line x1="${(-pw/2 + 9).toFixed(1)}" y1="-5" x2="${(pw/2 - 9).toFixed(1)}" y2="-7"/><line x1="${(-pw/2 + 12).toFixed(1)}" y1="6" x2="${(pw/2 - 14).toFixed(1)}" y2="5"/></g>`, u.x, u.y + sag); }).join('')}</g>`;
+    }
+    $.deco.innerHTML = h; if(endState && $.deco.firstElementChild) $.deco.firstElementChild.classList.add(endState==='win' ? 'won' : 'lost');
   }
 
   /* ---------- показ состояния (у всех; у Мастера — из run) ---------- */
@@ -36144,7 +36292,6 @@ const GroupCheck = (function(){
     $.title.textContent = r.title; $.sub.textContent = `Нужно набрать ${r.need} ${catWord(r.need)} успеха на всех · модификатор ${signed(r.mod)} · Максимум = ЗХ + 10 ${r.mod ? (r.mod > 0 ? '+ ' : '− ') + Math.abs(r.mod) : ''}`;
     $.sumNeed.textContent = 'из ' + r.need;
     const me = session && session.myId, mine = r.parts.find(p=>p.id===me), prevMine = prev && prev.id===r.id ? prev.parts.find(p=>p.id===me) : null;
-    // карточки
     const have = new Map([...$.cards.children].map(el=>[el.dataset.id, el])), lit = []; // lit — зажглись сейчас: эффект после раскладки
     r.parts.forEach(p=>{ let el = have.get(p.id); have.delete(p.id);
       if(!el){ el = document.createElement('div'); el.className = 'gc-card'; el.dataset.id = p.id; el.innerHTML = `<div class="gc-c-sig"></div><div class="gc-c-name"></div><div class="gc-c-stat"></div><div class="gc-c-max"></div><div class="gc-c-state"></div><div class="gc-c-die">${D20('')}</div>`;
@@ -36157,7 +36304,6 @@ const GroupCheck = (function(){
         if(was && was.stat!==p.stat){ el.classList.remove('changed'); void el.offsetWidth; el.classList.add('changed'); SFX.glitch(0, 3); } }
     });
     have.forEach(el=>{ el.animate([{opacity:1}, {opacity:0, transform:'scale(.6)'}], {duration:300, fill:'forwards'}).onfinish = ()=>{ el.remove(); layout(); }; });
-    // своя карточка снизу: характеристика и «Готов»
     if(r.phase==='gather'){
       if(mine){ const changedStat = prevMine && prevMine.stat!==mine.stat;
         $.me.innerHTML = `<div class="gc-me-lbl">${changedStat ? 'Мастер сменил вашу характеристику' : 'Ваша характеристика'}</div><div class="gc-me-stat${changedStat ? ' changed' : ''}">${esc(mine.label)}</div>
@@ -36176,7 +36322,7 @@ const GroupCheck = (function(){
     const done = view && view.phase==='reveal', gm = isGm() && run && !run.preview;
     $.ctl.innerHTML = (gm && !done ? '<button type="button" data-gc="force" title="Бросить за всех участников сейчас, не дожидаясь «Готов»">⚡ Бросить сейчас</button><button type="button" data-gc="cancel" title="Отменить проверку у всех">✕ Отменить</button>' : '')
       + (gm && done ? '<button type="button" data-gc="end" title="Закрыть сцену у всех">✓ Завершить у всех</button>' : '')
-      + (run && run.preview ? '<button type="button" data-gc="close">Закрыть предпросмотр</button>' : !gm && done ? '<button type="button" data-gc="close">Закрыть</button>' : '<button type="button" data-gc="min" title="Свернуть: сцена останется в углу кнопкой">Свернуть</button>');
+      + (run && run.preview ? '<button type="button" data-gc="close">Закрыть предпросмотр</button>' : !gm && done ? '<button type="button" data-gc="close">Закрыть</button>' : '<button type="button" data-gc="min" title="Свернуть: сцена останется внизу кнопкой">Свернуть</button>');
   }
   function onStageClick(e){
     const b = e.target.closest('[data-gc]'); if(!b) return; const a = b.dataset.gc;
@@ -36189,117 +36335,215 @@ const GroupCheck = (function(){
     else if(a==='cancel') uiConfirm('Отменить групповую проверку у всех?', {ok:'Отменить', danger:true}).then(ok=>{ if(ok) cancel(); });
     else if(a==='end') cancel();
   }
-  function hideStage(){ if(!root) return; sceneId++; SFX.stopAmb(); clearInterval(ambTimer); root.getAnimations({subtree:true}).forEach(x=>x.cancel());
-    root.hidden = true; $.pill.hidden = true; document.body.classList.remove('gc-on'); view = null; parts = []; $.cards.innerHTML = ''; $.threads.innerHTML = ''; }
+  function stopTimers(){ clearInterval(ambTimer); clearInterval(handTimer); ambTimer = handTimer = 0; }
+  function hideStage(){ if(!root) return; sceneId++; SFX.stopAmb(); stopTimers(); root.getAnimations({subtree:true}).forEach(x=>x.cancel());
+    root.hidden = true; $.pill.hidden = true; document.body.classList.remove('gc-on'); view = null; parts = []; $.cards.innerHTML = ''; $.threads.innerHTML = ''; $.deco.innerHTML = ''; $.crack.innerHTML = ''; }
 
   /* ---------- вход в сцену и ожидание ---------- */
   function enter(){
-    sceneId++; const id = sceneId; root.getAnimations({subtree:true}).forEach(x=>x.cancel()); clearInterval(ambTimer); parts = [];
-    $.cards.innerHTML = ''; $.verdict.className = 'gc-verdict'; $.vMain.textContent = ''; $.vSub.textContent = ''; $.sumN.textContent = '0'; $.core.className = 'gc-core'; $.world.classList.remove('gray');
+    sceneId++; const id = sceneId; root.getAnimations({subtree:true}).forEach(x=>x.cancel()); stopTimers(); parts = []; litUnits = 0; endState = '';
+    $.cards.innerHTML = ''; $.crack.innerHTML = ''; $.verdict.className = 'gc-verdict'; $.vMain.textContent = ''; $.vSub.textContent = ''; $.sumN.textContent = '0'; $.core.className = 'gc-core'; $.world.classList.remove('gray');
     root.className = 'gc-stage s-' + C.scene; setFx('wait'); if(C.sound) SFX.init(); SFX.newBus();
     root.hidden = false; document.body.classList.add('gc-on'); resize();
-    anim($.dim, [{opacity:0}, {opacity:C.dim ? .95 : .4}], 600);
-    anim($.core, [{opacity:0, transform:'scale(.4) rotate(-40deg)'}, {opacity:1, transform:'none'}], 1100);
-    $.r1.animate([{transform:'rotate(0)'}, {transform:'rotate(360deg)'}], {duration:reduceMotion ? 60000 : 24000, iterations:Infinity});
-    $.r2.animate([{transform:'rotate(0)'}, {transform:'rotate(-360deg)'}], {duration:reduceMotion ? 50000 : 17000, iterations:Infinity});
-    $.r3.animate([{transform:'rotate(0) scale(1)'}, {transform:'rotate(60deg) scale(1.04)'}, {transform:'rotate(120deg) scale(1)'}], {duration:9000, iterations:Infinity});
+    anim($.dim, [{opacity:0}, {opacity:C.dim ? (C.scene==='stars' ? 1 : .95) : .4}], 600);
+    anim($.core, [{opacity:0, transform:'scale(.4)'}, {opacity:1, transform:'none'}], 1100);
+    anim($.deco, [{opacity:0}, {opacity:1}], 1400);
     anim($.title, [{opacity:0, letterSpacing:'.6em', filter:'blur(8px)'}, {opacity:1, letterSpacing:'.14em', filter:'blur(0)'}], 1100);
-    SFX.whoosh(0, 1.2, 180, 1600, .3); SFX.riser(0, 1.1, .1); SFX.bell(.9, 196); setTimeout(()=>{ if(sceneId===id) SFX.ambient(C.scene); }, Dms(900));
-    if(C.scene==='frozen'){
-      $.world.classList.add('gray'); [$.barTop, $.barBot].forEach(b=>anim(b, [{height:'0'}, {height:'9%'}], 700));
-      let beat = 0; ambTimer = setInterval(()=>{ if(sceneId!==id){ clearInterval(ambTimer); return; } beat++; SFX.tick(0, beat%2 ? 1500 : 1900); if(beat%4===0){ SFX.heartbeat(0); $.vignette.animate([{opacity:.55}, {opacity:1, offset:.2}, {opacity:.55}], {duration:600}); }
-        for(let i=0;i<N(2);i++) spawn({x:rnd(0, W), y:rnd(0, H), vx:rnd(-6, 6), vy:rnd(-8, -2), size:rnd(1, 2.2), color:'#e8eef2', add:false, alpha:.5, max:4}); }, 1000); // пылинки висят в воздухе
+    SFX.whoosh(0, 1.2, 180, 1600, .3); setTimeout(()=>{ if(sceneId===id) SFX.ambient(C.scene); }, Dms(900));
+    const every = (ms, fn)=>{ ambTimer = setInterval(()=>{ if(sceneId!==id){ clearInterval(ambTimer); return; } fn(); }, ms); };
+    if(C.scene==='oath'){
+      SFX.riser(0, 1.1, .1); SFX.bell(.9, 196);
+      $.r1.animate([{transform:'rotate(0)'}, {transform:'rotate(360deg)'}], {duration:reduceMotion ? 60000 : 24000, iterations:Infinity});
+      $.r2.animate([{transform:'rotate(0)'}, {transform:'rotate(-360deg)'}], {duration:reduceMotion ? 50000 : 17000, iterations:Infinity});
+      $.r3.animate([{transform:'rotate(0) scale(1)'}, {transform:'rotate(60deg) scale(1.04)'}, {transform:'rotate(120deg) scale(1)'}], {duration:9000, iterations:Infinity});
+      every(240, ()=>{ const c = center(); for(let i=0;i<N(2);i++){ const a = rnd(0, 6.283); spawn({x:c.x + Math.cos(a)*c.r*1.5*rnd(.3, 1), y:c.y + c.r*.62 + Math.sin(a)*c.r*.45*rnd(.3, 1), vy:rnd(-60, -25), vx:rnd(-6, 6), size:rnd(1.2, 2.6), color:fxColor(), max:rnd(1.4, 2.4)}); } });
     } else if(C.scene==='link'){
-      ambTimer = setInterval(()=>{ if(sceneId!==id){ clearInterval(ambTimer); return; } const ready = [...$.cards.querySelectorAll('.gc-card.ready')], c = center();
-        ready.forEach(el=>pulseAlong(cardPt(el), c, fxColor(), 1.1, 3.5)); if(Math.random() < .35) $.tint.animate([{opacity:0}, {opacity:.35}, {opacity:0}], {duration:240, easing:'steps(3)'}); }, 900);
+      SFX.glitch(.3, 4); SFX.zap(.8);
+      every(90, ()=>{ drawThreads(); if(Math.random() < .12){ const ready = [...$.cards.querySelectorAll('.gc-card.ready')], c = center(); ready.forEach(el=>pulseAlong(cardPt(el), c, fxColor(), 1.1, 3.5, true)); }
+        if(Math.random() < .03) $.tint.animate([{opacity:0}, {opacity:.35}, {opacity:0}], {duration:240, easing:'steps(3)'}); });
+    } else if(C.scene==='frozen'){
+      $.world.classList.add('gray'); [$.barTop, $.barBot].forEach(b=>anim(b, [{height:'0'}, {height:'9%'}], 700));
+      let beat = 0; every(1000, ()=>{ beat++; SFX.tick(0, beat%2 ? 1500 : 1900); turnHand('s', 6); if(beat%4===0){ SFX.heartbeat(0); $.vignette.animate([{opacity:.55}, {opacity:1, offset:.2}, {opacity:.55}], {duration:600}); }
+        for(let i=0;i<N(2);i++) spawn({x:rnd(0, W), y:rnd(0, H), vx:rnd(-6, 6), vy:rnd(-8, -2), size:rnd(1, 2.2), color:'#e8eef2', add:false, alpha:.5, max:4}); }); // пылинки висят в воздухе
+      hands.h = 10*30 + 9; hands.m = 9*6; hands.s = 0; // без десяти десять — и время застыло (стрелки ставит buildDeco)
+    } else if(C.scene==='stars'){
+      SFX.chime(.5, 1046.5, .05);
+      every(700, ()=>{ if(Math.random() < .45){ const x = rnd(W*.1, W), y = rnd(0, H*.4), a = rnd(2.3, 2.7), sp = rnd(500, 900); spawn({type:'spark', x, y, vx:Math.cos(a)*sp, vy:Math.sin(a)*sp, size:1.6, color:'#eef1ff', max:rnd(.5, .9), tail:.09}); }
+        if(Math.random() < .3) SFX.tone('sine', [1318.5, 1568, 1760, 2093][Math.floor(rnd(0, 4))], 0, .005, .025, 1.6); });
     } else {
-      ambTimer = setInterval(()=>{ if(sceneId!==id){ clearInterval(ambTimer); return; } const c = center(); motesTo(c.x, c.y, N(3), fxColor(), c.r*2.4); }, 260);
+      SFX.whoosh(.2, 2.4, 140, 420, .22);
+      every(160, ()=>{ const c = center(), span = bridgeSpan(c); spawn({x:c.x + rnd(-span/2, span/2), y:H + 10, vx:rnd(-10, 10), vy:rnd(-70, -30), size:rnd(1, 2.4), color:'#f0b45c', alpha:.6, max:rnd(2, 4)});
+        if(Math.random() < .08) SFX.tone('sine', rnd(70, 95), 0, .2, .05, 1.4, 60); }); // искры из пропасти, далёкий гул
     }
   }
+  // стрелки циферблата («Остановленное мгновение»): углы в градусах
+  const hands = {h:0, m:0, s:0};
+  function moveHand(k, v, ms, ease){ const from = hands[k], el = $.deco.querySelector('.gc-hand.' + k); hands[k] = v;
+    if(el) el.animate([{transform:`rotate(${from}deg)`}, {transform:`rotate(${v}deg)`}], {duration:Math.max(1, ms || 1), fill:'forwards', easing:ease || 'cubic-bezier(.3,1.6,.5,1)'}); }
+  function setHands(hDeg, mDeg, sDeg, ms){ moveHand('h', hDeg, ms); moveHand('m', mDeg, ms); moveHand('s', sDeg, ms); }
+  function turnHand(k, d){ moveHand(k, hands[k] + d, 180, 'cubic-bezier(.3,1.8,.5,1)'); }
   // игрок нажал «Готов» (или пришла его отметка)
   function readyFx(el, own){
     const c = center(), p = cardPt(el), ac = fxColor(); anim(el, [{transform:'scale(1)'}, {transform:'scale(1.12)', offset:.3}, {transform:'scale(1)'}], 520, {fill:'none'});
-    ring(p.x, p.y, 20, 140, ac, 3, .8); burst(p.x, p.y, N(26), ac, {min:90, max:360, life:.7});
-    if(C.scene==='frozen'){ SFX.tick(0, 2600); SFX.heartbeat(.05); }
-    else if(C.scene==='link'){ SFX.zap(0); for(let i=0;i<3;i++) setTimeout(()=>pulseAlong(p, c, ac, .7, 5), i*120); }
-    else { SFX.chime(0, own ? 659.3 : 523.25, .1); for(let i=0;i<N(12);i++) setTimeout(()=>pulseAlong(p, c, ac, .6, 3), i*35); }
+    ring(p.x, p.y, 20, 140, ac, 3, .8); burst(p.x, p.y, N(22), ac, {min:90, max:360, life:.7});
+    if(C.scene==='oath'){ SFX.chime(0, own ? 659.3 : 523.25, .1); for(let i=0;i<N(12);i++) setTimeout(()=>pulseAlong(p, {x:c.x, y:c.y + c.r*.62}, ac, .6, 3), i*35); }
+    else if(C.scene==='link'){ SFX.zap(0); for(let i=0;i<3;i++) setTimeout(()=>pulseAlong(p, c, ac, .8, 5, true), i*120); const eye = $.deco.querySelector('.gc-eye'); if(eye) eye.animate([{transform:'scaleY(.35)'}, {transform:'scaleY(.7)'}, {transform:'scaleY(.35)'}], {duration:500}); }
+    else if(C.scene==='frozen'){ SFX.tick(0, 2600); SFX.heartbeat(.05); turnHand('m', 6); }
+    else if(C.scene==='stars'){ SFX.tone('sine', 1568, 0, .005, .08, 2.2); SFX.tone('sine', 2349, .05, .005, .04, 1.8); ring(p.x, p.y, 4, 60, '#fff', 1.5, .7); }
+    else { SFX.thud(0, 160, .4); SFX.tone('triangle', 220, 0, .01, .05, .6, 180); burst(p.x, p.y, N(14), '#f0b45c', {a:Math.PI/2, spread:.6, g:400, min:60, max:220}); }
     setTimeout(()=>{ drawThreads(); ring(c.x, c.y, c.r*.6, c.r*1.4, ac, 2, .7); }, 300);
   }
 
   /* ---------- кульминация и раскрытие ---------- */
-  async function reveal(r){
-    const id = ++sceneId; clearInterval(ambTimer); SFX.stopAmb(); $.me.hidden = true;
-    const cards = r.parts.map(p=>({p, el:$.cards.querySelector(`.gc-card[data-id="${CSS.escape(p.id)}"]`)})).filter(x=>x.el), ac = fxColor(), c = center();
-    cards.forEach(({el})=>el.classList.add('ready')); drawThreads();
-    // кульминация — по сцене
+  async function climax(id, cards, c, ac){
     if(C.scene==='frozen'){
       [$.barTop, $.barBot].forEach(b=>anim(b, [{height:'9%'}, {height:'14%'}], 500)); $.vignette.classList.add('pulse');
+      // стекло времени трескается от центра — и застывает
+      const R = seeded(5); let cr = ''; for(let k=0;k<11;k++){ let a = k/11*Math.PI*2 + R()*.4, x = c.x, y = c.y, d = `M${x} ${y}`; const L = Math.max(W, H)*.7;
+        for(let s=0;s<6;s++){ a += (R() - .5)*.6; const st = L/6*(.6 + R()*.8); x += Math.cos(a)*st; y += Math.sin(a)*st; d += ` L${x.toFixed(0)} ${y.toFixed(0)}`; } cr += `<path d="${d}"/>`; }
+      $.crack.setAttribute('viewBox', `0 0 ${W} ${H}`); $.crack.innerHTML = cr;
+      $.crack.querySelectorAll('path').forEach((p, i)=>{ const L = p.getTotalLength(); p.style.strokeDasharray = L; p.animate([{strokeDashoffset:L}, {strokeDashoffset:0}], {duration:Dms(900), delay:Dms(900 + i*40), fill:'forwards', easing:'ease-out'}); });
+      setTimeout(()=>{ if(sceneId===id){ SFX.noise(0, .4, 'highpass', 3000, .7, .25); [0, .08, .16].forEach(t=>SFX.tick(t, 3200)); } }, Dms(900));
       cards.forEach(({el}, i)=>{ const d = el.querySelector('.gc-c-die'); el.classList.add('rolling'); for(let k=1;k<=3;k++){ const gh = d.cloneNode(true); gh.classList.add('ghost'); el.appendChild(gh);
           gh.animate([{transform:`translateY(-${H*.5}px) rotate(-280deg)`, opacity:0}, {transform:'translateY(0) rotate(0)', opacity:.28 - k*.07}], {duration:Dms(2600), delay:Dms(k*90 + i*60), fill:'forwards', easing:'cubic-bezier(.25,.6,.3,1)'}); }
         anim(d, [{transform:`translateY(-${H*.5}px) rotate(-280deg)`, opacity:0}, {transform:'translateY(0) rotate(-12deg)', opacity:1}], 2600, {delay:Dms(i*60), easing:'cubic-bezier(.25,.6,.3,1)'}); });
-      [0, .55, 1.0, 1.35, 1.6, 1.8, 1.95, 2.07, 2.17, 2.25].forEach(t=>SFX.tick(t)); [.2, 1.0, 1.7].forEach(t=>SFX.heartbeat(t)); SFX.whoosh(0, 2.6, 200, 700, .16);
+      [0, .55, 1.0, 1.35, 1.6, 1.8, 1.95, 2.07, 2.17, 2.25].forEach((t, i)=>{ SFX.tick(t); setTimeout(()=>sceneId===id && turnHand('s', i < 7 ? 6 : 2), Dms(t*1000)); }); [.2, 1.0, 1.7].forEach(t=>SFX.heartbeat(t)); SFX.whoosh(0, 2.6, 200, 700, .16);
       rollNumbers(cards, 2500, 260);
       await wait(2600); if(sceneId!==id) return;
       SFX.snap(0); $.world.classList.remove('gray'); $.vignette.classList.remove('pulse'); [$.barTop, $.barBot].forEach(b=>anim(b, [{height:'14%'}, {height:'0'}], 300));
       root.querySelectorAll('.gc-c-die.ghost').forEach(x=>x.animate([{opacity:.2}, {opacity:0}], {duration:200, fill:'forwards'}));
       await wait(260); if(sceneId!==id) return;
+      $.crack.animate([{opacity:1}, {opacity:0}], {duration:Dms(300), fill:'forwards'}); SFX.noise(0, .8, 'highpass', 3600, .7, .45);
+      for(let i=0;i<N(60);i++){ const a = rnd(0, 6.283), sp = rnd(120, 700); spawn({type:'shard', x:c.x + rnd(-W*.3, W*.3), y:c.y + rnd(-H*.3, H*.3), vx:Math.cos(a)*sp, vy:Math.sin(a)*sp, ay:500, drag:.98, size:rnd(5, 16), vr:rnd(-8, 8), color:'rgba(207,227,239,.35)', add:false, max:rnd(.9, 1.6)}); }
+      setHands(hands.h + 360, hands.m + 720, hands.s + 1440, Dms(900));
       flash(.55, 240); shake(12*K() + 2, 420); SFX.thud(0, 140, 1);
       cards.forEach(({el})=>{ const p = cardPt(el); ring(p.x, p.y, 10, 170, ac, 4, .8); });
     } else if(C.scene==='link'){
       SFX.riser(0, 1.8, .16); SFX.glitch(.5, 4); SFX.glitch(1.1, 6); SFX.glitch(1.6, 3);
       $.tint.animate([{opacity:0}, {opacity:.4}, {opacity:.1}, {opacity:.5}, {opacity:.15}, {opacity:.6}], {duration:Dms(1800), easing:'steps(6)', fill:'forwards'});
-      const pl = setInterval(()=>{ if(sceneId!==id){ clearInterval(pl); return; } cards.forEach(({el})=>pulseAlong(cardPt(el), c, Math.random() < .5 ? ac : '#ff2bd6', .5, 4)); }, 110);
-      cards.forEach(({el})=>{ el.classList.add('rolling'); anim(el.querySelector('.gc-c-die'), [{opacity:0, transform:'scale(.3)'}, {opacity:1, transform:'scale(1)'}], 600); });
+      $.threads.classList.add('surge');
+      const pl = setInterval(()=>{ if(sceneId!==id){ clearInterval(pl); return; } cards.forEach(({el})=>pulseAlong(cardPt(el), c, Math.random() < .5 ? ac : '#ff2bd6', .5, 4, true)); if(Math.random() < .5){ const u = units[Math.floor(rnd(0, units.length))]; if(u) bolt(c, u, ac, .25); } }, 110);
+      const eye = $.deco.querySelector('.gc-eye'); if(eye) anim(eye, [{transform:'scaleY(.35)'}, {transform:'scaleY(.2)', offset:.6}, {transform:'scaleY(1.08)'}], 1800, {easing:'cubic-bezier(.6,0,.3,1.4)'});
+      cards.forEach(({el})=>{ el.classList.add('rolling'); anim(el.querySelector('.gc-c-die'), [{opacity:0, transform:'scale(.3)', filter:'blur(6px)'}, {opacity:1, transform:'scale(1)', filter:'blur(0)'}], 600); });
       anim($.core, [{filter:'none'}, {filter:`drop-shadow(-5px 0 #ff2bd6) drop-shadow(5px 0 #2bf0ff) drop-shadow(0 0 22px ${ac})`}], 1800, {easing:'ease-in'});
       rollNumbers(cards, 1800, 80);
       await wait(1800); clearInterval(pl); if(sceneId!==id) return;
-      flash(.9, 260); SFX.zap(0); SFX.thud(0, 120, 1); shake(10*K() + 2, 380); $.tint.animate([{opacity:.6}, {opacity:.12}], {duration:600, fill:'forwards'});
-      ring(c.x, c.y, c.r*.3, Math.max(W, H)*.7, ac, 6, 1); cards.forEach(({el})=>pulseAlong(c, cardPt(el), '#fff', .35, 6));
+      $.threads.classList.remove('surge'); flash(.9, 260); SFX.zap(0); SFX.thud(0, 120, 1); shake(10*K() + 2, 380); $.tint.animate([{opacity:.6}, {opacity:.12}], {duration:600, fill:'forwards'});
+      ring(c.x, c.y, c.r*.3, Math.max(W, H)*.7, ac, 6, 1); cards.forEach(({el})=>bolt(c, cardPt(el), '#fff', .3));
       burst(c.x, c.y, N(70), ac, {min:300, max:1000});
+    } else if(C.scene==='stars'){
+      // звездопад: с неба — по звезде к каждому участнику
+      SFX.riser(0, 1.9, .1); [0, .25, .5, .75, 1, 1.2, 1.4, 1.55, 1.7].forEach(t=>SFX.tone('sine', 1046.5*Math.pow(2, Math.floor(rnd(0, 12))/12), t, .005, .05, 1.5));
+      const sh = setInterval(()=>{ if(sceneId!==id){ clearInterval(sh); return; } for(let i=0;i<N(3);i++){ const x = rnd(W*.2, W*1.1), a = rnd(2.2, 2.6), sp = rnd(700, 1300); spawn({type:'spark', x, y:rnd(-20, H*.3), vx:Math.cos(a)*sp, vy:Math.sin(a)*sp, size:rnd(1.4, 2.6), color:Math.random() < .3 ? ac : '#f4f6ff', max:rnd(.5, 1), tail:.1}); } }, 60);
+      cards.forEach(({el}, i)=>{ el.classList.add('rolling'); const p = cardPt(el); setTimeout(()=>{ if(sceneId!==id) return; pulseAlong({x:p.x + W*.4, y:-40}, p, '#fff', .55, 5); setTimeout(()=>{ if(sceneId===id){ ring(p.x, p.y, 6, 120, ac, 3, .7); burst(p.x, p.y, N(20), '#fff', {min:80, max:320}); SFX.tone('sine', 2093, 0, .004, .08, 1.2); } }, Dms(550)); }, Dms(300 + i*320));
+        anim(el.querySelector('.gc-c-die'), [{opacity:0, transform:`translate(${W*.3}px, -${H*.4}px) rotate(220deg) scale(.4)`}, {opacity:1, transform:'none'}], 900, {delay:Dms(300 + i*320), easing:'cubic-bezier(.3,.7,.3,1)'}); });
+      $.sky = $.deco.querySelector('.gc-sky'); if($.sky) anim($.sky, [{opacity:1}, {opacity:.55}, {opacity:1}], 1900);
+      rollNumbers(cards, 1900, 90);
+      await wait(1950); clearInterval(sh); if(sceneId!==id) return;
+      flash(.7, 300); SFX.bell(0, 523.25); SFX.thud(0, 110, .6); shake(8*K() + 2, 380); ring(c.x, c.y, c.r*.2, Math.max(W, H)*.6, '#fff', 4, 1);
+    } else if(C.scene==='bridge'){
+      // порыв из пропасти: туман поднимается, верёвки раскачиваются; кости брошены через пропасть
+      SFX.whoosh(0, 2, 120, 900, .45); SFX.riser(.2, 1.6, .1); SFX.tone('sine', 82, .4, .3, .2, 1.8, 62);
+      const fog = $.deco.querySelector('.gc-fog'); if(fog) anim(fog, [{transform:'translateY(0)', opacity:.5}, {transform:'translateY(-40px)', opacity:.95}, {transform:'translateY(0)', opacity:.6}], 2000);
+      $.deco.querySelectorAll('.gc-rope').forEach((r, i)=>r.animate([{transform:'translateY(0)'}, {transform:`translateY(${i ? 9 : -9}px)`}, {transform:'translateY(0)'}], {duration:Dms(500), iterations:4}));
+      const wind = setInterval(()=>{ if(sceneId!==id){ clearInterval(wind); return; } const span = bridgeSpan(c); for(let i=0;i<N(4);i++) spawn({type:'spark', x:c.x - span/2 + rnd(0, span), y:H + 10, vx:rnd(-40, 40), vy:rnd(-700, -380), size:rnd(1, 2), color:'#f0b45c', max:rnd(.6, 1.1), tail:.05}); }, 70);
+      cards.forEach(({el}, i)=>{ el.classList.add('rolling'); const fromLeft = cardPt(el).x > c.x;
+        anim(el.querySelector('.gc-c-die'), [{opacity:0, transform:`translate(${fromLeft ? -W*.5 : W*.5}px, ${H*.1}px) rotate(${fromLeft ? 540 : -540}deg)`}, {opacity:1, transform:'translate(0,-30px) rotate(20deg)', offset:.75}, {opacity:1, transform:'none'}], 1500, {delay:Dms(i*140), easing:'cubic-bezier(.3,.6,.4,1)'}); setTimeout(()=>sceneId===id && SFX.tick(0, 900), Dms(i*140 + 1500)); });
+      shake(4*K() + 1, 1400); rollNumbers(cards, 1900, 110);
+      await wait(1950); clearInterval(wind); if(sceneId!==id) return;
+      SFX.thud(0, 90, .9); flash(.35, 260); shake(9*K() + 2, 400);
     } else {
-      SFX.riser(0, 1.9, .16); SFX.chime(.4, 392, .08); SFX.chime(1.1, 440, .09);
+      // Круг клятвы: столб света из круга на полу
+      SFX.riser(0, 1.9, .16); SFX.chime(.4, 392, .08); SFX.chime(1.1, 440, .09); [196, 246.9, 293.7].forEach((f, i)=>SFX.tone('sawtooth', f, .2 + i*.2, .8, .025, 1.6));
       [$.r1, $.r2].forEach((r, i)=>r.animate([{transform:'rotate(0)'}, {transform:`rotate(${i ? -1080 : 1080}deg)`}], {duration:Dms(2000), easing:'cubic-bezier(.6,0,.4,1)'}));
-      anim($.core, [{transform:'scale(1)'}, {transform:'scale(.7)', offset:.85}, {transform:'scale(1.25)'}], 2000);
-      const mt = setInterval(()=>{ if(sceneId!==id){ clearInterval(mt); return; } motesTo(c.x, c.y, N(10), ac); }, 70);
+      $.beam.style.left = c.x + 'px'; $.beam.style.top = '0px'; $.beam.style.height = (c.y + c.r*.62) + 'px';
+      anim($.beam, [{opacity:0, transform:'translateX(-50%) scaleX(.1) scaleY(0)'}, {opacity:.9, transform:'translateX(-50%) scaleX(.4) scaleY(1)', offset:.6}, {opacity:1, transform:'translateX(-50%) scaleX(1) scaleY(1)'}], 2000);
+      const fl = $.deco.querySelector('.gc-oath'); if(fl) fl.classList.add('lit');
+      const mt = setInterval(()=>{ if(sceneId!==id){ clearInterval(mt); return; } motesTo(c.x, c.y, N(6), ac); for(let i=0;i<N(4);i++) spawn({x:c.x + rnd(-c.r*.3, c.r*.3), y:c.y + c.r*.62, vy:rnd(-700, -350), vx:rnd(-20, 20), size:rnd(1.4, 3), color:'#fff', max:rnd(.5, .9)}); }, 70);
       cards.forEach(({el})=>{ el.classList.add('rolling'); anim(el.querySelector('.gc-c-die'), [{opacity:0, transform:'translateY(-30px) rotate(-200deg)'}, {opacity:1, transform:'none'}], 900); });
       rollNumbers(cards, 2000, 90);
       await wait(2000); clearInterval(mt); if(sceneId!==id) return;
       flash(.85, 260); SFX.thud(0, 110, 1); SFX.bell(0, 130.8); shake(14*K() + 2, 480);
       ring(c.x, c.y, c.r*.5, Math.max(W, H)*.7, ac, 7, 1); setTimeout(()=>ring(c.x, c.y, c.r*.4, Math.max(W, H)*.45, '#f6ecd4', 3, .8), Dms(120));
       burst(c.x, c.y, N(90), ac, {min:260, max:1100, life:1.1});
-      anim($.core, [{transform:'scale(1.25)'}, {transform:'scale(1)'}], 500);
+      anim($.beam, [{opacity:1}, {opacity:.35}], 700);
     }
-    // карточки по одной: число, исход, сумма растёт
+  }
+  // одна категория успеха легла на своё место
+  function lightUnit(i, from){
+    const u = units[i], el = $.deco.querySelector(`.gc-u[data-i="${i}"]`), ac = accent('win'); if(!u) return; litUnits = Math.max(litUnits, i + 1);
+    if(el){ el.classList.add('on'); const ui = el.querySelector('.gc-ui'); if(ui) ui.animate([{transform:'scale(1.9)'}, {transform:'scale(1)'}], {duration:Dms(380), easing:'cubic-bezier(.3,1.6,.5,1)'}); }
+    const step = Math.pow(2, (i%8)*2/12);
+    if(C.scene==='oath'){ SFX.bell(0, 392*step); for(let k=0;k<N(8);k++) spawn({x:u.x + rnd(-5, 5), y:u.y, vy:rnd(-260, -120), size:rnd(1.2, 2.4), color:ac, max:rnd(.6, 1)}); }
+    else if(C.scene==='link'){ bolt(center(), u, ac, .35); SFX.zap(0); SFX.tone('sine', 660*step, 0, .005, .06, .6); }
+    else if(C.scene==='frozen'){ turnHand('m', 30); SFX.tick(0, 2200); SFX.tone('triangle', 880*step, .02, .005, .06, .8); }
+    else if(C.scene==='stars'){ ring(u.x, u.y, 2, 46, '#fff', 2, .6); SFX.tone('sine', 1046.5*step, 0, .004, .08, 1.8); const ln = $.deco.querySelector(`.gc-cl[data-i="${i}"]`); if(ln) ln.classList.add('on'); }
+    else { const pl = el && el.querySelector('.gc-plank'); if(pl) pl.animate([{transform:`translateY(-${H*.35}px) rotate(${rnd(-25, 25)}deg)`, opacity:0}, {transform:'translateY(4px) rotate(0)', opacity:1, offset:.8}, {transform:'none', opacity:1}], {duration:Dms(420), easing:'cubic-bezier(.5,0,.6,1)'});
+      setTimeout(()=>{ SFX.thud(0, 150 + i%4*12, .5); SFX.noise(0, .12, 'bandpass', 900, 1.5, .2); for(let k=0;k<N(10);k++) spawn({x:u.x + rnd(-20, 20), y:u.y + 10, vx:rnd(-80, 80), vy:rnd(-60, 40), ay:300, size:rnd(1.5, 3.5), color:'#b39f72', add:false, max:rnd(.5, 1)}); }, Dms(340)); }
+    void from;
+  }
+  function failFx(el, pt, c){
+    SFX.tone('sine', 98, 0, .02, .25, .9, 70); el.animate([{transform:'translateX(0)'}, {transform:'translateX(-6px)'}, {transform:'translateX(5px)'}, {transform:'translateX(0)'}], {duration:300});
+    if(C.scene==='link'){ SFX.noise(0, .3, 'bandpass', 1800, 2, .15); }
+    else if(C.scene==='stars'){ spawn({type:'spark', x:pt.x, y:pt.y, vx:rnd(-60, 60), vy:420, ay:300, size:1.6, color:'#8a8fb0', max:1, tail:.08}); }
+    else if(C.scene==='bridge'){ for(let k=0;k<3;k++) spawn({type:'shard', x:pt.x + rnd(-20, 20), y:pt.y, vx:rnd(-40, 40), vy:rnd(40, 120), ay:700, size:rnd(6, 10), vr:rnd(-6, 6), color:'#6f5a3e', add:false, max:1.4}); SFX.tone('sine', 70, .9, .05, .15, .8); }
+    else if(C.scene==='frozen'){ SFX.tick(0, 700); }
+    void c;
+  }
+  async function reveal(r){
+    const id = ++sceneId; stopTimers(); SFX.stopAmb(); $.me.hidden = true; layout();
+    const cards = r.parts.map(p=>({p, el:$.cards.querySelector(`.gc-card[data-id="${CSS.escape(p.id)}"]`)})).filter(x=>x.el), ac = fxColor(), c = center();
+    cards.forEach(({el})=>el.classList.add('ready')); drawThreads();
+    if(C.scene==='link'){ ambTimer = setInterval(()=>{ if(sceneId===id) drawThreads(); else clearInterval(ambTimer); }, 90); }
+    await climax(id, cards, c, ac); if(sceneId!==id) return;
+    // карточки по одной: число, исход; каждая категория ложится на своё место, сумма растёт
     let sum = 0;
     for(const {p, el} of cards){ if(sceneId!==id) return;
       const res = p.res || {roll:0, success:false, category:0}, die = el.querySelector('.gc-c-die'), pt = cardPt(el);
       die.querySelector('.gc-dn').textContent = res.missing ? '—' : res.roll; el.classList.remove('rolling');
       el.classList.add(res.success ? 'win' : 'lose'); el.querySelector('.gc-c-state').innerHTML = res.missing ? 'нет листа' : res.success ? `<b>КУ${res.category}</b>${res.roll===12 ? ' · нат. 12' : ''}` : `<b>провал</b>${res.roll===13 ? ' · нат. 13' : ''}`;
       anim(el, [{transform:'scale(1)'}, {transform:'scale(1.16)', offset:.3}, {transform:'scale(1)'}], 420, {fill:'none'});
-      if(res.success){ SFX.chime(0, 523.25*Math.pow(2, (res.category - 1)*4/12), .1); burst(pt.x, pt.y, N(18 + res.category*10), accent('win'), {min:120, max:420});
-        for(let k=0;k<res.category;k++) setTimeout(()=>{ if(sceneId!==id) return; pulseAlong(pt, c, accent('win'), .55, 6); setTimeout(()=>{ if(sceneId!==id) return; sum++; $.sumN.textContent = sum; anim($.sum, [{transform:'scale(1.35)'}, {transform:'scale(1)'}], 260, {fill:'none'}); SFX.tick(0, 2400); }, Dms(520)); }, Dms(k*160)); }
-      else { SFX.tone('sine', 98, 0, .02, .25, .9, 70); el.animate([{transform:'translateX(0)'}, {transform:'translateX(-6px)'}, {transform:'translateX(5px)'}, {transform:'translateX(0)'}], {duration:300}); }
-      await wait(res.success ? 520 + res.category*170 : 480);
+      if(res.success){ SFX.chime(0, 523.25*Math.pow(2, (res.category - 1)*4/12), .08); burst(pt.x, pt.y, N(14 + res.category*8), accent('win'), {min:120, max:420});
+        for(let k=0;k<res.category;k++){ const idx = sum + k; setTimeout(()=>{ if(sceneId!==id) return; const u = units[idx] || c; pulseAlong(pt, u, accent('win'), .5, 6, C.scene==='link');
+          setTimeout(()=>{ if(sceneId!==id) return; lightUnit(idx, pt); $.sumN.textContent = idx + 1; anim($.sum, [{transform:'scale(1.35)'}, {transform:'scale(1)'}], 260, {fill:'none'}); }, Dms(500)); }, Dms(k*200)); }
+        sum += res.category; }
+      else { failFx(el, pt, c); drawThreads(); }
+      await wait(res.success ? 560 + res.category*200 : 520);
     }
     await wait(500); if(sceneId!==id) return;
-    $.sumN.textContent = r.total; finalVerdict(r, true);
+    stopTimers(); $.sumN.textContent = r.total; finalVerdict(r, true);
   }
   function rollNumbers(cards, ms, every){ const end = performance.now() + Dms(ms), t = setInterval(()=>{ const done = performance.now() >= end || !view;
     cards.forEach(({el})=>{ const n = el.querySelector('.gc-c-die .gc-dn'); if(n && el.classList.contains('rolling')) n.textContent = done ? '' : 1 + Math.floor(Math.random()*20); }); if(done) clearInterval(t); }, every || 80); }
+  // надпись исхода — своя у каждой сцены
+  const VERDICT = {oath:['Клятва исполнена', 'Клятва нарушена'], link:['Разумы едины', 'Связь оборвана'], frozen:['Мгновение ваше', 'Время упущено'],
+    stars:['Звёзды сошлись', 'Звёзды не сошлись'], bridge:['Мост выдержал', 'Мост рухнул']};
   function finalVerdict(r, animate){
-    setFx(r.ok ? 'win' : 'lose'); const ac = fxColor(), c = center();
-    $.vMain.textContent = r.ok ? 'Группа справилась' : 'Провал';
-    $.vSub.textContent = `${r.total} ${catWord(r.total)} успеха из ${r.need} нужных · ${r.title}`;
-    $.verdict.className = 'gc-verdict show ' + (r.ok ? 'win' : 'lose'); $.core.classList.add(r.ok ? 'win' : 'lose'); ctlButtons();
+    endState = r.ok ? 'win' : 'lose'; setFx(endState); const ac = fxColor(), c = center(), vv = VERDICT[C.scene] || ['Группа справилась', 'Провал'];
+    $.vMain.textContent = r.ok ? vv[0] : vv[1];
+    $.vSub.textContent = `${r.ok ? 'Группа справилась' : 'Провал'} · ${r.total} ${catWord(r.total)} успеха из ${r.need} · ${r.title}`;
+    $.verdict.className = 'gc-verdict show ' + endState; $.core.classList.add(endState); ctlButtons();
+    const fig = $.deco.firstElementChild; if(fig) fig.classList.add(endState==='win' ? 'won' : 'lost');
+    if(C.scene==='link'){ const eye = $.deco.querySelector('.gc-eye'); if(eye){ eye.classList.add(r.ok ? 'wide' : 'shut'); if(!r.ok) eye.getAnimations().forEach(a=>a.cancel()); } } // открытый глаз так и остаётся
+    if(C.scene==='frozen') setHands(r.ok ? Math.ceil(hands.h/360)*360 : Math.ceil(hands.h/360)*360 + 180, r.ok ? Math.ceil(hands.m/360)*360 : Math.ceil(hands.m/360)*360 + 180, r.ok ? Math.ceil(hands.s/360)*360 : hands.s + 13, animate ? Dms(900) : 1);
     if(!animate) return;
     anim($.verdict, [{opacity:0, transform:'translateY(20px) scale(.94)'}, {opacity:1, transform:'none'}], 600);
     anim($.vMain, [{filter:'blur(8px)', letterSpacing:'.6em'}, {filter:'blur(0)', letterSpacing:'.14em'}], 900, {fill:'none'});
-    if(r.ok){ SFX.win(0); flash(.5, 300); ring(c.x, c.y, c.r*.5, Math.max(W, H)*.8, ac, 8, 1.2); burst(c.x, c.y, N(140), ac, {min:200, max:1000, life:1.3, g:300}); motesTo(c.x, c.y, N(40), ac); }
-    else { SFX.lose(0); shake(8*K() + 2, 420); $.world.classList.add('gray'); for(let i=0;i<N(40);i++) spawn({x:c.x + rnd(-c.r, c.r), y:c.y + rnd(-c.r*.4, c.r*.4), vx:rnd(-80, 80), vy:rnd(-40, 60), ay:260, drag:.97, size:rnd(2, 5), color:'#8a7d62', add:false, max:rnd(1, 1.8)}); }
+    if(r.ok){ SFX.win(0); flash(.5, 300);
+      if(C.scene==='stars'){ ring(c.x, c.y, 4, Math.max(W, H)*.9, '#fff', 10, 1.4); units.forEach((u, i)=>setTimeout(()=>ring(u.x, u.y, 2, 40, '#fff', 2, .6), Dms(i*60))); burst(c.x, c.y, N(160), '#fff', {min:200, max:1400, life:1.4}); }
+      else if(C.scene==='bridge'){ units.forEach((u, i)=>setTimeout(()=>{ ring(u.x, u.y, 4, 60, ac, 2, .6); SFX.tone('triangle', 330*Math.pow(2, i%6/12), 0, .01, .05, .8); }, Dms(i*70))); burst(c.x + bridgeSpan(c)/2, c.y + c.r, N(80), ac, {a:Math.PI, spread:.8, min:200, max:800}); }
+      else if(C.scene==='oath'){ ring(c.x, c.y + c.r*.62, c.r*.3, c.r*3, ac, 8, 1.2); anim($.beam, [{opacity:.35}, {opacity:1, filter:'brightness(1.6)'}, {opacity:.6}], 1200); burst(c.x, c.y, N(120), ac, {min:200, max:1000, life:1.3, g:300}); }
+      else { ring(c.x, c.y, c.r*.5, Math.max(W, H)*.8, ac, 8, 1.2); burst(c.x, c.y, N(140), ac, {min:200, max:1000, life:1.3, g:300}); motesTo(c.x, c.y, N(40), ac); } }
+    else { SFX.lose(0); shake(8*K() + 2, 420); $.world.classList.add('gray');
+      if(C.scene==='bridge'){ const lastI = litUnits - 1; units.forEach((u, i)=>{ if(i >= litUnits || i < lastI) return; const el = $.deco.querySelector(`.gc-u[data-i="${i}"] .gc-plank`); if(el) el.animate([{transform:'none'}, {transform:'rotate(8deg)', offset:.3}, {transform:`translateY(${H*.6}px) rotate(70deg)`, opacity:0}], {duration:Dms(1600), delay:Dms(400), fill:'forwards', easing:'cubic-bezier(.5,0,.8,.6)'}); });
+        SFX.noise(.4, .5, 'bandpass', 600, 1.2, .3); SFX.tone('sine', 60, 1.6, .05, .2, 1.4, 40); }
+      else if(C.scene==='stars'){ units.forEach((u, i)=>{ if(i < litUnits) return; spawn({type:'spark', x:u.x, y:u.y, vx:rnd(-80, 80), vy:rnd(200, 420), ay:400, size:1.6, color:'#8a8fb0', max:rnd(.8, 1.4), tail:.1}); }); }
+      else if(C.scene==='oath'){ anim($.beam, [{opacity:.35, transform:'translateX(-50%) scaleX(1) scaleY(1)'}, {opacity:0, transform:'translateX(-50%) scaleX(.05) scaleY(1)'}], 600); }
+      else for(let i=0;i<N(40);i++) spawn({x:c.x + rnd(-c.r, c.r), y:c.y + rnd(-c.r*.4, c.r*.4), vx:rnd(-80, 80), vy:rnd(-40, 60), ay:260, drag:.97, size:rnd(2, 5), color:'#8a7d62', add:false, max:rnd(1, 1.8)}); }
   }
-  function finalStatic(){ if(!view) return; $.me.hidden = true; view.parts.forEach(p=>{ const el = $.cards.querySelector(`.gc-card[data-id="${CSS.escape(p.id)}"]`); if(!el || !p.res) return;
-    el.classList.add('ready', p.res.success ? 'win' : 'lose'); el.querySelector('.gc-c-die .gc-dn').textContent = p.res.missing ? '—' : p.res.roll;
-    el.querySelector('.gc-c-state').innerHTML = p.res.success ? `<b>КУ${p.res.category}</b>` : '<b>провал</b>'; }); $.sumN.textContent = view.total; drawThreads(); finalVerdict(view, false); }
+  function finalStatic(){ if(!view) return; $.me.hidden = true; let sum = 0; view.parts.forEach(p=>{ const el = $.cards.querySelector(`.gc-card[data-id="${CSS.escape(p.id)}"]`); if(!el || !p.res) return;
+    el.classList.add('ready', p.res.success ? 'win' : 'lose'); el.querySelector('.gc-c-die .gc-dn').textContent = p.res.missing ? '—' : p.res.roll; sum += p.res.success ? p.res.category : 0;
+    el.querySelector('.gc-c-state').innerHTML = p.res.success ? `<b>КУ${p.res.category}</b>` : '<b>провал</b>'; }); litUnits = sum; $.sumN.textContent = view.total; layout(); finalVerdict(view, false); }
 
   /* ---------- предпросмотр у себя (Мастер) ---------- */
   function preview(){
