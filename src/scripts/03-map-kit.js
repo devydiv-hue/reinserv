@@ -58,8 +58,8 @@ const MapFormat = (function(){
   const WALL_KINDS = {
     concrete:{name:'Бетон', fill:'#8e8a80', w:0.26}, brick:{name:'Кирпич', fill:'#8f5240', w:0.24, hatch:true},
     metal:{name:'Металл', fill:'#66737a', w:0.18}, wood:{name:'Доски', fill:'#7a5a39', w:0.16, hatch:true},
-    scrap:{name:'Металлолом', fill:'#8a5333', w:0.22, rough:true}, sandbag:{name:'Мешки с песком', fill:'#b39b6a', w:0.34, bags:true},
-    fence:{name:'Сетка-рабица', fill:'#6e7880', w:0.06, fence:true}, rock:{name:'Скала', fill:'#706a62', w:0.42, rough:true},
+    scrap:{name:'Металлолом', fill:'#8a5333', w:0.22, rough:true}, sandbag:{name:'Мешки с песком', fill:'#b39b6a', w:0.34, bags:true, see:true},
+    fence:{name:'Сетка-рабица', fill:'#6e7880', w:0.06, fence:true, see:true}, rock:{name:'Скала', fill:'#706a62', w:0.42, rough:true},
     plaster:{name:'Перегородка', fill:'#b9b1a2', w:0.12},
   };
   const PATH_KINDS = {
@@ -118,7 +118,7 @@ const MapFormat = (function(){
     (Array.isArray(raw.objects) ? raw.objects : []).slice(0, 8000).forEach(o=>{
       if(!o || typeof o.a!=='string') return;
       doc.objects.push({ id: str(o.id, 64) || newId('o'), a: str(o.a, 64), x: pt([o.x, o.y])[0], y: pt([o.x, o.y])[1],
-        r: r3(((num(o.r, 0) % 360) + 360) % 360), s: r3(clamp(num(o.s, 1), 0.1, 8)), v: Math.round(clamp(num(o.v, 0), 0, 99)), f: !!o.f });
+        r: r3(((num(o.r, 0) % 360) + 360) % 360), s: r3(clamp(num(o.s, 1), 0.1, 8)), v: Math.round(clamp(num(o.v, 0), 0, 99)), f: !!o.f, sb: o.sb===0 || o.sb===1 ? o.sb : undefined }); // sb — закрывает обзор: 1 да, 0 нет, нет поля — как у объекта (FogKit)
     });
     (Array.isArray(raw.labels) ? raw.labels : []).slice(0, 1000).forEach(l=>{
       const text = str(l && l.text, 200).trim(); if(!text) return;
@@ -1043,8 +1043,8 @@ const MapAssets = (function(){
   A('house_small', 'Жилой дом, малый', 'city', 3, 3, {t:'дом здание жилой коттедж крыша черепица', v:HOUSE_SMALL.length, vn:VN(HOUSE_SMALL), hd:true}, (g, v)=>houseDraw(g, 3, 3, PV(HOUSE_SMALL, v)));
   A('house_mid', 'Жилой дом, средний', 'city', 4, 5, {t:'дом здание жилой крыша огород', v:HOUSE_MID.length, vn:VN(HOUSE_MID), hd:true}, (g, v)=>houseDraw(g, 4, 5, PV(HOUSE_MID, v)));
   A('apartment_block', 'Многоквартирный дом', 'city', 6, 8, {t:'дом многоэтажка панелька жилой крыша', v:APT_BLOCK.length, vn:VN(APT_BLOCK), hd:true}, (g, v)=>blockDraw(g, 6, 8, PV(APT_BLOCK, v)));
-  A('ruin_house', 'Руины дома', 'city', 4, 4, {t:'руины разрушенный дом развалины', v:RUIN_HOUSE.length, vn:VN(RUIN_HOUSE), hd:true}, (g, v)=>ruinDraw(g, 4, 4, PV(RUIN_HOUSE, v)));
-  A('ruin_corner', 'Обрушенный угол здания', 'city', 3, 3, {t:'руины стена угол', v:RUIN_CORNER.length, vn:VN(RUIN_CORNER), hd:true}, (g, v)=>cornerDraw(g, PV(RUIN_CORNER, v)));
+  A('ruin_house', 'Руины дома', 'city', 4, 4, {t:'руины разрушенный дом развалины', v:RUIN_HOUSE.length, vn:VN(RUIN_HOUSE), hd:true, sight:(v)=>{ const d = PV(RUIN_HOUSE, v); return d.walls.concat(d.inner || []); }}, (g, v)=>ruinDraw(g, 4, 4, PV(RUIN_HOUSE, v)));
+  A('ruin_corner', 'Обрушенный угол здания', 'city', 3, 3, {t:'руины стена угол', v:RUIN_CORNER.length, vn:VN(RUIN_CORNER), hd:true, sight:(v)=>PV(RUIN_CORNER, v).walls}, (g, v)=>cornerDraw(g, PV(RUIN_CORNER, v)));
   A('yard', 'Двор с детской площадкой', 'city', 4, 4, {t:'двор площадка качели песочница горка', g:true, v:YARD.length, vn:VN(YARD), hd:true}, (g, v)=>yardDraw(g, PV(YARD, v)));
   A('crossroad', 'Разметка перекрёстка', 'city', 4, 4, {t:'перекрёсток разметка зебра дорога люк', g:true, v:CROSS.length, vn:VN(CROSS), hd:true}, (g, v)=>crossDraw(g, PV(CROSS, v)));
   A('zebra', 'Пешеходный переход', 'city', 3, 1, {t:'зебра переход разметка', g:true, v:ZEBRA.length, vn:VN(ZEBRA), hd:true}, (g, v)=>zebraDraw(g, PV(ZEBRA, v)));
@@ -3868,7 +3868,7 @@ const MapRender = (function(){
   function isGround(o){ const a = MapAssets.BY_ID[o.a]; return !!(a && a.g); }
   function visibleBox(b, v){ return !(b.x1 < v.x0 || b.x0 > v.x1 || b.y1 < v.y0 || b.y0 > v.y1); }
   function pathBox(pts, pad){ let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity; pts.forEach(p=>{ x0 = Math.min(x0, p[0]); y0 = Math.min(y0, p[1]); x1 = Math.max(x1, p[0]); y1 = Math.max(y1, p[1]); }); return {x0:x0 - pad, y0:y0 - pad, x1:x1 + pad, y1:y1 + pad}; }
-  // Вся карта. opts: {k, view, hidden:{layerId:true}, clip:true}
+  // Вся карта. opts: {k, view, hidden:{layerId:true}, clip:true, doorV:{id объекта: вариант}} — doorV: двери, открытые или закрытые на столе
   function drawMap(ctx, doc, opts){
     const k = opts.k, v = opts.view || {x0:0, y0:0, x1:doc.cols, y1:doc.rows}, hid = opts.hidden || {};
     ctx.save();
@@ -3877,7 +3877,8 @@ const MapRender = (function(){
     if(!hid.paths){ const vis = doc.paths.filter(p=>visibleBox(pathBox(p.points, p.width + 1), v)); if(HD() && (k || 64) >= 6) [0, 1, 2].forEach(layer=>vis.forEach(p=>drawPath(ctx, p, k, layer))); else vis.forEach(p=>drawPath(ctx, p, k)); }
     if(!hid.ground) doc.objects.forEach(o=>{ if(isGround(o) && visibleBox(MapAssets.objectBounds(o), v)) MapAssets.drawObject(ctx, o, k); });
     if(!hid.walls) doc.walls.forEach(w=>{ if(visibleBox(pathBox(w.points, 0.5), v)) drawWall(ctx, w, k); });
-    if(!hid.objects) doc.objects.forEach(o=>{ if(!isGround(o) && visibleBox(MapAssets.objectBounds(o), v)) MapAssets.drawObject(ctx, o, k); });
+    const dv = opts.doorV;
+    if(!hid.objects) doc.objects.forEach(o=>{ if(!isGround(o) && visibleBox(MapAssets.objectBounds(o), v)) MapAssets.drawObject(ctx, dv && dv[o.id]!==undefined ? Object.assign({}, o, {v:dv[o.id]}) : o, k); });
     if(!hid.labels) doc.labels.forEach(l=>{ if(l.x > v.x0 - 10 && l.x < v.x1 + 10 && l.y > v.y0 - 4 && l.y < v.y1 + 4) drawLabel(ctx, l); });
     ctx.restore();
   }

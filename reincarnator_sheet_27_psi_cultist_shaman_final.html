@@ -1319,6 +1319,9 @@ var Theme = (function(){
   .gt-viewport.panning .gt-token{ cursor:grabbing; }
   .gt-viewport.panning{ cursor:grabbing; }
   .gt-canvas{ position:absolute; left:0; top:0; pointer-events:none; }
+  .gt-canvas-fog{ display:none; }
+  .gt-viewport.tool-fog{ cursor:crosshair; }
+  .gt-token.fog-hid .gt-token-disc{ filter:saturate(.35) brightness(.8); outline:2px dashed rgba(127,142,168,.9); outline-offset:2px; }
   .gt-token-layer{ position:absolute; left:0; top:0; width:0; height:0; transform-origin:0 0; pointer-events:none; --gt-inv:1; }
   .gt-token{ position:absolute; left:0; top:0; pointer-events:auto; cursor:pointer; }
   .gt-token.movable{ cursor:grab; }
@@ -1512,6 +1515,8 @@ var Theme = (function(){
   button.gt-tool:hover{ background:rgba(246,236,212,.1); color:var(--vellum-bright); border-color:transparent; }
   button.gt-tool.active{ background:var(--stamp); color:var(--vellum-bright); border-color:var(--stamp); }
   button.gt-tool:disabled{ opacity:.3; }
+  button.gt-tool.fog-on:not(.active){ box-shadow:inset 0 0 0 1.5px var(--stamp); }
+  .gt-fog-val{ color:var(--vellum-bright); font-weight:700; min-width:36px; text-transform:none; }
   button.gt-tool svg{ width:15px; height:15px; flex-shrink:0; }
   .gt-zoom-label{ color:var(--vellum-bright); font-size:11px; font-weight:700; min-width:40px; text-align:center; cursor:pointer; }
   .gt-sep{ width:1px; align-self:stretch; background:rgba(246,236,212,.18); margin:3px 3px; }
@@ -3054,6 +3059,7 @@ html[data-theme="dark"] .gs-dock-btn.active{ color:#ff9b7f; }
     <div class="gt-viewport" id="gtViewport" tabindex="0" aria-label="Игровой стол">
       <canvas class="gt-canvas" id="gtCanvasBg"></canvas>
       <canvas class="gt-canvas" id="gtCanvasDraw"></canvas>
+      <canvas class="gt-canvas gt-canvas-fog" id="gtCanvasFog"></canvas>
       <div class="gt-token-layer" id="gtTokenLayer"></div>
       <canvas class="gt-canvas" id="gtCanvasFx"></canvas>
       <div class="gt-empty-hint" id="gtEmptyHint"></div>
@@ -16220,8 +16226,8 @@ const MapFormat = (function(){
   const WALL_KINDS = {
     concrete:{name:'Бетон', fill:'#8e8a80', w:0.26}, brick:{name:'Кирпич', fill:'#8f5240', w:0.24, hatch:true},
     metal:{name:'Металл', fill:'#66737a', w:0.18}, wood:{name:'Доски', fill:'#7a5a39', w:0.16, hatch:true},
-    scrap:{name:'Металлолом', fill:'#8a5333', w:0.22, rough:true}, sandbag:{name:'Мешки с песком', fill:'#b39b6a', w:0.34, bags:true},
-    fence:{name:'Сетка-рабица', fill:'#6e7880', w:0.06, fence:true}, rock:{name:'Скала', fill:'#706a62', w:0.42, rough:true},
+    scrap:{name:'Металлолом', fill:'#8a5333', w:0.22, rough:true}, sandbag:{name:'Мешки с песком', fill:'#b39b6a', w:0.34, bags:true, see:true},
+    fence:{name:'Сетка-рабица', fill:'#6e7880', w:0.06, fence:true, see:true}, rock:{name:'Скала', fill:'#706a62', w:0.42, rough:true},
     plaster:{name:'Перегородка', fill:'#b9b1a2', w:0.12},
   };
   const PATH_KINDS = {
@@ -16280,7 +16286,7 @@ const MapFormat = (function(){
     (Array.isArray(raw.objects) ? raw.objects : []).slice(0, 8000).forEach(o=>{
       if(!o || typeof o.a!=='string') return;
       doc.objects.push({ id: str(o.id, 64) || newId('o'), a: str(o.a, 64), x: pt([o.x, o.y])[0], y: pt([o.x, o.y])[1],
-        r: r3(((num(o.r, 0) % 360) + 360) % 360), s: r3(clamp(num(o.s, 1), 0.1, 8)), v: Math.round(clamp(num(o.v, 0), 0, 99)), f: !!o.f });
+        r: r3(((num(o.r, 0) % 360) + 360) % 360), s: r3(clamp(num(o.s, 1), 0.1, 8)), v: Math.round(clamp(num(o.v, 0), 0, 99)), f: !!o.f, sb: o.sb===0 || o.sb===1 ? o.sb : undefined }); // sb — закрывает обзор: 1 да, 0 нет, нет поля — как у объекта (FogKit)
     });
     (Array.isArray(raw.labels) ? raw.labels : []).slice(0, 1000).forEach(l=>{
       const text = str(l && l.text, 200).trim(); if(!text) return;
@@ -17205,8 +17211,8 @@ const MapAssets = (function(){
   A('house_small', 'Жилой дом, малый', 'city', 3, 3, {t:'дом здание жилой коттедж крыша черепица', v:HOUSE_SMALL.length, vn:VN(HOUSE_SMALL), hd:true}, (g, v)=>houseDraw(g, 3, 3, PV(HOUSE_SMALL, v)));
   A('house_mid', 'Жилой дом, средний', 'city', 4, 5, {t:'дом здание жилой крыша огород', v:HOUSE_MID.length, vn:VN(HOUSE_MID), hd:true}, (g, v)=>houseDraw(g, 4, 5, PV(HOUSE_MID, v)));
   A('apartment_block', 'Многоквартирный дом', 'city', 6, 8, {t:'дом многоэтажка панелька жилой крыша', v:APT_BLOCK.length, vn:VN(APT_BLOCK), hd:true}, (g, v)=>blockDraw(g, 6, 8, PV(APT_BLOCK, v)));
-  A('ruin_house', 'Руины дома', 'city', 4, 4, {t:'руины разрушенный дом развалины', v:RUIN_HOUSE.length, vn:VN(RUIN_HOUSE), hd:true}, (g, v)=>ruinDraw(g, 4, 4, PV(RUIN_HOUSE, v)));
-  A('ruin_corner', 'Обрушенный угол здания', 'city', 3, 3, {t:'руины стена угол', v:RUIN_CORNER.length, vn:VN(RUIN_CORNER), hd:true}, (g, v)=>cornerDraw(g, PV(RUIN_CORNER, v)));
+  A('ruin_house', 'Руины дома', 'city', 4, 4, {t:'руины разрушенный дом развалины', v:RUIN_HOUSE.length, vn:VN(RUIN_HOUSE), hd:true, sight:(v)=>{ const d = PV(RUIN_HOUSE, v); return d.walls.concat(d.inner || []); }}, (g, v)=>ruinDraw(g, 4, 4, PV(RUIN_HOUSE, v)));
+  A('ruin_corner', 'Обрушенный угол здания', 'city', 3, 3, {t:'руины стена угол', v:RUIN_CORNER.length, vn:VN(RUIN_CORNER), hd:true, sight:(v)=>PV(RUIN_CORNER, v).walls}, (g, v)=>cornerDraw(g, PV(RUIN_CORNER, v)));
   A('yard', 'Двор с детской площадкой', 'city', 4, 4, {t:'двор площадка качели песочница горка', g:true, v:YARD.length, vn:VN(YARD), hd:true}, (g, v)=>yardDraw(g, PV(YARD, v)));
   A('crossroad', 'Разметка перекрёстка', 'city', 4, 4, {t:'перекрёсток разметка зебра дорога люк', g:true, v:CROSS.length, vn:VN(CROSS), hd:true}, (g, v)=>crossDraw(g, PV(CROSS, v)));
   A('zebra', 'Пешеходный переход', 'city', 3, 1, {t:'зебра переход разметка', g:true, v:ZEBRA.length, vn:VN(ZEBRA), hd:true}, (g, v)=>zebraDraw(g, PV(ZEBRA, v)));
@@ -20030,7 +20036,7 @@ const MapRender = (function(){
   function isGround(o){ const a = MapAssets.BY_ID[o.a]; return !!(a && a.g); }
   function visibleBox(b, v){ return !(b.x1 < v.x0 || b.x0 > v.x1 || b.y1 < v.y0 || b.y0 > v.y1); }
   function pathBox(pts, pad){ let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity; pts.forEach(p=>{ x0 = Math.min(x0, p[0]); y0 = Math.min(y0, p[1]); x1 = Math.max(x1, p[0]); y1 = Math.max(y1, p[1]); }); return {x0:x0 - pad, y0:y0 - pad, x1:x1 + pad, y1:y1 + pad}; }
-  // Вся карта. opts: {k, view, hidden:{layerId:true}, clip:true}
+  // Вся карта. opts: {k, view, hidden:{layerId:true}, clip:true, doorV:{id объекта: вариант}} — doorV: двери, открытые или закрытые на столе
   function drawMap(ctx, doc, opts){
     const k = opts.k, v = opts.view || {x0:0, y0:0, x1:doc.cols, y1:doc.rows}, hid = opts.hidden || {};
     ctx.save();
@@ -20039,7 +20045,8 @@ const MapRender = (function(){
     if(!hid.paths){ const vis = doc.paths.filter(p=>visibleBox(pathBox(p.points, p.width + 1), v)); if(HD() && (k || 64) >= 6) [0, 1, 2].forEach(layer=>vis.forEach(p=>drawPath(ctx, p, k, layer))); else vis.forEach(p=>drawPath(ctx, p, k)); }
     if(!hid.ground) doc.objects.forEach(o=>{ if(isGround(o) && visibleBox(MapAssets.objectBounds(o), v)) MapAssets.drawObject(ctx, o, k); });
     if(!hid.walls) doc.walls.forEach(w=>{ if(visibleBox(pathBox(w.points, 0.5), v)) drawWall(ctx, w, k); });
-    if(!hid.objects) doc.objects.forEach(o=>{ if(!isGround(o) && visibleBox(MapAssets.objectBounds(o), v)) MapAssets.drawObject(ctx, o, k); });
+    const dv = opts.doorV;
+    if(!hid.objects) doc.objects.forEach(o=>{ if(!isGround(o) && visibleBox(MapAssets.objectBounds(o), v)) MapAssets.drawObject(ctx, dv && dv[o.id]!==undefined ? Object.assign({}, o, {v:dv[o.id]}) : o, k); });
     if(!hid.labels) doc.labels.forEach(l=>{ if(l.x > v.x0 - 10 && l.x < v.x1 + 10 && l.y > v.y0 - 4 && l.y < v.y1 + 4) drawLabel(ctx, l); });
     ctx.restore();
   }
@@ -22508,12 +22515,13 @@ const MapEditor = (function(){
     ['fill', 'Ландшафт — заливка области', 'G', 'M4 12 L11 5 L18 12 L11 19 Z M18 14 c0 0 2 2.5 2 4 a2 2 0 0 1-4 0 c0-1.5 2-4 2-4'],
     ['room', 'Помещение (пол + стены)', 'R', 'M4 4 H20 V20 H4 Z M4 13 H10 M14 13 H20'],
     ['wall', 'Стена (по линиям сетки)', 'W', 'M3 18 L9 6 L15 18 L21 6'],
+    ['opening', 'Дверь или окно в стену', 'D', 'M6 3 H18 V21 H6 Z M14.5 12 v0.01'],
     ['path', 'Дорога / путь', 'P', 'M4 20 C8 14 6 9 12 8 S18 4 20 3 M4 20 L6 14 M20 3 L14 5'],
     ['object', 'Объект из библиотеки', 'O', 'M4 7 L12 3 L20 7 L20 17 L12 21 L4 17 Z M4 7 L12 11 L20 7 M12 11 V21'],
     ['label', 'Надпись', 'T', 'M5 5 H19 M12 5 V20 M9 20 H15'],
   ];
   const prefs = Object.assign({ mapId:null, grid:true, snap:true, hidden:{}, locked:{}, tool:'select', terrain:'concrete', brush:1,
-    wallKind:'concrete', pathKind:'road', pathWidth:3, asset:'crate_wood', cat:'all', search:'', side:'lib', recent:[], wallsOnRoom:true, assetScale:{} }, (function(){ try{ return JSON.parse(localStorage.getItem(PREFS_KEY)||'null') || {}; }catch(e){ return {}; } })());
+    wallKind:'concrete', opening:'door', pathKind:'road', pathWidth:3, asset:'crate_wood', cat:'all', search:'', side:'lib', recent:[], wallsOnRoom:true, assetScale:{} }, (function(){ try{ return JSON.parse(localStorage.getItem(PREFS_KEY)||'null') || {}; }catch(e){ return {}; } })());
   function savePrefs(){ try{ localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); }catch(e){} }
   let doc = null, visible = false, inited = false;
   let canvas, ctx, stage, dpr = 1, vw = 0, vh = 0;
@@ -22629,6 +22637,9 @@ const MapEditor = (function(){
     if(prefs.tool==='object' && ghost.at && MapAssets.BY_ID[prefs.asset]){
       ctx.globalAlpha = 0.6; MapAssets.drawObject(ctx, {a:prefs.asset, x:ghost.at[0], y:ghost.at[1], r:ghost.r, s:defScale(prefs.asset), v:ghost.v, f:ghost.f}, k); ctx.globalAlpha = 1;
     }
+    if(prefs.tool==='opening' && ghost.at && MapAssets.BY_ID[prefs.opening]){
+      ctx.globalAlpha = 0.75; MapAssets.drawObject(ctx, {a:prefs.opening, x:ghost.at[0], y:ghost.at[1], r:ghost.r, s:1, v:ghost.v, f:false}, k); ctx.globalAlpha = 1;
+    }
     if(draft){ const pts = draft.points.concat(hover ? [draft.next || [hover.x, hover.y]] : []);
       if(pts.length>1){ if(draft.type==='wall') MapRender.drawWall(ctx, {kind:prefs.wallKind, points:pts}, k); else MapRender.drawPath(ctx, {kind:prefs.pathKind, width:prefs.pathWidth, points:pts}); } }
     if(action && action.type==='room' && action.cur){ const [x0, y0, x1, y1] = roomRect(action); ctx.fillStyle = 'rgba(156,47,28,.12)'; ctx.fillRect(x0, y0, x1 - x0, y1 - y0); ctx.lineWidth = 2/k; ctx.strokeStyle = '#9c2f1c'; ctx.strokeRect(x0, y0, x1 - x0, y1 - y0); }
@@ -22679,6 +22690,7 @@ const MapEditor = (function(){
   /* ---------- инструменты ---------- */
   function setTool(t){
     if(draft) finishDraft();
+    if(prefs.tool==='opening' && t!=='opening'){ ghost.r = 0; ghost.v = 0; } // поворот проёма — от стены, другим объектам он ни к чему
     prefs.tool = t; savePrefs(); action = null;
     if(t!=='select') { /* выделение не трогаем — его можно править после смены инструмента */ }
     canvas.style.cursor = t==='hand' ? 'grab' : t==='select' ? 'default' : 'crosshair';
@@ -22716,6 +22728,48 @@ const MapEditor = (function(){
     prefs.recent = [prefs.asset].concat(prefs.recent.filter(x=>x!==prefs.asset)).slice(0, 16); savePrefs();
   }
   function updateGhost(w, e){ if(!w || !MapAssets.BY_ID[prefs.asset]) { ghost.at = null; return; } ghost.at = snapCenter({a:prefs.asset, r:ghost.r, s:defScale(prefs.asset)}, w.x, w.y, e); }
+  // Дверь или окно: ближайшая стена под курсором — объект ложится на неё, вдоль стены, целыми клетками, и прорезает проём
+  const OPENINGS = ['door', 'double_door', 'gate_metal', 'vault_door', 'settlement_gate', 'window', 'display_window', 'broken_window'];
+  function nearestWall(w){
+    let best = null, bd = 1.2;
+    doc.walls.forEach(wl=>{ for(let i=1;i<wl.points.length;i++){
+      const p = wl.points[i - 1], q = wl.points[i], len = Math.hypot(q[0] - p[0], q[1] - p[1]); if(len < 0.01) continue;
+      const ux = (q[0] - p[0])/len, uy = (q[1] - p[1])/len, t = clamp((w.x - p[0])*ux + (w.y - p[1])*uy, 0, len), d = Math.hypot(p[0] + ux*t - w.x, p[1] + uy*t - w.y);
+      if(d < bd){ bd = d; best = {p, ux, uy, len, t}; } } });
+    return best;
+  }
+  function updateOpeningGhost(w, e){
+    const a = MapAssets.BY_ID[prefs.opening]; if(!w || !a){ ghost.at = null; return; }
+    const n = nearestWall(w); ghost.onWall = !!n;
+    if(!n){ ghost.at = snapCenter({a:prefs.opening, r:ghost.r, s:1}, w.x, w.y, e); return; }
+    const L = a.w, c = n.len <= L ? n.len/2 : clamp(snapOn(e) ? Math.round(n.t - L/2) + L/2 : n.t, L/2, n.len - L/2);
+    ghost.at = [r3(n.p[0] + n.ux*c), r3(n.p[1] + n.uy*c)];
+    ghost.r = r3((Math.atan2(n.uy, n.ux)*180/Math.PI + 360)%180);
+  }
+  function cutWallsUnder(at, rDeg, w){
+    const rad = rDeg*Math.PI/180, ux = Math.cos(rad), uy = Math.sin(rad), ax = at[0] - ux*w/2, ay = at[1] - uy*w/2, on = (t)=>[r3(ax + ux*t), r3(ay + uy*t)], out = [];
+    doc.walls.forEach(wl=>{
+      const pieces = []; let cur = [wl.points[0]], cut = false;
+      for(let i=1;i<wl.points.length;i++){
+        const p = wl.points[i - 1], q = wl.points[i], tp = (p[0] - ax)*ux + (p[1] - ay)*uy, tq = (q[0] - ax)*ux + (q[1] - ay)*uy, lo = Math.max(0, Math.min(tp, tq)), hi = Math.min(w, Math.max(tp, tq));
+        if(Math.abs((p[0] - ax)*uy - (p[1] - ay)*ux) > 0.1 || Math.abs((q[0] - ax)*uy - (q[1] - ay)*ux) > 0.1 || hi - lo < 0.01){ cur.push(q); continue; }
+        cut = true;
+        const enter = tp < tq ? lo : hi, leave = tp < tq ? hi : lo;
+        if(Math.abs(enter - tp) > 0.01) cur.push(on(enter));
+        if(cur.length > 1) pieces.push(cur);
+        cur = Math.abs(leave - tq) > 0.01 ? [on(leave), q] : [q];
+      }
+      if(cur.length > 1) pieces.push(cur);
+      if(!cut){ out.push(wl); return; }
+      pieces.forEach((pts, i)=>out.push({id:i ? MapFormat.newId('w') : wl.id, kind:wl.kind, points:pts}));
+    });
+    doc.walls = out;
+  }
+  function placeOpening(){
+    const a = MapAssets.BY_ID[prefs.opening]; if(!ghost.at || !a) return;
+    mutate(()=>{ if(ghost.onWall) cutWallsUnder(ghost.at, ghost.r, a.w);
+      const o = {id:MapFormat.newId('o'), a:prefs.opening, x:ghost.at[0], y:ghost.at[1], r:ghost.r, s:1, v:ghost.v, f:false}; doc.objects.push(o); sel = new Set(['o:' + o.id]); });
+  }
   // Масштаб: у выбранных объектов (множитель или точное значение), без выбора в инструменте «Объект» —
   // масштаб по умолчанию для текущего объекта библиотеки (им будут ставиться новые копии)
   function setAssetScale(id, v){ v = r3(clamp(v, S_MIN, S_MAX)); if(Math.abs(v - 1) < 0.001) delete prefs.assetScale[id]; else prefs.assetScale[id] = v; savePrefs(); }
@@ -22814,6 +22868,7 @@ const MapEditor = (function(){
       requestRender(); return;
     }
     if(tool==='object'){ updateGhost(w, e); placeObject(); return; }
+    if(tool==='opening'){ updateOpeningGhost(w, e); placeOpening(); return; }
     if(tool==='label'){ addLabelAt(w); return; }
   }
   function onMove(e){
@@ -22826,6 +22881,7 @@ const MapEditor = (function(){
     const p = evPos(e), w = toWorld(p.x, p.y); hover = w;
     const st = $('meCursor'); if(st){ const cx = Math.floor(w.x), cy = Math.floor(w.y); st.textContent = (cx>=0 && cy>=0 && cx<doc.cols && cy<doc.rows) ? `клетка ${cx}, ${cy} · ${MapFormat.TERRAIN[doc.terrain[cy*doc.cols + cx]].name}` : ''; }
     if(prefs.tool==='object') updateGhost(w, e);
+    if(prefs.tool==='opening') updateOpeningGhost(w, e);
     if(draft) draft.next = snapPt(w, draft.type==='path' ? 0.5 : 1, e);
     if(!action){ requestRender(); return; }
     switch(action.type){
@@ -22895,7 +22951,7 @@ const MapEditor = (function(){
     if(k==='0'){ fitView(); return; }
     const arrows = {ArrowLeft:[-1, 0], ArrowRight:[1, 0], ArrowUp:[0, -1], ArrowDown:[0, 1]};
     if(arrows[k] && sel.size){ e.preventDefault(); const st = e.shiftKey ? 0.1 : 1; nudge(arrows[k][0]*st, arrows[k][1]*st); return; }
-    const map = {v:'select', м:'select', h:'hand', р:'hand', b:'brush', и:'brush', g:'fill', п:'fill', r:'room', к:'room', w:'wall', ц:'wall', p:'path', з:'path', o:'object', щ:'object', t:'label', е:'label'};
+    const map = {v:'select', м:'select', h:'hand', р:'hand', b:'brush', и:'brush', g:'fill', п:'fill', r:'room', к:'room', w:'wall', ц:'wall', d:'opening', в:'opening', p:'path', з:'path', o:'object', щ:'object', t:'label', е:'label'};
     if(map[k.toLowerCase()]){ setTool(map[k.toLowerCase()]); }
   }
   function onKeyUp(e){ if(e.key===' '){ spaceHeld = false; if(canvas) canvas.style.cursor = prefs.tool==='hand' ? 'grab' : prefs.tool==='select' ? 'default' : 'crosshair'; } }
@@ -23149,12 +23205,17 @@ const MapEditor = (function(){
     if(t==='brush' || t==='fill' || t==='room'){
       h += `<span class="me-opt-label">${t==='room' ? 'Пол' : 'Ландшафт'}</span><div class="me-swatches">${MapFormat.TERRAIN.map(tt=>`<button type="button" class="me-sw${prefs.terrain===tt.id?' on':''}" data-terrain="${tt.id}" title="${esc(tt.name)}" style="--c:${tt.color || 'transparent'}${MapTex.enabled && MapTex.swatch(tt.id) ? `;background-image:url(${MapTex.swatch(tt.id)});background-size:cover` : ''}">${tt.color ? '' : '∅'}</button>`).join('')}</div>`;
       if(t==='brush') h += `<label class="me-opt">Кисть <input type="range" min="1" max="15" step="2" value="${prefs.brush}" data-brush> <b>${prefs.brush}×${prefs.brush}</b></label>`;
-      if(t==='room') h += `<label class="me-opt"><input type="checkbox" data-roomwalls ${prefs.wallsOnRoom?'checked':''}> стены</label><label class="me-opt">Стена <select data-wallkind>${Object.keys(MapFormat.WALL_KINDS).map(k=>`<option value="${k}" ${prefs.wallKind===k?'selected':''}>${esc(MapFormat.WALL_KINDS[k].name)}</option>`).join('')}</select></label>`;
+      if(t==='room') h += `<label class="me-opt"><input type="checkbox" data-roomwalls ${prefs.wallsOnRoom?'checked':''}> стены</label><label class="me-opt">Стена <select data-wallkind>${Object.keys(MapFormat.WALL_KINDS).map(k=>`<option value="${k}" ${prefs.wallKind===k?'selected':''}>${esc(MapFormat.WALL_KINDS[k].name)}${MapFormat.WALL_KINDS[k].see ? ' (видно насквозь)' : ''}</option>`).join('')}</select></label>`;
     } else if(t==='wall'){
-      h += `<label class="me-opt">Стена <select data-wallkind>${Object.keys(MapFormat.WALL_KINDS).map(k=>`<option value="${k}" ${prefs.wallKind===k?'selected':''}>${esc(MapFormat.WALL_KINDS[k].name)}</option>`).join('')}</select></label><span class="me-hint">клик — точка на узле сетки · двойной клик / Enter — закончить · правый клик / Backspace — убрать точку · Esc — отмена</span>`;
+      h += `<label class="me-opt">Стена <select data-wallkind>${Object.keys(MapFormat.WALL_KINDS).map(k=>`<option value="${k}" ${prefs.wallKind===k?'selected':''}>${esc(MapFormat.WALL_KINDS[k].name)}${MapFormat.WALL_KINDS[k].see ? ' (видно насквозь)' : ''}</option>`).join('')}</select></label><span class="me-hint">клик — точка на узле сетки · двойной клик / Enter — закончить · правый клик / Backspace — убрать точку · Esc — отмена</span>`;
     } else if(t==='path'){
       h += `<label class="me-opt">Путь <select data-pathkind>${Object.keys(MapFormat.PATH_KINDS).map(k=>`<option value="${k}" ${prefs.pathKind===k?'selected':''}>${esc(MapFormat.PATH_KINDS[k].name)}</option>`).join('')}</select></label>
         <label class="me-opt">Ширина <input type="number" min="0.1" max="20" step="0.5" value="${prefs.pathWidth}" data-pathwidth style="width:64px"> кл.</label><span class="me-hint">точки — по половинкам клеток · двойной клик / Enter — закончить</span>`;
+    } else if(t==='opening'){
+      const a = MapAssets.BY_ID[prefs.opening] || {v:1};
+      h += `<label class="me-opt">Что <select data-opening>${OPENINGS.map(id=>`<option value="${id}" ${prefs.opening===id?'selected':''}>${esc(MapAssets.BY_ID[id].name)} · ${MapAssets.BY_ID[id].w} кл.</option>`).join('')}</select></label>`+
+        (a.v>1 ? `<label class="me-opt">Вариант <select data-ghostv>${Array.from({length:a.v}, (_, i)=>`<option value="${i}" ${ghost.v===i?'selected':''}>${a.vn ? esc(a.vn[i]) : i + 1}</option>`).join('')}</select></label>` : '')+
+        `<span class="me-hint">наведите на стену и нажмите — объект ляжет вдоль неё и прорежет проём · на столе двери открываются, когда включён туман · окна пропускают взгляд</span>`;
     } else if(t==='object'){
       const a = MapAssets.BY_ID[prefs.asset];
       h += a ? `<span class="me-opt-label">${esc(a.name)} · ${a.w}×${a.h}</span>${a.v>1 ? `<label class="me-opt">Вариант <select data-ghostv>${Array.from({length:a.v}, (_, i)=>`<option value="${i}" ${ghost.v===i?'selected':''}>${a.vn ? (i + 1) + '. ' + esc(a.vn[i]) : i + 1}</option>`).join('')}</select></label>` : ''}
@@ -23229,8 +23290,10 @@ const MapEditor = (function(){
         <label class="me-f">Поворот, °<input type="number" step="15" data-prop="r" value="${it.r}"></label>
         ${scaleBlock(it.s || 1, a)}
         ${a.v>1 ? `<label class="me-f">Вариант<select data-prop="v">${Array.from({length:a.v}, (_, i)=>`<option value="${i}" ${it.v===i?'selected':''}>${a.vn ? (i + 1) + '. ' + esc(a.vn[i]) : i + 1}</option>`).join('')}</select></label>` : ''}
-        <label class="me-check"><input type="checkbox" data-prop="f" ${it.f?'checked':''}> Отражён</label>`;
-    } else if(t==='w'){ h = `<div class="me-prop-title">Стена · ${it.points.length} точ.</div><label class="me-f">Материал<select data-prop="kind">${Object.keys(MapFormat.WALL_KINDS).map(k=>`<option value="${k}" ${it.kind===k?'selected':''}>${esc(MapFormat.WALL_KINDS[k].name)}</option>`).join('')}</select></label><div class="muted me-note">Точки тянутся за квадратные ручки.</div>`; }
+        <label class="me-check"><input type="checkbox" data-prop="f" ${it.f?'checked':''}> Отражён</label>
+        ${FogKit.isOpening(it.a) ? '<div class="muted me-note">На столе открывается и закрывается, когда включён туман. Окна пропускают взгляд, заколоченные — нет.</div>' :
+          `<label class="me-f" title="Для тумана войны: останавливает ли объект взгляд и свет">Закрывает обзор<select data-prop="sb"><option value="" ${it.sb==null?'selected':''}>Как обычно: ${FogKit.blocksByDefault(it.a) ? 'да' : 'нет'}</option><option value="1" ${it.sb===1?'selected':''}>Да</option><option value="0" ${it.sb===0?'selected':''}>Нет</option></select></label>`}`;
+    } else if(t==='w'){ h = `<div class="me-prop-title">Стена · ${it.points.length} точ.</div><label class="me-f">Материал<select data-prop="kind">${Object.keys(MapFormat.WALL_KINDS).map(k=>`<option value="${k}" ${it.kind===k?'selected':''}>${esc(MapFormat.WALL_KINDS[k].name)}${MapFormat.WALL_KINDS[k].see ? ' (видно насквозь)' : ''}</option>`).join('')}</select></label><div class="muted me-note">Точки тянутся за квадратные ручки.</div>`; }
     else if(t==='p'){ h = `<div class="me-prop-title">Путь · ${it.points.length} точ.</div><label class="me-f">Вид<select data-prop="kind">${Object.keys(MapFormat.PATH_KINDS).map(k=>`<option value="${k}" ${it.kind===k?'selected':''}>${esc(MapFormat.PATH_KINDS[k].name)}</option>`).join('')}</select></label><label class="me-f">Ширина, клеток<input type="number" step="0.5" min="0.1" max="20" data-prop="width" value="${it.width}"></label>`; }
     else { h = `<div class="me-prop-title">Надпись</div><label class="me-f">Текст<textarea data-prop="text" maxlength="200" rows="2">${esc(it.text)}</textarea></label><div class="me-f-row"><label class="me-f">Размер<input type="number" step="0.1" min="0.2" max="8" data-prop="size" value="${it.size}"></label><label class="me-f">Цвет<input type="color" data-prop="color" value="${it.color}"></label></div>`; }
     body.innerHTML = gpHtml + h + `<div class="me-btnrow"><button type="button" class="small" data-act="dup" title="Ctrl+D">Дублировать</button><button type="button" class="small" data-act="del" title="Del">Удалить</button></div>`;
@@ -23252,6 +23315,7 @@ const MapEditor = (function(){
     else if(p==='sp'){ it.s = r3(clamp(num(v, 100)/100, S_MIN, S_MAX)); }
     else if(p==='v'){ it.v = Math.round(num(v, 0)); }
     else if(p==='f'){ it.f = !!v; }
+    else if(p==='sb'){ if(v==='') delete it.sb; else it.sb = v==='1' ? 1 : 0; }
     else if(p==='width'){ it.width = r3(clamp(num(v, 1), 0.1, 20)); }
     else if(p==='size'){ it.size = r3(clamp(num(v, 0.8), 0.2, 8)); }
     else if(p==='text'){ const s = String(v).slice(0, 200); if(!s.trim()){ undoStack.pop(); return; } it.text = s; }
@@ -23451,6 +23515,7 @@ const MapEditor = (function(){
     if(t.dataset.snap!==undefined){ prefs.snap = t.checked; savePrefs(); return; }
     if(t.dataset.roomwalls!==undefined){ prefs.wallsOnRoom = t.checked; savePrefs(); return; }
     if(t.dataset.wallkind!==undefined){ prefs.wallKind = t.value; savePrefs(); requestRender(); return; }
+    if(t.dataset.opening!==undefined){ prefs.opening = t.value; ghost.v = 0; savePrefs(); renderOptions(); requestRender(); return; }
     if(t.dataset.pathkind!==undefined){ prefs.pathKind = t.value; prefs.pathWidth = MapFormat.PATH_KINDS[t.value].width; savePrefs(); renderOptions(); requestRender(); return; }
     if(t.dataset.pathwidth!==undefined){ prefs.pathWidth = clamp(num(t.value, 1), 0.1, 20); savePrefs(); requestRender(); return; }
     if((t.dataset.genlab!==undefined || t.dataset.genlsize!==undefined) && doc.gen){ const key = t.dataset.genlab!==undefined ? 'labels' : 'lsize', v = t.value; mutate(()=>{ doc.gen.opts[key] = v; MapGen.applyLabels(doc); normalizeDoc(); }); setStatus('Подписи обновлены'); return; }
@@ -23481,6 +23546,320 @@ const MapEditor = (function(){
     get doc(){ return doc; }, get camera(){ return cam; }, openDoc, saveNow, sendToTable,
     // для проверок/консоли: перевод координат и принудительная отрисовка
     toScreen, toWorld, render:()=>render() };
+})();
+</script>
+
+<script>
+/* ======================================================================
+   ТУМАН ВОЙНЫ — геометрия и растр (без состояния стола; настройки и жетоны — в GameTable).
+
+   Видно игрокам = (освещённое ∩ линия взгляда любого жетона игрока) ∪ открыто кистью − закрыто кистью.
+     - Свет — у любого жетона: круговой (диаметр) или конус (угол и длина); днём освещено всё.
+     - Взгляд и свет останавливают стены карты (кроме видов с see: сетка-рабица, мешки с песком), закрытые двери и ворота,
+       заколоченные окна и крупные объекты. Окна пропускают взгляд. Дверь или окно поверх стены прорезают её.
+     - Крупный объект, на который упал взгляд и свет, виден целиком (крыша здания, а не только край у стены).
+       Жетон, стоящий на самом объекте, смотрит наружу: своя фигура ему не мешает.
+     - Кисть Мастера идёт поверх: мазки применяются по порядку, поздний перекрывает ранний.
+   Всё в клетках стола. Многоугольник видимости — лучи к концам стен и по дуге; индекс стен — сетка ячеек G×G,
+   луч идёт только по ячейкам на своём пути, поэтому большие карты с тысячами отрезков не тормозят движение жетона.
+   ====================================================================== */
+const FogKit = (function(){
+  const G = 4;        // сторона ячейки индекса стен, клеток
+  const FAR = 700;    // предел взгляда, клеток (больше самой большой карты)
+  const EPS = 0.0004; // лучи чуть мимо конца стены — чтобы заглянуть за угол
+
+  /* ---------- что на карте останавливает взгляд ---------- */
+  // Двери: вариант-рисунок открытой створки и вариант, где двери нет вовсе (выбита, сорвана — всегда проём)
+  const DOOR_ART = {door:{open:2, fixed:3}, double_door:{open:1}, gate_metal:{open:1, fixed:2}, vault_door:{open:1, fixed:2}, settlement_gate:{open:2, fixed:2}};
+  const WINDOW_SHUT = {window:2, broken_window:1, display_window:-1}; // вариант «заколочено» взгляд не пропускает
+  const SOLID_RECT = new Set(['house_small', 'house_mid', 'apartment_block', 'kiosk', 'overpass_pillar', 'bus_wreck', 'rubble_big', 'megatower', 'megablock', 'fortress_tower', 'monument',
+    'mall', 'shop', 'warehouse', 'hangar', 'boiler', 'tank_horiz', 'transformer', 'container_stack', 'dump_truck', 'excavator', 'bunker', 'pillbox', 'barracks', 'tank_wreck', 'apc_wreck',
+    'tent', 'big_tent', 'gas_station', 'scrap_shack', 'war_rig', 'junk_mound', 'caravan_cart', 'semi_truck', 'lab_ruin', 'metro_car', 'pump_station', 'shipping_container', 'barricade_car',
+    'monolith', 'ship_hull', 'ship_nozzle', 'sarcophagus', 'barge', 'polyhedron', 'antigrav_car', 'aerocar']);
+  const SOLID_ROUND = new Set(['tank_big', 'cooling_tower', 'chimney', 'silo', 'water_cistern', 'column', 'rock_big', 'statue_head', 'bio_tank']);
+  const SOLID_LINE = new Set(['partition']);
+  function solidKind(o){
+    if(o.a in DOOR_ART || o.a in WINDOW_SHUT) return '';
+    const a = MapAssets.BY_ID[o.a], round = SOLID_ROUND.has(o.a);
+    if(o.sb===0 || !a) return '';
+    if(o.sb===1) return round ? 'o' : 'r';
+    return SOLID_RECT.has(o.a) ? 'r' : round ? 'o' : SOLID_LINE.has(o.a) ? 'l' : a.sight ? 'p' : '';
+  }
+  const isOpening = (id)=>id in DOOR_ART || id in WINDOW_SHUT;
+  const blocksByDefault = (id)=>!!solidKind({a:id});
+  // Точка объекта (от его центра, в клетках) → мир: те же поворот, масштаб и отражение, что у drawObject
+  function frame(o, ox, oy){
+    const s = o.s || 1, sx = o.f ? -s : s, rad = (o.r || 0)*Math.PI/180, c = Math.cos(rad), n = Math.sin(rad), X = o.x + ox, Y = o.y + oy;
+    return (lx, ly)=>[X + c*sx*lx - n*s*ly, Y + n*sx*lx + c*s*ly];
+  }
+  // Отрезок стены минус проёмы дверей и окон, лежащие на нём
+  function cutSeg(ax, ay, bx, by, gaps, emit){
+    const len = Math.hypot(bx - ax, by - ay); if(len < 1e-6) return;
+    const ux = (bx - ax)/len, uy = (by - ay)/len, cuts = [];
+    gaps.forEach(q=>{
+      if(Math.abs((q.ax - ax)*uy - (q.ay - ay)*ux) > 0.2 || Math.abs((q.bx - ax)*uy - (q.by - ay)*ux) > 0.2) return;
+      const t1 = (q.ax - ax)*ux + (q.ay - ay)*uy, t2 = (q.bx - ax)*ux + (q.by - ay)*uy, lo = Math.min(t1, t2), hi = Math.max(t1, t2);
+      if(hi > 0 && lo < len) cuts.push([Math.max(0, lo), Math.min(len, hi)]);
+    });
+    if(!cuts.length){ emit(ax, ay, bx, by); return; }
+    cuts.sort((p, q)=>p[0] - q[0]);
+    let t = 0;
+    cuts.forEach(([lo, hi])=>{ if(lo > t + 1e-3) emit(ax + ux*t, ay + uy*t, ax + ux*lo, ay + uy*lo); t = Math.max(t, hi); });
+    if(t < len - 1e-3) emit(ax + ux*t, ay + uy*t, bx, by);
+  }
+  // stateOf(id) — состояние двери на столе ('open' | 'closed' | 'locked') или пусто: тогда как нарисована на карте
+  function mapSight(doc, ox, oy, stateOf){
+    const s = [], own = [], ends = new Map(), groups = [], doors = [], gaps = [], shut = [];
+    const add = (ax, ay, bx, by, g)=>{ s.push(ax, ay, bx, by); own.push(g); ends.set(ax + ',' + ay, [ax, ay]); ends.set(bx + ',' + by, [bx, by]); };
+    const ring = (T, n, r)=>{ const out = []; for(let i=0;i<n;i++){ const a = i/n*Math.PI*2, p = T(Math.cos(a)*r, Math.sin(a)*r); out.push(p[0], p[1]); } return out; };
+    const box = (T, hw, hh)=>[].concat(T(-hw, -hh), T(hw, -hh), T(hw, hh), T(-hw, hh));
+    const addGroup = (poly, reveal)=>{
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      for(let i=0;i<poly.length;i+=2){ x0 = Math.min(x0, poly[i]); x1 = Math.max(x1, poly[i]); y0 = Math.min(y0, poly[i + 1]); y1 = Math.max(y1, poly[i + 1]); }
+      const g = groups.length; groups.push({poly, reveal, x0, y0, x1, y1});
+      for(let i=0;i<poly.length;i+=2){ const j = (i + 2)%poly.length; add(poly[i], poly[i + 1], poly[j], poly[j + 1], g); }
+    };
+    ((doc && doc.objects) || []).forEach(o=>{
+      const a = MapAssets.BY_ID[o.a]; if(!a) return;
+      const T = frame(o, ox, oy), art = DOOR_ART[o.a], win = WINDOW_SHUT[o.a], v = o.v || 0;
+      if(art || win!==undefined){
+        const p = T(-a.w/2, 0), q = T(a.w/2, 0), seg = {ax:p[0], ay:p[1], bx:q[0], by:q[1]};
+        gaps.push(seg);
+        if(win!==undefined){ if(v===win) shut.push(seg); return; }
+        if(v===art.fixed) return;
+        const def = v===art.open ? 'open' : 'closed', state = stateOf(o.id) || def;
+        if(state!=='open') shut.push(seg);
+        doors.push({id:o.id, name:a.name, x:(p[0] + q[0])/2, y:(p[1] + q[1])/2, def, v, openV:art.open, closedV:v===art.open ? 0 : v});
+        return;
+      }
+      const kind = solidKind(o);
+      if(kind==='r') addGroup(box(T, a.w/2*0.96, a.h/2*0.96), box(T, a.w/2, a.h/2)); // чуть меньше рисунка: жетон вплотную к объекту не прячется
+      else if(kind==='o'){ const r = Math.min(a.w, a.h)/2; addGroup(ring(T, 12, r*0.85), ring(T, 20, r)); }
+      else if(kind==='l'){ const p = T(-a.w/2, 0), q = T(a.w/2, 0); add(p[0], p[1], q[0], q[1], -1); }
+      else if(kind==='p') a.sight(v).forEach(line=>{ for(let i=2;i<line.length;i+=2){ const p = T(line[i - 2] - a.w/2, line[i - 1] - a.h/2), q = T(line[i] - a.w/2, line[i + 1] - a.h/2); add(p[0], p[1], q[0], q[1], -1); } });
+    });
+    ((doc && doc.walls) || []).forEach(w=>{
+      const kind = MapFormat.WALL_KINDS[w.kind];
+      if(kind && kind.see) return;
+      const pts = w.points || [];
+      for(let i=1;i<pts.length;i++) cutSeg(pts[i - 1][0] + ox, pts[i - 1][1] + oy, pts[i][0] + ox, pts[i][1] + oy, gaps, (ax, ay, bx, by)=>add(ax, ay, bx, by, -1));
+    });
+    shut.forEach(q=>add(q.ax, q.ay, q.bx, q.by, -1));
+    return {ix:makeIndex(s, [...ends.values()], own, groups), doors};
+  }
+
+  function emptyIndex(){ return {n:0, s:[], ends:[], groups:[], ver:0}; }
+  function makeIndex(s, ends, own, groups){
+    const n = s.length/4;
+    if(!n) return emptyIndex();
+    groups = groups || [];
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for(let i=0;i<s.length;i+=2){ if(s[i] < x0) x0 = s[i]; if(s[i] > x1) x1 = s[i]; if(s[i + 1] < y0) y0 = s[i + 1]; if(s[i + 1] > y1) y1 = s[i + 1]; }
+    const gx0 = Math.floor((x0 - 0.01)/G), gy0 = Math.floor((y0 - 0.01)/G), gx1 = Math.floor((x1 + 0.01)/G), gy1 = Math.floor((y1 + 0.01)/G);
+    const gw = gx1 - gx0 + 1, cells = new Array(gw*(gy1 - gy0 + 1));
+    for(let k=0;k<n;k++){
+      const ax = s[k*4], ay = s[k*4 + 1], bx = s[k*4 + 2], by = s[k*4 + 3], ex = bx - ax, ey = by - ay;
+      const cx0 = Math.floor((Math.min(ax, bx) - 0.01)/G), cx1 = Math.floor((Math.max(ax, bx) + 0.01)/G);
+      const cy0 = Math.floor((Math.min(ay, by) - 0.01)/G), cy1 = Math.floor((Math.max(ay, by) + 0.01)/G);
+      for(let cy=cy0;cy<=cy1;cy++) for(let cx=cx0;cx<=cx1;cx++){
+        // отрезок лежит по одну сторону от всех углов ячейки — в ячейку не попадает
+        const l = cx*G - 0.01, r = (cx + 1)*G + 0.01, t = cy*G - 0.01, b = (cy + 1)*G + 0.01;
+        const side = (px, py)=>ex*(py - ay) - ey*(px - ax), c1 = side(l, t), c2 = side(r, t), c3 = side(l, b), c4 = side(r, b);
+        if((c1 > 0 && c2 > 0 && c3 > 0 && c4 > 0) || (c1 < 0 && c2 < 0 && c3 < 0 && c4 < 0)) continue;
+        const i = (cy - gy0)*gw + cx - gx0;
+        (cells[i] || (cells[i] = [])).push(k);
+      }
+    }
+    return {n, s, ends, cells, gx0, gy0, gx1, gy1, gw, stamp:new Int32Array(n), tick:0, own:own ? Int32Array.from(own) : new Int32Array(n).fill(-1), groups, skip:new Int32Array(groups.length), ver:0, lastK:-1};
+  }
+  // Откуда смотрим: фигуры, внутри которых стоит наблюдатель, ему не мешают (жетон на крыше, у самого края объекта)
+  function setOrigin(ix, x, y){
+    if(!ix.n) return;
+    ix.ver++;
+    const gs = ix.groups;
+    for(let i=0;i<gs.length;i++){ const g = gs[i]; if(x >= g.x0 && x <= g.x1 && y >= g.y0 && y <= g.y1 && inPoly(g.poly, x, y)) ix.skip[i] = ix.ver; }
+  }
+  // Луч из (x, y) по единичному направлению (dx, dy): расстояние до первой стены, не больше R
+  function cast(ix, x, y, dx, dy, R){
+    if(!ix.n) return R;
+    let best = R, cx = Math.floor(x/G), cy = Math.floor(y/G);
+    const tick = ++ix.tick, s = ix.s, stamp = ix.stamp, cells = ix.cells, own = ix.own, skip = ix.skip, ver = ix.ver;
+    ix.lastK = -1;
+    const sx = dx > 0 ? 1 : -1, sy = dy > 0 ? 1 : -1, tdx = dx ? G/Math.abs(dx) : Infinity, tdy = dy ? G/Math.abs(dy) : Infinity;
+    let tx = dx ? ((cx + (dx > 0 ? 1 : 0))*G - x)/dx : Infinity, ty = dy ? ((cy + (dy > 0 ? 1 : 0))*G - y)/dy : Infinity;
+    for(;;){
+      const inX = cx >= ix.gx0 && cx <= ix.gx1, inY = cy >= ix.gy0 && cy <= ix.gy1;
+      if(inX && inY){
+        const list = cells[(cy - ix.gy0)*ix.gw + cx - ix.gx0];
+        if(list) for(let i=0;i<list.length;i++){
+          const k = list[i];
+          if(stamp[k]===tick) continue;
+          stamp[k] = tick;
+          if(own[k] >= 0 && skip[own[k]]===ver) continue;
+          const ax = s[k*4], ay = s[k*4 + 1], ex = s[k*4 + 2] - ax, ey = s[k*4 + 3] - ay, den = dx*ey - dy*ex;
+          if(Math.abs(den) < 1e-9) continue;
+          const t = ((ax - x)*ey - (ay - y)*ex)/den, u = ((ax - x)*dy - (ay - y)*dx)/den;
+          if(t > 1e-6 && t < best && u >= -1e-9 && u <= 1 + 1e-9){ best = t; ix.lastK = k; }
+        }
+      } else if((!inX && (!dx || (cx < ix.gx0 ? sx < 0 : sx > 0))) || (!inY && (!dy || (cy < ix.gy0 ? sy < 0 : sy > 0)))) return best; // ушёл из области стен
+      const exit = Math.min(tx, ty);
+      if(exit >= best) return best;
+      if(tx < ty){ cx += sx; tx += tdx; } else { cy += sy; ty += tdy; }
+    }
+  }
+  function blocked(ix, ax, ay, bx, by){
+    const d = Math.hypot(bx - ax, by - ay);
+    if(d < 1e-6 || !ix.n) return false;
+    setOrigin(ix, ax, ay);
+    return cast(ix, ax, ay, (bx - ax)/d, (by - ay)/d, d) < d - 1e-4;
+  }
+  // Многоугольник видимости [x0, y0, x1, y1, …]. Без a0 — полный круг радиуса R; с a0, a1 (радианы, a1 > a0) — конус, первая вершина в центре.
+  // В свойстве hits — номера крупных объектов, на которые упали лучи
+  function fan(ix, x, y, R, a0, a1){
+    setOrigin(ix, x, y);
+    const cone = a0!==undefined, from = cone ? a0 : -Math.PI, to = cone ? a1 : Math.PI, angs = [];
+    const step = R >= FAR ? Math.PI/12 : Math.max(Math.PI/120, Math.min(Math.PI/15, Math.sqrt(0.24/R))); // дуга гладкая и у маленького, и у большого радиуса
+    for(let a=from;a<to;a+=step) angs.push(a);
+    angs.push(to);
+    const R2 = (R + 1)*(R + 1), turn = Math.PI*2;
+    ix.ends.forEach(p=>{
+      const ex = p[0] - x, ey = p[1] - y;
+      if(ex*ex + ey*ey > R2) return;
+      let a = Math.atan2(ey, ex);
+      if(cone){ while(a < from) a += turn; while(a > from + turn) a -= turn; if(a > to) return; }
+      angs.push(a - EPS, a, a + EPS);
+    });
+    angs.sort((p, q)=>p - q);
+    const out = cone ? [x, y] : [], hits = new Set();
+    let last = -Infinity;
+    angs.forEach(a=>{
+      if(a - last < 1e-7 || a < from || a > to) return;
+      last = a;
+      const c = Math.cos(a), sn = Math.sin(a), t = cast(ix, x, y, c, sn, R);
+      out.push(x + c*t, y + sn*t);
+      if(t < R && ix.lastK >= 0 && ix.own[ix.lastK] >= 0) hits.add(ix.own[ix.lastK]);
+    });
+    out.hits = [...hits];
+    return out;
+  }
+
+  /* ---------- проверка точки: нужна, чтобы не показывать игрокам жетоны в темноте ---------- */
+  function inPoly(p, x, y){
+    let inside = false;
+    for(let i=0, j=p.length - 2;i<p.length;j=i, i+=2){
+      const yi = p[i + 1], yj = p[j + 1];
+      if((yi > y)!==(yj > y) && x < (p[j] - p[i])*(y - yi)/(yj - yi) + p[i]) inside = !inside;
+    }
+    return inside;
+  }
+  function strokeHit(st, x, y){
+    if(st.f) return inPoly(st.p, x, y);
+    const p = st.p, r2 = st.r*st.r;
+    if(p.length===2) return (x - p[0])*(x - p[0]) + (y - p[1])*(y - p[1]) <= r2;
+    for(let i=2;i<p.length;i+=2){
+      const ax = p[i - 2], ay = p[i - 1], ex = p[i] - ax, ey = p[i + 1] - ay, l2 = ex*ex + ey*ey;
+      const t = l2 ? Math.max(0, Math.min(1, ((x - ax)*ex + (y - ay)*ey)/l2)) : 0, qx = ax + t*ex - x, qy = ay + t*ey - y;
+      if(qx*qx + qy*qy <= r2) return true;
+    }
+    return false;
+  }
+  function lightHit(ix, L, x, y){
+    const dx = x - L.x, dy = y - L.y;
+    if(dx*dx + dy*dy > L.R*L.R) return false;
+    if(L.a0!==undefined && (dx || dy)){
+      let a = Math.atan2(dy, dx);
+      while(a < L.a0) a += Math.PI*2;
+      while(a > L.a0 + Math.PI*2) a -= Math.PI*2;
+      if(a > L.a1) return false;
+    }
+    return !blocked(ix, L.x, L.y, x, y);
+  }
+  // M — модель кадра: {ix, day, pending, clip, reveal:[poly], eyes:[{x,y,poly}], lights:[{x,y,R,a0,a1,poly}], strokes}; reveal — объекты, видные целиком; clip — прямоугольник карты: за её краем не видно ничего
+  function visibleAt(M, x, y){
+    if(M.clip && (x < M.clip.x || y < M.clip.y || x > M.clip.x + M.clip.w || y > M.clip.y + M.clip.h)) return false;
+    for(let i=M.strokes.length - 1;i>=0;i--) if(strokeHit(M.strokes[i], x, y)) return M.strokes[i].v===1;
+    if(M.pending) return false;
+    if(!M.eyes.some(e=>!blocked(M.ix, e.x, e.y, x, y))) return false;
+    return M.day || M.lights.some(L=>lightHit(M.ix, L, x, y));
+  }
+
+  /* ---------- растр: S — набор вспомогательных холстов, T — {k, ox, oy}: экран = мир·k + o ---------- */
+  function layer(S, name, W, H){
+    let l = S[name];
+    if(!l){ const cv = document.createElement('canvas'); l = S[name] = {cv, ctx:cv.getContext('2d')}; }
+    if(l.cv.width!==W || l.cv.height!==H){ l.cv.width = W; l.cv.height = H; }
+    l.ctx.setTransform(1, 0, 0, 1, 0, 0);
+    l.ctx.globalCompositeOperation = 'source-over';
+    l.ctx.clearRect(0, 0, W, H);
+    return l;
+  }
+  function fillPoly(ctx, p){
+    if(p.length < 6) return;
+    ctx.beginPath(); ctx.moveTo(p[0], p[1]);
+    for(let i=2;i<p.length;i+=2) ctx.lineTo(p[i], p[i + 1]);
+    ctx.closePath(); ctx.fill();
+  }
+  function paintStroke(ctx, st){
+    const p = st.p;
+    if(st.f){ fillPoly(ctx, p); return; }
+    if(p.length===2){ ctx.beginPath(); ctx.arc(p[0], p[1], st.r, 0, Math.PI*2); ctx.fill(); return; }
+    ctx.lineWidth = st.r*2; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath(); ctx.moveTo(p[0], p[1]);
+    for(let i=2;i<p.length;i+=2) ctx.lineTo(p[i], p[i + 1]);
+    ctx.stroke();
+  }
+  // Результат — холст S.a: непрозрачно там, где видно сейчас; S.c — закрытое кистью (если мазки есть)
+  function paintVisible(S, W, H, T, M){
+    const a = layer(S, 'a', W, H);
+    if(!M.pending){
+      const b = layer(S, 'b', W, H);
+      b.ctx.setTransform(T.k, 0, 0, T.k, T.ox, T.oy); b.ctx.fillStyle = '#fff';
+      M.eyes.forEach(e=>fillPoly(b.ctx, e.poly));
+      a.ctx.fillStyle = '#fff';
+      if(M.day) a.ctx.fillRect(0, 0, W, H);
+      else { a.ctx.setTransform(T.k, 0, 0, T.k, T.ox, T.oy); M.lights.forEach(L=>fillPoly(a.ctx, L.poly)); a.ctx.setTransform(1, 0, 0, 1, 0, 0); }
+      a.ctx.globalCompositeOperation = 'destination-in'; a.ctx.drawImage(b.cv, 0, 0); a.ctx.globalCompositeOperation = 'source-over';
+      if(M.reveal && M.reveal.length){ a.ctx.setTransform(T.k, 0, 0, T.k, T.ox, T.oy); M.reveal.forEach(p=>fillPoly(a.ctx, p)); a.ctx.setTransform(1, 0, 0, 1, 0, 0); }
+    }
+    if(M.strokes.length){
+      const o = layer(S, 'o', W, H), c = layer(S, 'c', W, H);
+      [o, c].forEach(l=>{ l.ctx.setTransform(T.k, 0, 0, T.k, T.ox, T.oy); l.ctx.fillStyle = l.ctx.strokeStyle = '#fff'; });
+      M.strokes.forEach(st=>{
+        const put = st.v ? o : c, cut = st.v ? c : o;
+        paintStroke(put.ctx, st);
+        cut.ctx.globalCompositeOperation = 'destination-out'; paintStroke(cut.ctx, st); cut.ctx.globalCompositeOperation = 'source-over';
+      });
+      a.ctx.drawImage(o.cv, 0, 0);
+      a.ctx.globalCompositeOperation = 'destination-out'; a.ctx.drawImage(c.cv, 0, 0); a.ctx.globalCompositeOperation = 'source-over';
+    }
+    if(M.clip){
+      a.ctx.setTransform(T.k, 0, 0, T.k, T.ox, T.oy);
+      a.ctx.globalCompositeOperation = 'destination-in'; a.ctx.fillStyle = '#fff'; a.ctx.fillRect(M.clip.x, M.clip.y, M.clip.w, M.clip.h);
+      a.ctx.setTransform(1, 0, 0, 1, 0, 0); a.ctx.globalCompositeOperation = 'source-over';
+    }
+    return a;
+  }
+  // Итоговая пелена на холсте out: o.veil — цвет, o.mem — {cv, x, y, w, h} (разведанное), o.memCut — насколько оно просвечивает, o.blur — мягкость края
+  function compose(out, S, W, H, T, M, o){
+    const a = paintVisible(S, W, H, T, M);
+    out.setTransform(1, 0, 0, 1, 0, 0);
+    out.globalCompositeOperation = 'source-over';
+    out.clearRect(0, 0, W, H);
+    out.fillStyle = o.veil; out.fillRect(0, 0, W, H);
+    out.globalCompositeOperation = 'destination-out';
+    if(o.mem){
+      const t = layer(S, 't', W, H);
+      t.ctx.setTransform(T.k, 0, 0, T.k, T.ox, T.oy);
+      t.ctx.drawImage(o.mem.cv, o.mem.x, o.mem.y, o.mem.w, o.mem.h);
+      if(M.strokes.length){ t.ctx.setTransform(1, 0, 0, 1, 0, 0); t.ctx.globalCompositeOperation = 'destination-out'; t.ctx.drawImage(S.c.cv, 0, 0); }
+      out.globalAlpha = o.memCut; out.drawImage(t.cv, 0, 0); out.globalAlpha = 1;
+    }
+    if(o.blur && 'filter' in out) out.filter = `blur(${o.blur}px)`; // в старом Safari фильтра нет — край мягкий и так: холст в половину разрешения
+    out.drawImage(a.cv, 0, 0);
+    if(o.blur && 'filter' in out) out.filter = 'none';
+    out.globalCompositeOperation = 'source-over';
+  }
+  return { FAR, emptyIndex, mapSight, makeIndex, cast, blocked, fan, visibleAt, paintVisible, compose, isOpening, blocksByDefault };
 })();
 </script>
 
@@ -23529,7 +23908,7 @@ const GameTable = (function(){
   function newId(p){ return (p||'')+Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
   function blankState(tableId){
     return {schema:1, tableId: tableId===undefined ? newId('tbl') : tableId, version:0,
-            map:{metersPerCell:METERS_PER_CELL, background:null, scene:null}, tokens:{}, drawings:[], zones:[], combat:null};
+            map:{metersPerCell:METERS_PER_CELL, background:null, scene:null}, tokens:{}, drawings:[], zones:[], combat:null, fog:sanitizeFog(null)};
   }
   function num(v, d){ v = Number(v); return isFinite(v) ? v : d; }
   function clamp(v, a, b){ return v<a ? a : v>b ? b : v; }
@@ -23541,6 +23920,38 @@ const GameTable = (function(){
   // Отметки состояний на жетоне (способности существ, «Бросок цели»): r — осталось кругов, 0 — пока не снимут
   const MARKS = {shock:'Шок', prone:'Сбит с ног', grabbed:'Схвачен', stunned:'Оглушён', blind:'Ослеплён', skipturn:'Пропускает ход', vanished:'Исчез', limit:'На пределе сил', fear:'Испуган', cover:'В укрытии', parry:'Парирует',
     exhausted:'Истощён', immobile:'Обездвижен', dead:'Погиб'}; // последние три — таблица травм и поломок (23-trauma-table.js), истощение существ
+  // Свет жетона (см. туман войны): круговой — диаметр в метрах; конус — угол, длина в метрах и направление (0° — вверх, по часовой)
+  function sanitizeLight(l){
+    if(!l || typeof l!=='object') return null;
+    const m = (v)=>clamp(Math.round(num(v, 0)*10)/10, 0, 3000);
+    if(l.kind==='circle'){ const d = m(l.d); return d >= 0.5 ? {kind:'circle', d} : null; }
+    if(l.kind==='cone'){ const a = Math.round(clamp(num(l.a, 0), 0, 360)), len = m(l.l); return a >= 1 && len >= 0.5 ? {kind:'cone', a, l:len, dir:Math.round(((num(l.dir, 0)%360) + 360)%360)} : null; }
+    return null;
+  }
+  function lightLabel(l){ return l.kind==='cone' ? `конус ${l.a}°, ${fmtNum(l.l)} м` : `круговой, ⌀ ${fmtNum(l.d)} м`; }
+  function sanitizeFogStroke(st){
+    if(!st || !Array.isArray(st.p)) return null;
+    const p = st.p.slice(0, 20000).map(v=>Math.round(clamp(num(v, 0), -10000, 10000)*100)/100);
+    if(p.length%2) p.pop();
+    if(p.length < 2) return null;
+    const o = {v:st.v ? 1 : 0, p};
+    if(st.f && p.length >= 6) o.f = 1; else o.r = clamp(num(st.r, 1), 0.1, 60);
+    return o;
+  }
+  const FOG_MAX_POINTS = 300000; // мазки идут в снимке стола — старые отбрасываются, чтобы снимок не рос без предела
+  function sanitizeFog(f){
+    f = f && typeof f==='object' ? f : {};
+    const strokes = []; let total = 0;
+    const raw = Array.isArray(f.strokes) ? f.strokes : [];
+    for(let i=raw.length - 1;i>=0;i--){ const st = sanitizeFogStroke(raw[i]); if(!st) continue; total += st.p.length; if(total > FOG_MAX_POINTS) break; strokes.unshift(st); }
+    return {on:!!f.on, day:!!f.day, memory:f.memory!==false, epoch:Math.max(0, Math.floor(num(f.epoch, 0))), rev:Math.max(0, Math.floor(num(f.rev, 0))), strokes, playerDoors:!!f.playerDoors, doors:sanitizeDoors(f.doors)};
+  }
+  const DOOR_STATES = ['open', 'closed', 'locked'];
+  function sanitizeDoors(d){ // состояние дверей на столе, id объекта карты → состояние; нет записи — как нарисована на карте
+    const out = {}; if(!d || typeof d!=='object') return out;
+    Object.keys(d).slice(0, 3000).forEach(k=>{ if(DOOR_STATES.indexOf(d[k])>=0) out[String(k).slice(0, 64)] = d[k]; });
+    return out;
+  }
   function sanitizeToken(t){
     t = t || {};
     const kind = t.kind==='player' ? 'player' : 'gm';
@@ -23554,6 +23965,7 @@ const GameTable = (function(){
       avatar: safeUrl(t.avatar),
       hidden: kind==='gm' && !!t.hidden
     };
+    { const lt = sanitizeLight(t.light); if(lt) out.light = lt; }
     if(kind==='player') out.ownerId = String(t.ownerId||'').slice(0,64);
     else {
       out.hp = (t.hp===null || t.hp===undefined || t.hp==='') ? null : Math.round(clamp(num(t.hp,0), -9999, 9999));
@@ -23648,6 +24060,7 @@ const GameTable = (function(){
     (Array.isArray(raw.drawings) ? raw.drawings : []).forEach(d=>{ const c = sanitizeDrawing(d); if(c) s.drawings.push(c); });
     s.zones = Array.isArray(raw.zones) ? raw.zones : []; // задел под зоны/AoE — пока только хранятся
     s.combat = sanitizeCombat(raw.combat);
+    s.fog = sanitizeFog(raw.fog);
     return s;
   }
   /* Трекер боя (правила «Бой»): стороны ходят по очереди целиком — сначала начавшая конфликт, затем вторая (третья);
@@ -23700,9 +24113,13 @@ const GameTable = (function(){
   function st(){ return isPlayer() ? viewState : authState; }
   function tok(id){ return st().tokens[id]; }
   function myOwnerId(){ const r = role(); return r==='player' ? session.myId : r ? null : LOCAL_OWNER; }
-  function tokenVisibleHere(t){ return isAuthority() || !t.hidden; }
+  function tokenExistsHere(t){ return isAuthority() || !t.hidden; }
+  // fogHiddenIds — жетоны, которых игроки сейчас не видят из-за тумана. Мастер видит всех, кроме режима «Глазами игроков»
+  function tokenVisibleHere(t){ if(isAuthority()) return !(fogPreview && fogActive() && (t.hidden || fogHiddenIds.has(t.id))); return !t.hidden && !fogHiddenIds.has(t.id); }
+  function secretFromPlayers(t){ return !!t.hidden || fogHiddenIds.has(t.id); } // имя в логе и трекере не раскрывается
   function ownToken(){ const me = myOwnerId(); return me ? Object.values(st().tokens).find(t=>t.kind==='player' && t.ownerId===me) : null; }
   let paused = false; // «Стоп-кадр» Мастера: игроки не двигают жетоны
+  let fogHiddenIds = new Set(), fogPreview = false;
   function canControl(t){ return !!t && (isAuthority() || (!paused && t.kind==='player' && t.ownerId===myOwnerId())); }
 
   let saveTimer = null, cacheTimer = null;
@@ -23829,6 +24246,11 @@ const GameTable = (function(){
       case 'drawings-set': s.drawings = op.drawings; break;
       case 'map-set': s.map = op.map; break;
       case 'combat-set': s.combat = op.combat; break;
+      case 'fog-set': s.fog = Object.assign({}, s.fog, op.fog, {rev:s.fog.rev + 1}); break;
+      case 'fog-stroke': s.fog.strokes.push(op.stroke); s.fog.rev++; break;
+      case 'fog-pop': s.fog.strokes.pop(); s.fog.rev++; break;
+      case 'fog-strokes': s.fog.strokes = op.strokes; s.fog.rev++; break;
+      case 'fog-door': s.fog.doors = Object.assign({}, s.fog.doors, {[op.id]:op.s}); s.fog.rev++; break;
     }
   }
   function sanitizeOp(op){
@@ -23841,6 +24263,15 @@ const GameTable = (function(){
       case 'drawings-set': return {op:op.op, drawings:(op.drawings||[]).map(sanitizeDrawing).filter(Boolean)};
       case 'map-set': return {op:op.op, map:sanitizeMap(op.map)};
       case 'combat-set': return {op:op.op, combat:sanitizeCombat(op.combat)};
+      case 'fog-set': { const f = op.fog && typeof op.fog==='object' ? op.fog : {}, o = {};
+        ['on','day','memory','playerDoors'].forEach(k=>{ if(k in f) o[k] = !!f[k]; });
+        if('epoch' in f) o.epoch = Math.max(0, Math.floor(num(f.epoch, 0)));
+        if('doors' in f) o.doors = sanitizeDoors(f.doors);
+        return {op:op.op, fog:o}; }
+      case 'fog-stroke': { const st = sanitizeFogStroke(op.stroke); return st ? {op:op.op, stroke:st} : null; }
+      case 'fog-pop': return {op:op.op};
+      case 'fog-strokes': return {op:op.op, strokes:sanitizeFog({strokes:op.strokes}).strokes};
+      case 'fog-door': return DOOR_STATES.indexOf(op.s)>=0 ? {op:op.op, id:String(op.id).slice(0, 64), s:op.s} : null;
     }
     return null;
   }
@@ -23855,7 +24286,7 @@ const GameTable = (function(){
   function playerSnapshot(){
     const s = authState, tokens = {};
     Object.values(s.tokens).forEach(t=>{ if(!t.hidden) tokens[t.id] = publicToken(t); });
-    return {schema:1, tableId:s.tableId, version:s.version, map:s.map, tokens, drawings:s.drawings, zones:s.zones, combat:publicCombat(s.combat)};
+    return {schema:1, tableId:s.tableId, version:s.version, map:s.map, tokens, drawings:s.drawings, zones:s.zones, combat:publicCombat(s.combat), fog:s.fog};
   }
   function sendSnapshot(toId){ if(role()==='gm') sendMsg({type:'gt-snapshot', state:playerSnapshot()}, toId); }
 
@@ -23897,9 +24328,17 @@ const GameTable = (function(){
         if(!t) return deny('Жетон не найден');
         const patch = {};
         ['name','hp','hpMax','hpShown','size','color','hidden','avatar','rotation','marks','nature',
-         'defense','defenseSubs','zoneDef','armorName','weaponText','attackMod','attackModEnabled','unprotectedEnabled','unprotectedMod','traumaThreshold','trauma','traumaRed','strength','slowReaction','burning','reflexes','grenade','atkSkill','creature']
+         'light','defense','defenseSubs','zoneDef','armorName','weaponText','attackMod','attackModEnabled','unprotectedEnabled','unprotectedMod','traumaThreshold','trauma','traumaRed','strength','slowReaction','burning','reflexes','grenade','atkSkill','creature']
           .forEach(k=>{ if(cmd.patch && k in cmd.patch) patch[k] = cmd.patch[k]; });
         ops.push({op:'token-upsert', token:sanitizeToken(Object.assign({}, t, patch))});
+        break;
+      }
+      case 'token-aim': { // поворот конуса света: Мастер — у любого жетона, игрок — у своего
+        const t = s.tokens[cmd.id];
+        if(!t || !t.light || t.light.kind!=='cone') return deny('У жетона нет направленного света');
+        if(remote && paused) return deny('Стоп-кадр: Мастер поставил игру на паузу');
+        if(remote && !(t.kind==='player' && t.ownerId===from)) return deny('Поворачивать можно только свой свет');
+        ops.push({op:'token-upsert', token:sanitizeToken(Object.assign({}, t, {light:Object.assign({}, t.light, {dir:cmd.dir})}))});
         break;
       }
       case 'token-delete': {
@@ -23919,6 +24358,29 @@ const GameTable = (function(){
         if(['act','react','swap'].indexOf(cmd.field)<0) return deny('Неизвестная отметка');
         const c1 = clone(c0); c1.parts[cmd.id][cmd.field] = !!cmd.value;
         ops.push({op:'combat-set', combat:sanitizeCombat(c1)});
+        break;
+      }
+      case 'door-toggle': { // игрок у двери (Мастер — door-set)
+        const f = s.fog, d = fogDoors.find(x=>x.id===cmd.id), me = Object.values(s.tokens).find(t=>t.kind==='player' && t.ownerId===(remote ? from : myOwnerId()));
+        if(remote && (!f.on || !f.playerDoors)) return deny('Двери открывает Мастер');
+        if(remote && paused) return deny('Стоп-кадр: Мастер поставил игру на паузу');
+        if(!d) return deny('Дверь не найдена');
+        if(remote && (!me || Math.hypot(me.x - d.x, me.y - d.y) > DOOR_REACH + 0.5)) return deny('Подойдите к двери');
+        const cur = f.doors[d.id] || d.def;
+        if(remote && cur==='locked') return deny('Заперто');
+        ops.push({op:'fog-door', id:d.id, s:cur==='open' ? 'closed' : 'open'});
+        break;
+      }
+      case 'door-set': {
+        if(remote) return deny('Это может только Мастер');
+        const op = sanitizeOp({op:'fog-door', id:cmd.id, s:cmd.s});
+        if(op) ops.push(op);
+        break;
+      }
+      case 'fog-set': case 'fog-stroke': case 'fog-pop': case 'fog-strokes': {
+        if(remote) return deny('Туманом управляет только Мастер');
+        const op = sanitizeOp(Object.assign({}, cmd, {op:cmd.c}));
+        if(op) ops.push(op);
         break;
       }
       case 'drawing-add': case 'drawing-remove': case 'drawings-set': case 'map-set': {
@@ -23943,14 +24405,16 @@ const GameTable = (function(){
   function afterOps(ops){
     let draw = false, bg = false;
     ops.forEach(op=>{
-      if(op.op==='token-upsert'){ delete pendingPos[op.token.id]; delete previewPos[op.token.id]; }
+      if(op.op==='token-upsert'){ delete pendingPos[op.token.id]; delete previewPos[op.token.id]; const am = aimLocal[op.token.id]; if(am && !am.live) delete aimLocal[op.token.id]; }
       if(op.op==='token-remove'){ selected.delete(op.id); }
       if(op.op.indexOf('drawing')===0) draw = true;
-      if(op.op==='map-set') bg = true;
+      if(op.op==='map-set' || op.op==='fog-door' || op.op==='fog-set') bg = true; // рисунок двери зависит от её состояния на столе
     });
     if(bg) checkSceneChange();
+    fogSync(); // раньше отрисовки жетонов: новый или ушедший в темноту жетон не должен мелькнуть у игроков
     renderTokens();
     requestRender({draw, bg, fx:true});
+    if(isAuthority() && ops.some(op=>op.op.indexOf('fog-')===0)){ renderToolbar(); renderSubbar(); }
     if(ops.some(op=>op.op==='combat-set')) renderCombat();
     if(ops.some(op=>op.op==='combat-set' && !op.combat)) firstDmgSeen = {}; // бой закончен — «первый урон в бою» снова доступен
     // «Скорость» — первая успешная атака В БОЮ: с началом и концом боя трекера бонус снова доступен всем (и отметка на карточке листа)
@@ -23999,6 +24463,7 @@ const GameTable = (function(){
         Object.keys(pendingPos).forEach(k=>delete pendingPos[k]);
         scheduleCacheSave();
         checkSceneChange();
+        fogSync();
         renderTokens(); requestRender({bg:true, draw:true, fx:true});
         break;
       }
@@ -24097,13 +24562,14 @@ const GameTable = (function(){
     } else if(msg.type==='gt-drag'){
       (Array.isArray(msg.moves) ? msg.moves : []).slice(0,100).forEach(m=>{
         const t = m && tok(m.id);
-        if(!t || !tokenVisibleHere(t)) return;
+        if(!t || !tokenExistsHere(t)) return; // жетон в тумане тоже: может выйти на свет, пока его тащат
         // Мастер может показывать движение любого (видимого) жетона, игрок — только своего
         const senderIsGm = isPlayer() && from===session.gmId;
         const senderOwns = t.kind==='player' && t.ownerId===from;
         if(!senderIsGm && !senderOwns) return;
         if(dragPos[t.id]) return; // сами сейчас держим этот жетон
         previewPos[t.id] = {x:num(m.x,t.x), y:num(m.y,t.y), t:performance.now()};
+        if(m.dir!==undefined && isFinite(m.dir)) previewPos[t.id].dir = Number(m.dir); // поворот конуса света
         refreshTokenPos(t.id);
       });
       requestRender({fx:true});
@@ -24152,7 +24618,7 @@ const GameTable = (function(){
   }
 
   /* ---------- DOM / локальное состояние интерфейса ---------- */
-  let viewport, layer, bgC, drC, fxC, bgX, drX, fxX, toolbar, subbar, zoombar, statusEl, infoCard, hintEl, toastEl, menuEl, popEl, emptyHint;
+  let viewport, layer, bgC, drC, fogC, fxC, bgX, drX, fogX, fxX, toolbar, subbar, zoombar, statusEl, infoCard, hintEl, toastEl, menuEl, popEl, emptyHint;
   let vw = 0, vh = 0, dpr = 1, visible = false;
   let tool = 'select', drawTool = 'pen';
   let drawStyle = Object.assign({color:DRAW_COLORS[0], width:4, opacity:1}, loadJson(STYLE_KEY)||{});
@@ -24161,6 +24627,7 @@ const GameTable = (function(){
   const dragPos = {};     // id -> {x,y}   своё текущее перетаскивание (ещё не отправлено)
   const pendingPos = {};  // id -> {x,y,t} (игрок) отправлено Мастеру, ждём подтверждения
   const previewPos = {};  // id -> {x,y,t} чужое «живое» перетаскивание
+  const aimLocal = {};    // id -> {dir, live, t} свой поворот конуса света (live — ещё тянем, иначе ждём подтверждения)
   let interaction = null, placing = null, ruler = null, polyDraft = null, eraseIds = null;
   let pings = [], gmPointer = null, pointerBroadcast = false;
   let undoStack = [], redoStack = [];
@@ -24214,6 +24681,7 @@ const GameTable = (function(){
     el.classList.toggle('selected', selected.has(t.id));
     el.classList.toggle('movable', canControl(t));
     el.classList.toggle('hidden-tok', !!t.hidden);
+    el.classList.toggle('fog-hid', isAuthority() && fogHiddenIds.has(t.id)); // Мастеру: игроки этот жетон сейчас не видят
     el.classList.toggle('dragging', !!dragPos[t.id]);
     { const cbs = st().combat, cbp = cbs && cbs.parts[t.id];
       el.classList.toggle('cb-on', !!cbp && cbs.order[cbs.turn]===cbp.side);
@@ -24264,8 +24732,8 @@ const GameTable = (function(){
       + (enc ? `<span class="gt-mark-badge" title="Сковывает: ${escapeHtml(enc)} (сила ниже нужной)">Скован</span>` : '');
     return `<span class="gt-trauma-row">${marks}${t.burning?`<span class="gt-burn-badge" title="Горит (термическая граната): кругов">🔥${t.burning}</span>`:""}${t.slowReaction?'<span class="gt-slow-badge" title="Атакован медленным оружием — может отреагировать">⚡ реакция</span>':''}${t.trauma?`<span title="${rb ? 'Поломки' : 'Травмы'}">${rb ? '🔧' : '🦴'}${t.trauma}</span>`:''}${t.traumaRed?`<span class="bone-red" title="${rb ? 'Поломки' : 'Травмы'} от оружия с чертой «травма»">${rb ? '🔧' : '🦴'}</span><span class="gt-trauma-red-n">${t.traumaRed}</span>`:''}</span>`;
   }
-  function refreshTokenPos(id){ const el = tokenEls.get(id), t = tok(id); if(el && t){ positionTokenEl(el, t); el.classList.toggle('dragging', !!dragPos[id]); } }
-  function setSelection(ids){ selected.clear(); ids.forEach(id=>selected.add(id)); tokenEls.forEach((el,id)=>el.classList.toggle('selected', selected.has(id))); renderInfoCard(); }
+  function refreshTokenPos(id){ const el = tokenEls.get(id), t = tok(id); if(el && t){ positionTokenEl(el, t); el.classList.toggle('dragging', !!dragPos[id]); } if(viewport) requestRender(); } // кадр — туман идёт за жетоном
+  function setSelection(ids){ selected.clear(); ids.forEach(id=>selected.add(id)); tokenEls.forEach((el,id)=>el.classList.toggle('selected', selected.has(id))); renderInfoCard(); if(viewport) requestRender({fx:true}); }
   function renderInfoCard(){
     if(selected.size!==1){ infoCard.style.display = 'none'; return; }
     const t = tok([...selected][0]);
@@ -24284,23 +24752,26 @@ const GameTable = (function(){
         ` · ${ws ? escapeHtml(ws.cleanName)+` (Ат${ws.at>=0?'+':''}${ws.at}, МУ${ws.mu})` : 'без оружия'} · ${({void:'пустота — без травм', robot:'робот — поломка-к12 ' + t.traumaThreshold})[tokenNature(t)] || 'травма-к12 ' + t.traumaThreshold}</div>`;
     }
     const bones = (t.trauma||t.traumaRed||t.slowReaction||t.burning) ? `<div class="gt-ic-sub">${traumaBadgesHtml(t)}</div>` : '';
+    const lightNote = t.light ? `<div class="gt-ic-sub">💡 ${escapeHtml(lightLabel(t.light))}${t.light.kind==='cone' && fogActive() && canControl(t) ? ' · тяните круглую ручку — повернуть' : ''}</div>` : '';
     infoCard.innerHTML = `<div class="gt-ic-sub">${kindTxt} · ${SIZE_LABELS[t.size]}${t.hidden?' · скрыт':''}</div><div class="gt-ic-name">${escapeHtml(tokenName(t, v))}</div>`+
-      (stats ? `<div class="gt-ic-stats">${stats}</div>` : '') + bones + combat;
+      (stats ? `<div class="gt-ic-stats">${stats}</div>` : '') + bones + lightNote + combat;
     infoCard.style.display = 'block';
   }
 
   /* ---------- canvas: фон/сетка, зоны+рисунки, временное ---------- */
   let rq = null;
-  const dirty = {bg:false, draw:false, fx:false};
+  const dirty = {bg:false, draw:false, fog:false, fx:false};
   function requestRender(f){
-    if(f){ if(f.bg) dirty.bg = true; if(f.draw) dirty.draw = true; if(f.fx) dirty.fx = true; }
+    if(f){ if(f.bg) dirty.bg = true; if(f.draw) dirty.draw = true; if(f.fog) dirty.fog = true; if(f.fx) dirty.fx = true; }
     if(!rq) rq = requestAnimationFrame(flush);
   }
   function flush(){
     rq = null;
+    fogSync(); // и при скрытом столе: что видят игроки, нужно логу и памяти разведанного
     if(!visible || !vw) return;
-    if(dirty.bg){ dirty.bg = false; drawBackground(); }
+    if(dirty.bg){ dirty.bg = false; dirty.fog = true; drawBackground(); }
     if(dirty.draw){ dirty.draw = false; drawDrawings(); }
+    if(dirty.fog){ dirty.fog = false; drawFog(); }
     if(dirty.fx){ dirty.fx = false; drawFx(); }
   }
   function resize(){
@@ -24309,8 +24780,10 @@ const GameTable = (function(){
     if(!w || !h) return;
     dpr = window.devicePixelRatio || 1; vw = w; vh = h;
     [bgC, drC, fxC].forEach(c=>{ c.width = Math.round(w*dpr); c.height = Math.round(h*dpr); c.style.width = w+'px'; c.style.height = h+'px'; });
+    fogC.width = Math.ceil(w*FOG_RES); fogC.height = Math.ceil(h*FOG_RES); fogC.style.width = w+'px'; fogC.style.height = h+'px'; // туман — в половину разрешения: дешевле, край мягче
     if(camNeedsCenter && visible){ camNeedsCenter = false; centerOn(0, 0); }
     if(visible && (focusPending || Date.now() < focusUntil)) applySceneFocus();
+    placeSubbar();
     requestRender({bg:true, draw:true, fx:true});
   }
   function setWorldTransform(ctx){ const k = CELL*cam.z*dpr; ctx.setTransform(k,0,0,k, cam.x*dpr, cam.y*dpr); }
@@ -24338,7 +24811,7 @@ const GameTable = (function(){
         const k = CELL*cam.z;
         ctx.save();
         ctx.setTransform(k*dpr, 0, 0, k*dpr, (cam.x + sc.x*k)*dpr, (cam.y + sc.y*k)*dpr);
-        MapRender.drawMap(ctx, md, {k, view:{x0:-cam.x/k - sc.x, y0:-cam.y/k - sc.y, x1:(vw - cam.x)/k - sc.x, y1:(vh - cam.y)/k - sc.y}});
+        MapRender.drawMap(ctx, md, {k, view:{x0:-cam.x/k - sc.x, y0:-cam.y/k - sc.y, x1:(vw - cam.x)/k - sc.x, y1:(vh - cam.y)/k - sc.y}, doorV:fogActive() ? fogDoorV : null});
         ctx.restore();
       }
     }
@@ -24358,6 +24831,224 @@ const GameTable = (function(){
     const g = ctx.createRadialGradient(vw/2, vh/2, Math.min(vw,vh)*0.35, vw/2, vh/2, Math.max(vw,vh)*0.75);
     g.addColorStop(0, 'rgba(92,82,64,0)'); g.addColorStop(1, 'rgba(92,82,64,.16)');
     ctx.fillStyle = g; ctx.fillRect(0,0,vw,vh);
+  }
+  /* ---------- туман войны ----------
+     Геометрия и растр — FogKit (04b-fog.js). Настройки и мазки кисти — st().fog, идут обычными операциями стола;
+     видимость каждый считает у себя: стены приходят с картой, жетоны и их свет — с состоянием стола.
+     Зрение общее: игрокам видно всё, что видит любой из их жетонов. Скрытые жетоны в расчёт не идут (у игроков их нет). */
+  const FOG_RES = 0.5, FOG_MEM_KEY = 'reincarnator_fog_memory_v1';
+  const fogScr = {}, fogMemScr = {}, fogPolys = new Map();
+  let fogModel = null, fogSig = '', fogLive = null, fogBrush = 'open', fogBrushM = 9;
+  let fogIx = FogKit.emptyIndex(), fogIxKey = '', fogIxDoc = null, fogIxVer = 0, fogMem = null, fogMemTimer = null;
+  let fogDoors = [], fogDoorV = null, doorPressTimer = null;
+  const DOOR_REACH = 1.6; // игрок дотягивается до двери за столько клеток
+  function fogActive(){ return !!(st().fog && st().fog.on); }
+  function mPerCell(){ return (st().map && st().map.metersPerCell) || METERS_PER_CELL; }
+  function lightDirOf(t){
+    const am = aimLocal[t.id];
+    if(am && (am.live || performance.now() - am.t < PENDING_MS)) return am.dir;
+    const pv = previewPos[t.id];
+    return pv && pv.dir!==undefined ? pv.dir : t.light.dir;
+  }
+  const compassRad = (deg)=>(deg - 90)*Math.PI/180;
+  function lightGeom(t, p){ // радиус в клетках и углы конуса
+    const l = t.light;
+    if(l.kind==='circle') return {x:p.x, y:p.y, R:l.d/2/mPerCell()};
+    const mid = compassRad(lightDirOf(t)), half = l.a*Math.PI/360;
+    return l.a >= 360 ? {x:p.x, y:p.y, R:l.l/mPerCell()} : {x:p.x, y:p.y, R:l.l/mPerCell(), a0:mid - half, a1:mid + half};
+  }
+  function fogWallsNow(){
+    const sc = st().map && st().map.scene;
+    if(!sc || typeof MapStore==='undefined'){ if(fogIxKey){ fogIxKey = ''; fogIxDoc = null; fogIx = FogKit.emptyIndex(); fogDoors = []; fogDoorV = null; fogIxVer++; } return {key:'-' + fogIxVer, pending:false}; }
+    const md = MapStore.sceneDoc(sc, ()=>requestRender({bg:true}));
+    if(!md) return {key:'wait', pending:true};
+    const doors = st().fog.doors, key = `${sc.url}#${sc.rev}|${sc.x}|${sc.y}|${Object.keys(doors).sort().map(k=>k + doors[k]).join()}`;
+    if(key!==fogIxKey || md!==fogIxDoc){
+      fogIxKey = key; fogIxDoc = md; fogIxVer++;
+      const r = FogKit.mapSight(md, sc.x, sc.y, (id)=>doors[id]);
+      fogIx = r.ix; fogDoors = r.doors; fogDoorV = {};
+      fogDoors.forEach(d=>{ const v = (doors[d.id] || d.def)==='open' ? d.openV : d.closedV; if(v!==d.v) fogDoorV[d.id] = v; });
+      dirty.bg = true;
+    }
+    return {key:'w' + fogIxVer, pending:false};
+  }
+  function fogSync(){
+    const s = st(), f = s.fog;
+    if(!f || !f.on){
+      if(fogSig){ fogSig = ''; fogModel = null; fogPolys.clear(); dirty.fog = true; dirty.bg = true; }
+      if(fogHiddenIds.size){ fogHiddenIds = new Set(); renderTokens(); }
+      return;
+    }
+    const walls = fogWallsNow(), toks = Object.values(s.tokens).filter(t=>!t.hidden), parts = [];
+    toks.forEach(t=>{ const p = displayPos(t); parts.push(t.id, p.x, p.y, t.size, t.kind==='player' ? 'p' : 'g');
+      if(t.light){ const g = lightGeom(t, p); parts.push(g.R, g.a0, g.a1); } });
+    const sc0 = s.map && s.map.scene;
+    const sig = [walls.key, f.day ? 1 : 0, f.rev, f.strokes.length, fogLive ? fogLive.p.length : 0, mPerCell(), sc0 ? [sc0.x, sc0.y, sc0.cols, sc0.rows].join() : '', parts.join(',')].join('|');
+    if(sig===fogSig) return;
+    fogSig = sig; dirty.fog = true;
+    const used = new Set();
+    const poly = (key, make)=>{ used.add(key); let v = fogPolys.get(key); if(!v){ v = make(); fogPolys.set(key, v); } return v; };
+    const eyes = [], lights = [];
+    if(!walls.pending) toks.forEach(t=>{
+      const p = displayPos(t);
+      if(t.kind==='player') eyes.push({x:p.x, y:p.y, poly:poly(`e|${walls.key}|${p.x}|${p.y}`, ()=>FogKit.fan(fogIx, p.x, p.y, FogKit.FAR))});
+      if(t.light){ const g = lightGeom(t, p); g.poly = poly(`l|${walls.key}|${p.x}|${p.y}|${g.R}|${g.a0}|${g.a1}`, ()=>g.a0===undefined ? FogKit.fan(fogIx, g.x, g.y, g.R) : FogKit.fan(fogIx, g.x, g.y, g.R, g.a0, g.a1)); lights.push(g); }
+    });
+    fogPolys.forEach((v, k)=>{ if(!used.has(k)) fogPolys.delete(k); });
+    const scn = s.map && s.map.scene;
+    // Крупный объект виден целиком, если на него упал и взгляд, и свет
+    const seen = new Set(), lit = new Set();
+    eyes.forEach(e=>e.poly.hits.forEach(h=>seen.add(h)));
+    lights.forEach(L=>L.poly.hits.forEach(h=>lit.add(h)));
+    const reveal = [...seen].filter(h=>(f.day || lit.has(h)) && fogIx.groups[h]).map(h=>fogIx.groups[h].reveal);
+    fogModel = {ix:fogIx, day:f.day, pending:walls.pending, eyes, lights, reveal, strokes:fogLive ? f.strokes.concat([fogLive]) : f.strokes, clip:scn ? {x:scn.x, y:scn.y, w:scn.cols, h:scn.rows} : null};
+    // Кого игроки сейчас не видят: жетон виден, если на свету центр или хотя бы край
+    const hid = new Set();
+    toks.forEach(t=>{
+      if(t.kind==='player') return;
+      const p = displayPos(t), r = SIZE_CELLS[t.size]*0.4;
+      if(!(FogKit.visibleAt(fogModel, p.x, p.y) || FogKit.visibleAt(fogModel, p.x + r, p.y) || FogKit.visibleAt(fogModel, p.x - r, p.y) || FogKit.visibleAt(fogModel, p.x, p.y + r) || FogKit.visibleAt(fogModel, p.x, p.y - r))) hid.add(t.id);
+    });
+    const changed = hid.size!==fogHiddenIds.size || [...hid].some(id=>!fogHiddenIds.has(id));
+    if(changed){ fogHiddenIds = hid; renderTokens(); }
+    gated('fogmem', 200, fogMemUpdate);
+  }
+  function drawFog(){
+    const on = fogActive() && !!fogModel;
+    fogC.style.display = on ? 'block' : 'none';
+    if(!on) return;
+    const eyes = isPlayer() || fogPreview, f = st().fog;
+    FogKit.compose(fogX, fogScr, fogC.width, fogC.height, {k:CELL*cam.z*FOG_RES, ox:cam.x*FOG_RES, oy:cam.y*FOG_RES}, fogModel,
+      {veil:eyes ? '#0b0908' : 'rgba(10,8,20,.5)', memCut:eyes ? 0.55 : 0.35, blur:2, mem:f.memory ? fogMemEnsure() : null});
+  }
+  // Память разведанного: своя у каждого браузера, отдельно для стола и карты; «Сбросить» Мастера меняет epoch
+  function fogMemRect(){
+    const m = st().map || {}, sc = m.scene, bg = m.background;
+    if(sc) return {id:'m' + sc.mapId, x:sc.x, y:sc.y, w:sc.cols, h:sc.rows};
+    if(bg){ const im = bgImages[bg.url]; return im && im.naturalWidth ? {id:'b' + bg.url.slice(-48), x:bg.x, y:bg.y, w:bg.w, h:bg.w*im.naturalHeight/im.naturalWidth} : null; }
+    return {id:'free', x:-120, y:-120, w:240, h:240};
+  }
+  function fogMemStore(){ const v = loadJson(FOG_MEM_KEY); return v && v.e && typeof v.e==='object' ? v : {e:{}}; }
+  function fogMemEnsure(){
+    if(sandbox) return null;
+    const r = fogMemRect(); if(!r) return null;
+    const key = `${st().tableId || ''}|${r.id}|${st().fog.epoch}`;
+    if(fogMem && fogMem.key===key) return fogMem;
+    const px = clamp(Math.floor(2000/Math.max(r.w, r.h)), 1, 4), cv = document.createElement('canvas');
+    cv.width = Math.ceil(r.w*px); cv.height = Math.ceil(r.h*px);
+    const me = fogMem = Object.assign({key, px, cv, ctx:cv.getContext('2d')}, r);
+    const saved = fogMemStore().e[key];
+    if(saved && saved.png){ const im = new Image(); im.onload = ()=>{ me.ctx.drawImage(im, 0, 0, cv.width, cv.height); requestRender({fog:true}); }; im.src = saved.png; }
+    return me;
+  }
+  function fogMemUpdate(){
+    if(!fogActive() || !st().fog.memory || !fogModel) return;
+    const m = fogMemEnsure(); if(!m) return;
+    const a = FogKit.paintVisible(fogMemScr, m.cv.width, m.cv.height, {k:m.px, ox:-m.x*m.px, oy:-m.y*m.px}, fogModel);
+    m.ctx.drawImage(a.cv, 0, 0);
+    requestRender({fog:true});
+    clearTimeout(fogMemTimer);
+    fogMemTimer = setTimeout(()=>{
+      const v = fogMemStore(); v.e[m.key] = {png:m.cv.toDataURL('image/png'), at:Date.now()};
+      Object.keys(v.e).sort((p, q)=>v.e[q].at - v.e[p].at).slice(5).forEach(k=>delete v.e[k]);
+      try{ localStorage.setItem(FOG_MEM_KEY, JSON.stringify(v)); }
+      catch(e){ try{ localStorage.setItem(FOG_MEM_KEY, JSON.stringify({e:{[m.key]:v.e[m.key]}})); }catch(e2){} } // хранилище переполнено — остаётся только текущая карта
+    }, 1500);
+  }
+  // Свет выбранного жетона на поле: контур без учёта стен и ручка поворота конуса
+  function aimHandleOf(t){
+    const s = toScreen(displayPos(t)), a = compassRad(lightDirOf(t)), d = SIZE_CELLS[t.size]*CELL*cam.z/2 + 24;
+    return {x:s.x + Math.cos(a)*d, y:s.y + Math.sin(a)*d, sx:s.x, sy:s.y, a};
+  }
+  function lightGizmoToken(){
+    if(!fogActive() || tool!=='select' || selected.size!==1) return null;
+    const t = tok([...selected][0]);
+    return t && t.light && canControl(t) && tokenVisibleHere(t) ? t : null;
+  }
+  function aimHit(p, touch){
+    const t = lightGizmoToken();
+    if(!t || t.light.kind!=='cone') return null;
+    const h = aimHandleOf(t);
+    return Math.hypot(p.x - h.x, p.y - h.y) <= (touch ? 22 : 13) ? t : null;
+  }
+  function drawLightGizmo(ctx){
+    const t = lightGizmoToken(); if(!t) return;
+    const g = lightGeom(t, displayPos(t)), h = aimHandleOf(t), R = g.R*CELL*cam.z;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(240,190,90,.85)'; ctx.lineWidth = 1.5; ctx.setLineDash([6, 5]);
+    ctx.beginPath();
+    if(g.a0===undefined) ctx.arc(h.sx, h.sy, R, 0, Math.PI*2);
+    else { ctx.moveTo(h.sx, h.sy); ctx.arc(h.sx, h.sy, R, g.a0, g.a1); ctx.closePath(); }
+    ctx.stroke();
+    ctx.setLineDash([]);
+    if(t.light.kind==='cone'){
+      ctx.strokeStyle = '#f0be5a'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(h.sx + Math.cos(h.a)*SIZE_CELLS[t.size]*CELL*cam.z/2, h.sy + Math.sin(h.a)*SIZE_CELLS[t.size]*CELL*cam.z/2); ctx.lineTo(h.x, h.y); ctx.stroke();
+      dot(ctx, h, 7, '#f0be5a');
+      if(interaction && interaction.type==='aim') pill(ctx, h.x, h.y, lightLabel(t.light));
+    }
+    ctx.restore();
+  }
+  /* Двери на столе: значок у каждой двери — у Мастера всегда (пока включён туман), у игрока — только у той, до которой он дотягивается,
+     и только если Мастер разрешил. Нажатие — открыть или закрыть; Мастеру правый клик или долгое нажатие — меню с «Запереть». */
+  function doorStateOf(d){ return st().fog.doors[d.id] || d.def; }
+  function doorIconsNow(){
+    if(!fogActive()) return [];
+    if(isAuthority()) return fogPreview ? [] : fogDoors;
+    const me = ownToken(); if(!st().fog.playerDoors || !me) return [];
+    const p = displayPos(me);
+    return fogDoors.filter(d=>Math.hypot(d.x - p.x, d.y - p.y) <= DOOR_REACH && !FogKit.blocked(fogIx, p.x, p.y, d.x, d.y));
+  }
+  const doorIconR = ()=>clamp(CELL*cam.z*0.17, 6, 11);
+  function doorHit(p, touch){
+    const r = doorIconR() + (touch ? 8 : 3);
+    return doorIconsNow().find(d=>{ const s = toScreen(d); return Math.hypot(p.x - s.x, p.y - s.y) <= r; }) || null;
+  }
+  function drawDoorIcons(ctx){
+    const r = doorIconR();
+    doorIconsNow().forEach(d=>{
+      const s = toScreen(d), state = doorStateOf(d), col = state==='open' ? '#8fc27a' : state==='locked' ? '#e0654a' : '#f0be5a', u = r*0.52;
+      ctx.save(); ctx.translate(s.x, s.y);
+      ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI*2); ctx.fillStyle = 'rgba(20,16,12,.9)'; ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = col; ctx.stroke();
+      ctx.fillStyle = col;
+      if(state==='open'){ ctx.strokeRect(-u*0.75, -u, u*1.5, u*2); ctx.beginPath(); ctx.moveTo(-u*0.75, -u); ctx.lineTo(u*0.3, -u*0.55); ctx.lineTo(u*0.3, u*1.25); ctx.lineTo(-u*0.75, u); ctx.closePath(); ctx.fill(); }
+      else if(state==='locked'){ ctx.fillRect(-u*0.8, -u*0.1, u*1.6, u*1.15); ctx.beginPath(); ctx.arc(0, -u*0.1, u*0.5, Math.PI, 0); ctx.stroke(); }
+      else { ctx.fillRect(-u*0.7, -u, u*1.4, u*2); ctx.fillStyle = 'rgba(20,16,12,.9)'; ctx.fillRect(u*0.25, -u*0.1, u*0.2, u*0.2); }
+      ctx.restore();
+    });
+  }
+  function doorToggle(d){
+    if(isAuthority()){ act({c:'door-set', id:d.id, s:doorStateOf(d)==='open' ? 'closed' : 'open'}); return; }
+    if(doorStateOf(d)==='locked'){ toast('Заперто'); return; }
+    act({c:'door-toggle', id:d.id});
+  }
+  function openDoorMenu(d, p){
+    const state = doorStateOf(d);
+    openMenu(p, d.name, [
+      {id:'door', label:state==='open' ? 'Закрыть' : 'Открыть', run:()=>act({c:'door-set', id:d.id, s:state==='open' ? 'closed' : 'open'})},
+      {id:'lock', label:state==='locked' ? 'Отпереть' : 'Запереть', run:()=>act({c:'door-set', id:d.id, s:state==='locked' ? 'closed' : 'locked'})}
+    ]);
+  }
+  function fogStrokeRadius(){ return fogBrushM/2/mPerCell(); }
+  function fogBrushDown(e, w){
+    if(!isAuthority()) return;
+    if(!authState.fog.on){ toast('Сначала включите туман'); return; }
+    if(fogBrush==='los'){ // одним нажатием — всё, что видно из этой точки (комната — целиком, в проём — по линии взгляда)
+      const walls = fogWallsNow();
+      if(walls.pending){ toast('Карта ещё загружается'); return; }
+      if(!fogIx.n) toast('На карте нет стен — открыто всё вокруг. Отменить можно на панели тумана');
+      act({c:'fog-stroke', stroke:{v:1, f:1, p:FogKit.fan(fogIx, w.x, w.y, FogKit.FAR)}});
+      return;
+    }
+    fogLive = {v:fogBrush==='open' ? 1 : 0, r:fogStrokeRadius(), p:[r3(w.x), r3(w.y)]};
+    interaction = {type:'fogpaint'};
+    requestRender();
+  }
+  function fogUndo(){ if(authState.fog.strokes.length) act({c:'fog-pop'}); }
+  function fogClearStrokes(){
+    const saved = authState.fog.strokes.slice(); if(!saved.length) return;
+    act({c:'fog-strokes', strokes:[]});
+    uiToast('Правки кистью убраны', {icon:'🌫', action:{label:'Отменить', run:()=>{ if(isAuthority()) act({c:'fog-strokes', strokes:saved}); }}});
   }
   function drawZones(/*ctx*/){ /* задел: зоны (опасность/эффект/запрет/шум/…) и AoE рисуются здесь, под рисунками */ }
   function drawDrawings(){
@@ -24484,6 +25175,12 @@ const GameTable = (function(){
       sp.forEach((p,i)=>dot(ctx, p, i===sp.length-1 ? 5 : 4, '#9c2f1c'));
       const last = sp[sp.length-1];
       pill(ctx, last.x, last.y, measureLabel(pathLength(wp)) + (ruler.points.length>1 ? ` · ${ruler.points.length} точ.` : ''));
+    }
+    drawDoorIcons(ctx);
+    drawLightGizmo(ctx);
+    if(tool==='fog' && lastMouse && fogBrush!=='los' && isAuthority() && authState.fog.on){ // размер кисти
+      const c = toScreen(lastMouse); ctx.save(); ctx.beginPath(); ctx.arc(c.x, c.y, fogStrokeRadius()*CELL*cam.z, 0, Math.PI*2);
+      ctx.strokeStyle = fogBrush==='open' ? '#f0be5a' : '#7f8ea8'; ctx.lineWidth = 2; ctx.setLineDash([5, 4]); ctx.stroke(); ctx.restore();
     }
     // перетаскивание жетона: откуда → куда и сколько это метров
     if(interaction && interaction.type==='drag' && interaction.moved){
@@ -24728,6 +25425,12 @@ const GameTable = (function(){
     try{ viewport.setPointerCapture(e.pointerId); }catch(err){}
     switch(tool){
       case 'select': {
+        { const am = aimHit(p, e.pointerType==='touch'); // ручка поворота конуса света — поверх всего
+          if(am){ aimLocal[am.id] = {dir:lightDirOf(am), live:true, t:0}; interaction = {type:'aim', id:am.id}; requestRender({fx:true}); return; } }
+        { const dr = doorHit(p, e.pointerType==='touch');
+          if(dr){ interaction = {type:'door', id:dr.id, startP:p, moved:false};
+            if(isAuthority()) doorPressTimer = setTimeout(()=>{ if(interaction && interaction.type==='door' && interaction.id===dr.id){ interaction = null; openDoorMenu(dr, p); } }, 550);
+            return; } }
         if(t && canControl(t)){
           if(e.ctrlKey || e.metaKey){ const ids = new Set(selected); ids.has(t.id) ? ids.delete(t.id) : ids.add(t.id); setSelection([...ids]); return; }
           const wasSel = selected.has(t.id);
@@ -24752,6 +25455,7 @@ const GameTable = (function(){
         return;
       }
       case 'ping': doPing(w); return;
+      case 'fog': fogBrushDown(e, w); return;
       case 'token': if(isAuthority()) openTokenForm(null, w, p); return;
       case 'text': if(isAuthority()) openTextForm(w, p); return;
       case 'draw': {
@@ -24784,7 +25488,7 @@ const GameTable = (function(){
       if(targeting){ targeting.cur = w; requestRender({fx:true}); return; }
       if(placing){ movePlacing(w, e.shiftKey); return; }
       if(ruler && ruler.mode==='waypoints'){ ruler.cur = w; requestRender({fx:true}); }
-      if(polyDraft) requestRender({fx:true});
+      if(polyDraft || tool==='fog') requestRender({fx:true});
       return;
     }
     const it = interaction;
@@ -24804,6 +25508,22 @@ const GameTable = (function(){
         it.ids.forEach(id=>{ dragPos[id] = {x:it.starts[id].x+dx, y:it.starts[id].y+dy}; refreshTokenPos(id); if(!tok(id).hidden) moves.push({id, x:r3(dragPos[id].x), y:r3(dragPos[id].y)}); });
         if(moves.length) sendTransient({type:'gt-drag', moves}, 120);
         requestRender({fx:true});
+        break;
+      }
+      case 'door': if(Math.hypot(p.x - it.startP.x, p.y - it.startP.y) > 8){ it.moved = true; clearTimeout(doorPressTimer); } break;
+      case 'aim': {
+        const t = tok(it.id); if(!t) break;
+        const pp = displayPos(t);
+        let d = ((Math.atan2(w.y - pp.y, w.x - pp.x)*180/Math.PI + 90)%360 + 360)%360;
+        d = e.shiftKey ? Math.round(d/15)*15%360 : Math.round(d)%360;
+        aimLocal[it.id] = {dir:d, live:true, t:0};
+        if(!t.hidden) sendTransient({type:'gt-drag', moves:[{id:t.id, x:r3(pp.x), y:r3(pp.y), dir:d}]}, 120);
+        requestRender({fx:true});
+        break;
+      }
+      case 'fogpaint': {
+        const pts = fogLive.p, lx = pts[pts.length - 2], ly = pts[pts.length - 1];
+        if(Math.hypot(w.x - lx, w.y - ly) >= Math.max(0.1, fogLive.r*0.25) && pts.length < 19998){ pts.push(r3(w.x), r3(w.y)); requestRender({fx:true}); }
         break;
       }
       case 'box': it.cur = p; requestRender({fx:true}); break;
@@ -24833,6 +25553,17 @@ const GameTable = (function(){
     interaction = null;
     viewport.classList.remove('panning');
     switch(it.type){
+      case 'door': { clearTimeout(doorPressTimer); const d = fogDoors.find(x=>x.id===it.id); if(d && !it.moved) doorToggle(d); break; }
+      case 'aim': {
+        const am = aimLocal[it.id];
+        if(am){ am.live = false; am.t = performance.now(); if(!act({c:'token-aim', id:it.id, dir:am.dir})) delete aimLocal[it.id]; }
+        break;
+      }
+      case 'fogpaint': {
+        const stroke = fogLive; fogLive = null;
+        if(stroke) act({c:'fog-stroke', stroke});
+        break;
+      }
       case 'drag': {
         if(!it.moved){
           // Касание: на телефоне нет правого клика (а на iPhone и долгое нажатие его не вызывает) — второй тап по
@@ -24904,6 +25635,9 @@ const GameTable = (function(){
   function cancelInteraction(){
     if(interaction && interaction.type==='drag') interaction.ids.forEach(id=>{ delete dragPos[id]; refreshTokenPos(id); });
     if(interaction && interaction.type==='erase'){ eraseIds = null; requestRender({draw:true}); }
+    if(interaction && interaction.type==='aim') delete aimLocal[interaction.id];
+    if(interaction && interaction.type==='fogpaint') fogLive = null;
+    if(interaction && interaction.type==='door') clearTimeout(doorPressTimer);
     interaction = null;
     viewport && viewport.classList.remove('panning');
     requestRender({fx:true});
@@ -24972,6 +25706,7 @@ const GameTable = (function(){
     if(ruler){ ruler = null; showHint(); requestRender({fx:true}); return; }
     if(placing || targeting || abilityPick){ cancelAll(); return; }
     const p = localPt(e), w = toWorld(p), t = tokenFromEvent(e);
+    { const dr = isAuthority() ? doorHit(p, false) : null; if(dr){ openDoorMenu(dr, p); return; } }
     if(t) openTokenMenu(t, p); else openFieldMenu(w, p);
   }
   function onKeyDown(e){
@@ -24985,6 +25720,7 @@ const GameTable = (function(){
       // Ctrl+Z листа персонажа (performUndo) на вкладке стола не срабатывает — там отмена рисунков
       e.preventDefault(); e.stopPropagation();
       if(!isAuthority()) return;
+      if(tool==='fog'){ if(!isY && !e.shiftKey) fogUndo(); return; } // на панели тумана — отмена мазка кисти
       if(isY || e.shiftKey) redo(); else undo();
       return;
     }
@@ -24995,7 +25731,7 @@ const GameTable = (function(){
     if(e.ctrlKey || e.metaKey || e.altKey) return;
     if(e.key==='+' || e.key==='='){ zoomStep(1); return; }
     if(e.key==='-' || e.key==='_'){ zoomStep(-1); return; }
-    const hot = {KeyV:'select', KeyH:'pan', KeyR:'ruler', KeyG:'ping', KeyD:'draw', KeyT:'text'}[e.code];
+    const hot = {KeyV:'select', KeyH:'pan', KeyR:'ruler', KeyG:'ping', KeyD:'draw', KeyT:'text', KeyF:'fog'}[e.code];
     if(hot && (isAuthority() || ['select','pan','ruler','ping'].indexOf(hot)>=0)){ setTool(hot); }
   }
   function onKeyUp(e){ if(e.code==='Space'){ spaceHeld = false; viewport && viewport.classList.remove('space-pan'); } }
@@ -25009,6 +25745,7 @@ const GameTable = (function(){
     draw:'<path d="M4 20l1.2-4.8L16 4.4l3.6 3.6L8.8 18.8z"/><path d="M13.8 6.6l3.6 3.6"/>',
     text:'<path d="M5 7V5h14v2M12 5v14M9 19h6"/>',
     ping:'<circle cx="12" cy="12" r="2.4"/><circle cx="12" cy="12" r="6.2"/><circle cx="12" cy="12" r="9.8" opacity=".45"/>',
+    fog:'<path d="M4 9c2.5-2 4.5-2 7 0s4.5 2 9 0"/><path d="M4 14c2.5-2 4.5-2 7 0s4.5 2 9 0"/><path d="M7 19c1.8-1.2 3.2-1.2 5 0s3.2 1.2 5 0"/><path d="M7 4.5c1.8-1.2 3.2-1.2 5 0s3.2 1.2 5 0"/>',
     pointer:'<path d="M12 2.5v5M12 16.5v5M2.5 12h5M16.5 12h5"/><circle cx="12" cy="12" r="3.6"/>',
     me:'<circle cx="12" cy="8" r="4"/><path d="M4.5 20.5c1.4-3.8 4.2-5.8 7.5-5.8s6.1 2 7.5 5.8"/>',
     more:'<circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>',
@@ -25035,7 +25772,7 @@ const GameTable = (function(){
     const h = [toolBtn('select','Выбор','V'), toolBtn('pan','Рука','H')];
     if(auth) h.push(toolBtn('token','Жетон'));
     h.push(toolBtn('ruler','Измерение','R'));
-    if(auth){ h.push(toolBtn('draw','Рисование','D')); h.push(toolBtn('text','Текст','T')); }
+    if(auth){ h.push(toolBtn('draw','Рисование','D')); h.push(toolBtn('text','Текст','T')); h.push(toolBtn('fog','Туман','F').replace('class="gt-tool', 'class="gt-tool' + (st().fog.on ? ' fog-on' : ''))); }
     h.push(toolBtn('ping','Ping','G / Alt+клик'));
     h.push('<span class="gt-sep"></span>');
     if(r==='gm') h.push(actBtn('pointer','Указка','pointer', pointerBroadcast ? ' active' : ''));
@@ -25049,8 +25786,29 @@ const GameTable = (function(){
   }
   function renderSubbar(){
     if(!subbar) return;
-    if(!(isAuthority() && (tool==='draw' || tool==='text'))){ subbar.style.display = 'none'; return; }
+    if(!(isAuthority() && (tool==='draw' || tool==='text' || tool==='fog'))){ subbar.style.display = 'none'; return; }
     const h = [];
+    if(tool==='fog'){
+      const f = authState.fog, dis = f.on ? '' : ' disabled';
+      const fb = (act, label, title, on, extra)=>`<button type="button" class="gt-tool${on ? ' active' : ''}" data-act="${act}" title="${title}"${extra || ''}>${label}</button>`;
+      h.push(fb('fog-toggle', f.on ? '🌫 Туман включён' : '🌫 Включить туман', 'Игроки видят только то, что освещено и на что есть линия взгляда у их жетонов', f.on));
+      h.push(fb('fog-day', f.day ? '☀ День' : '🌑 Темнота', f.day ? 'День: видно всё, на что есть линия взгляда. Нажмите — темнота' : 'Темнота: видно только освещённое светом жетонов. Нажмите — день', false, dis));
+      h.push(fb('fog-mem', '🧠 Память', 'Где отряд уже был, карта видна приглушённо, но жетонов там не видно', f.memory, dis));
+      h.push(fb('fog-mem-reset', 'Сбросить память', 'Забыть разведанное у всех игроков', false, f.on && f.memory ? '' : ' disabled'));
+      h.push(fb('fog-preview', '👁 Глазами игроков', 'Показать стол так, как его сейчас видят игроки', fogPreview, dis));
+      h.push(fb('fog-pdoors', '🚪 Игроки открывают двери', 'Игрок может открыть или закрыть незапертую дверь рядом со своим жетоном. Запереть дверь: правый клик или долгое нажатие на её значок', f.playerDoors, dis));
+      h.push('<span class="gt-sep"></span>');
+      [['open', 'Открыть', 'Кисть: открыть область для игроков'], ['close', 'Закрыть', 'Кисть: закрыть область, даже если она освещена'], ['los', 'Видимое отсюда', 'Нажатие — открыть всё, что видно из этой точки']]
+        .forEach(([id, label, title])=>h.push(`<button type="button" class="gt-tool${fogBrush===id ? ' active' : ''}" data-fogbrush="${id}" title="${title}"${dis}>${label}</button>`));
+      h.push(`<label class="gt-range" title="Диаметр кисти">кисть<input type="range" min="3" max="60" step="3" value="${fogBrushM}" data-fogsize><b class="gt-fog-val">${fogBrushM} м</b></label>`);
+      h.push('<span class="gt-sep"></span>');
+      h.push(`<button type="button" class="gt-tool" data-act="fog-undo" title="Отменить последний мазок (Ctrl+Z)" ${f.strokes.length ? '' : 'disabled'}>${icon('undo')}</button>`);
+      h.push(`<button type="button" class="gt-tool" data-act="fog-clear" title="Убрать все правки кистью" ${f.strokes.length ? '' : 'disabled'}>${icon('trash')}</button>`);
+      subbar.innerHTML = h.join('');
+      subbar.style.display = 'flex';
+      placeSubbar();
+      return;
+    }
     if(tool==='draw'){
       [['pen','Карандаш'],['line','Линия'],['arrow','Стрелка'],['rect','Прямоугольник'],['circle','Круг'],['polygon','Полигон'],['eraser','Ластик']]
         .forEach(([id,label])=>h.push(`<button type="button" class="gt-tool${drawTool===id?' active':''}" data-draw="${id}" title="${label}">${icon(id)}</button>`));
@@ -25065,7 +25823,10 @@ const GameTable = (function(){
     h.push(`<button type="button" class="gt-tool" data-act="clear-drawings" title="Стереть все рисунки">${icon('trash')}</button>`);
     subbar.innerHTML = h.join('');
     subbar.style.display = 'flex';
+    placeSubbar();
   }
+  // Подпанель — сразу под верхней панелью: на нешироком экране та занимает две строки и больше
+  function placeSubbar(){ if(subbar && toolbar && toolbar.offsetHeight) subbar.style.top = (toolbar.offsetTop + toolbar.offsetHeight + 6) + 'px'; }
   function renderZoombar(){
     zoombar.innerHTML = `<button type="button" class="gt-tool" data-act="zoom-out" title="Отдалить (−)">${icon('minus')}</button>`+
       `<span class="gt-zoom-label" id="gtZoomLabel" data-act="zoom-reset" title="Масштаб 100%">${Math.round(cam.z*100)}%</span>`+
@@ -25103,6 +25864,7 @@ const GameTable = (function(){
     else if(ruler && ruler.mode==='waypoints') h = 'Клик — ещё точка · двойной клик, правый клик или Esc — убрать';
     else if(tool==='ruler') h = 'Протяните — измерить · клик — измерение по точкам';
     else if(tool==='pan') h = 'Тяните поле мышью · колесо — масштаб · V — вернуться к выбору';
+    else if(tool==='fog') h = fogBrush==='los' ? 'Нажмите на поле — откроется всё, что видно из этой точки' : (IS_TOUCH_UI ? 'Кисть: ведите пальцем по полю · свет жетонам — в меню жетона' : 'Кисть: тяните по полю · V — вернуться к выбору · свет жетонам — в меню жетона');
     hintEl.textContent = h;
     hintEl.style.display = h ? 'block' : 'none';
   }
@@ -25115,9 +25877,10 @@ const GameTable = (function(){
     toastTimer = setTimeout(()=>toastEl.classList.remove('show'), 2600);
   }
   function onToolbarClick(e){
-    const b = e.target.closest('[data-tool],[data-act],[data-draw],[data-color]');
+    const b = e.target.closest('[data-tool],[data-act],[data-draw],[data-color],[data-fogbrush]');
     if(!b) return;
     if(b.dataset.tool){ setTool(b.dataset.tool); return; }
+    if(b.dataset.fogbrush){ fogBrush = b.dataset.fogbrush; renderSubbar(); showHint(); return; }
     if(b.dataset.draw){ if(polyDraft) finishPolygon(); drawTool = b.dataset.draw; renderSubbar(); showHint(); return; }
     if(b.dataset.color){ drawStyle.color = b.dataset.color; saveJson(STYLE_KEY, drawStyle); renderSubbar(); return; }
     switch(b.dataset.act){
@@ -25132,6 +25895,16 @@ const GameTable = (function(){
       case 'bestiary': if(typeof Bestiary!=='undefined') Bestiary.toggleDock(); break;
       case 'gm-advice': if(typeof GmAdvice!=='undefined') GmAdvice.openPanel('memo'); break;
       case 'combat': if(st().combat){ combatCollapsed = !combatCollapsed; renderCombat(); } else openCombatSetup(b); break;
+      case 'fog-toggle': { const on = !authState.fog.on; act({c:'fog-set', fog:{on}}); if(!on && fogPreview) setFogPreview(false);
+        if(on && !authState.fog.day && !Object.values(authState.tokens).some(t=>t.light)) uiToast('В темноте игроки видят только освещённое. Дайте жетонам свет: меню жетона → «💡 Свет…» — или переключите на «☀ День»', {icon:'🌫'});
+        break; }
+      case 'fog-day': act({c:'fog-set', fog:{day:!authState.fog.day}}); break;
+      case 'fog-mem': act({c:'fog-set', fog:{memory:!authState.fog.memory}}); break;
+      case 'fog-mem-reset': act({c:'fog-set', fog:{epoch:authState.fog.epoch + 1}}); toast('Разведанное забыто у всех игроков'); break;
+      case 'fog-preview': setFogPreview(!fogPreview); break;
+      case 'fog-pdoors': act({c:'fog-set', fog:{playerDoors:!authState.fog.playerDoors}}); break;
+      case 'fog-undo': fogUndo(); break;
+      case 'fog-clear': fogClearStrokes(); break;
       case 'undo': undo(); break;
       case 'redo': redo(); break;
       case 'clear-drawings': clearDrawings(); break;
@@ -25141,7 +25914,13 @@ const GameTable = (function(){
       case 'center': centerOnTokens(); break;
     }
   }
+  function setFogPreview(on){ fogPreview = !!on; renderTokens(); renderSubbar(); requestRender({fog:true, fx:true}); }
   function onStyleInput(e){
+    if(e.target.dataset && e.target.dataset.fogsize!==undefined){
+      fogBrushM = clamp(parseInt(e.target.value, 10) || 9, 3, 60);
+      const val = e.target.parentNode.querySelector('.gt-fog-val'); if(val) val.textContent = fogBrushM + ' м';
+      return;
+    }
     const k = e.target.dataset && e.target.dataset.style;
     if(!k) return;
     drawStyle[k] = parseFloat(e.target.value);
@@ -25192,6 +25971,7 @@ const GameTable = (function(){
       if(t.kind==='player' && typeof Bestiary!=='undefined' && attackerSheet(t)) items.push({id:'tobst', label:'📖 В бестиарий…', run:()=>Bestiary.fromSheet(attackerSheet(t), {name:tokenName(t, vitalsFor(t)), player:(session.players[t.ownerId] && session.players[t.ownerId].name) || ''})});
       items.push({id:'size', run:(size)=>act({c:'token-update', id:t.id, patch:{size}}),
         html:`<div class="gt-menu-sizes">${Object.keys(SIZE_CELLS).map(s=>`<button type="button" data-size="${s}" class="${t.size===s?'active':''}">${SIZE_LABELS[s].split(' ')[0]}</button>`).join('')}</div>`});
+      items.push({id:'light', label:t.light ? '💡 Свет: ' + lightLabel(t.light) : '💡 Свет…', run:()=>openLightForm(ids, p)});
       if(t.kind==='gm') items.push({id:'hide', label:t.hidden ? '👁 Показать игрокам' : 'Скрыть от игроков', attn:!!t.hidden, run:()=>act({c:'token-update', id:t.id, patch:{hidden:!t.hidden}})}); // скрыт — пункт подсвечен (attn)
       if(typeof Reactions!=='undefined' && Reactions.manualAllowed(t)) items.push({id:'rx', label:'🎞 Реакция…', run:()=>{ const r = viewport.getBoundingClientRect(); Reactions.pickForToken(t.id, r.left + p.x, r.top + p.y); }});
       if(typeof TargetRolls!=='undefined') items.push({id:'tr', label:t.kind==='gm' ? '🎯 Бросок цели…' : '🎯 Потребовать бросок…', run:()=>TargetRolls.open(t.kind==='gm' ? {src:t.id, targets:ids.filter(x=>x!==t.id)} : {targets:ids})});
@@ -25349,6 +26129,40 @@ const GameTable = (function(){
     out.unprotectedMod = int('unprotectedMod', -6);
     return out;
   }
+  // Поля света: у формы жетона и у отдельного окна «💡 Свет…»
+  function lightInputsHtml(l){
+    const kind = l ? l.kind : '';
+    const inp = (name, val, min, max)=>`<input type="number" name="${name}" min="${min}" max="${max}" step="1" value="${val}">`;
+    return `<label class="gt-f">Вид<select name="lightKind"><option value="">Нет</option><option value="circle" ${kind==='circle' ? 'selected' : ''}>Круговой — диаметр</option><option value="cone" ${kind==='cone' ? 'selected' : ''}>Конус — угол и длина</option></select></label>`+
+      `<div data-light="circle"><label class="gt-f">Диаметр, м${inp('lightD', kind==='circle' ? l.d : 12, 1, 3000)}</label></div>`+
+      `<div data-light="cone"><div class="gt-f-row"><label class="gt-f">Угол, °${inp('lightA', kind==='cone' ? l.a : 60, 1, 360)}</label><label class="gt-f">Длина, м${inp('lightL', kind==='cone' ? l.l : 30, 1, 3000)}</label></div>`+
+      `<label class="gt-f" title="0° — вверх, 90° — вправо. Удобнее — потянуть круглую ручку у выбранного жетона">Направление, °${inp('lightDir', kind==='cone' ? l.dir : 0, 0, 359)}</label></div>`;
+  }
+  function wireLightInputs(form){
+    const sel = form.querySelector('select[name=lightKind]'); if(!sel) return;
+    const sync = ()=>form.querySelectorAll('[data-light]').forEach(el=>{ el.style.display = el.dataset.light===sel.value ? '' : 'none'; });
+    sel.onchange = sync; sync();
+  }
+  function readLightInputs(fd){
+    const n = (k)=>parseFloat(String(fd.get(k)).replace(',', '.'));
+    const kind = fd.get('lightKind');
+    if(kind==='circle') return sanitizeLight({kind, d:n('lightD')});
+    if(kind==='cone') return sanitizeLight({kind, a:n('lightA'), l:n('lightL'), dir:n('lightDir')});
+    return null;
+  }
+  function openLightForm(ids, p){
+    const list = ids.map(tok).filter(Boolean); if(!list.length) return;
+    const first = list[0];
+    const html = `<div class="gt-pop-title">💡 Свет · ${list.length > 1 ? 'выбрано жетонов: ' + list.length : escapeHtml(tokenName(first, vitalsFor(first)))}</div>`+
+      `<div class="gt-pop-note">Светит, когда на столе включён 🌫 туман. Свет останавливают стены карты. Жетон, скрытый от игроков, для них не светит.</div>`+
+      lightInputsHtml(first.light)+
+      `<div class="gt-pop-actions"><button type="button" class="small" data-cancel>Отмена</button><button type="submit" class="small primary">Применить</button></div>`;
+    const form = openPopover(p, html, (f)=>{
+      const light = readLightInputs(new FormData(f));
+      list.forEach(t=>act({c:'token-update', id:t.id, patch:{light}}));
+    });
+    wireLightInputs(form);
+  }
   function openTokenForm(t, w, p){
     const editing = !!t, isPlayerTok = editing && t.kind==='player';
     let whoHtml = '';
@@ -25370,6 +26184,7 @@ const GameTable = (function(){
       `<label class="gt-f">Картинка (ссылка, необязательно)<input type="url" name="avatar" maxlength="2000" value="${escapeHtml(cur.avatar||'')}" placeholder="https://…"></label>`+
       (isPlayerTok ? '' : `<label class="gt-check"><input type="checkbox" name="hidden" ${cur.hidden?'checked':''}> Скрыт от игроков</label>`+
         `<label class="gt-check" title="По умолчанию игроки видят только кольцо по краю жетона, без числа"><input type="checkbox" name="hpShown" ${cur.hpShown?'checked':''}> Показывать игрокам число HP</label>`)+
+      `<details class="gt-combat gt-light"${cur.light ? ' open' : ''}><summary>💡 Свет${cur.light ? ': ' + escapeHtml(lightLabel(cur.light)) : ''}</summary><div class="gt-pop-note">Светит, когда на столе включён 🌫 туман.</div>${lightInputsHtml(cur.light)}</details>`+
       combatFieldsHtml(cur, isPlayerTok)+
       `<div class="gt-pop-actions"><button type="button" class="small" data-cancel>Отмена</button><button type="submit" class="small primary">${editing?'Сохранить':'Создать'}</button></div>`;
     const form = openPopover(p, html, (f)=>{
@@ -25377,13 +26192,13 @@ const GameTable = (function(){
       const who = fd.get('who');
       const avatar = String(fd.get('avatar')||'').trim();
       if(avatar && !safeUrl(avatar)){ toast('Ссылка на картинку должна начинаться с http:// или https://'); return false; }
-      const base = {size:fd.get('size'), color:fd.get('color')||cur.color, avatar};
+      const base = {size:fd.get('size'), color:fd.get('color')||cur.color, avatar, light:readLightInputs(fd)};
       if(who){ // жетон конкретного игрока, поставленный Мастером
         const at = w || {x:0, y:0}, sn = snapPos(at.x, at.y, base.size);
         const r = execCommand({c:'player-token-create', ownerId:who, x:sn.x, y:sn.y});
         if(!r.ok){ toast(r.reason); return false; }
         const nt = Object.values(authState.tokens).find(x=>x.kind==='player' && x.ownerId===who);
-        if(nt && (base.size!=='normal' || base.avatar || fd.get('color'))) act({c:'token-update', id:nt.id, patch:base});
+        if(nt && (base.size!=='normal' || base.avatar || fd.get('color') || base.light)) act({c:'token-update', id:nt.id, patch:base});
         return;
       }
       if(!isPlayerTok){
@@ -25404,8 +26219,9 @@ const GameTable = (function(){
     if(whoSel) whoSel.onchange = ()=>{
       const npc = !whoSel.value;
       ['name','hp','hpMax','hidden','hpShown'].forEach(n=>{ const el = form.querySelector(`[name=${n}]`); if(el){ el.disabled = !npc; const lab = el.closest('label'); if(lab) lab.style.opacity = npc ? '' : '.4'; } });
-      const combat = form.querySelector('.gt-combat'); if(combat) combat.style.display = npc ? '' : 'none';
+      const combat = form.querySelector('.gt-combat:not(.gt-light)'); if(combat) combat.style.display = npc ? '' : 'none';
     };
+    wireLightInputs(form);
     // Броня из каталога — сразу проставляет защиту и защиту по типам урона (поле «Защита» потом можно поправить)
     const armorSel = form.querySelector('select[name=armor]');
     if(armorSel) armorSel.onchange = ()=>{
@@ -25462,6 +26278,10 @@ const GameTable = (function(){
     if(!isAuthority()){ toast('Карту на стол ставит Мастер'); return false; }
     const cur = authState.map.scene, keep = cur && cur.mapId===scene.mapId;
     const ok = act({c:'map-set', map:Object.assign({}, authState.map, {scene:Object.assign({}, scene, {x: keep ? cur.x : 0, y: keep ? cur.y : 0})})});
+    if(ok && !keep){ // правки кистью и двери относятся к прежней карте
+      if(authState.fog.strokes.length) act({c:'fog-strokes', strokes:[]});
+      if(Object.keys(authState.fog.doors).length) act({c:'fog-set', fog:{doors:{}}});
+    }
     if(ok && !keep) if(typeof GmAdvice!=='undefined') GmAdvice.event('scene');
     return ok;
   }
@@ -25547,7 +26367,8 @@ const GameTable = (function(){
       undoStack = []; redoStack = [];
       remoteVitals = {};
       tokenEls.forEach(el=>el.remove()); tokenEls.clear();
-      if(!isAuthority() && ['token','draw','text'].indexOf(tool)>=0) tool = 'select';
+      if(!isAuthority() && ['token','draw','text','fog'].indexOf(tool)>=0) tool = 'select';
+      fogPreview = false; fogLive = null;
       if(r!=='gm') pointerBroadcast = false;
       if(viewport){ renderToolbar(); renderSubbar(); renderTokens(); requestRender({bg:true, draw:true, fx:true}); }
     }
@@ -25566,8 +26387,8 @@ const GameTable = (function(){
     viewport = document.getElementById('gtViewport');
     if(!viewport) return;
     layer = document.getElementById('gtTokenLayer');
-    bgC = document.getElementById('gtCanvasBg'); drC = document.getElementById('gtCanvasDraw'); fxC = document.getElementById('gtCanvasFx');
-    bgX = bgC.getContext('2d'); drX = drC.getContext('2d'); fxX = fxC.getContext('2d');
+    bgC = document.getElementById('gtCanvasBg'); drC = document.getElementById('gtCanvasDraw'); fogC = document.getElementById('gtCanvasFog'); fxC = document.getElementById('gtCanvasFx');
+    bgX = bgC.getContext('2d'); drX = drC.getContext('2d'); fogX = fogC.getContext('2d'); fxX = fxC.getContext('2d');
     toolbar = document.getElementById('gtToolbar'); subbar = document.getElementById('gtSubbar'); zoombar = document.getElementById('gtZoombar');
     statusEl = document.getElementById('gtStatus'); infoCard = document.getElementById('gtInfoCard'); hintEl = document.getElementById('gtHint');
     toastEl = document.getElementById('gtToast'); menuEl = document.getElementById('gtMenu'); popEl = document.getElementById('gtPopover');
@@ -25662,7 +26483,7 @@ const GameTable = (function(){
         q.init = {roll, rolls, max:su.max, mode:su.mode, success:ev.success, auto:false}; q.noAct = !ev.success;
         e = {name, roll, rolls, max:su.max, mode:su.mode, success:ev.success, notes:su.notes.join('; ')};
       }
-      if(t.hidden) hiddenN++; else list.push(e);
+      if(secretFromPlayers(t)) hiddenN++; else list.push(e);
     });
     if(list.length || hiddenN) recordAndShareQuickRoll({initiative:true, title:title + (hiddenN ? ` (+ скрытых участников: ${hiddenN})` : ''), list});
     if(typeof Reactions!=='undefined') Reactions.trigger('init_fail', ids.filter(id=>c.parts[id] && c.parts[id].noAct), rxDelay || 0);
@@ -25784,6 +26605,7 @@ const GameTable = (function(){
       if(was && role()==='player' && mine && c.parts[mine.id] && c.parts[mine.id].side===activeSide){ toast(`⚔ Ваш ход — круг ${c.round}`); beep(); } }
     const chips = (sid)=>Object.keys(c.parts).filter(id=>c.parts[id].side===sid && st().tokens[id]).map(id=>{
       const q = c.parts[id], t = st().tokens[id], name = tokenName(t, vitalsFor(t)), mineTok = t.kind==='player' && mine && mine.id===id;
+      if(!auth && !tokenVisibleHere(t)) return `<div class="gt-cb-chip" title="Участник вне видимости"><span class="nm">???</span></div>`; // в тумане — без имени, кнопок и перехода к жетону
       const can = auth || mineTok, dis = can ? '' : ' disabled';
       const ini = q.init ? (q.init.auto ? `<span class="ini ok" title="Ход сюрприза — автоматический успех">⚡</span>`
         : `<span class="ini ${q.init.success ? 'ok' : 'bad'}" ${auth ? 'data-cb="ini"' : ''} title="Инициатива: к20=${q.init.roll}${q.init.rolls.length>1 ? ' [' + q.init.rolls.join(', ') + ']' : ''} / Макс. ${q.init.max}${q.init.mode==='advantage' ? ', Упрощена' : q.init.mode==='disadvantage' ? ', Осложнена' : ''}${auth ? ' · клик — переключить успех/провал' : ''}">${q.init.roll}/${q.init.max}</span>`) : '';
@@ -25814,7 +26636,7 @@ const GameTable = (function(){
       return; }
     const b = e.target.closest('[data-cb]'), chip = e.target.closest('[data-id]'); if(!b || !chip) return;
     const id = chip.dataset.id, q = c.parts[id], k = b.dataset.cb; if(!q) return;
-    if(k==='focus'){ setSelection([id]); const t = tok(id); if(t) centerOnToken(t); return; }
+    if(k==='focus'){ const t = tok(id); if(t && tokenVisibleHere(t)){ setSelection([id]); centerOnToken(t); } return; }
     if(k==='act' || k==='react' || k==='swap'){
       if(isAuthority()){ const c1 = clone(c); c1.parts[id][k] = !q[k]; setCombat(c1); }
       else act({c:'combat-mark', id, field:k, value:!q[k]});
@@ -26219,7 +27041,7 @@ const GameTable = (function(){
       attackerName = playerDisplayName(p) || att.name || 'Игрок';
     } else if(att.kind==='gm'){
       w = npcWeapon(att);
-      attackerName = att.hidden ? '???' : (att.name || 'NPC'); // скрытый NPC в логе не раскрывается
+      attackerName = secretFromPlayers(att) ? '???' : (att.name || 'NPC'); // скрытый NPC в логе не раскрывается
     } else {
       if(att.ownerId!==myOwnerId()) return {ok:false, reason:'Жетоном игрока атакует сам игрок'};
       c = attackerSheet(att);
@@ -26315,7 +27137,7 @@ const GameTable = (function(){
     const total = hits.reduce((a,h)=>a+h.wounds, 0);
     const traumaN = hits.filter(h=>h.trauma && !h.red).length, traumaRedN = hits.filter(h=>h.red).length;
     noteTraumas(tgt, hits, headFrom(att, w), false);
-    const hiddenLine = !!(opts.anyTarget && tgt.hidden), targetName = hiddenLine ? '???' : tokenName(tgt, vitalsFor(tgt));
+    const hiddenLine = !!(opts.anyTarget && secretFromPlayers(tgt)), targetName = hiddenLine ? '???' : tokenName(tgt, vitalsFor(tgt));
     if(hiddenLine){ const real = tokenName(tgt, vitalsFor(tgt)); pa.tags.push(`скрытая цель: ${real}`); if(role()==='gm' || !session.gmId) toast(`Шрапнель задела скрытого: ${real} — ${total} ${woundsWord(total)}`); }
     const rec = { attackId, attackerOwner: from||null, targetId:tgt.id, targetKind:tgt.kind, ownerId:tgt.ownerId||null,
                   total, traumaN, traumaRedN, hpApplied:false, label:`${attackerName} → ${targetName}, «${w.name}»: ${total} ${woundsWord(total)}`, undone:false };
@@ -26496,7 +27318,7 @@ const GameTable = (function(){
       if(!c) return {ok:false, reason:'Мастеру ещё не пришёл ваш лист'};
       attackerName = playerDisplayName(p) || att.name || 'Игрок';
     } else if(att.kind==='gm'){
-      attackerName = att.hidden ? '???' : (att.name || 'NPC');
+      attackerName = secretFromPlayers(att) ? '???' : (att.name || 'NPC');
     } else {
       if(att.ownerId!==myOwnerId()) return {ok:false, reason:'Жетоном игрока действует сам игрок'};
       c = attackerSheet(att);
@@ -26619,7 +27441,7 @@ const GameTable = (function(){
       if(!c) return {ok:false, reason:'Мастеру ещё не пришёл ваш лист'};
       attackerName = playerDisplayName(p) || att.name || 'Игрок';
     } else if(att.kind==='gm'){
-      attackerName = att.hidden ? '???' : (att.name || 'NPC');
+      attackerName = secretFromPlayers(att) ? '???' : (att.name || 'NPC');
       sila = att.strength==null ? 3 : att.strength;
     } else {
       if(att.ownerId!==myOwnerId()) return {ok:false, reason:'Жетоном игрока бросает сам игрок'};
@@ -26675,7 +27497,7 @@ const GameTable = (function(){
       }
       if(outcome!=='none') all.filter(t=>inSphere(t, spec.frag.radius)).forEach(t=>{ victim(t).frag = rollHits(t, spec.frag.hits, spec.frag); });
     }
-    const targetName = tgt.hidden ? '???' : tokenName(tgt, vitalsFor(tgt));
+    const targetName = secretFromPlayers(tgt) ? '???' : tokenName(tgt, vitalsFor(tgt));
     const recVictims = [], logVictims = [], hiddenNotes = [];
     let grand = 0;
     Object.values(victims).forEach(v=>{
@@ -26703,7 +27525,7 @@ const GameTable = (function(){
       grand += total;
       const lv = {name: tokenName(t, vitalsFor(t)), bN:v.blast.length, bP:v.blast.filter(h=>h.pen).length, fN:v.frag.length, fP:v.frag.filter(h=>h.pen).length,
                   total, trauma:traumaN, robot:tokenNature(t)==='robot', burn:v.burn, immune:v.immune};
-      if(t.kind==='gm' && t.hidden){ grand -= total; hiddenNotes.push(`${lv.name}: ${total} ${woundsWord(total)}`); return; } // скрытых в общем логе нет
+      if(t.kind==='gm' && secretFromPlayers(t)){ grand -= total; hiddenNotes.push(`${lv.name}: ${total} ${woundsWord(total)}`); return; } // скрытых в общем логе нет
       logVictims.push(lv);
     });
     if(w.slow && !victims[tgt.id] && !tgt.slowReaction){ // промах без осколков: метка «может отреагировать» у цели всё равно ставится
@@ -26762,7 +27584,7 @@ const GameTable = (function(){
   /* ---------- сцены (экран Мастера): снимок стола без жетонов игроков и включение снимка одной командой ---------- */
   function captureScene(){
     const s = authState;
-    return {map:clone(s.map), tokens:Object.values(s.tokens).filter(t=>t.kind!=='player').map(clone), drawings:clone(s.drawings || []), zones:clone(s.zones || [])};
+    return {map:clone(s.map), tokens:Object.values(s.tokens).filter(t=>t.kind!=='player').map(clone), drawings:clone(s.drawings || []), zones:clone(s.zones || []), fog:clone(s.fog)};
   }
   function applyScene(sc){
     if(!isAuthority() || !sc) return false;
@@ -26770,12 +27592,13 @@ const GameTable = (function(){
     const tokens = {};
     Object.values(authState.tokens).forEach(t=>{ if(t.kind==='player') tokens[t.id] = t; }); // жетоны игроков остаются на местах
     (sc.tokens || []).forEach(t=>{ if(t && t.kind!=='player'){ const c = clone(t); c.id = newId('t'); tokens[c.id] = c; } });
-    authState = normalizeState({tableId:authState.tableId, version:authState.version + 1, map:clone(sc.map), tokens, drawings:clone(sc.drawings || []), zones:clone(sc.zones || []), combat:null});
-    undoStack = []; redoStack = []; setSelection([]);
+    authState = normalizeState({tableId:authState.tableId, version:authState.version + 1, map:clone(sc.map), tokens, drawings:clone(sc.drawings || []), zones:clone(sc.zones || []), combat:null, fog:Object.assign({}, sc.fog, {rev:authState.fog.rev + 1})});
+    undoStack = []; redoStack = []; setSelection([]); fogPreview = false;
     scheduleSave();
     if(role()==='gm') sendMsg({type:'gt-snapshot', state:playerSnapshot()});
     tokenEls.forEach(el=>el.remove()); tokenEls.clear();
-    if(viewport){ renderTokens(); renderCombat(); renderToolbar(); requestRender({bg:true, draw:true, fx:true}); }
+    fogSync();
+    if(viewport){ renderTokens(); renderCombat(); renderToolbar(); renderSubbar(); requestRender({bg:true, draw:true, fx:true}); }
     if(typeof Bestiary!=='undefined') Bestiary.onTableChanged();
     if(authState.map && authState.map.scene){ lastSceneId = undefined; checkSceneChange(); focusScene(); }
     else if(viewport && vw) centerOnTokens();
@@ -31249,6 +32072,7 @@ const Onboarding = (function(){
       {tab:'table', before:A.sandbox, sel:'#gtToolbar', title:'Учебный стол', text:'Временный стол для обучения: настоящий отложен и вернётся после обучения, игроки ничего не видят.'},
       {tab:'table', sel:'#gtToolbar [data-tool="token"]', title:'Жетон', text:'Клик по полю — новый NPC: имя, ОЗ, размер, оружие и броня из каталога, «скрыт от игроков».'},
       {tab:'table', sel:'#gtToolbar [data-tool="draw"]', title:'Рисование и текст', text:'Карандаш, линии, стрелки, фигуры, ластик; рядом — «Текст». Всё видно игрокам.'},
+      {tab:'table', sel:'#gtToolbar [data-tool="fog"]', title:'Туман войны', text:'Игроки видят только то, что освещено и на что есть линия взгляда у их жетонов; стены, закрытые двери и крупные объекты взгляд и свет останавливают. Двери — значком на поле. Свет жетону — в его меню: круговой (диаметр) или конус (угол и длина), в метрах. Кисть открывает и закрывает области вручную.'},
       {tab:'table', sel:'#gtToolbar [data-act="more"]', title:'Ещё', text:'Фон карты по ссылке, карта из редактора, стереть рисунки, очистить стол.'},
       {tab:'table', sel:'#gtToolbar [data-act="bestiary"]', doIt:()=>A.dock(true), title:'Бестиарий на столе', text:'Панель существ: перетащите на поле или «＋» — в центр. «Сделать за меня» откроет панель.'},
       {tab:'table', before:A.demo, sel:tokEl('creature'), doIt:()=>{ const e = tokEl('creature')(); if(e && typeof Bestiary!=='undefined') Bestiary.openFloat(e.dataset.id); }, title:'Жетон существа', text:T('Двойной тап', 'Двойной клик') + ' — живая карточка: ОЗ, травмы, броски по клику на числа, оружие ⚔, снаряжение по кости. Игроки видят только имя.'},

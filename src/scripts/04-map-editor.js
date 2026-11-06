@@ -16,12 +16,13 @@ const MapEditor = (function(){
     ['fill', 'Ландшафт — заливка области', 'G', 'M4 12 L11 5 L18 12 L11 19 Z M18 14 c0 0 2 2.5 2 4 a2 2 0 0 1-4 0 c0-1.5 2-4 2-4'],
     ['room', 'Помещение (пол + стены)', 'R', 'M4 4 H20 V20 H4 Z M4 13 H10 M14 13 H20'],
     ['wall', 'Стена (по линиям сетки)', 'W', 'M3 18 L9 6 L15 18 L21 6'],
+    ['opening', 'Дверь или окно в стену', 'D', 'M6 3 H18 V21 H6 Z M14.5 12 v0.01'],
     ['path', 'Дорога / путь', 'P', 'M4 20 C8 14 6 9 12 8 S18 4 20 3 M4 20 L6 14 M20 3 L14 5'],
     ['object', 'Объект из библиотеки', 'O', 'M4 7 L12 3 L20 7 L20 17 L12 21 L4 17 Z M4 7 L12 11 L20 7 M12 11 V21'],
     ['label', 'Надпись', 'T', 'M5 5 H19 M12 5 V20 M9 20 H15'],
   ];
   const prefs = Object.assign({ mapId:null, grid:true, snap:true, hidden:{}, locked:{}, tool:'select', terrain:'concrete', brush:1,
-    wallKind:'concrete', pathKind:'road', pathWidth:3, asset:'crate_wood', cat:'all', search:'', side:'lib', recent:[], wallsOnRoom:true, assetScale:{} }, (function(){ try{ return JSON.parse(localStorage.getItem(PREFS_KEY)||'null') || {}; }catch(e){ return {}; } })());
+    wallKind:'concrete', opening:'door', pathKind:'road', pathWidth:3, asset:'crate_wood', cat:'all', search:'', side:'lib', recent:[], wallsOnRoom:true, assetScale:{} }, (function(){ try{ return JSON.parse(localStorage.getItem(PREFS_KEY)||'null') || {}; }catch(e){ return {}; } })());
   function savePrefs(){ try{ localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); }catch(e){} }
   let doc = null, visible = false, inited = false;
   let canvas, ctx, stage, dpr = 1, vw = 0, vh = 0;
@@ -137,6 +138,9 @@ const MapEditor = (function(){
     if(prefs.tool==='object' && ghost.at && MapAssets.BY_ID[prefs.asset]){
       ctx.globalAlpha = 0.6; MapAssets.drawObject(ctx, {a:prefs.asset, x:ghost.at[0], y:ghost.at[1], r:ghost.r, s:defScale(prefs.asset), v:ghost.v, f:ghost.f}, k); ctx.globalAlpha = 1;
     }
+    if(prefs.tool==='opening' && ghost.at && MapAssets.BY_ID[prefs.opening]){
+      ctx.globalAlpha = 0.75; MapAssets.drawObject(ctx, {a:prefs.opening, x:ghost.at[0], y:ghost.at[1], r:ghost.r, s:1, v:ghost.v, f:false}, k); ctx.globalAlpha = 1;
+    }
     if(draft){ const pts = draft.points.concat(hover ? [draft.next || [hover.x, hover.y]] : []);
       if(pts.length>1){ if(draft.type==='wall') MapRender.drawWall(ctx, {kind:prefs.wallKind, points:pts}, k); else MapRender.drawPath(ctx, {kind:prefs.pathKind, width:prefs.pathWidth, points:pts}); } }
     if(action && action.type==='room' && action.cur){ const [x0, y0, x1, y1] = roomRect(action); ctx.fillStyle = 'rgba(156,47,28,.12)'; ctx.fillRect(x0, y0, x1 - x0, y1 - y0); ctx.lineWidth = 2/k; ctx.strokeStyle = '#9c2f1c'; ctx.strokeRect(x0, y0, x1 - x0, y1 - y0); }
@@ -187,6 +191,7 @@ const MapEditor = (function(){
   /* ---------- инструменты ---------- */
   function setTool(t){
     if(draft) finishDraft();
+    if(prefs.tool==='opening' && t!=='opening'){ ghost.r = 0; ghost.v = 0; } // поворот проёма — от стены, другим объектам он ни к чему
     prefs.tool = t; savePrefs(); action = null;
     if(t!=='select') { /* выделение не трогаем — его можно править после смены инструмента */ }
     canvas.style.cursor = t==='hand' ? 'grab' : t==='select' ? 'default' : 'crosshair';
@@ -224,6 +229,48 @@ const MapEditor = (function(){
     prefs.recent = [prefs.asset].concat(prefs.recent.filter(x=>x!==prefs.asset)).slice(0, 16); savePrefs();
   }
   function updateGhost(w, e){ if(!w || !MapAssets.BY_ID[prefs.asset]) { ghost.at = null; return; } ghost.at = snapCenter({a:prefs.asset, r:ghost.r, s:defScale(prefs.asset)}, w.x, w.y, e); }
+  // Дверь или окно: ближайшая стена под курсором — объект ложится на неё, вдоль стены, целыми клетками, и прорезает проём
+  const OPENINGS = ['door', 'double_door', 'gate_metal', 'vault_door', 'settlement_gate', 'window', 'display_window', 'broken_window'];
+  function nearestWall(w){
+    let best = null, bd = 1.2;
+    doc.walls.forEach(wl=>{ for(let i=1;i<wl.points.length;i++){
+      const p = wl.points[i - 1], q = wl.points[i], len = Math.hypot(q[0] - p[0], q[1] - p[1]); if(len < 0.01) continue;
+      const ux = (q[0] - p[0])/len, uy = (q[1] - p[1])/len, t = clamp((w.x - p[0])*ux + (w.y - p[1])*uy, 0, len), d = Math.hypot(p[0] + ux*t - w.x, p[1] + uy*t - w.y);
+      if(d < bd){ bd = d; best = {p, ux, uy, len, t}; } } });
+    return best;
+  }
+  function updateOpeningGhost(w, e){
+    const a = MapAssets.BY_ID[prefs.opening]; if(!w || !a){ ghost.at = null; return; }
+    const n = nearestWall(w); ghost.onWall = !!n;
+    if(!n){ ghost.at = snapCenter({a:prefs.opening, r:ghost.r, s:1}, w.x, w.y, e); return; }
+    const L = a.w, c = n.len <= L ? n.len/2 : clamp(snapOn(e) ? Math.round(n.t - L/2) + L/2 : n.t, L/2, n.len - L/2);
+    ghost.at = [r3(n.p[0] + n.ux*c), r3(n.p[1] + n.uy*c)];
+    ghost.r = r3((Math.atan2(n.uy, n.ux)*180/Math.PI + 360)%180);
+  }
+  function cutWallsUnder(at, rDeg, w){
+    const rad = rDeg*Math.PI/180, ux = Math.cos(rad), uy = Math.sin(rad), ax = at[0] - ux*w/2, ay = at[1] - uy*w/2, on = (t)=>[r3(ax + ux*t), r3(ay + uy*t)], out = [];
+    doc.walls.forEach(wl=>{
+      const pieces = []; let cur = [wl.points[0]], cut = false;
+      for(let i=1;i<wl.points.length;i++){
+        const p = wl.points[i - 1], q = wl.points[i], tp = (p[0] - ax)*ux + (p[1] - ay)*uy, tq = (q[0] - ax)*ux + (q[1] - ay)*uy, lo = Math.max(0, Math.min(tp, tq)), hi = Math.min(w, Math.max(tp, tq));
+        if(Math.abs((p[0] - ax)*uy - (p[1] - ay)*ux) > 0.1 || Math.abs((q[0] - ax)*uy - (q[1] - ay)*ux) > 0.1 || hi - lo < 0.01){ cur.push(q); continue; }
+        cut = true;
+        const enter = tp < tq ? lo : hi, leave = tp < tq ? hi : lo;
+        if(Math.abs(enter - tp) > 0.01) cur.push(on(enter));
+        if(cur.length > 1) pieces.push(cur);
+        cur = Math.abs(leave - tq) > 0.01 ? [on(leave), q] : [q];
+      }
+      if(cur.length > 1) pieces.push(cur);
+      if(!cut){ out.push(wl); return; }
+      pieces.forEach((pts, i)=>out.push({id:i ? MapFormat.newId('w') : wl.id, kind:wl.kind, points:pts}));
+    });
+    doc.walls = out;
+  }
+  function placeOpening(){
+    const a = MapAssets.BY_ID[prefs.opening]; if(!ghost.at || !a) return;
+    mutate(()=>{ if(ghost.onWall) cutWallsUnder(ghost.at, ghost.r, a.w);
+      const o = {id:MapFormat.newId('o'), a:prefs.opening, x:ghost.at[0], y:ghost.at[1], r:ghost.r, s:1, v:ghost.v, f:false}; doc.objects.push(o); sel = new Set(['o:' + o.id]); });
+  }
   // Масштаб: у выбранных объектов (множитель или точное значение), без выбора в инструменте «Объект» —
   // масштаб по умолчанию для текущего объекта библиотеки (им будут ставиться новые копии)
   function setAssetScale(id, v){ v = r3(clamp(v, S_MIN, S_MAX)); if(Math.abs(v - 1) < 0.001) delete prefs.assetScale[id]; else prefs.assetScale[id] = v; savePrefs(); }
@@ -322,6 +369,7 @@ const MapEditor = (function(){
       requestRender(); return;
     }
     if(tool==='object'){ updateGhost(w, e); placeObject(); return; }
+    if(tool==='opening'){ updateOpeningGhost(w, e); placeOpening(); return; }
     if(tool==='label'){ addLabelAt(w); return; }
   }
   function onMove(e){
@@ -334,6 +382,7 @@ const MapEditor = (function(){
     const p = evPos(e), w = toWorld(p.x, p.y); hover = w;
     const st = $('meCursor'); if(st){ const cx = Math.floor(w.x), cy = Math.floor(w.y); st.textContent = (cx>=0 && cy>=0 && cx<doc.cols && cy<doc.rows) ? `клетка ${cx}, ${cy} · ${MapFormat.TERRAIN[doc.terrain[cy*doc.cols + cx]].name}` : ''; }
     if(prefs.tool==='object') updateGhost(w, e);
+    if(prefs.tool==='opening') updateOpeningGhost(w, e);
     if(draft) draft.next = snapPt(w, draft.type==='path' ? 0.5 : 1, e);
     if(!action){ requestRender(); return; }
     switch(action.type){
@@ -403,7 +452,7 @@ const MapEditor = (function(){
     if(k==='0'){ fitView(); return; }
     const arrows = {ArrowLeft:[-1, 0], ArrowRight:[1, 0], ArrowUp:[0, -1], ArrowDown:[0, 1]};
     if(arrows[k] && sel.size){ e.preventDefault(); const st = e.shiftKey ? 0.1 : 1; nudge(arrows[k][0]*st, arrows[k][1]*st); return; }
-    const map = {v:'select', м:'select', h:'hand', р:'hand', b:'brush', и:'brush', g:'fill', п:'fill', r:'room', к:'room', w:'wall', ц:'wall', p:'path', з:'path', o:'object', щ:'object', t:'label', е:'label'};
+    const map = {v:'select', м:'select', h:'hand', р:'hand', b:'brush', и:'brush', g:'fill', п:'fill', r:'room', к:'room', w:'wall', ц:'wall', d:'opening', в:'opening', p:'path', з:'path', o:'object', щ:'object', t:'label', е:'label'};
     if(map[k.toLowerCase()]){ setTool(map[k.toLowerCase()]); }
   }
   function onKeyUp(e){ if(e.key===' '){ spaceHeld = false; if(canvas) canvas.style.cursor = prefs.tool==='hand' ? 'grab' : prefs.tool==='select' ? 'default' : 'crosshair'; } }
@@ -657,12 +706,17 @@ const MapEditor = (function(){
     if(t==='brush' || t==='fill' || t==='room'){
       h += `<span class="me-opt-label">${t==='room' ? 'Пол' : 'Ландшафт'}</span><div class="me-swatches">${MapFormat.TERRAIN.map(tt=>`<button type="button" class="me-sw${prefs.terrain===tt.id?' on':''}" data-terrain="${tt.id}" title="${esc(tt.name)}" style="--c:${tt.color || 'transparent'}${MapTex.enabled && MapTex.swatch(tt.id) ? `;background-image:url(${MapTex.swatch(tt.id)});background-size:cover` : ''}">${tt.color ? '' : '∅'}</button>`).join('')}</div>`;
       if(t==='brush') h += `<label class="me-opt">Кисть <input type="range" min="1" max="15" step="2" value="${prefs.brush}" data-brush> <b>${prefs.brush}×${prefs.brush}</b></label>`;
-      if(t==='room') h += `<label class="me-opt"><input type="checkbox" data-roomwalls ${prefs.wallsOnRoom?'checked':''}> стены</label><label class="me-opt">Стена <select data-wallkind>${Object.keys(MapFormat.WALL_KINDS).map(k=>`<option value="${k}" ${prefs.wallKind===k?'selected':''}>${esc(MapFormat.WALL_KINDS[k].name)}</option>`).join('')}</select></label>`;
+      if(t==='room') h += `<label class="me-opt"><input type="checkbox" data-roomwalls ${prefs.wallsOnRoom?'checked':''}> стены</label><label class="me-opt">Стена <select data-wallkind>${Object.keys(MapFormat.WALL_KINDS).map(k=>`<option value="${k}" ${prefs.wallKind===k?'selected':''}>${esc(MapFormat.WALL_KINDS[k].name)}${MapFormat.WALL_KINDS[k].see ? ' (видно насквозь)' : ''}</option>`).join('')}</select></label>`;
     } else if(t==='wall'){
-      h += `<label class="me-opt">Стена <select data-wallkind>${Object.keys(MapFormat.WALL_KINDS).map(k=>`<option value="${k}" ${prefs.wallKind===k?'selected':''}>${esc(MapFormat.WALL_KINDS[k].name)}</option>`).join('')}</select></label><span class="me-hint">клик — точка на узле сетки · двойной клик / Enter — закончить · правый клик / Backspace — убрать точку · Esc — отмена</span>`;
+      h += `<label class="me-opt">Стена <select data-wallkind>${Object.keys(MapFormat.WALL_KINDS).map(k=>`<option value="${k}" ${prefs.wallKind===k?'selected':''}>${esc(MapFormat.WALL_KINDS[k].name)}${MapFormat.WALL_KINDS[k].see ? ' (видно насквозь)' : ''}</option>`).join('')}</select></label><span class="me-hint">клик — точка на узле сетки · двойной клик / Enter — закончить · правый клик / Backspace — убрать точку · Esc — отмена</span>`;
     } else if(t==='path'){
       h += `<label class="me-opt">Путь <select data-pathkind>${Object.keys(MapFormat.PATH_KINDS).map(k=>`<option value="${k}" ${prefs.pathKind===k?'selected':''}>${esc(MapFormat.PATH_KINDS[k].name)}</option>`).join('')}</select></label>
         <label class="me-opt">Ширина <input type="number" min="0.1" max="20" step="0.5" value="${prefs.pathWidth}" data-pathwidth style="width:64px"> кл.</label><span class="me-hint">точки — по половинкам клеток · двойной клик / Enter — закончить</span>`;
+    } else if(t==='opening'){
+      const a = MapAssets.BY_ID[prefs.opening] || {v:1};
+      h += `<label class="me-opt">Что <select data-opening>${OPENINGS.map(id=>`<option value="${id}" ${prefs.opening===id?'selected':''}>${esc(MapAssets.BY_ID[id].name)} · ${MapAssets.BY_ID[id].w} кл.</option>`).join('')}</select></label>`+
+        (a.v>1 ? `<label class="me-opt">Вариант <select data-ghostv>${Array.from({length:a.v}, (_, i)=>`<option value="${i}" ${ghost.v===i?'selected':''}>${a.vn ? esc(a.vn[i]) : i + 1}</option>`).join('')}</select></label>` : '')+
+        `<span class="me-hint">наведите на стену и нажмите — объект ляжет вдоль неё и прорежет проём · на столе двери открываются, когда включён туман · окна пропускают взгляд</span>`;
     } else if(t==='object'){
       const a = MapAssets.BY_ID[prefs.asset];
       h += a ? `<span class="me-opt-label">${esc(a.name)} · ${a.w}×${a.h}</span>${a.v>1 ? `<label class="me-opt">Вариант <select data-ghostv>${Array.from({length:a.v}, (_, i)=>`<option value="${i}" ${ghost.v===i?'selected':''}>${a.vn ? (i + 1) + '. ' + esc(a.vn[i]) : i + 1}</option>`).join('')}</select></label>` : ''}
@@ -737,8 +791,10 @@ const MapEditor = (function(){
         <label class="me-f">Поворот, °<input type="number" step="15" data-prop="r" value="${it.r}"></label>
         ${scaleBlock(it.s || 1, a)}
         ${a.v>1 ? `<label class="me-f">Вариант<select data-prop="v">${Array.from({length:a.v}, (_, i)=>`<option value="${i}" ${it.v===i?'selected':''}>${a.vn ? (i + 1) + '. ' + esc(a.vn[i]) : i + 1}</option>`).join('')}</select></label>` : ''}
-        <label class="me-check"><input type="checkbox" data-prop="f" ${it.f?'checked':''}> Отражён</label>`;
-    } else if(t==='w'){ h = `<div class="me-prop-title">Стена · ${it.points.length} точ.</div><label class="me-f">Материал<select data-prop="kind">${Object.keys(MapFormat.WALL_KINDS).map(k=>`<option value="${k}" ${it.kind===k?'selected':''}>${esc(MapFormat.WALL_KINDS[k].name)}</option>`).join('')}</select></label><div class="muted me-note">Точки тянутся за квадратные ручки.</div>`; }
+        <label class="me-check"><input type="checkbox" data-prop="f" ${it.f?'checked':''}> Отражён</label>
+        ${FogKit.isOpening(it.a) ? '<div class="muted me-note">На столе открывается и закрывается, когда включён туман. Окна пропускают взгляд, заколоченные — нет.</div>' :
+          `<label class="me-f" title="Для тумана войны: останавливает ли объект взгляд и свет">Закрывает обзор<select data-prop="sb"><option value="" ${it.sb==null?'selected':''}>Как обычно: ${FogKit.blocksByDefault(it.a) ? 'да' : 'нет'}</option><option value="1" ${it.sb===1?'selected':''}>Да</option><option value="0" ${it.sb===0?'selected':''}>Нет</option></select></label>`}`;
+    } else if(t==='w'){ h = `<div class="me-prop-title">Стена · ${it.points.length} точ.</div><label class="me-f">Материал<select data-prop="kind">${Object.keys(MapFormat.WALL_KINDS).map(k=>`<option value="${k}" ${it.kind===k?'selected':''}>${esc(MapFormat.WALL_KINDS[k].name)}${MapFormat.WALL_KINDS[k].see ? ' (видно насквозь)' : ''}</option>`).join('')}</select></label><div class="muted me-note">Точки тянутся за квадратные ручки.</div>`; }
     else if(t==='p'){ h = `<div class="me-prop-title">Путь · ${it.points.length} точ.</div><label class="me-f">Вид<select data-prop="kind">${Object.keys(MapFormat.PATH_KINDS).map(k=>`<option value="${k}" ${it.kind===k?'selected':''}>${esc(MapFormat.PATH_KINDS[k].name)}</option>`).join('')}</select></label><label class="me-f">Ширина, клеток<input type="number" step="0.5" min="0.1" max="20" data-prop="width" value="${it.width}"></label>`; }
     else { h = `<div class="me-prop-title">Надпись</div><label class="me-f">Текст<textarea data-prop="text" maxlength="200" rows="2">${esc(it.text)}</textarea></label><div class="me-f-row"><label class="me-f">Размер<input type="number" step="0.1" min="0.2" max="8" data-prop="size" value="${it.size}"></label><label class="me-f">Цвет<input type="color" data-prop="color" value="${it.color}"></label></div>`; }
     body.innerHTML = gpHtml + h + `<div class="me-btnrow"><button type="button" class="small" data-act="dup" title="Ctrl+D">Дублировать</button><button type="button" class="small" data-act="del" title="Del">Удалить</button></div>`;
@@ -760,6 +816,7 @@ const MapEditor = (function(){
     else if(p==='sp'){ it.s = r3(clamp(num(v, 100)/100, S_MIN, S_MAX)); }
     else if(p==='v'){ it.v = Math.round(num(v, 0)); }
     else if(p==='f'){ it.f = !!v; }
+    else if(p==='sb'){ if(v==='') delete it.sb; else it.sb = v==='1' ? 1 : 0; }
     else if(p==='width'){ it.width = r3(clamp(num(v, 1), 0.1, 20)); }
     else if(p==='size'){ it.size = r3(clamp(num(v, 0.8), 0.2, 8)); }
     else if(p==='text'){ const s = String(v).slice(0, 200); if(!s.trim()){ undoStack.pop(); return; } it.text = s; }
@@ -959,6 +1016,7 @@ const MapEditor = (function(){
     if(t.dataset.snap!==undefined){ prefs.snap = t.checked; savePrefs(); return; }
     if(t.dataset.roomwalls!==undefined){ prefs.wallsOnRoom = t.checked; savePrefs(); return; }
     if(t.dataset.wallkind!==undefined){ prefs.wallKind = t.value; savePrefs(); requestRender(); return; }
+    if(t.dataset.opening!==undefined){ prefs.opening = t.value; ghost.v = 0; savePrefs(); renderOptions(); requestRender(); return; }
     if(t.dataset.pathkind!==undefined){ prefs.pathKind = t.value; prefs.pathWidth = MapFormat.PATH_KINDS[t.value].width; savePrefs(); renderOptions(); requestRender(); return; }
     if(t.dataset.pathwidth!==undefined){ prefs.pathWidth = clamp(num(t.value, 1), 0.1, 20); savePrefs(); requestRender(); return; }
     if((t.dataset.genlab!==undefined || t.dataset.genlsize!==undefined) && doc.gen){ const key = t.dataset.genlab!==undefined ? 'labels' : 'lsize', v = t.value; mutate(()=>{ doc.gen.opts[key] = v; MapGen.applyLabels(doc); normalizeDoc(); }); setStatus('Подписи обновлены'); return; }

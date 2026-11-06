@@ -42,7 +42,7 @@ const GameTable = (function(){
   function newId(p){ return (p||'')+Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
   function blankState(tableId){
     return {schema:1, tableId: tableId===undefined ? newId('tbl') : tableId, version:0,
-            map:{metersPerCell:METERS_PER_CELL, background:null, scene:null}, tokens:{}, drawings:[], zones:[], combat:null};
+            map:{metersPerCell:METERS_PER_CELL, background:null, scene:null}, tokens:{}, drawings:[], zones:[], combat:null, fog:sanitizeFog(null)};
   }
   function num(v, d){ v = Number(v); return isFinite(v) ? v : d; }
   function clamp(v, a, b){ return v<a ? a : v>b ? b : v; }
@@ -54,6 +54,38 @@ const GameTable = (function(){
   // Отметки состояний на жетоне (способности существ, «Бросок цели»): r — осталось кругов, 0 — пока не снимут
   const MARKS = {shock:'Шок', prone:'Сбит с ног', grabbed:'Схвачен', stunned:'Оглушён', blind:'Ослеплён', skipturn:'Пропускает ход', vanished:'Исчез', limit:'На пределе сил', fear:'Испуган', cover:'В укрытии', parry:'Парирует',
     exhausted:'Истощён', immobile:'Обездвижен', dead:'Погиб'}; // последние три — таблица травм и поломок (23-trauma-table.js), истощение существ
+  // Свет жетона (см. туман войны): круговой — диаметр в метрах; конус — угол, длина в метрах и направление (0° — вверх, по часовой)
+  function sanitizeLight(l){
+    if(!l || typeof l!=='object') return null;
+    const m = (v)=>clamp(Math.round(num(v, 0)*10)/10, 0, 3000);
+    if(l.kind==='circle'){ const d = m(l.d); return d >= 0.5 ? {kind:'circle', d} : null; }
+    if(l.kind==='cone'){ const a = Math.round(clamp(num(l.a, 0), 0, 360)), len = m(l.l); return a >= 1 && len >= 0.5 ? {kind:'cone', a, l:len, dir:Math.round(((num(l.dir, 0)%360) + 360)%360)} : null; }
+    return null;
+  }
+  function lightLabel(l){ return l.kind==='cone' ? `конус ${l.a}°, ${fmtNum(l.l)} м` : `круговой, ⌀ ${fmtNum(l.d)} м`; }
+  function sanitizeFogStroke(st){
+    if(!st || !Array.isArray(st.p)) return null;
+    const p = st.p.slice(0, 20000).map(v=>Math.round(clamp(num(v, 0), -10000, 10000)*100)/100);
+    if(p.length%2) p.pop();
+    if(p.length < 2) return null;
+    const o = {v:st.v ? 1 : 0, p};
+    if(st.f && p.length >= 6) o.f = 1; else o.r = clamp(num(st.r, 1), 0.1, 60);
+    return o;
+  }
+  const FOG_MAX_POINTS = 300000; // мазки идут в снимке стола — старые отбрасываются, чтобы снимок не рос без предела
+  function sanitizeFog(f){
+    f = f && typeof f==='object' ? f : {};
+    const strokes = []; let total = 0;
+    const raw = Array.isArray(f.strokes) ? f.strokes : [];
+    for(let i=raw.length - 1;i>=0;i--){ const st = sanitizeFogStroke(raw[i]); if(!st) continue; total += st.p.length; if(total > FOG_MAX_POINTS) break; strokes.unshift(st); }
+    return {on:!!f.on, day:!!f.day, memory:f.memory!==false, epoch:Math.max(0, Math.floor(num(f.epoch, 0))), rev:Math.max(0, Math.floor(num(f.rev, 0))), strokes, playerDoors:!!f.playerDoors, doors:sanitizeDoors(f.doors)};
+  }
+  const DOOR_STATES = ['open', 'closed', 'locked'];
+  function sanitizeDoors(d){ // состояние дверей на столе, id объекта карты → состояние; нет записи — как нарисована на карте
+    const out = {}; if(!d || typeof d!=='object') return out;
+    Object.keys(d).slice(0, 3000).forEach(k=>{ if(DOOR_STATES.indexOf(d[k])>=0) out[String(k).slice(0, 64)] = d[k]; });
+    return out;
+  }
   function sanitizeToken(t){
     t = t || {};
     const kind = t.kind==='player' ? 'player' : 'gm';
@@ -67,6 +99,7 @@ const GameTable = (function(){
       avatar: safeUrl(t.avatar),
       hidden: kind==='gm' && !!t.hidden
     };
+    { const lt = sanitizeLight(t.light); if(lt) out.light = lt; }
     if(kind==='player') out.ownerId = String(t.ownerId||'').slice(0,64);
     else {
       out.hp = (t.hp===null || t.hp===undefined || t.hp==='') ? null : Math.round(clamp(num(t.hp,0), -9999, 9999));
@@ -161,6 +194,7 @@ const GameTable = (function(){
     (Array.isArray(raw.drawings) ? raw.drawings : []).forEach(d=>{ const c = sanitizeDrawing(d); if(c) s.drawings.push(c); });
     s.zones = Array.isArray(raw.zones) ? raw.zones : []; // задел под зоны/AoE — пока только хранятся
     s.combat = sanitizeCombat(raw.combat);
+    s.fog = sanitizeFog(raw.fog);
     return s;
   }
   /* Трекер боя (правила «Бой»): стороны ходят по очереди целиком — сначала начавшая конфликт, затем вторая (третья);
@@ -213,9 +247,13 @@ const GameTable = (function(){
   function st(){ return isPlayer() ? viewState : authState; }
   function tok(id){ return st().tokens[id]; }
   function myOwnerId(){ const r = role(); return r==='player' ? session.myId : r ? null : LOCAL_OWNER; }
-  function tokenVisibleHere(t){ return isAuthority() || !t.hidden; }
+  function tokenExistsHere(t){ return isAuthority() || !t.hidden; }
+  // fogHiddenIds — жетоны, которых игроки сейчас не видят из-за тумана. Мастер видит всех, кроме режима «Глазами игроков»
+  function tokenVisibleHere(t){ if(isAuthority()) return !(fogPreview && fogActive() && (t.hidden || fogHiddenIds.has(t.id))); return !t.hidden && !fogHiddenIds.has(t.id); }
+  function secretFromPlayers(t){ return !!t.hidden || fogHiddenIds.has(t.id); } // имя в логе и трекере не раскрывается
   function ownToken(){ const me = myOwnerId(); return me ? Object.values(st().tokens).find(t=>t.kind==='player' && t.ownerId===me) : null; }
   let paused = false; // «Стоп-кадр» Мастера: игроки не двигают жетоны
+  let fogHiddenIds = new Set(), fogPreview = false;
   function canControl(t){ return !!t && (isAuthority() || (!paused && t.kind==='player' && t.ownerId===myOwnerId())); }
 
   let saveTimer = null, cacheTimer = null;
@@ -342,6 +380,11 @@ const GameTable = (function(){
       case 'drawings-set': s.drawings = op.drawings; break;
       case 'map-set': s.map = op.map; break;
       case 'combat-set': s.combat = op.combat; break;
+      case 'fog-set': s.fog = Object.assign({}, s.fog, op.fog, {rev:s.fog.rev + 1}); break;
+      case 'fog-stroke': s.fog.strokes.push(op.stroke); s.fog.rev++; break;
+      case 'fog-pop': s.fog.strokes.pop(); s.fog.rev++; break;
+      case 'fog-strokes': s.fog.strokes = op.strokes; s.fog.rev++; break;
+      case 'fog-door': s.fog.doors = Object.assign({}, s.fog.doors, {[op.id]:op.s}); s.fog.rev++; break;
     }
   }
   function sanitizeOp(op){
@@ -354,6 +397,15 @@ const GameTable = (function(){
       case 'drawings-set': return {op:op.op, drawings:(op.drawings||[]).map(sanitizeDrawing).filter(Boolean)};
       case 'map-set': return {op:op.op, map:sanitizeMap(op.map)};
       case 'combat-set': return {op:op.op, combat:sanitizeCombat(op.combat)};
+      case 'fog-set': { const f = op.fog && typeof op.fog==='object' ? op.fog : {}, o = {};
+        ['on','day','memory','playerDoors'].forEach(k=>{ if(k in f) o[k] = !!f[k]; });
+        if('epoch' in f) o.epoch = Math.max(0, Math.floor(num(f.epoch, 0)));
+        if('doors' in f) o.doors = sanitizeDoors(f.doors);
+        return {op:op.op, fog:o}; }
+      case 'fog-stroke': { const st = sanitizeFogStroke(op.stroke); return st ? {op:op.op, stroke:st} : null; }
+      case 'fog-pop': return {op:op.op};
+      case 'fog-strokes': return {op:op.op, strokes:sanitizeFog({strokes:op.strokes}).strokes};
+      case 'fog-door': return DOOR_STATES.indexOf(op.s)>=0 ? {op:op.op, id:String(op.id).slice(0, 64), s:op.s} : null;
     }
     return null;
   }
@@ -368,7 +420,7 @@ const GameTable = (function(){
   function playerSnapshot(){
     const s = authState, tokens = {};
     Object.values(s.tokens).forEach(t=>{ if(!t.hidden) tokens[t.id] = publicToken(t); });
-    return {schema:1, tableId:s.tableId, version:s.version, map:s.map, tokens, drawings:s.drawings, zones:s.zones, combat:publicCombat(s.combat)};
+    return {schema:1, tableId:s.tableId, version:s.version, map:s.map, tokens, drawings:s.drawings, zones:s.zones, combat:publicCombat(s.combat), fog:s.fog};
   }
   function sendSnapshot(toId){ if(role()==='gm') sendMsg({type:'gt-snapshot', state:playerSnapshot()}, toId); }
 
@@ -410,9 +462,17 @@ const GameTable = (function(){
         if(!t) return deny('Жетон не найден');
         const patch = {};
         ['name','hp','hpMax','hpShown','size','color','hidden','avatar','rotation','marks','nature',
-         'defense','defenseSubs','zoneDef','armorName','weaponText','attackMod','attackModEnabled','unprotectedEnabled','unprotectedMod','traumaThreshold','trauma','traumaRed','strength','slowReaction','burning','reflexes','grenade','atkSkill','creature']
+         'light','defense','defenseSubs','zoneDef','armorName','weaponText','attackMod','attackModEnabled','unprotectedEnabled','unprotectedMod','traumaThreshold','trauma','traumaRed','strength','slowReaction','burning','reflexes','grenade','atkSkill','creature']
           .forEach(k=>{ if(cmd.patch && k in cmd.patch) patch[k] = cmd.patch[k]; });
         ops.push({op:'token-upsert', token:sanitizeToken(Object.assign({}, t, patch))});
+        break;
+      }
+      case 'token-aim': { // поворот конуса света: Мастер — у любого жетона, игрок — у своего
+        const t = s.tokens[cmd.id];
+        if(!t || !t.light || t.light.kind!=='cone') return deny('У жетона нет направленного света');
+        if(remote && paused) return deny('Стоп-кадр: Мастер поставил игру на паузу');
+        if(remote && !(t.kind==='player' && t.ownerId===from)) return deny('Поворачивать можно только свой свет');
+        ops.push({op:'token-upsert', token:sanitizeToken(Object.assign({}, t, {light:Object.assign({}, t.light, {dir:cmd.dir})}))});
         break;
       }
       case 'token-delete': {
@@ -432,6 +492,29 @@ const GameTable = (function(){
         if(['act','react','swap'].indexOf(cmd.field)<0) return deny('Неизвестная отметка');
         const c1 = clone(c0); c1.parts[cmd.id][cmd.field] = !!cmd.value;
         ops.push({op:'combat-set', combat:sanitizeCombat(c1)});
+        break;
+      }
+      case 'door-toggle': { // игрок у двери (Мастер — door-set)
+        const f = s.fog, d = fogDoors.find(x=>x.id===cmd.id), me = Object.values(s.tokens).find(t=>t.kind==='player' && t.ownerId===(remote ? from : myOwnerId()));
+        if(remote && (!f.on || !f.playerDoors)) return deny('Двери открывает Мастер');
+        if(remote && paused) return deny('Стоп-кадр: Мастер поставил игру на паузу');
+        if(!d) return deny('Дверь не найдена');
+        if(remote && (!me || Math.hypot(me.x - d.x, me.y - d.y) > DOOR_REACH + 0.5)) return deny('Подойдите к двери');
+        const cur = f.doors[d.id] || d.def;
+        if(remote && cur==='locked') return deny('Заперто');
+        ops.push({op:'fog-door', id:d.id, s:cur==='open' ? 'closed' : 'open'});
+        break;
+      }
+      case 'door-set': {
+        if(remote) return deny('Это может только Мастер');
+        const op = sanitizeOp({op:'fog-door', id:cmd.id, s:cmd.s});
+        if(op) ops.push(op);
+        break;
+      }
+      case 'fog-set': case 'fog-stroke': case 'fog-pop': case 'fog-strokes': {
+        if(remote) return deny('Туманом управляет только Мастер');
+        const op = sanitizeOp(Object.assign({}, cmd, {op:cmd.c}));
+        if(op) ops.push(op);
         break;
       }
       case 'drawing-add': case 'drawing-remove': case 'drawings-set': case 'map-set': {
@@ -456,14 +539,16 @@ const GameTable = (function(){
   function afterOps(ops){
     let draw = false, bg = false;
     ops.forEach(op=>{
-      if(op.op==='token-upsert'){ delete pendingPos[op.token.id]; delete previewPos[op.token.id]; }
+      if(op.op==='token-upsert'){ delete pendingPos[op.token.id]; delete previewPos[op.token.id]; const am = aimLocal[op.token.id]; if(am && !am.live) delete aimLocal[op.token.id]; }
       if(op.op==='token-remove'){ selected.delete(op.id); }
       if(op.op.indexOf('drawing')===0) draw = true;
-      if(op.op==='map-set') bg = true;
+      if(op.op==='map-set' || op.op==='fog-door' || op.op==='fog-set') bg = true; // рисунок двери зависит от её состояния на столе
     });
     if(bg) checkSceneChange();
+    fogSync(); // раньше отрисовки жетонов: новый или ушедший в темноту жетон не должен мелькнуть у игроков
     renderTokens();
     requestRender({draw, bg, fx:true});
+    if(isAuthority() && ops.some(op=>op.op.indexOf('fog-')===0)){ renderToolbar(); renderSubbar(); }
     if(ops.some(op=>op.op==='combat-set')) renderCombat();
     if(ops.some(op=>op.op==='combat-set' && !op.combat)) firstDmgSeen = {}; // бой закончен — «первый урон в бою» снова доступен
     // «Скорость» — первая успешная атака В БОЮ: с началом и концом боя трекера бонус снова доступен всем (и отметка на карточке листа)
@@ -512,6 +597,7 @@ const GameTable = (function(){
         Object.keys(pendingPos).forEach(k=>delete pendingPos[k]);
         scheduleCacheSave();
         checkSceneChange();
+        fogSync();
         renderTokens(); requestRender({bg:true, draw:true, fx:true});
         break;
       }
@@ -610,13 +696,14 @@ const GameTable = (function(){
     } else if(msg.type==='gt-drag'){
       (Array.isArray(msg.moves) ? msg.moves : []).slice(0,100).forEach(m=>{
         const t = m && tok(m.id);
-        if(!t || !tokenVisibleHere(t)) return;
+        if(!t || !tokenExistsHere(t)) return; // жетон в тумане тоже: может выйти на свет, пока его тащат
         // Мастер может показывать движение любого (видимого) жетона, игрок — только своего
         const senderIsGm = isPlayer() && from===session.gmId;
         const senderOwns = t.kind==='player' && t.ownerId===from;
         if(!senderIsGm && !senderOwns) return;
         if(dragPos[t.id]) return; // сами сейчас держим этот жетон
         previewPos[t.id] = {x:num(m.x,t.x), y:num(m.y,t.y), t:performance.now()};
+        if(m.dir!==undefined && isFinite(m.dir)) previewPos[t.id].dir = Number(m.dir); // поворот конуса света
         refreshTokenPos(t.id);
       });
       requestRender({fx:true});
@@ -665,7 +752,7 @@ const GameTable = (function(){
   }
 
   /* ---------- DOM / локальное состояние интерфейса ---------- */
-  let viewport, layer, bgC, drC, fxC, bgX, drX, fxX, toolbar, subbar, zoombar, statusEl, infoCard, hintEl, toastEl, menuEl, popEl, emptyHint;
+  let viewport, layer, bgC, drC, fogC, fxC, bgX, drX, fogX, fxX, toolbar, subbar, zoombar, statusEl, infoCard, hintEl, toastEl, menuEl, popEl, emptyHint;
   let vw = 0, vh = 0, dpr = 1, visible = false;
   let tool = 'select', drawTool = 'pen';
   let drawStyle = Object.assign({color:DRAW_COLORS[0], width:4, opacity:1}, loadJson(STYLE_KEY)||{});
@@ -674,6 +761,7 @@ const GameTable = (function(){
   const dragPos = {};     // id -> {x,y}   своё текущее перетаскивание (ещё не отправлено)
   const pendingPos = {};  // id -> {x,y,t} (игрок) отправлено Мастеру, ждём подтверждения
   const previewPos = {};  // id -> {x,y,t} чужое «живое» перетаскивание
+  const aimLocal = {};    // id -> {dir, live, t} свой поворот конуса света (live — ещё тянем, иначе ждём подтверждения)
   let interaction = null, placing = null, ruler = null, polyDraft = null, eraseIds = null;
   let pings = [], gmPointer = null, pointerBroadcast = false;
   let undoStack = [], redoStack = [];
@@ -727,6 +815,7 @@ const GameTable = (function(){
     el.classList.toggle('selected', selected.has(t.id));
     el.classList.toggle('movable', canControl(t));
     el.classList.toggle('hidden-tok', !!t.hidden);
+    el.classList.toggle('fog-hid', isAuthority() && fogHiddenIds.has(t.id)); // Мастеру: игроки этот жетон сейчас не видят
     el.classList.toggle('dragging', !!dragPos[t.id]);
     { const cbs = st().combat, cbp = cbs && cbs.parts[t.id];
       el.classList.toggle('cb-on', !!cbp && cbs.order[cbs.turn]===cbp.side);
@@ -777,8 +866,8 @@ const GameTable = (function(){
       + (enc ? `<span class="gt-mark-badge" title="Сковывает: ${escapeHtml(enc)} (сила ниже нужной)">Скован</span>` : '');
     return `<span class="gt-trauma-row">${marks}${t.burning?`<span class="gt-burn-badge" title="Горит (термическая граната): кругов">🔥${t.burning}</span>`:""}${t.slowReaction?'<span class="gt-slow-badge" title="Атакован медленным оружием — может отреагировать">⚡ реакция</span>':''}${t.trauma?`<span title="${rb ? 'Поломки' : 'Травмы'}">${rb ? '🔧' : '🦴'}${t.trauma}</span>`:''}${t.traumaRed?`<span class="bone-red" title="${rb ? 'Поломки' : 'Травмы'} от оружия с чертой «травма»">${rb ? '🔧' : '🦴'}</span><span class="gt-trauma-red-n">${t.traumaRed}</span>`:''}</span>`;
   }
-  function refreshTokenPos(id){ const el = tokenEls.get(id), t = tok(id); if(el && t){ positionTokenEl(el, t); el.classList.toggle('dragging', !!dragPos[id]); } }
-  function setSelection(ids){ selected.clear(); ids.forEach(id=>selected.add(id)); tokenEls.forEach((el,id)=>el.classList.toggle('selected', selected.has(id))); renderInfoCard(); }
+  function refreshTokenPos(id){ const el = tokenEls.get(id), t = tok(id); if(el && t){ positionTokenEl(el, t); el.classList.toggle('dragging', !!dragPos[id]); } if(viewport) requestRender(); } // кадр — туман идёт за жетоном
+  function setSelection(ids){ selected.clear(); ids.forEach(id=>selected.add(id)); tokenEls.forEach((el,id)=>el.classList.toggle('selected', selected.has(id))); renderInfoCard(); if(viewport) requestRender({fx:true}); }
   function renderInfoCard(){
     if(selected.size!==1){ infoCard.style.display = 'none'; return; }
     const t = tok([...selected][0]);
@@ -797,23 +886,26 @@ const GameTable = (function(){
         ` · ${ws ? escapeHtml(ws.cleanName)+` (Ат${ws.at>=0?'+':''}${ws.at}, МУ${ws.mu})` : 'без оружия'} · ${({void:'пустота — без травм', robot:'робот — поломка-к12 ' + t.traumaThreshold})[tokenNature(t)] || 'травма-к12 ' + t.traumaThreshold}</div>`;
     }
     const bones = (t.trauma||t.traumaRed||t.slowReaction||t.burning) ? `<div class="gt-ic-sub">${traumaBadgesHtml(t)}</div>` : '';
+    const lightNote = t.light ? `<div class="gt-ic-sub">💡 ${escapeHtml(lightLabel(t.light))}${t.light.kind==='cone' && fogActive() && canControl(t) ? ' · тяните круглую ручку — повернуть' : ''}</div>` : '';
     infoCard.innerHTML = `<div class="gt-ic-sub">${kindTxt} · ${SIZE_LABELS[t.size]}${t.hidden?' · скрыт':''}</div><div class="gt-ic-name">${escapeHtml(tokenName(t, v))}</div>`+
-      (stats ? `<div class="gt-ic-stats">${stats}</div>` : '') + bones + combat;
+      (stats ? `<div class="gt-ic-stats">${stats}</div>` : '') + bones + lightNote + combat;
     infoCard.style.display = 'block';
   }
 
   /* ---------- canvas: фон/сетка, зоны+рисунки, временное ---------- */
   let rq = null;
-  const dirty = {bg:false, draw:false, fx:false};
+  const dirty = {bg:false, draw:false, fog:false, fx:false};
   function requestRender(f){
-    if(f){ if(f.bg) dirty.bg = true; if(f.draw) dirty.draw = true; if(f.fx) dirty.fx = true; }
+    if(f){ if(f.bg) dirty.bg = true; if(f.draw) dirty.draw = true; if(f.fog) dirty.fog = true; if(f.fx) dirty.fx = true; }
     if(!rq) rq = requestAnimationFrame(flush);
   }
   function flush(){
     rq = null;
+    fogSync(); // и при скрытом столе: что видят игроки, нужно логу и памяти разведанного
     if(!visible || !vw) return;
-    if(dirty.bg){ dirty.bg = false; drawBackground(); }
+    if(dirty.bg){ dirty.bg = false; dirty.fog = true; drawBackground(); }
     if(dirty.draw){ dirty.draw = false; drawDrawings(); }
+    if(dirty.fog){ dirty.fog = false; drawFog(); }
     if(dirty.fx){ dirty.fx = false; drawFx(); }
   }
   function resize(){
@@ -822,8 +914,10 @@ const GameTable = (function(){
     if(!w || !h) return;
     dpr = window.devicePixelRatio || 1; vw = w; vh = h;
     [bgC, drC, fxC].forEach(c=>{ c.width = Math.round(w*dpr); c.height = Math.round(h*dpr); c.style.width = w+'px'; c.style.height = h+'px'; });
+    fogC.width = Math.ceil(w*FOG_RES); fogC.height = Math.ceil(h*FOG_RES); fogC.style.width = w+'px'; fogC.style.height = h+'px'; // туман — в половину разрешения: дешевле, край мягче
     if(camNeedsCenter && visible){ camNeedsCenter = false; centerOn(0, 0); }
     if(visible && (focusPending || Date.now() < focusUntil)) applySceneFocus();
+    placeSubbar();
     requestRender({bg:true, draw:true, fx:true});
   }
   function setWorldTransform(ctx){ const k = CELL*cam.z*dpr; ctx.setTransform(k,0,0,k, cam.x*dpr, cam.y*dpr); }
@@ -851,7 +945,7 @@ const GameTable = (function(){
         const k = CELL*cam.z;
         ctx.save();
         ctx.setTransform(k*dpr, 0, 0, k*dpr, (cam.x + sc.x*k)*dpr, (cam.y + sc.y*k)*dpr);
-        MapRender.drawMap(ctx, md, {k, view:{x0:-cam.x/k - sc.x, y0:-cam.y/k - sc.y, x1:(vw - cam.x)/k - sc.x, y1:(vh - cam.y)/k - sc.y}});
+        MapRender.drawMap(ctx, md, {k, view:{x0:-cam.x/k - sc.x, y0:-cam.y/k - sc.y, x1:(vw - cam.x)/k - sc.x, y1:(vh - cam.y)/k - sc.y}, doorV:fogActive() ? fogDoorV : null});
         ctx.restore();
       }
     }
@@ -871,6 +965,224 @@ const GameTable = (function(){
     const g = ctx.createRadialGradient(vw/2, vh/2, Math.min(vw,vh)*0.35, vw/2, vh/2, Math.max(vw,vh)*0.75);
     g.addColorStop(0, 'rgba(92,82,64,0)'); g.addColorStop(1, 'rgba(92,82,64,.16)');
     ctx.fillStyle = g; ctx.fillRect(0,0,vw,vh);
+  }
+  /* ---------- туман войны ----------
+     Геометрия и растр — FogKit (04b-fog.js). Настройки и мазки кисти — st().fog, идут обычными операциями стола;
+     видимость каждый считает у себя: стены приходят с картой, жетоны и их свет — с состоянием стола.
+     Зрение общее: игрокам видно всё, что видит любой из их жетонов. Скрытые жетоны в расчёт не идут (у игроков их нет). */
+  const FOG_RES = 0.5, FOG_MEM_KEY = 'reincarnator_fog_memory_v1';
+  const fogScr = {}, fogMemScr = {}, fogPolys = new Map();
+  let fogModel = null, fogSig = '', fogLive = null, fogBrush = 'open', fogBrushM = 9;
+  let fogIx = FogKit.emptyIndex(), fogIxKey = '', fogIxDoc = null, fogIxVer = 0, fogMem = null, fogMemTimer = null;
+  let fogDoors = [], fogDoorV = null, doorPressTimer = null;
+  const DOOR_REACH = 1.6; // игрок дотягивается до двери за столько клеток
+  function fogActive(){ return !!(st().fog && st().fog.on); }
+  function mPerCell(){ return (st().map && st().map.metersPerCell) || METERS_PER_CELL; }
+  function lightDirOf(t){
+    const am = aimLocal[t.id];
+    if(am && (am.live || performance.now() - am.t < PENDING_MS)) return am.dir;
+    const pv = previewPos[t.id];
+    return pv && pv.dir!==undefined ? pv.dir : t.light.dir;
+  }
+  const compassRad = (deg)=>(deg - 90)*Math.PI/180;
+  function lightGeom(t, p){ // радиус в клетках и углы конуса
+    const l = t.light;
+    if(l.kind==='circle') return {x:p.x, y:p.y, R:l.d/2/mPerCell()};
+    const mid = compassRad(lightDirOf(t)), half = l.a*Math.PI/360;
+    return l.a >= 360 ? {x:p.x, y:p.y, R:l.l/mPerCell()} : {x:p.x, y:p.y, R:l.l/mPerCell(), a0:mid - half, a1:mid + half};
+  }
+  function fogWallsNow(){
+    const sc = st().map && st().map.scene;
+    if(!sc || typeof MapStore==='undefined'){ if(fogIxKey){ fogIxKey = ''; fogIxDoc = null; fogIx = FogKit.emptyIndex(); fogDoors = []; fogDoorV = null; fogIxVer++; } return {key:'-' + fogIxVer, pending:false}; }
+    const md = MapStore.sceneDoc(sc, ()=>requestRender({bg:true}));
+    if(!md) return {key:'wait', pending:true};
+    const doors = st().fog.doors, key = `${sc.url}#${sc.rev}|${sc.x}|${sc.y}|${Object.keys(doors).sort().map(k=>k + doors[k]).join()}`;
+    if(key!==fogIxKey || md!==fogIxDoc){
+      fogIxKey = key; fogIxDoc = md; fogIxVer++;
+      const r = FogKit.mapSight(md, sc.x, sc.y, (id)=>doors[id]);
+      fogIx = r.ix; fogDoors = r.doors; fogDoorV = {};
+      fogDoors.forEach(d=>{ const v = (doors[d.id] || d.def)==='open' ? d.openV : d.closedV; if(v!==d.v) fogDoorV[d.id] = v; });
+      dirty.bg = true;
+    }
+    return {key:'w' + fogIxVer, pending:false};
+  }
+  function fogSync(){
+    const s = st(), f = s.fog;
+    if(!f || !f.on){
+      if(fogSig){ fogSig = ''; fogModel = null; fogPolys.clear(); dirty.fog = true; dirty.bg = true; }
+      if(fogHiddenIds.size){ fogHiddenIds = new Set(); renderTokens(); }
+      return;
+    }
+    const walls = fogWallsNow(), toks = Object.values(s.tokens).filter(t=>!t.hidden), parts = [];
+    toks.forEach(t=>{ const p = displayPos(t); parts.push(t.id, p.x, p.y, t.size, t.kind==='player' ? 'p' : 'g');
+      if(t.light){ const g = lightGeom(t, p); parts.push(g.R, g.a0, g.a1); } });
+    const sc0 = s.map && s.map.scene;
+    const sig = [walls.key, f.day ? 1 : 0, f.rev, f.strokes.length, fogLive ? fogLive.p.length : 0, mPerCell(), sc0 ? [sc0.x, sc0.y, sc0.cols, sc0.rows].join() : '', parts.join(',')].join('|');
+    if(sig===fogSig) return;
+    fogSig = sig; dirty.fog = true;
+    const used = new Set();
+    const poly = (key, make)=>{ used.add(key); let v = fogPolys.get(key); if(!v){ v = make(); fogPolys.set(key, v); } return v; };
+    const eyes = [], lights = [];
+    if(!walls.pending) toks.forEach(t=>{
+      const p = displayPos(t);
+      if(t.kind==='player') eyes.push({x:p.x, y:p.y, poly:poly(`e|${walls.key}|${p.x}|${p.y}`, ()=>FogKit.fan(fogIx, p.x, p.y, FogKit.FAR))});
+      if(t.light){ const g = lightGeom(t, p); g.poly = poly(`l|${walls.key}|${p.x}|${p.y}|${g.R}|${g.a0}|${g.a1}`, ()=>g.a0===undefined ? FogKit.fan(fogIx, g.x, g.y, g.R) : FogKit.fan(fogIx, g.x, g.y, g.R, g.a0, g.a1)); lights.push(g); }
+    });
+    fogPolys.forEach((v, k)=>{ if(!used.has(k)) fogPolys.delete(k); });
+    const scn = s.map && s.map.scene;
+    // Крупный объект виден целиком, если на него упал и взгляд, и свет
+    const seen = new Set(), lit = new Set();
+    eyes.forEach(e=>e.poly.hits.forEach(h=>seen.add(h)));
+    lights.forEach(L=>L.poly.hits.forEach(h=>lit.add(h)));
+    const reveal = [...seen].filter(h=>(f.day || lit.has(h)) && fogIx.groups[h]).map(h=>fogIx.groups[h].reveal);
+    fogModel = {ix:fogIx, day:f.day, pending:walls.pending, eyes, lights, reveal, strokes:fogLive ? f.strokes.concat([fogLive]) : f.strokes, clip:scn ? {x:scn.x, y:scn.y, w:scn.cols, h:scn.rows} : null};
+    // Кого игроки сейчас не видят: жетон виден, если на свету центр или хотя бы край
+    const hid = new Set();
+    toks.forEach(t=>{
+      if(t.kind==='player') return;
+      const p = displayPos(t), r = SIZE_CELLS[t.size]*0.4;
+      if(!(FogKit.visibleAt(fogModel, p.x, p.y) || FogKit.visibleAt(fogModel, p.x + r, p.y) || FogKit.visibleAt(fogModel, p.x - r, p.y) || FogKit.visibleAt(fogModel, p.x, p.y + r) || FogKit.visibleAt(fogModel, p.x, p.y - r))) hid.add(t.id);
+    });
+    const changed = hid.size!==fogHiddenIds.size || [...hid].some(id=>!fogHiddenIds.has(id));
+    if(changed){ fogHiddenIds = hid; renderTokens(); }
+    gated('fogmem', 200, fogMemUpdate);
+  }
+  function drawFog(){
+    const on = fogActive() && !!fogModel;
+    fogC.style.display = on ? 'block' : 'none';
+    if(!on) return;
+    const eyes = isPlayer() || fogPreview, f = st().fog;
+    FogKit.compose(fogX, fogScr, fogC.width, fogC.height, {k:CELL*cam.z*FOG_RES, ox:cam.x*FOG_RES, oy:cam.y*FOG_RES}, fogModel,
+      {veil:eyes ? '#0b0908' : 'rgba(10,8,20,.5)', memCut:eyes ? 0.55 : 0.35, blur:2, mem:f.memory ? fogMemEnsure() : null});
+  }
+  // Память разведанного: своя у каждого браузера, отдельно для стола и карты; «Сбросить» Мастера меняет epoch
+  function fogMemRect(){
+    const m = st().map || {}, sc = m.scene, bg = m.background;
+    if(sc) return {id:'m' + sc.mapId, x:sc.x, y:sc.y, w:sc.cols, h:sc.rows};
+    if(bg){ const im = bgImages[bg.url]; return im && im.naturalWidth ? {id:'b' + bg.url.slice(-48), x:bg.x, y:bg.y, w:bg.w, h:bg.w*im.naturalHeight/im.naturalWidth} : null; }
+    return {id:'free', x:-120, y:-120, w:240, h:240};
+  }
+  function fogMemStore(){ const v = loadJson(FOG_MEM_KEY); return v && v.e && typeof v.e==='object' ? v : {e:{}}; }
+  function fogMemEnsure(){
+    if(sandbox) return null;
+    const r = fogMemRect(); if(!r) return null;
+    const key = `${st().tableId || ''}|${r.id}|${st().fog.epoch}`;
+    if(fogMem && fogMem.key===key) return fogMem;
+    const px = clamp(Math.floor(2000/Math.max(r.w, r.h)), 1, 4), cv = document.createElement('canvas');
+    cv.width = Math.ceil(r.w*px); cv.height = Math.ceil(r.h*px);
+    const me = fogMem = Object.assign({key, px, cv, ctx:cv.getContext('2d')}, r);
+    const saved = fogMemStore().e[key];
+    if(saved && saved.png){ const im = new Image(); im.onload = ()=>{ me.ctx.drawImage(im, 0, 0, cv.width, cv.height); requestRender({fog:true}); }; im.src = saved.png; }
+    return me;
+  }
+  function fogMemUpdate(){
+    if(!fogActive() || !st().fog.memory || !fogModel) return;
+    const m = fogMemEnsure(); if(!m) return;
+    const a = FogKit.paintVisible(fogMemScr, m.cv.width, m.cv.height, {k:m.px, ox:-m.x*m.px, oy:-m.y*m.px}, fogModel);
+    m.ctx.drawImage(a.cv, 0, 0);
+    requestRender({fog:true});
+    clearTimeout(fogMemTimer);
+    fogMemTimer = setTimeout(()=>{
+      const v = fogMemStore(); v.e[m.key] = {png:m.cv.toDataURL('image/png'), at:Date.now()};
+      Object.keys(v.e).sort((p, q)=>v.e[q].at - v.e[p].at).slice(5).forEach(k=>delete v.e[k]);
+      try{ localStorage.setItem(FOG_MEM_KEY, JSON.stringify(v)); }
+      catch(e){ try{ localStorage.setItem(FOG_MEM_KEY, JSON.stringify({e:{[m.key]:v.e[m.key]}})); }catch(e2){} } // хранилище переполнено — остаётся только текущая карта
+    }, 1500);
+  }
+  // Свет выбранного жетона на поле: контур без учёта стен и ручка поворота конуса
+  function aimHandleOf(t){
+    const s = toScreen(displayPos(t)), a = compassRad(lightDirOf(t)), d = SIZE_CELLS[t.size]*CELL*cam.z/2 + 24;
+    return {x:s.x + Math.cos(a)*d, y:s.y + Math.sin(a)*d, sx:s.x, sy:s.y, a};
+  }
+  function lightGizmoToken(){
+    if(!fogActive() || tool!=='select' || selected.size!==1) return null;
+    const t = tok([...selected][0]);
+    return t && t.light && canControl(t) && tokenVisibleHere(t) ? t : null;
+  }
+  function aimHit(p, touch){
+    const t = lightGizmoToken();
+    if(!t || t.light.kind!=='cone') return null;
+    const h = aimHandleOf(t);
+    return Math.hypot(p.x - h.x, p.y - h.y) <= (touch ? 22 : 13) ? t : null;
+  }
+  function drawLightGizmo(ctx){
+    const t = lightGizmoToken(); if(!t) return;
+    const g = lightGeom(t, displayPos(t)), h = aimHandleOf(t), R = g.R*CELL*cam.z;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(240,190,90,.85)'; ctx.lineWidth = 1.5; ctx.setLineDash([6, 5]);
+    ctx.beginPath();
+    if(g.a0===undefined) ctx.arc(h.sx, h.sy, R, 0, Math.PI*2);
+    else { ctx.moveTo(h.sx, h.sy); ctx.arc(h.sx, h.sy, R, g.a0, g.a1); ctx.closePath(); }
+    ctx.stroke();
+    ctx.setLineDash([]);
+    if(t.light.kind==='cone'){
+      ctx.strokeStyle = '#f0be5a'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(h.sx + Math.cos(h.a)*SIZE_CELLS[t.size]*CELL*cam.z/2, h.sy + Math.sin(h.a)*SIZE_CELLS[t.size]*CELL*cam.z/2); ctx.lineTo(h.x, h.y); ctx.stroke();
+      dot(ctx, h, 7, '#f0be5a');
+      if(interaction && interaction.type==='aim') pill(ctx, h.x, h.y, lightLabel(t.light));
+    }
+    ctx.restore();
+  }
+  /* Двери на столе: значок у каждой двери — у Мастера всегда (пока включён туман), у игрока — только у той, до которой он дотягивается,
+     и только если Мастер разрешил. Нажатие — открыть или закрыть; Мастеру правый клик или долгое нажатие — меню с «Запереть». */
+  function doorStateOf(d){ return st().fog.doors[d.id] || d.def; }
+  function doorIconsNow(){
+    if(!fogActive()) return [];
+    if(isAuthority()) return fogPreview ? [] : fogDoors;
+    const me = ownToken(); if(!st().fog.playerDoors || !me) return [];
+    const p = displayPos(me);
+    return fogDoors.filter(d=>Math.hypot(d.x - p.x, d.y - p.y) <= DOOR_REACH && !FogKit.blocked(fogIx, p.x, p.y, d.x, d.y));
+  }
+  const doorIconR = ()=>clamp(CELL*cam.z*0.17, 6, 11);
+  function doorHit(p, touch){
+    const r = doorIconR() + (touch ? 8 : 3);
+    return doorIconsNow().find(d=>{ const s = toScreen(d); return Math.hypot(p.x - s.x, p.y - s.y) <= r; }) || null;
+  }
+  function drawDoorIcons(ctx){
+    const r = doorIconR();
+    doorIconsNow().forEach(d=>{
+      const s = toScreen(d), state = doorStateOf(d), col = state==='open' ? '#8fc27a' : state==='locked' ? '#e0654a' : '#f0be5a', u = r*0.52;
+      ctx.save(); ctx.translate(s.x, s.y);
+      ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI*2); ctx.fillStyle = 'rgba(20,16,12,.9)'; ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = col; ctx.stroke();
+      ctx.fillStyle = col;
+      if(state==='open'){ ctx.strokeRect(-u*0.75, -u, u*1.5, u*2); ctx.beginPath(); ctx.moveTo(-u*0.75, -u); ctx.lineTo(u*0.3, -u*0.55); ctx.lineTo(u*0.3, u*1.25); ctx.lineTo(-u*0.75, u); ctx.closePath(); ctx.fill(); }
+      else if(state==='locked'){ ctx.fillRect(-u*0.8, -u*0.1, u*1.6, u*1.15); ctx.beginPath(); ctx.arc(0, -u*0.1, u*0.5, Math.PI, 0); ctx.stroke(); }
+      else { ctx.fillRect(-u*0.7, -u, u*1.4, u*2); ctx.fillStyle = 'rgba(20,16,12,.9)'; ctx.fillRect(u*0.25, -u*0.1, u*0.2, u*0.2); }
+      ctx.restore();
+    });
+  }
+  function doorToggle(d){
+    if(isAuthority()){ act({c:'door-set', id:d.id, s:doorStateOf(d)==='open' ? 'closed' : 'open'}); return; }
+    if(doorStateOf(d)==='locked'){ toast('Заперто'); return; }
+    act({c:'door-toggle', id:d.id});
+  }
+  function openDoorMenu(d, p){
+    const state = doorStateOf(d);
+    openMenu(p, d.name, [
+      {id:'door', label:state==='open' ? 'Закрыть' : 'Открыть', run:()=>act({c:'door-set', id:d.id, s:state==='open' ? 'closed' : 'open'})},
+      {id:'lock', label:state==='locked' ? 'Отпереть' : 'Запереть', run:()=>act({c:'door-set', id:d.id, s:state==='locked' ? 'closed' : 'locked'})}
+    ]);
+  }
+  function fogStrokeRadius(){ return fogBrushM/2/mPerCell(); }
+  function fogBrushDown(e, w){
+    if(!isAuthority()) return;
+    if(!authState.fog.on){ toast('Сначала включите туман'); return; }
+    if(fogBrush==='los'){ // одним нажатием — всё, что видно из этой точки (комната — целиком, в проём — по линии взгляда)
+      const walls = fogWallsNow();
+      if(walls.pending){ toast('Карта ещё загружается'); return; }
+      if(!fogIx.n) toast('На карте нет стен — открыто всё вокруг. Отменить можно на панели тумана');
+      act({c:'fog-stroke', stroke:{v:1, f:1, p:FogKit.fan(fogIx, w.x, w.y, FogKit.FAR)}});
+      return;
+    }
+    fogLive = {v:fogBrush==='open' ? 1 : 0, r:fogStrokeRadius(), p:[r3(w.x), r3(w.y)]};
+    interaction = {type:'fogpaint'};
+    requestRender();
+  }
+  function fogUndo(){ if(authState.fog.strokes.length) act({c:'fog-pop'}); }
+  function fogClearStrokes(){
+    const saved = authState.fog.strokes.slice(); if(!saved.length) return;
+    act({c:'fog-strokes', strokes:[]});
+    uiToast('Правки кистью убраны', {icon:'🌫', action:{label:'Отменить', run:()=>{ if(isAuthority()) act({c:'fog-strokes', strokes:saved}); }}});
   }
   function drawZones(/*ctx*/){ /* задел: зоны (опасность/эффект/запрет/шум/…) и AoE рисуются здесь, под рисунками */ }
   function drawDrawings(){
@@ -997,6 +1309,12 @@ const GameTable = (function(){
       sp.forEach((p,i)=>dot(ctx, p, i===sp.length-1 ? 5 : 4, '#9c2f1c'));
       const last = sp[sp.length-1];
       pill(ctx, last.x, last.y, measureLabel(pathLength(wp)) + (ruler.points.length>1 ? ` · ${ruler.points.length} точ.` : ''));
+    }
+    drawDoorIcons(ctx);
+    drawLightGizmo(ctx);
+    if(tool==='fog' && lastMouse && fogBrush!=='los' && isAuthority() && authState.fog.on){ // размер кисти
+      const c = toScreen(lastMouse); ctx.save(); ctx.beginPath(); ctx.arc(c.x, c.y, fogStrokeRadius()*CELL*cam.z, 0, Math.PI*2);
+      ctx.strokeStyle = fogBrush==='open' ? '#f0be5a' : '#7f8ea8'; ctx.lineWidth = 2; ctx.setLineDash([5, 4]); ctx.stroke(); ctx.restore();
     }
     // перетаскивание жетона: откуда → куда и сколько это метров
     if(interaction && interaction.type==='drag' && interaction.moved){
@@ -1241,6 +1559,12 @@ const GameTable = (function(){
     try{ viewport.setPointerCapture(e.pointerId); }catch(err){}
     switch(tool){
       case 'select': {
+        { const am = aimHit(p, e.pointerType==='touch'); // ручка поворота конуса света — поверх всего
+          if(am){ aimLocal[am.id] = {dir:lightDirOf(am), live:true, t:0}; interaction = {type:'aim', id:am.id}; requestRender({fx:true}); return; } }
+        { const dr = doorHit(p, e.pointerType==='touch');
+          if(dr){ interaction = {type:'door', id:dr.id, startP:p, moved:false};
+            if(isAuthority()) doorPressTimer = setTimeout(()=>{ if(interaction && interaction.type==='door' && interaction.id===dr.id){ interaction = null; openDoorMenu(dr, p); } }, 550);
+            return; } }
         if(t && canControl(t)){
           if(e.ctrlKey || e.metaKey){ const ids = new Set(selected); ids.has(t.id) ? ids.delete(t.id) : ids.add(t.id); setSelection([...ids]); return; }
           const wasSel = selected.has(t.id);
@@ -1265,6 +1589,7 @@ const GameTable = (function(){
         return;
       }
       case 'ping': doPing(w); return;
+      case 'fog': fogBrushDown(e, w); return;
       case 'token': if(isAuthority()) openTokenForm(null, w, p); return;
       case 'text': if(isAuthority()) openTextForm(w, p); return;
       case 'draw': {
@@ -1297,7 +1622,7 @@ const GameTable = (function(){
       if(targeting){ targeting.cur = w; requestRender({fx:true}); return; }
       if(placing){ movePlacing(w, e.shiftKey); return; }
       if(ruler && ruler.mode==='waypoints'){ ruler.cur = w; requestRender({fx:true}); }
-      if(polyDraft) requestRender({fx:true});
+      if(polyDraft || tool==='fog') requestRender({fx:true});
       return;
     }
     const it = interaction;
@@ -1317,6 +1642,22 @@ const GameTable = (function(){
         it.ids.forEach(id=>{ dragPos[id] = {x:it.starts[id].x+dx, y:it.starts[id].y+dy}; refreshTokenPos(id); if(!tok(id).hidden) moves.push({id, x:r3(dragPos[id].x), y:r3(dragPos[id].y)}); });
         if(moves.length) sendTransient({type:'gt-drag', moves}, 120);
         requestRender({fx:true});
+        break;
+      }
+      case 'door': if(Math.hypot(p.x - it.startP.x, p.y - it.startP.y) > 8){ it.moved = true; clearTimeout(doorPressTimer); } break;
+      case 'aim': {
+        const t = tok(it.id); if(!t) break;
+        const pp = displayPos(t);
+        let d = ((Math.atan2(w.y - pp.y, w.x - pp.x)*180/Math.PI + 90)%360 + 360)%360;
+        d = e.shiftKey ? Math.round(d/15)*15%360 : Math.round(d)%360;
+        aimLocal[it.id] = {dir:d, live:true, t:0};
+        if(!t.hidden) sendTransient({type:'gt-drag', moves:[{id:t.id, x:r3(pp.x), y:r3(pp.y), dir:d}]}, 120);
+        requestRender({fx:true});
+        break;
+      }
+      case 'fogpaint': {
+        const pts = fogLive.p, lx = pts[pts.length - 2], ly = pts[pts.length - 1];
+        if(Math.hypot(w.x - lx, w.y - ly) >= Math.max(0.1, fogLive.r*0.25) && pts.length < 19998){ pts.push(r3(w.x), r3(w.y)); requestRender({fx:true}); }
         break;
       }
       case 'box': it.cur = p; requestRender({fx:true}); break;
@@ -1346,6 +1687,17 @@ const GameTable = (function(){
     interaction = null;
     viewport.classList.remove('panning');
     switch(it.type){
+      case 'door': { clearTimeout(doorPressTimer); const d = fogDoors.find(x=>x.id===it.id); if(d && !it.moved) doorToggle(d); break; }
+      case 'aim': {
+        const am = aimLocal[it.id];
+        if(am){ am.live = false; am.t = performance.now(); if(!act({c:'token-aim', id:it.id, dir:am.dir})) delete aimLocal[it.id]; }
+        break;
+      }
+      case 'fogpaint': {
+        const stroke = fogLive; fogLive = null;
+        if(stroke) act({c:'fog-stroke', stroke});
+        break;
+      }
       case 'drag': {
         if(!it.moved){
           // Касание: на телефоне нет правого клика (а на iPhone и долгое нажатие его не вызывает) — второй тап по
@@ -1417,6 +1769,9 @@ const GameTable = (function(){
   function cancelInteraction(){
     if(interaction && interaction.type==='drag') interaction.ids.forEach(id=>{ delete dragPos[id]; refreshTokenPos(id); });
     if(interaction && interaction.type==='erase'){ eraseIds = null; requestRender({draw:true}); }
+    if(interaction && interaction.type==='aim') delete aimLocal[interaction.id];
+    if(interaction && interaction.type==='fogpaint') fogLive = null;
+    if(interaction && interaction.type==='door') clearTimeout(doorPressTimer);
     interaction = null;
     viewport && viewport.classList.remove('panning');
     requestRender({fx:true});
@@ -1485,6 +1840,7 @@ const GameTable = (function(){
     if(ruler){ ruler = null; showHint(); requestRender({fx:true}); return; }
     if(placing || targeting || abilityPick){ cancelAll(); return; }
     const p = localPt(e), w = toWorld(p), t = tokenFromEvent(e);
+    { const dr = isAuthority() ? doorHit(p, false) : null; if(dr){ openDoorMenu(dr, p); return; } }
     if(t) openTokenMenu(t, p); else openFieldMenu(w, p);
   }
   function onKeyDown(e){
@@ -1498,6 +1854,7 @@ const GameTable = (function(){
       // Ctrl+Z листа персонажа (performUndo) на вкладке стола не срабатывает — там отмена рисунков
       e.preventDefault(); e.stopPropagation();
       if(!isAuthority()) return;
+      if(tool==='fog'){ if(!isY && !e.shiftKey) fogUndo(); return; } // на панели тумана — отмена мазка кисти
       if(isY || e.shiftKey) redo(); else undo();
       return;
     }
@@ -1508,7 +1865,7 @@ const GameTable = (function(){
     if(e.ctrlKey || e.metaKey || e.altKey) return;
     if(e.key==='+' || e.key==='='){ zoomStep(1); return; }
     if(e.key==='-' || e.key==='_'){ zoomStep(-1); return; }
-    const hot = {KeyV:'select', KeyH:'pan', KeyR:'ruler', KeyG:'ping', KeyD:'draw', KeyT:'text'}[e.code];
+    const hot = {KeyV:'select', KeyH:'pan', KeyR:'ruler', KeyG:'ping', KeyD:'draw', KeyT:'text', KeyF:'fog'}[e.code];
     if(hot && (isAuthority() || ['select','pan','ruler','ping'].indexOf(hot)>=0)){ setTool(hot); }
   }
   function onKeyUp(e){ if(e.code==='Space'){ spaceHeld = false; viewport && viewport.classList.remove('space-pan'); } }
@@ -1522,6 +1879,7 @@ const GameTable = (function(){
     draw:'<path d="M4 20l1.2-4.8L16 4.4l3.6 3.6L8.8 18.8z"/><path d="M13.8 6.6l3.6 3.6"/>',
     text:'<path d="M5 7V5h14v2M12 5v14M9 19h6"/>',
     ping:'<circle cx="12" cy="12" r="2.4"/><circle cx="12" cy="12" r="6.2"/><circle cx="12" cy="12" r="9.8" opacity=".45"/>',
+    fog:'<path d="M4 9c2.5-2 4.5-2 7 0s4.5 2 9 0"/><path d="M4 14c2.5-2 4.5-2 7 0s4.5 2 9 0"/><path d="M7 19c1.8-1.2 3.2-1.2 5 0s3.2 1.2 5 0"/><path d="M7 4.5c1.8-1.2 3.2-1.2 5 0s3.2 1.2 5 0"/>',
     pointer:'<path d="M12 2.5v5M12 16.5v5M2.5 12h5M16.5 12h5"/><circle cx="12" cy="12" r="3.6"/>',
     me:'<circle cx="12" cy="8" r="4"/><path d="M4.5 20.5c1.4-3.8 4.2-5.8 7.5-5.8s6.1 2 7.5 5.8"/>',
     more:'<circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>',
@@ -1548,7 +1906,7 @@ const GameTable = (function(){
     const h = [toolBtn('select','Выбор','V'), toolBtn('pan','Рука','H')];
     if(auth) h.push(toolBtn('token','Жетон'));
     h.push(toolBtn('ruler','Измерение','R'));
-    if(auth){ h.push(toolBtn('draw','Рисование','D')); h.push(toolBtn('text','Текст','T')); }
+    if(auth){ h.push(toolBtn('draw','Рисование','D')); h.push(toolBtn('text','Текст','T')); h.push(toolBtn('fog','Туман','F').replace('class="gt-tool', 'class="gt-tool' + (st().fog.on ? ' fog-on' : ''))); }
     h.push(toolBtn('ping','Ping','G / Alt+клик'));
     h.push('<span class="gt-sep"></span>');
     if(r==='gm') h.push(actBtn('pointer','Указка','pointer', pointerBroadcast ? ' active' : ''));
@@ -1562,8 +1920,29 @@ const GameTable = (function(){
   }
   function renderSubbar(){
     if(!subbar) return;
-    if(!(isAuthority() && (tool==='draw' || tool==='text'))){ subbar.style.display = 'none'; return; }
+    if(!(isAuthority() && (tool==='draw' || tool==='text' || tool==='fog'))){ subbar.style.display = 'none'; return; }
     const h = [];
+    if(tool==='fog'){
+      const f = authState.fog, dis = f.on ? '' : ' disabled';
+      const fb = (act, label, title, on, extra)=>`<button type="button" class="gt-tool${on ? ' active' : ''}" data-act="${act}" title="${title}"${extra || ''}>${label}</button>`;
+      h.push(fb('fog-toggle', f.on ? '🌫 Туман включён' : '🌫 Включить туман', 'Игроки видят только то, что освещено и на что есть линия взгляда у их жетонов', f.on));
+      h.push(fb('fog-day', f.day ? '☀ День' : '🌑 Темнота', f.day ? 'День: видно всё, на что есть линия взгляда. Нажмите — темнота' : 'Темнота: видно только освещённое светом жетонов. Нажмите — день', false, dis));
+      h.push(fb('fog-mem', '🧠 Память', 'Где отряд уже был, карта видна приглушённо, но жетонов там не видно', f.memory, dis));
+      h.push(fb('fog-mem-reset', 'Сбросить память', 'Забыть разведанное у всех игроков', false, f.on && f.memory ? '' : ' disabled'));
+      h.push(fb('fog-preview', '👁 Глазами игроков', 'Показать стол так, как его сейчас видят игроки', fogPreview, dis));
+      h.push(fb('fog-pdoors', '🚪 Игроки открывают двери', 'Игрок может открыть или закрыть незапертую дверь рядом со своим жетоном. Запереть дверь: правый клик или долгое нажатие на её значок', f.playerDoors, dis));
+      h.push('<span class="gt-sep"></span>');
+      [['open', 'Открыть', 'Кисть: открыть область для игроков'], ['close', 'Закрыть', 'Кисть: закрыть область, даже если она освещена'], ['los', 'Видимое отсюда', 'Нажатие — открыть всё, что видно из этой точки']]
+        .forEach(([id, label, title])=>h.push(`<button type="button" class="gt-tool${fogBrush===id ? ' active' : ''}" data-fogbrush="${id}" title="${title}"${dis}>${label}</button>`));
+      h.push(`<label class="gt-range" title="Диаметр кисти">кисть<input type="range" min="3" max="60" step="3" value="${fogBrushM}" data-fogsize><b class="gt-fog-val">${fogBrushM} м</b></label>`);
+      h.push('<span class="gt-sep"></span>');
+      h.push(`<button type="button" class="gt-tool" data-act="fog-undo" title="Отменить последний мазок (Ctrl+Z)" ${f.strokes.length ? '' : 'disabled'}>${icon('undo')}</button>`);
+      h.push(`<button type="button" class="gt-tool" data-act="fog-clear" title="Убрать все правки кистью" ${f.strokes.length ? '' : 'disabled'}>${icon('trash')}</button>`);
+      subbar.innerHTML = h.join('');
+      subbar.style.display = 'flex';
+      placeSubbar();
+      return;
+    }
     if(tool==='draw'){
       [['pen','Карандаш'],['line','Линия'],['arrow','Стрелка'],['rect','Прямоугольник'],['circle','Круг'],['polygon','Полигон'],['eraser','Ластик']]
         .forEach(([id,label])=>h.push(`<button type="button" class="gt-tool${drawTool===id?' active':''}" data-draw="${id}" title="${label}">${icon(id)}</button>`));
@@ -1578,7 +1957,10 @@ const GameTable = (function(){
     h.push(`<button type="button" class="gt-tool" data-act="clear-drawings" title="Стереть все рисунки">${icon('trash')}</button>`);
     subbar.innerHTML = h.join('');
     subbar.style.display = 'flex';
+    placeSubbar();
   }
+  // Подпанель — сразу под верхней панелью: на нешироком экране та занимает две строки и больше
+  function placeSubbar(){ if(subbar && toolbar && toolbar.offsetHeight) subbar.style.top = (toolbar.offsetTop + toolbar.offsetHeight + 6) + 'px'; }
   function renderZoombar(){
     zoombar.innerHTML = `<button type="button" class="gt-tool" data-act="zoom-out" title="Отдалить (−)">${icon('minus')}</button>`+
       `<span class="gt-zoom-label" id="gtZoomLabel" data-act="zoom-reset" title="Масштаб 100%">${Math.round(cam.z*100)}%</span>`+
@@ -1616,6 +1998,7 @@ const GameTable = (function(){
     else if(ruler && ruler.mode==='waypoints') h = 'Клик — ещё точка · двойной клик, правый клик или Esc — убрать';
     else if(tool==='ruler') h = 'Протяните — измерить · клик — измерение по точкам';
     else if(tool==='pan') h = 'Тяните поле мышью · колесо — масштаб · V — вернуться к выбору';
+    else if(tool==='fog') h = fogBrush==='los' ? 'Нажмите на поле — откроется всё, что видно из этой точки' : (IS_TOUCH_UI ? 'Кисть: ведите пальцем по полю · свет жетонам — в меню жетона' : 'Кисть: тяните по полю · V — вернуться к выбору · свет жетонам — в меню жетона');
     hintEl.textContent = h;
     hintEl.style.display = h ? 'block' : 'none';
   }
@@ -1628,9 +2011,10 @@ const GameTable = (function(){
     toastTimer = setTimeout(()=>toastEl.classList.remove('show'), 2600);
   }
   function onToolbarClick(e){
-    const b = e.target.closest('[data-tool],[data-act],[data-draw],[data-color]');
+    const b = e.target.closest('[data-tool],[data-act],[data-draw],[data-color],[data-fogbrush]');
     if(!b) return;
     if(b.dataset.tool){ setTool(b.dataset.tool); return; }
+    if(b.dataset.fogbrush){ fogBrush = b.dataset.fogbrush; renderSubbar(); showHint(); return; }
     if(b.dataset.draw){ if(polyDraft) finishPolygon(); drawTool = b.dataset.draw; renderSubbar(); showHint(); return; }
     if(b.dataset.color){ drawStyle.color = b.dataset.color; saveJson(STYLE_KEY, drawStyle); renderSubbar(); return; }
     switch(b.dataset.act){
@@ -1645,6 +2029,16 @@ const GameTable = (function(){
       case 'bestiary': if(typeof Bestiary!=='undefined') Bestiary.toggleDock(); break;
       case 'gm-advice': if(typeof GmAdvice!=='undefined') GmAdvice.openPanel('memo'); break;
       case 'combat': if(st().combat){ combatCollapsed = !combatCollapsed; renderCombat(); } else openCombatSetup(b); break;
+      case 'fog-toggle': { const on = !authState.fog.on; act({c:'fog-set', fog:{on}}); if(!on && fogPreview) setFogPreview(false);
+        if(on && !authState.fog.day && !Object.values(authState.tokens).some(t=>t.light)) uiToast('В темноте игроки видят только освещённое. Дайте жетонам свет: меню жетона → «💡 Свет…» — или переключите на «☀ День»', {icon:'🌫'});
+        break; }
+      case 'fog-day': act({c:'fog-set', fog:{day:!authState.fog.day}}); break;
+      case 'fog-mem': act({c:'fog-set', fog:{memory:!authState.fog.memory}}); break;
+      case 'fog-mem-reset': act({c:'fog-set', fog:{epoch:authState.fog.epoch + 1}}); toast('Разведанное забыто у всех игроков'); break;
+      case 'fog-preview': setFogPreview(!fogPreview); break;
+      case 'fog-pdoors': act({c:'fog-set', fog:{playerDoors:!authState.fog.playerDoors}}); break;
+      case 'fog-undo': fogUndo(); break;
+      case 'fog-clear': fogClearStrokes(); break;
       case 'undo': undo(); break;
       case 'redo': redo(); break;
       case 'clear-drawings': clearDrawings(); break;
@@ -1654,7 +2048,13 @@ const GameTable = (function(){
       case 'center': centerOnTokens(); break;
     }
   }
+  function setFogPreview(on){ fogPreview = !!on; renderTokens(); renderSubbar(); requestRender({fog:true, fx:true}); }
   function onStyleInput(e){
+    if(e.target.dataset && e.target.dataset.fogsize!==undefined){
+      fogBrushM = clamp(parseInt(e.target.value, 10) || 9, 3, 60);
+      const val = e.target.parentNode.querySelector('.gt-fog-val'); if(val) val.textContent = fogBrushM + ' м';
+      return;
+    }
     const k = e.target.dataset && e.target.dataset.style;
     if(!k) return;
     drawStyle[k] = parseFloat(e.target.value);
@@ -1705,6 +2105,7 @@ const GameTable = (function(){
       if(t.kind==='player' && typeof Bestiary!=='undefined' && attackerSheet(t)) items.push({id:'tobst', label:'📖 В бестиарий…', run:()=>Bestiary.fromSheet(attackerSheet(t), {name:tokenName(t, vitalsFor(t)), player:(session.players[t.ownerId] && session.players[t.ownerId].name) || ''})});
       items.push({id:'size', run:(size)=>act({c:'token-update', id:t.id, patch:{size}}),
         html:`<div class="gt-menu-sizes">${Object.keys(SIZE_CELLS).map(s=>`<button type="button" data-size="${s}" class="${t.size===s?'active':''}">${SIZE_LABELS[s].split(' ')[0]}</button>`).join('')}</div>`});
+      items.push({id:'light', label:t.light ? '💡 Свет: ' + lightLabel(t.light) : '💡 Свет…', run:()=>openLightForm(ids, p)});
       if(t.kind==='gm') items.push({id:'hide', label:t.hidden ? '👁 Показать игрокам' : 'Скрыть от игроков', attn:!!t.hidden, run:()=>act({c:'token-update', id:t.id, patch:{hidden:!t.hidden}})}); // скрыт — пункт подсвечен (attn)
       if(typeof Reactions!=='undefined' && Reactions.manualAllowed(t)) items.push({id:'rx', label:'🎞 Реакция…', run:()=>{ const r = viewport.getBoundingClientRect(); Reactions.pickForToken(t.id, r.left + p.x, r.top + p.y); }});
       if(typeof TargetRolls!=='undefined') items.push({id:'tr', label:t.kind==='gm' ? '🎯 Бросок цели…' : '🎯 Потребовать бросок…', run:()=>TargetRolls.open(t.kind==='gm' ? {src:t.id, targets:ids.filter(x=>x!==t.id)} : {targets:ids})});
@@ -1862,6 +2263,40 @@ const GameTable = (function(){
     out.unprotectedMod = int('unprotectedMod', -6);
     return out;
   }
+  // Поля света: у формы жетона и у отдельного окна «💡 Свет…»
+  function lightInputsHtml(l){
+    const kind = l ? l.kind : '';
+    const inp = (name, val, min, max)=>`<input type="number" name="${name}" min="${min}" max="${max}" step="1" value="${val}">`;
+    return `<label class="gt-f">Вид<select name="lightKind"><option value="">Нет</option><option value="circle" ${kind==='circle' ? 'selected' : ''}>Круговой — диаметр</option><option value="cone" ${kind==='cone' ? 'selected' : ''}>Конус — угол и длина</option></select></label>`+
+      `<div data-light="circle"><label class="gt-f">Диаметр, м${inp('lightD', kind==='circle' ? l.d : 12, 1, 3000)}</label></div>`+
+      `<div data-light="cone"><div class="gt-f-row"><label class="gt-f">Угол, °${inp('lightA', kind==='cone' ? l.a : 60, 1, 360)}</label><label class="gt-f">Длина, м${inp('lightL', kind==='cone' ? l.l : 30, 1, 3000)}</label></div>`+
+      `<label class="gt-f" title="0° — вверх, 90° — вправо. Удобнее — потянуть круглую ручку у выбранного жетона">Направление, °${inp('lightDir', kind==='cone' ? l.dir : 0, 0, 359)}</label></div>`;
+  }
+  function wireLightInputs(form){
+    const sel = form.querySelector('select[name=lightKind]'); if(!sel) return;
+    const sync = ()=>form.querySelectorAll('[data-light]').forEach(el=>{ el.style.display = el.dataset.light===sel.value ? '' : 'none'; });
+    sel.onchange = sync; sync();
+  }
+  function readLightInputs(fd){
+    const n = (k)=>parseFloat(String(fd.get(k)).replace(',', '.'));
+    const kind = fd.get('lightKind');
+    if(kind==='circle') return sanitizeLight({kind, d:n('lightD')});
+    if(kind==='cone') return sanitizeLight({kind, a:n('lightA'), l:n('lightL'), dir:n('lightDir')});
+    return null;
+  }
+  function openLightForm(ids, p){
+    const list = ids.map(tok).filter(Boolean); if(!list.length) return;
+    const first = list[0];
+    const html = `<div class="gt-pop-title">💡 Свет · ${list.length > 1 ? 'выбрано жетонов: ' + list.length : escapeHtml(tokenName(first, vitalsFor(first)))}</div>`+
+      `<div class="gt-pop-note">Светит, когда на столе включён 🌫 туман. Свет останавливают стены карты. Жетон, скрытый от игроков, для них не светит.</div>`+
+      lightInputsHtml(first.light)+
+      `<div class="gt-pop-actions"><button type="button" class="small" data-cancel>Отмена</button><button type="submit" class="small primary">Применить</button></div>`;
+    const form = openPopover(p, html, (f)=>{
+      const light = readLightInputs(new FormData(f));
+      list.forEach(t=>act({c:'token-update', id:t.id, patch:{light}}));
+    });
+    wireLightInputs(form);
+  }
   function openTokenForm(t, w, p){
     const editing = !!t, isPlayerTok = editing && t.kind==='player';
     let whoHtml = '';
@@ -1883,6 +2318,7 @@ const GameTable = (function(){
       `<label class="gt-f">Картинка (ссылка, необязательно)<input type="url" name="avatar" maxlength="2000" value="${escapeHtml(cur.avatar||'')}" placeholder="https://…"></label>`+
       (isPlayerTok ? '' : `<label class="gt-check"><input type="checkbox" name="hidden" ${cur.hidden?'checked':''}> Скрыт от игроков</label>`+
         `<label class="gt-check" title="По умолчанию игроки видят только кольцо по краю жетона, без числа"><input type="checkbox" name="hpShown" ${cur.hpShown?'checked':''}> Показывать игрокам число HP</label>`)+
+      `<details class="gt-combat gt-light"${cur.light ? ' open' : ''}><summary>💡 Свет${cur.light ? ': ' + escapeHtml(lightLabel(cur.light)) : ''}</summary><div class="gt-pop-note">Светит, когда на столе включён 🌫 туман.</div>${lightInputsHtml(cur.light)}</details>`+
       combatFieldsHtml(cur, isPlayerTok)+
       `<div class="gt-pop-actions"><button type="button" class="small" data-cancel>Отмена</button><button type="submit" class="small primary">${editing?'Сохранить':'Создать'}</button></div>`;
     const form = openPopover(p, html, (f)=>{
@@ -1890,13 +2326,13 @@ const GameTable = (function(){
       const who = fd.get('who');
       const avatar = String(fd.get('avatar')||'').trim();
       if(avatar && !safeUrl(avatar)){ toast('Ссылка на картинку должна начинаться с http:// или https://'); return false; }
-      const base = {size:fd.get('size'), color:fd.get('color')||cur.color, avatar};
+      const base = {size:fd.get('size'), color:fd.get('color')||cur.color, avatar, light:readLightInputs(fd)};
       if(who){ // жетон конкретного игрока, поставленный Мастером
         const at = w || {x:0, y:0}, sn = snapPos(at.x, at.y, base.size);
         const r = execCommand({c:'player-token-create', ownerId:who, x:sn.x, y:sn.y});
         if(!r.ok){ toast(r.reason); return false; }
         const nt = Object.values(authState.tokens).find(x=>x.kind==='player' && x.ownerId===who);
-        if(nt && (base.size!=='normal' || base.avatar || fd.get('color'))) act({c:'token-update', id:nt.id, patch:base});
+        if(nt && (base.size!=='normal' || base.avatar || fd.get('color') || base.light)) act({c:'token-update', id:nt.id, patch:base});
         return;
       }
       if(!isPlayerTok){
@@ -1917,8 +2353,9 @@ const GameTable = (function(){
     if(whoSel) whoSel.onchange = ()=>{
       const npc = !whoSel.value;
       ['name','hp','hpMax','hidden','hpShown'].forEach(n=>{ const el = form.querySelector(`[name=${n}]`); if(el){ el.disabled = !npc; const lab = el.closest('label'); if(lab) lab.style.opacity = npc ? '' : '.4'; } });
-      const combat = form.querySelector('.gt-combat'); if(combat) combat.style.display = npc ? '' : 'none';
+      const combat = form.querySelector('.gt-combat:not(.gt-light)'); if(combat) combat.style.display = npc ? '' : 'none';
     };
+    wireLightInputs(form);
     // Броня из каталога — сразу проставляет защиту и защиту по типам урона (поле «Защита» потом можно поправить)
     const armorSel = form.querySelector('select[name=armor]');
     if(armorSel) armorSel.onchange = ()=>{
@@ -1975,6 +2412,10 @@ const GameTable = (function(){
     if(!isAuthority()){ toast('Карту на стол ставит Мастер'); return false; }
     const cur = authState.map.scene, keep = cur && cur.mapId===scene.mapId;
     const ok = act({c:'map-set', map:Object.assign({}, authState.map, {scene:Object.assign({}, scene, {x: keep ? cur.x : 0, y: keep ? cur.y : 0})})});
+    if(ok && !keep){ // правки кистью и двери относятся к прежней карте
+      if(authState.fog.strokes.length) act({c:'fog-strokes', strokes:[]});
+      if(Object.keys(authState.fog.doors).length) act({c:'fog-set', fog:{doors:{}}});
+    }
     if(ok && !keep) if(typeof GmAdvice!=='undefined') GmAdvice.event('scene');
     return ok;
   }
@@ -2060,7 +2501,8 @@ const GameTable = (function(){
       undoStack = []; redoStack = [];
       remoteVitals = {};
       tokenEls.forEach(el=>el.remove()); tokenEls.clear();
-      if(!isAuthority() && ['token','draw','text'].indexOf(tool)>=0) tool = 'select';
+      if(!isAuthority() && ['token','draw','text','fog'].indexOf(tool)>=0) tool = 'select';
+      fogPreview = false; fogLive = null;
       if(r!=='gm') pointerBroadcast = false;
       if(viewport){ renderToolbar(); renderSubbar(); renderTokens(); requestRender({bg:true, draw:true, fx:true}); }
     }
@@ -2079,8 +2521,8 @@ const GameTable = (function(){
     viewport = document.getElementById('gtViewport');
     if(!viewport) return;
     layer = document.getElementById('gtTokenLayer');
-    bgC = document.getElementById('gtCanvasBg'); drC = document.getElementById('gtCanvasDraw'); fxC = document.getElementById('gtCanvasFx');
-    bgX = bgC.getContext('2d'); drX = drC.getContext('2d'); fxX = fxC.getContext('2d');
+    bgC = document.getElementById('gtCanvasBg'); drC = document.getElementById('gtCanvasDraw'); fogC = document.getElementById('gtCanvasFog'); fxC = document.getElementById('gtCanvasFx');
+    bgX = bgC.getContext('2d'); drX = drC.getContext('2d'); fogX = fogC.getContext('2d'); fxX = fxC.getContext('2d');
     toolbar = document.getElementById('gtToolbar'); subbar = document.getElementById('gtSubbar'); zoombar = document.getElementById('gtZoombar');
     statusEl = document.getElementById('gtStatus'); infoCard = document.getElementById('gtInfoCard'); hintEl = document.getElementById('gtHint');
     toastEl = document.getElementById('gtToast'); menuEl = document.getElementById('gtMenu'); popEl = document.getElementById('gtPopover');
@@ -2175,7 +2617,7 @@ const GameTable = (function(){
         q.init = {roll, rolls, max:su.max, mode:su.mode, success:ev.success, auto:false}; q.noAct = !ev.success;
         e = {name, roll, rolls, max:su.max, mode:su.mode, success:ev.success, notes:su.notes.join('; ')};
       }
-      if(t.hidden) hiddenN++; else list.push(e);
+      if(secretFromPlayers(t)) hiddenN++; else list.push(e);
     });
     if(list.length || hiddenN) recordAndShareQuickRoll({initiative:true, title:title + (hiddenN ? ` (+ скрытых участников: ${hiddenN})` : ''), list});
     if(typeof Reactions!=='undefined') Reactions.trigger('init_fail', ids.filter(id=>c.parts[id] && c.parts[id].noAct), rxDelay || 0);
@@ -2297,6 +2739,7 @@ const GameTable = (function(){
       if(was && role()==='player' && mine && c.parts[mine.id] && c.parts[mine.id].side===activeSide){ toast(`⚔ Ваш ход — круг ${c.round}`); beep(); } }
     const chips = (sid)=>Object.keys(c.parts).filter(id=>c.parts[id].side===sid && st().tokens[id]).map(id=>{
       const q = c.parts[id], t = st().tokens[id], name = tokenName(t, vitalsFor(t)), mineTok = t.kind==='player' && mine && mine.id===id;
+      if(!auth && !tokenVisibleHere(t)) return `<div class="gt-cb-chip" title="Участник вне видимости"><span class="nm">???</span></div>`; // в тумане — без имени, кнопок и перехода к жетону
       const can = auth || mineTok, dis = can ? '' : ' disabled';
       const ini = q.init ? (q.init.auto ? `<span class="ini ok" title="Ход сюрприза — автоматический успех">⚡</span>`
         : `<span class="ini ${q.init.success ? 'ok' : 'bad'}" ${auth ? 'data-cb="ini"' : ''} title="Инициатива: к20=${q.init.roll}${q.init.rolls.length>1 ? ' [' + q.init.rolls.join(', ') + ']' : ''} / Макс. ${q.init.max}${q.init.mode==='advantage' ? ', Упрощена' : q.init.mode==='disadvantage' ? ', Осложнена' : ''}${auth ? ' · клик — переключить успех/провал' : ''}">${q.init.roll}/${q.init.max}</span>`) : '';
@@ -2327,7 +2770,7 @@ const GameTable = (function(){
       return; }
     const b = e.target.closest('[data-cb]'), chip = e.target.closest('[data-id]'); if(!b || !chip) return;
     const id = chip.dataset.id, q = c.parts[id], k = b.dataset.cb; if(!q) return;
-    if(k==='focus'){ setSelection([id]); const t = tok(id); if(t) centerOnToken(t); return; }
+    if(k==='focus'){ const t = tok(id); if(t && tokenVisibleHere(t)){ setSelection([id]); centerOnToken(t); } return; }
     if(k==='act' || k==='react' || k==='swap'){
       if(isAuthority()){ const c1 = clone(c); c1.parts[id][k] = !q[k]; setCombat(c1); }
       else act({c:'combat-mark', id, field:k, value:!q[k]});
@@ -2732,7 +3175,7 @@ const GameTable = (function(){
       attackerName = playerDisplayName(p) || att.name || 'Игрок';
     } else if(att.kind==='gm'){
       w = npcWeapon(att);
-      attackerName = att.hidden ? '???' : (att.name || 'NPC'); // скрытый NPC в логе не раскрывается
+      attackerName = secretFromPlayers(att) ? '???' : (att.name || 'NPC'); // скрытый NPC в логе не раскрывается
     } else {
       if(att.ownerId!==myOwnerId()) return {ok:false, reason:'Жетоном игрока атакует сам игрок'};
       c = attackerSheet(att);
@@ -2828,7 +3271,7 @@ const GameTable = (function(){
     const total = hits.reduce((a,h)=>a+h.wounds, 0);
     const traumaN = hits.filter(h=>h.trauma && !h.red).length, traumaRedN = hits.filter(h=>h.red).length;
     noteTraumas(tgt, hits, headFrom(att, w), false);
-    const hiddenLine = !!(opts.anyTarget && tgt.hidden), targetName = hiddenLine ? '???' : tokenName(tgt, vitalsFor(tgt));
+    const hiddenLine = !!(opts.anyTarget && secretFromPlayers(tgt)), targetName = hiddenLine ? '???' : tokenName(tgt, vitalsFor(tgt));
     if(hiddenLine){ const real = tokenName(tgt, vitalsFor(tgt)); pa.tags.push(`скрытая цель: ${real}`); if(role()==='gm' || !session.gmId) toast(`Шрапнель задела скрытого: ${real} — ${total} ${woundsWord(total)}`); }
     const rec = { attackId, attackerOwner: from||null, targetId:tgt.id, targetKind:tgt.kind, ownerId:tgt.ownerId||null,
                   total, traumaN, traumaRedN, hpApplied:false, label:`${attackerName} → ${targetName}, «${w.name}»: ${total} ${woundsWord(total)}`, undone:false };
@@ -3009,7 +3452,7 @@ const GameTable = (function(){
       if(!c) return {ok:false, reason:'Мастеру ещё не пришёл ваш лист'};
       attackerName = playerDisplayName(p) || att.name || 'Игрок';
     } else if(att.kind==='gm'){
-      attackerName = att.hidden ? '???' : (att.name || 'NPC');
+      attackerName = secretFromPlayers(att) ? '???' : (att.name || 'NPC');
     } else {
       if(att.ownerId!==myOwnerId()) return {ok:false, reason:'Жетоном игрока действует сам игрок'};
       c = attackerSheet(att);
@@ -3132,7 +3575,7 @@ const GameTable = (function(){
       if(!c) return {ok:false, reason:'Мастеру ещё не пришёл ваш лист'};
       attackerName = playerDisplayName(p) || att.name || 'Игрок';
     } else if(att.kind==='gm'){
-      attackerName = att.hidden ? '???' : (att.name || 'NPC');
+      attackerName = secretFromPlayers(att) ? '???' : (att.name || 'NPC');
       sila = att.strength==null ? 3 : att.strength;
     } else {
       if(att.ownerId!==myOwnerId()) return {ok:false, reason:'Жетоном игрока бросает сам игрок'};
@@ -3188,7 +3631,7 @@ const GameTable = (function(){
       }
       if(outcome!=='none') all.filter(t=>inSphere(t, spec.frag.radius)).forEach(t=>{ victim(t).frag = rollHits(t, spec.frag.hits, spec.frag); });
     }
-    const targetName = tgt.hidden ? '???' : tokenName(tgt, vitalsFor(tgt));
+    const targetName = secretFromPlayers(tgt) ? '???' : tokenName(tgt, vitalsFor(tgt));
     const recVictims = [], logVictims = [], hiddenNotes = [];
     let grand = 0;
     Object.values(victims).forEach(v=>{
@@ -3216,7 +3659,7 @@ const GameTable = (function(){
       grand += total;
       const lv = {name: tokenName(t, vitalsFor(t)), bN:v.blast.length, bP:v.blast.filter(h=>h.pen).length, fN:v.frag.length, fP:v.frag.filter(h=>h.pen).length,
                   total, trauma:traumaN, robot:tokenNature(t)==='robot', burn:v.burn, immune:v.immune};
-      if(t.kind==='gm' && t.hidden){ grand -= total; hiddenNotes.push(`${lv.name}: ${total} ${woundsWord(total)}`); return; } // скрытых в общем логе нет
+      if(t.kind==='gm' && secretFromPlayers(t)){ grand -= total; hiddenNotes.push(`${lv.name}: ${total} ${woundsWord(total)}`); return; } // скрытых в общем логе нет
       logVictims.push(lv);
     });
     if(w.slow && !victims[tgt.id] && !tgt.slowReaction){ // промах без осколков: метка «может отреагировать» у цели всё равно ставится
@@ -3275,7 +3718,7 @@ const GameTable = (function(){
   /* ---------- сцены (экран Мастера): снимок стола без жетонов игроков и включение снимка одной командой ---------- */
   function captureScene(){
     const s = authState;
-    return {map:clone(s.map), tokens:Object.values(s.tokens).filter(t=>t.kind!=='player').map(clone), drawings:clone(s.drawings || []), zones:clone(s.zones || [])};
+    return {map:clone(s.map), tokens:Object.values(s.tokens).filter(t=>t.kind!=='player').map(clone), drawings:clone(s.drawings || []), zones:clone(s.zones || []), fog:clone(s.fog)};
   }
   function applyScene(sc){
     if(!isAuthority() || !sc) return false;
@@ -3283,12 +3726,13 @@ const GameTable = (function(){
     const tokens = {};
     Object.values(authState.tokens).forEach(t=>{ if(t.kind==='player') tokens[t.id] = t; }); // жетоны игроков остаются на местах
     (sc.tokens || []).forEach(t=>{ if(t && t.kind!=='player'){ const c = clone(t); c.id = newId('t'); tokens[c.id] = c; } });
-    authState = normalizeState({tableId:authState.tableId, version:authState.version + 1, map:clone(sc.map), tokens, drawings:clone(sc.drawings || []), zones:clone(sc.zones || []), combat:null});
-    undoStack = []; redoStack = []; setSelection([]);
+    authState = normalizeState({tableId:authState.tableId, version:authState.version + 1, map:clone(sc.map), tokens, drawings:clone(sc.drawings || []), zones:clone(sc.zones || []), combat:null, fog:Object.assign({}, sc.fog, {rev:authState.fog.rev + 1})});
+    undoStack = []; redoStack = []; setSelection([]); fogPreview = false;
     scheduleSave();
     if(role()==='gm') sendMsg({type:'gt-snapshot', state:playerSnapshot()});
     tokenEls.forEach(el=>el.remove()); tokenEls.clear();
-    if(viewport){ renderTokens(); renderCombat(); renderToolbar(); requestRender({bg:true, draw:true, fx:true}); }
+    fogSync();
+    if(viewport){ renderTokens(); renderCombat(); renderToolbar(); renderSubbar(); requestRender({bg:true, draw:true, fx:true}); }
     if(typeof Bestiary!=='undefined') Bestiary.onTableChanged();
     if(authState.map && authState.map.scene){ lastSceneId = undefined; checkSceneChange(); focusScene(); }
     else if(viewport && vw) centerOnTokens();
