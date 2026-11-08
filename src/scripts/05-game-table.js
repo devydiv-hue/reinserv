@@ -2030,7 +2030,7 @@ const GameTable = (function(){
       case 'gm-advice': if(typeof GmAdvice!=='undefined') GmAdvice.openPanel('memo'); break;
       case 'combat': if(st().combat){ combatCollapsed = !combatCollapsed; renderCombat(); } else openCombatSetup(b); break;
       case 'fog-toggle': { const on = !authState.fog.on; act({c:'fog-set', fog:{on}}); if(!on && fogPreview) setFogPreview(false);
-        if(on && !authState.fog.day && !Object.values(authState.tokens).some(t=>t.light)) uiToast('В темноте игроки видят только освещённое. Дайте жетонам свет: меню жетона → «💡 Свет…» — или переключите на «☀ День»', {icon:'🌫'});
+        if(on) fogLightHint();
         break; }
       case 'fog-day': act({c:'fog-set', fog:{day:!authState.fog.day}}); break;
       case 'fog-mem': act({c:'fog-set', fog:{memory:!authState.fog.memory}}); break;
@@ -2048,6 +2048,7 @@ const GameTable = (function(){
       case 'center': centerOnTokens(); break;
     }
   }
+  function fogLightHint(){ if(!authState.fog.day && !Object.values(authState.tokens).some(t=>t.light)) uiToast('В темноте игроки видят только освещённое. Дайте жетонам свет: меню жетона → «💡 Свет…» — или переключите на «☀ День»', {icon:'🌫'}); }
   function setFogPreview(on){ fogPreview = !!on; renderTokens(); renderSubbar(); requestRender({fog:true, fx:true}); }
   function onStyleInput(e){
     if(e.target.dataset && e.target.dataset.fogsize!==undefined){
@@ -2408,13 +2409,20 @@ const GameTable = (function(){
     openPopover(p, html, (f)=>{ act({c:'map-set', map:Object.assign({}, authState.map, {scene:Object.assign({}, sc, {x:Math.round(num(f.querySelector('[name=x]').value, sc.x)), y:Math.round(num(f.querySelector('[name=y]').value, sc.y))})})}); });
   }
   // Из редактора карт: поставить карту на стол. Та же карта (mapId) остаётся на прежнем месте, новая — в (0,0).
-  function setScene(scene){
+  // opts.fog — туман из настроек карты ({on, day}): карта со своей настройкой включает или выключает туман на столе
+  function setScene(scene, opts){
     if(!isAuthority()){ toast('Карту на стол ставит Мастер'); return false; }
     const cur = authState.map.scene, keep = cur && cur.mapId===scene.mapId;
     const ok = act({c:'map-set', map:Object.assign({}, authState.map, {scene:Object.assign({}, scene, {x: keep ? cur.x : 0, y: keep ? cur.y : 0})})});
     if(ok && !keep){ // правки кистью и двери относятся к прежней карте
       if(authState.fog.strokes.length) act({c:'fog-strokes', strokes:[]});
       if(Object.keys(authState.fog.doors).length) act({c:'fog-set', fog:{doors:{}}});
+    }
+    const mf = opts && opts.fog;
+    if(ok && mf && (!!mf.on!==authState.fog.on || mf.on && !!mf.day!==authState.fog.day)){
+      act({c:'fog-set', fog:mf.on ? {on:true, day:!!mf.day} : {on:false}});
+      if(mf.on) fogLightHint(); else if(fogPreview) setFogPreview(false);
+      renderToolbar(); renderSubbar();
     }
     if(ok && !keep) if(typeof GmAdvice!=='undefined') GmAdvice.event('scene');
     return ok;

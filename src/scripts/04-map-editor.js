@@ -588,8 +588,8 @@ const MapEditor = (function(){
   // нормализация после генерации — то же, что даст сохранение/загрузка
   function normalizeDoc(){ const n = MapFormat.fromJSON(MapFormat.toJSON(doc)); doc.objects = n.objects; doc.walls = n.walls; doc.paths = n.paths; doc.labels = n.labels; doc.gen = n.gen; }
   function seedOf(v){ v = String(v || '').trim(); if(!v) return 0; return /^\d+$/.test(v) ? (Number(v) >>> 0) || 1 : MapAssets.hashStr(v) || 1; }
-  function runGen(id, opts){ const g = MapGen.LIST.find(x=>x.id===id); if(!g) return; let res = null;
-    mutate(()=>{ res = g.run(doc, opts); normalizeDoc(); sel.clear(); });
+  function runGen(id, opts, fog){ const g = MapGen.LIST.find(x=>x.id===id); if(!g) return; let res = null;
+    mutate(()=>{ res = g.run(doc, opts); normalizeDoc(); if(fog) doc.fog = fog; sel.clear(); });
     const extra = g.done ? g.done(doc, res) : ''; // дополнения: например, что выпало по таблице препятствий
     setStatus('Сгенерировано: ' + g.name + (doc.gen ? ' · зерно ' + doc.gen.seed : '') + (extra ? ' · ' + extra : '')); if(extra) uiToast(extra, {icon:'🎲', ms:6000});
     if(typeof GmAdvice!=='undefined') GmAdvice.event('mapgen'); }
@@ -620,6 +620,9 @@ const MapEditor = (function(){
         <label class="me-f">Состояние${sel2('cstate', po.cstate || 'random', [['random', 'случайное'], ['living', 'обжитой'], ['abandoned', 'брошенный'], ['ravaged', 'разорённый']])}</label>
         <label class="me-f">Мини-сцены${sel2('scenes_camp', po.scenes, SC)}</label></div></fieldset>
       ${MapGen.LIST.filter(g=>g.form).map(g=>`<fieldset class="me-gopt" data-for="${g.id}" data-xgen><legend>${esc(g.name)}</legend>${g.form(g.id===cur ? po : {})}</fieldset>`).join('')}
+      <fieldset class="me-gopt"><legend>Туман войны</legend><div class="me-f-row"><label class="me-check"><input type="checkbox" name="fog" ${prefs.genFog!==false ? 'checked' : ''}> Включить туман, когда карта уйдёт на стол</label>
+        <label class="me-f">Освещение${sel2('fogday', prefs.genFogDay===false ? 'dark' : 'day', [['day', 'день'], ['dark', 'темнота']])}</label></div>
+        <div class="muted me-note">День — игрокам видно всё, на что есть линия взгляда; темнота — только освещённое светом жетонов. Поменять можно и потом: вкладка «Карта» здесь или «Туман» на столе.</div></fieldset>
       <fieldset class="me-gopt"><legend>Подписи</legend><div class="me-f-row"><label class="me-f">Что подписать${sel2('labels', po.labels || 'buildings', LBL)}</label><label class="me-f">Размер${sel2('lsize', po.lsize, LSZ)}</label></div><div class="muted me-note">Подписи — обычные надписи карты: их видят и игроки на столе. Потом их можно поменять во вкладке «Карта», не перегенерируя карту.</div></fieldset>
       <fieldset class="me-gopt" data-for="rooms"><legend>Заготовки комнат и сцен</legend><div class="me-f-row"><label class="me-f">Как часто${sel2('prefabs', po.prefabs, [['none', 'не использовать'], ['some', 'иногда'], ['often', 'часто']])}</label>
         <div class="me-f"><span class="muted">${MapGen.prefabList().length} шт. (своих ${MapGen.userPrefabs().length})</span><button type="button" class="small" data-pfmanage>Заготовки…</button></div></div></fieldset>
@@ -630,7 +633,8 @@ const MapEditor = (function(){
       if(id==='camp') Object.assign(opts, {ctype:f.ctype.value, perim:f.perim.value, terr:f.terr.value, csize:f.csize.value, cstate:f.cstate.value, scenes:f.scenes_camp.value});
       const xg = MapGen.LIST.find(x=>x.id===id && x.read); if(xg) Object.assign(opts, xg.read(f)); // генераторы из дополнений
       opts.prefabs = f.prefabs.value;
-      runGen(id, opts);
+      prefs.genFog = f.fog.checked; prefs.genFogDay = f.fogday.value==='day'; savePrefs(); // выбор запоминается для следующих карт
+      runGen(id, opts, {on:f.fog.checked, day:f.fogday.value==='day'});
     }, {ok:'Сгенерировать'});
     const pb = dl.form.querySelector('[data-pfmanage]'); if(pb) pb.addEventListener('click', ()=>{ dl.close(); prefabDialog(); });
     // параметры генераторов из дополнений — только у выбранного (у встроенных это делает CSS)
@@ -684,7 +688,7 @@ const MapEditor = (function(){
     if(typeof GameTable==='undefined') return;
     if(session.role==='player') return uiAlert('Отправить карту на стол может только Мастер. Вы можете экспортировать её в файл и передать Мастеру.');
     saveNow();
-    const apply = (url)=>{ GameTable.setScene({mapId:doc.id, url, cols:doc.cols, rows:doc.rows, name:doc.name, rev:doc.updated}); toggleMainTab('table'); setTimeout(()=>GameTable.focusScene(), 60); };
+    const apply = (url)=>{ GameTable.setScene({mapId:doc.id, url, cols:doc.cols, rows:doc.rows, name:doc.name, rev:doc.updated}, {fog:doc.fog}); toggleMainTab('table'); setTimeout(()=>GameTable.focusScene(), 60); };
     if(session.role==='gm'){
       const ids = Object.keys(doc.assets || {}); setStatus(ids.length ? 'Загрузка своих объектов (' + ids.length + ')…' : 'Загрузка карты на сервер…');
       Promise.all(ids.map(id=>CustomAssets.upload(id).then(url=>{ doc.assets[id].url = url; }))).then(()=>{ saveNow(); setStatus('Загрузка карты на сервер…'); return MapStore.upload(doc); })
@@ -837,6 +841,9 @@ const MapEditor = (function(){
       <button type="button" class="small" data-act="resize">Изменить размер</button>
       <div class="muted me-note">Левый верхний угол остаётся на месте — координаты объектов не сдвигаются. 1 клетка = ${doc.metersPerCell} м (как на игровом столе).</div>
       <div class="me-btnrow"><button type="button" class="small" data-act="fit">Показать всю карту (0)</button><button type="button" class="small" data-act="clear">Очистить карту…</button></div>
+      <div class="me-f-row" style="align-items:flex-end"><label class="me-check" style="flex:1"><input type="checkbox" data-mapfog ${doc.fog && doc.fog.on ? 'checked' : ''}> Туман войны, когда карта на столе</label>
+        <label class="me-f">Освещение<select data-mapfogday><option value="day" ${!doc.fog || doc.fog.day ? 'selected' : ''}>день</option><option value="dark" ${doc.fog && !doc.fog.day ? 'selected' : ''}>темнота</option></select></label></div>
+      <div class="muted me-note">Включается у всех, когда карта уходит на стол кнопкой «На игровой стол». Свет жетонам — в меню жетона на столе.</div>
       <label class="me-check"><input type="checkbox" data-hd ${MapTex.enabled ? 'checked' : ''}> HD-фактуры ландшафта, стен и объектов</label>
       <div class="muted me-note">Настройка этого браузера: действует и в редакторе, и на игровом столе. На слабом устройстве её можно выключить — останутся прежние плоские цвета.</div>
       ${doc.gen ? `<div class="me-genpart"><div class="me-prop-title">Генерация: ${esc((MapGen.LIST.find(x=>x.id===doc.gen.id) || {}).name || doc.gen.id)}</div><div class="muted me-note">Зерно <b>${doc.gen.seed}</b> · ${doc.gen.parts.length ? doc.gen.parts.length + (doc.gen.parts[0].k==='b' ? ' зданий' : doc.gen.parts[0].k==='z' ? ' зон' : ' комнат') : 'без частей'}</div>
@@ -1012,6 +1019,9 @@ const MapEditor = (function(){
   function onChange(e){
     const t = e.target;
     if(t.dataset.grid!==undefined){ prefs.grid = t.checked; savePrefs(); requestRender(); return; }
+    if(t.dataset.mapfog!==undefined || t.dataset.mapfogday!==undefined){ const box = t.closest('.me-side-body');
+      mutate(()=>{ doc.fog = {on:box.querySelector('[data-mapfog]').checked, day:box.querySelector('[data-mapfogday]').value==='day'}; });
+      setStatus(doc.fog.on ? 'Туман включится, когда карта уйдёт на стол' : 'Туман на столе выключится, когда карта уйдёт на стол'); return; }
     if(t.dataset.hd!==undefined){ MapTex.setEnabled(t.checked); renderOptions(); requestRender(); if(typeof GameTable!=='undefined' && GameTable.redraw) GameTable.redraw(); return; }
     if(t.dataset.snap!==undefined){ prefs.snap = t.checked; savePrefs(); return; }
     if(t.dataset.roomwalls!==undefined){ prefs.wallsOnRoom = t.checked; savePrefs(); return; }

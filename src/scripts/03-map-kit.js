@@ -132,6 +132,7 @@ const MapFormat = (function(){
       if(typeof m.data==='string' && m.data.length < 12e6 && /^data:image\/(png|webp|jpeg);base64,[A-Za-z0-9+/=]+$/.test(m.data)) e.data = m.data;
       doc.assets[id] = e; });
     const gn = sanitizeGen(raw.gen); if(gn) doc.gen = gn;
+    if(raw.fog && typeof raw.fog==='object') doc.fog = {on:!!raw.fog.on, day:!!raw.fog.day}; // туман войны на столе: включить (и день/темнота), когда карта уходит на стол
     return doc;
   }
   // Сведения о генерации: генератор, зерно, параметры и части (здания/комнаты) — для перегенерации по одной
@@ -154,7 +155,7 @@ const MapFormat = (function(){
     return out;
   }
   function toJSON(doc){
-    return { format:'reincarnator-map', version:CURRENT_VERSION, id:doc.id, name:doc.name, cols:doc.cols, rows:doc.rows, gen:doc.gen ? sanitizeGen(doc.gen) : undefined,
+    return { format:'reincarnator-map', version:CURRENT_VERSION, id:doc.id, name:doc.name, cols:doc.cols, rows:doc.rows, gen:doc.gen ? sanitizeGen(doc.gen) : undefined, fog:doc.fog ? {on:!!doc.fog.on, day:!!doc.fog.day} : undefined,
       metersPerCell:doc.metersPerCell, created:doc.created, updated:doc.updated, terrain:encodeTerrain(doc.terrain),
       paths:doc.paths, walls:doc.walls, objects:doc.objects, labels:doc.labels, assets:(function(){ const o = {}; Object.keys(doc.assets || {}).forEach(id=>{ const m = doc.assets[id]; o[id] = {name:m.name, w:m.w, h:m.h, g:!!m.g}; if(m.url) o[id].url = m.url; }); return o; })() }; // картинки (data) — только в экспорте
   }
