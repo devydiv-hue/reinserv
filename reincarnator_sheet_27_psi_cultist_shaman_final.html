@@ -3871,7 +3871,7 @@ const ITEM_CATALOG = {
       {name:'Пистолет «Шина» 91', weight:'1 Вещь', price:5000, avail:'Дефицитная', desc:'Оружие сил самообороны Княжества. Дл30, Ат−1, МУ13 патрон, ПР3/7,62мм, раны 2, травма, скорость.'},
       {name:'Ранцевый огнемёт', weight:'1 Огр.', price:10000, avail:'Дефицитная', desc:'Продаётся без зарядов горючки. Дл15, Ат+1, МУ15 температура, ПР5/заряд горючки, Сл5, пул, мощь.'},
       {name:'Ружьё расхитителей', weight:'2 Вещи', price:4500, avail:'Дефицитная', desc:'Широко распространено во всех Княжествах. Дл75, Ат−5, МУ14 патрон, ПР2/7,62мм, Сл3, пул, мощь, травма.'},
-      {name:'Силовой молот', weight:'4 Вещи', price:12000, avail:'Дефицитная', desc:'Ат+3, Пр−3, МУ15 удар, ПР4/«искра», Сл2, мощь, травма. Если сила не 6+, то медленное.'},
+      {name:'Силовой молот', weight:'4 Вещи', price:12000, avail:'Дефицитная', desc:'Ат+3, Пр−3, МУ15 удар, ПР4/«искра», Сл5, пул, мощь, травма. Если сила не 6+, то медленное. Отнимает от парирования противника 6. Если заряд в молоте закончится, силовое поле спадёт: МУ станет 12, черта «мощь» пропадёт.'},
       {name:'Термическая граната', weight:'1 Вещь', price:2100, avail:'Дефицитная', desc:'По 4 раны целям с защитой от температуры 6- в радиусе 6м, поджигая на [размер цели, min 1] круг.'},
       {name:'Шрапнельная пушка', weight:'3 Вещи', price:6000, avail:'Дефицитная', desc:'Дл15, Ат+3, МУ13 патрон, ПР1/картечь, Сл2. Проверьте атаку по каждой цели на линии шириной 3 м.'},
       {name:'Щитовой излучатель', weight:'3 Вещи', price:12000, avail:'Дефицитная', desc:'Успехом Броска техники (−6) на круг даёт щит, снижающий попадания МУ на 2 и раны на 1. ПР5/МАБ/круг.'},
@@ -3967,6 +3967,12 @@ const ITEM_CATALOG = {
     ]}
   }}
 };
+// Исправления каталога по книге: прежний текст предмета → новый. Копии, уже взятые в инвентарь с прежним текстом,
+// обновляются при загрузке листа (fixCatalogItems); слот оружия с таким предметом перечитается сам (resyncWeaponSlots).
+const CATALOG_TEXT_FIXES = [
+  ['Пистолет «Сияние» — Дл30, Ат−4, МУ12 патрон, ПР4/12,7мм, Сл2, автомат, пальба, раны 2, скорость. Одной рукой нужна сила 5+.', 'Пистолет «Сияние» — Дл30, Ат−4, МУ12 патрон, ПР4/12,7мм, Сл2, травма, пул, разрыв. Чтобы держать одной рукой, нужна Сл5.'],
+  ['Силовой молот — Ат+3, Пр−3, МУ15 удар, ПР4/«искра», Сл2, мощь, травма. Если сила не 6+, то медленное.', 'Силовой молот — Ат+3, Пр−3, МУ15 удар, ПР4/«искра», Сл5, пул, мощь, травма. Если сила не 6+, то медленное. Отнимает от парирования противника 6. Если заряд в молоте закончится, силовое поле спадёт: МУ станет 12, черта «мощь» пропадёт.']
+];
 
 const ARISTOKRAT_ITEM_TABLE = [ // к12, "Аристократ" career, page 53 — complete
   {min:1,max:1,text:'Тайное письмо о бастарде (по легенде проклят дикарями)'},
@@ -12331,12 +12337,23 @@ function buildSavePayload(){
     pendingCount: pendingChoices.length + pendingRoleplayChoices.length + pendingItemRolls.length } };
 }
 function isValidPayload(p){ return !!(p && p.character && p.character.stats && p.character.abilities); }
+// Предметы инвентаря с прежним текстом из каталога → исправленный текст (CATALOG_TEXT_FIXES), с записью в журнал листа
+function fixCatalogItems(c){
+  if(!c || !c.inventory) return;
+  const fixes = new Map(CATALOG_TEXT_FIXES);
+  Object.keys(c.inventory).forEach(cat=>(c.inventory[cat] || []).forEach(it=>{
+    const to = it && fixes.get(it.name); if(!to) return;
+    it.name = to;
+    logEvent(c, `«${to.split(' — ')[0]}»: характеристики исправлены по книге — ${to.split(' — ')[1]}`);
+  }));
+}
 function applyLoadedPayload(payload){
   const hadPending = !!(payload.extra && payload.extra.pendingCount);
   const pc0 = payload.character;
   const hadCheckpoint = !!(pc0 && ((pc0._lvlCheckpoint && (pc0._levelUpTarget || pc0._backfillTarget)) || (pc0._genCheckpoint && pc0._levelUpTarget)));
   pendingRoleplayChoices=[]; pendingChoices=[]; pendingItemRolls=[];
   character = restoreLevelCheckpoint(pc0);
+  fixCatalogItems(character);
   if(typeof character.size==='number' && character.size !== clampSize(character.size)){ // лист из времени без предела −4…+4
     logEvent(character, `Размер ${character.size} вне пределов ${SIZE_MIN}…+${SIZE_MAX} — исправлен на ${clampSize(character.size)}.`);
     character.size = clampSize(character.size); reclampVitals(character);

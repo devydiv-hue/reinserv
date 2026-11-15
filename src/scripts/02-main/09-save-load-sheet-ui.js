@@ -15,12 +15,23 @@ function buildSavePayload(){
     pendingCount: pendingChoices.length + pendingRoleplayChoices.length + pendingItemRolls.length } };
 }
 function isValidPayload(p){ return !!(p && p.character && p.character.stats && p.character.abilities); }
+// Предметы инвентаря с прежним текстом из каталога → исправленный текст (CATALOG_TEXT_FIXES), с записью в журнал листа
+function fixCatalogItems(c){
+  if(!c || !c.inventory) return;
+  const fixes = new Map(CATALOG_TEXT_FIXES);
+  Object.keys(c.inventory).forEach(cat=>(c.inventory[cat] || []).forEach(it=>{
+    const to = it && fixes.get(it.name); if(!to) return;
+    it.name = to;
+    logEvent(c, `«${to.split(' — ')[0]}»: характеристики исправлены по книге — ${to.split(' — ')[1]}`);
+  }));
+}
 function applyLoadedPayload(payload){
   const hadPending = !!(payload.extra && payload.extra.pendingCount);
   const pc0 = payload.character;
   const hadCheckpoint = !!(pc0 && ((pc0._lvlCheckpoint && (pc0._levelUpTarget || pc0._backfillTarget)) || (pc0._genCheckpoint && pc0._levelUpTarget)));
   pendingRoleplayChoices=[]; pendingChoices=[]; pendingItemRolls=[];
   character = restoreLevelCheckpoint(pc0);
+  fixCatalogItems(character);
   if(typeof character.size==='number' && character.size !== clampSize(character.size)){ // лист из времени без предела −4…+4
     logEvent(character, `Размер ${character.size} вне пределов ${SIZE_MIN}…+${SIZE_MAX} — исправлен на ${clampSize(character.size)}.`);
     character.size = clampSize(character.size); reclampVitals(character);
