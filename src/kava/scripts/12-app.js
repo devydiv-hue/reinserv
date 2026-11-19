@@ -35,6 +35,13 @@ const App = (function(){
     document.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('on', b.dataset.mode===Tandem.mode));
   }
   function show(x){ Tandem.render(x); names(); refresh(); if(typeof Table!=='undefined') Table.pilotChanged(); }
+  // выйти из Утробы: счёт вахт подключения сбрасывается; сверхурочные — напоминание о ритуале декомпрессии
+  function leaveWomb(){
+    const x = p(); if(!x) return; const W = Pilot.wombLimit(x), n = Pilot.int(x.watches);
+    x.inWomb = false; x.watches = 0; Pilot.save(); Tandem.render(); refresh();
+    UI.toast(n ? `Спектр вне Утробы после ${n} вахт${W.over ? ` (сверхурочных ${W.over}) — самое время для ритуала декомпрессии` : ''}` : 'Спектр вне Утробы', W.over ? 'fail' : 'info');
+    if(typeof Table!=='undefined') Table.pilotChanged();
+  }
   // Летописцу — «Лист» или «Летописец»
   function setView(v){ document.body.classList.toggle('gm-view', v==='gm'); document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('on', b.dataset.view===v)); if(v==='gm') Gm.render(); }
   // бой у игрока: «Лист / Бой» над листом, вкладка «Бой» на телефоне
@@ -99,7 +106,7 @@ const App = (function(){
     document.querySelectorAll('[data-mode]').forEach(b=>b.addEventListener('click', ()=>{ prefs.mode = b.dataset.mode; savePrefs(); Tandem.setMode(b.dataset.mode); }));
     document.querySelectorAll('[data-rm]').forEach(b=>b.addEventListener('click', ()=>setMode(b.dataset.rm===rollMode && b.dataset.rm!=='norm' ? 'norm' : b.dataset.rm)));
     document.querySelectorAll('[data-tab-btn]').forEach(b=>b.addEventListener('click', ()=>setTab(b.dataset.tabBtn)));
-    $('#kvWomb').addEventListener('click', ()=>{ const x = p(); x.inWomb = !x.inWomb; Pilot.save(); Tandem.render(); UI.toast(x.inWomb ? 'Спектр в Утробе: бой — Катафрактом' : 'Спектр вне Утробы'); if(typeof Table!=='undefined') Table.pilotChanged(); });
+    $('#kvWomb').addEventListener('click', ()=>{ const x = p(); if(x.inWomb){ leaveWomb(); return; } x.inWomb = true; x.watches = 0; Pilot.save(); Tandem.render(); refresh(); UI.toast('Спектр в Утробе: бой — Катафрактом; отмечайте вахты кнопкой «+ вахта»'); if(typeof Table!=='undefined') Table.pilotChanged(); });
     $('#kvDc').addEventListener('input', (e)=>{ dcOverride = e.target.value==='' ? null : Pilot.int(e.target.value, 13); refresh(); });
     $('#kvDcReset').addEventListener('click', ()=>{ dcOverride = null; refresh(); });
     $('#kvTables').addEventListener('click', ()=>Actions.tablesSheet(p()));
@@ -112,6 +119,6 @@ const App = (function(){
     Table.onChange((S)=>{ if(S.role!=='gm' && document.body.classList.contains('gm-view')) setView('sheet'); battleChanged(); });
     Table.init(); Battle.init(); battleChanged();
   }
-  return {init, names, refresh, show, pref, folded, fold, dc, mode, setMode, useMode, battleChanged};
+  return {init, names, refresh, show, leaveWomb, pref, folded, fold, dc, mode, setMode, useMode, battleChanged};
 })();
 document.addEventListener('DOMContentLoaded', App.init);

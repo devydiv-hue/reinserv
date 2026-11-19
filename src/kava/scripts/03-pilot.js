@@ -87,21 +87,56 @@ const Pilot = (function(){
     p.mech.crits.forEach(x=>{ if(!x.id) x.id = uid(); });
     if(Dice.STEPS.indexOf(+p.mech.kr) < 0) p.mech.kr = 6;
     p.inWomb = !!p.inWomb;
+    p.watches = Math.max(0, int(p.watches));
     return p;
   }
+  // Вахты в Утробе (часть 2): после 3 + СОМ вахт подключения без перерыва — бросок Отдачи каждые СОМ вахт,
+  // +1 к броску за каждую сверхурочную вахту. Древняя Утроба, Полиорганическая мембрана, Нейрометаболический
+  // медиатор — +1 вахта; каприз «Удручающая тишина» — не дольше 3 вахт.
+  function wombLimit(p){
+    const som = stat(p, 'som', true), parts = [`3 + СОМ ${som}`];
+    let limit = 3 + som;
+    if(p.mech && p.mech.womb==='ancient'){ limit++; parts.push('Древняя Утроба +1'); }
+    if((p.items || []).some(it=>/полиорганическая мембрана/i.test(it.name || ''))){ limit++; parts.push('Полиорганическая мембрана +1'); }
+    if(/нейрометаболическ/i.test(p.augments || '')){ limit++; parts.push('Нейрометаболический медиатор +1'); }
+    if(p.mech && /^Удручающая тишина/i.test(p.mech.quirk || '') && limit > 3){ limit = 3; parts.push('Удручающая тишина: не больше 3'); }
+    limit = Math.max(0, limit);
+    const every = Math.max(1, som), over = Math.max(0, int(p.watches) - limit);
+    // бросок Отдачи на вахте limit + every, limit + 2·every…
+    const due = over > 0 && over % every===0;
+    const everyText = every===1 ? 'каждую вахту' : every < 5 ? `каждые ${every} вахты` : `каждые ${every} вахт`;
+    return {limit, every, everyText, over, due, parts, next:over ? limit + (Math.floor(over / every) + 1) * every : limit + every};
+  }
+
+  // ---- Дары Ядра (часть 8), которые учитываются в бросках: узнаются по началу текста; повторные получения
+  // складываются, если Дар это допускает. Характеристики (+1 МОТ/ЭМП/КОГ/СОМ) и Удача — только пока Спектр в Утробе.
+  const GIFT_FX = [[/^Рефлекторный катализатор/, 'mot', '+1 МОТ в Утробе'], [/^Эмпатичная инкапсуляция/, 'emp', '+1 ЭМП в Утробе'],
+    [/^Когнитивный субинтеллект/, 'kog', '+1 КОГ в Утробе'], [/^Соматический усилитель/, 'som', '+1 СОМ в Утробе'], [/^Второй умопоток/, 'mob', '+1 МОБ Катафракта'],
+    [/^Баллистический оракул/, 'ranged', '+1 к стрелковым атакам Катафракта'], [/^Боевое программирование/, 'melee', '+1 к атакам ближнего боя Катафракта'],
+    [/^Асинхронное распознавание/, 'sensors', '+1 к Сенсорам'], [/^Рациональная защита/, 'armor', '+1 к кости Брони'], [/^Эмпатический ИИ/, 'alien', 'Отчуждённость −1'],
+    [/^Отбор вероятностей/, 'luck', 'Удача −1 в Утробе'], [/^Оптимизация сверхпроводников/, 'beamKr', 'кР лучевого оружия −1'],
+    [/^Рекогнитивная баллистика/, 'crit19', 'крит на 19–20'], [/^Оптимизация наноструктуры/, 'sl', '+1 доступный СЛ', true]];
+  const giftFx = (text)=>GIFT_FX.find(([re])=>re.test(String(text || ''))) || null;
+  function gifts(p){
+    const g = {}; (p.mech && Array.isArray(p.mech.giftList) ? p.mech.giftList : []).forEach(x=>{ const f = giftFx(x.text); if(f) g[f[1]] = (g[f[1]] || 0) + (x.stack || f[3] ? Math.max(1, int(x.n, 1)) : 1); });
+    return g;
+  }
+  const gift = (p, k)=>gifts(p)[k] || 0;
 
   // ---- Катафракт: производные ----
   // СЛ: реактор + сенсоры + оборудование + критические повреждения (каждое занимает 1 СЛ)
   function mechSlots(p){ const m = p.mech; return reactorOf(m).sl + (int(m.sensorSl) || sensorOf(m).sl) + m.items.reduce((s, it)=>s + Math.max(0, int(it.sl)), 0) + m.crits.length; }
   function mechLoad(p){
-    const sl = mechSlots(p), points = KAVA.loadPoints(sl), ignore = frameOf(p.mech).ignore, eff = Math.max(0, points - ignore);
-    return {sl, points, ignore, eff, name:KAVA.LOAD[eff], penalty:eff, krMod:eff >= 6 ? 3 : eff >= 4 ? 2 : eff >= 2 ? 1 : 0};
+    const sl = mechSlots(p), free = gift(p, 'sl'), points = KAVA.loadPoints(Math.max(0, sl - free)), ignore = frameOf(p.mech).ignore, eff = Math.max(0, points - ignore);
+    return {sl, free, points, ignore, eff, name:KAVA.LOAD[eff], penalty:eff, krMod:eff >= 6 ? 3 : eff >= 4 ? 2 : eff >= 2 ? 1 : 0};
   }
+  // МОБ Катафракта считается для Спектра в Утробе: Дары на МОТ и МОБ учитываются всегда
   function mechMob(p){
-    const f = frameOf(p.mech), l = mechLoad(p), mot = stat(p, 'mot');
-    return {total:f.mob + mot - l.penalty + int(p.mech.mobMod), base:f.mob, mot, load:l.penalty, mod:int(p.mech.mobMod)};
+    const f = frameOf(p.mech), l = mechLoad(p), mot = stat(p, 'mot', true), g = gift(p, 'mob');
+    return {total:f.mob + mot - l.penalty + int(p.mech.mobMod) + g, base:f.mob, mot, load:l.penalty, mod:int(p.mech.mobMod), gift:g};
   }
-  const sensorBonus = (p)=>int(p.mech.sensorBonus) || sensorOf(p.mech).bonus;
+  const sensorBonus = (p)=>(int(p.mech.sensorBonus) || sensorOf(p.mech).bonus) + gift(p, 'sensors');
+  const alien = (p)=>Math.max(1, coreOf(p.mech).alien - gift(p, 'alien'));
   const mechWeapons = (p)=>p.mech.items.filter(it=>it.kind==='weapon');
   const consumables = (p, key)=>p.mech.items.filter(it=>it.kind==='consumable' && (!key || it.ckey===key));
   const hasModule = (p, flag)=>p.mech.items.some(it=>it.kind==='module' && it[flag] && !it.off);
@@ -110,7 +145,8 @@ const Pilot = (function(){
   function mechItemFrom(t){ const it = Object.assign({id:uid(), marks:0}, JSON.parse(JSON.stringify(t))); return it; }
 
   // ---- производные ----
-  const stat = (p, k)=>int(p.stats[k]) + int(p.bonus[k]);
+  // inside — считать как в Утробе (по умолчанию — как отмечено в листе)
+  const stat = (p, k, inside)=>int(p.stats[k]) + int(p.bonus[k]) + ((inside==null ? p.inWomb : inside) ? gift(p, k) : 0);
   function slotsUsed(p){ return p.items.reduce((s, it)=>s + Math.max(0, int(it.sl)), 0) + p.injuries.length; }
   function load(p){
     const sl = slotsUsed(p), points = KAVA.loadPoints(sl), ignore = KAVA.loadIgnore(int(p.stats.som));
@@ -123,7 +159,7 @@ const Pilot = (function(){
     return {total:10 + stat(p, 'mot') + armor - l.penalty + int(p.mobMod), base:10, mot:stat(p, 'mot'), armor, load:l.penalty, mod:int(p.mobMod)};
   }
   const stkMax = (p)=>6 + int(p.stats.som) + int(p.stkMaxMod);
-  const luck = (p)=>KAVA.LUCK_BASE + int(p.scars) + int(p.luckMod);
+  const luck = (p)=>KAVA.LUCK_BASE + int(p.scars) + int(p.luckMod) - (p.inWomb ? gift(p, 'luck') : 0);
   // кости брони надетых доспехов: [{item, dice:'2к6', left:3 - marks}]
   const armorDice = (p)=>worn(p).filter(it=>it.armor && Dice.parse(it.armor)).map(it=>({item:it, dice:it.armor, left:3 - int(it.marks)}));
   const weapons = (p)=>p.items.filter(it=>it.kind==='weapon');
@@ -133,5 +169,6 @@ const Pilot = (function(){
 
   return {blank, starter, itemFrom, current, setCurrent, add, remove, all, save, fix, uid, int,
     stat, slotsUsed, load, mob, stkMax, luck, armorDice, weapons, tagList, hasTag, cluster, worn,
-    blankMech, sensorOf, frameOf, reactorOf, coreOf, womb, mechSlots, mechLoad, mechMob, sensorBonus, mechWeapons, consumables, hasModule, freeConsumable, mechItemFrom};
+    blankMech, sensorOf, frameOf, reactorOf, coreOf, womb, mechSlots, mechLoad, mechMob, sensorBonus, mechWeapons, consumables, hasModule, freeConsumable, mechItemFrom,
+    gifts, gift, giftFx, alien, wombLimit};
 })();

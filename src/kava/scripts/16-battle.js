@@ -224,7 +224,7 @@ const Battle = (function(){
       return;
     }
     const foes = B.units.filter(x=>x.side!==u.side && x.status!=='dead');
-    UI.sheet({title:v.name, sub:`${SIDES[u.side]}${u.kind==='enemy' ? ' · ' + (u.scale==='personal' ? 'персональный масштаб' : 'стратегический масштаб') : ''}`, html:`
+    UI.sheet({help:'battle', title:v.name, sub:`${SIDES[u.side]}${u.kind==='enemy' ? ' · ' + (u.scale==='personal' ? 'персональный масштаб' : 'стратегический масштаб') : ''}`, html:`
       ${u.kind!=='tandem' ? `<div class="kv-sheet-grid">${UI.stepper('stk', u.stk, 0, 999, `СТК (из ${u.stkMax})`)}${UI.stepper('mob', u.mob, 0, 40, 'МОБ')}${UI.stepper('bd', u.bd, 2, 12, 'БД')}${UI.stepper('atk', u.atk, -5, 15, 'АТК +')}</div>
         ${(u.weapons || []).length ? `<div class="kv-fe kv-wide"><span>Оружие</span>${u.weapons.map((w, i)=>`<label class="kv-mini">${esc(w.name)} <input data-w="${i}" value="${esc(w.dmg)}" size="5"></label>`).join('')}</div>` : ''}
         ${(u.feats || []).length ? `<ul class="kv-list2 kv-note">${u.feats.map(f=>`<li>${esc(f)}</li>`).join('')}</ul>` : ''}

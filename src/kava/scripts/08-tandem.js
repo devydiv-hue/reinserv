@@ -71,6 +71,12 @@ const Tandem = (function(){
       <button type="button" class="kv-die" data-a="${side}-kv" data-id="${it.id}" title="Кость расхода: к6, метка на 4+">⚄</button></div>`;
   }
 
+  // вахты подключения в Утробе: после предела — бросок Отдачи каждые СОМ вахт
+  function watchRow(){
+    const W = Pilot.wombLimit(p), n = int(p.watches);
+    return `<div class="kv-watch${W.over ? ' over' : n===W.limit ? ' edge' : ''}" title="${esc('Предел: ' + W.parts.join(' · '))}"><div><b>Вахт в Утробе: ${n} из ${W.limit}</b><small>${W.over ? `сверхурочных ${W.over} (+${W.over} к Отдаче) · следующий бросок — на вахте ${W.next}` : n===W.limit ? `предел: дальше Отдача ${W.everyText}` : `без Отдачи ещё ${W.limit - n}, затем бросок ${W.everyText}`}</small></div>
+      <button type="button" class="kv-btn kv-sm kv-primary" data-a="watch">+ вахта</button>${n ? '<button type="button" class="kv-btn kv-sm" data-a="watch-reset" title="Перерыв в подключении: счёт заново">Перерыв</button>' : ''}</div>`;
+  }
   // ---------- Катафракт: игра ----------
   function mechPlay(){
     const m = p.mech;
@@ -87,11 +93,12 @@ const Tandem = (function(){
         <div class="kv-sub">${esc([m.cls, f.name + (f.fast ? ' · Быстрый' : f.slow ? ' · Медленный' : ''), `Ядро ${core.name}`, R.name].filter(Boolean).join(' · '))}</div></div>
       <div class="kv-vitals2">
         <div class="kv-vit${down ? ' danger' : ''}"><small>СТК</small><div class="kv-vit-row"><button type="button" class="kv-mini-btn" data-a="m-stk" data-d="-1" aria-label="минус 1">−</button><b>${int(m.stk)}<span>/${int(m.stkMax)}</span></b><button type="button" class="kv-mini-btn" data-a="m-stk" data-d="1" aria-label="плюс 1">+</button></div>${bar(int(m.stk), int(m.stkMax))}
-          <button type="button" class="kv-link" data-a="m-hurt">Получить урон</button></div>
-        <div class="kv-vit" title="Каркас ${mob.base} + МОТ ${mob.mot}${mob.load ? ' − нагрузка ' + mob.load : ''}"><small>МОБ</small><b class="kv-big2">${mob.total}</b><span class="kv-why">${mob.load ? 'нагрузка −' + mob.load : ''}</span></div>
+          <span class="kv-links"><button type="button" class="kv-link" data-a="m-hurt">Получить урон</button><button type="button" class="kv-link" data-a="m-maint" title="Полевой и капитальный ремонт, пополнение расходников — за Материалы Копья">Ремонт</button></span></div>
+        <div class="kv-vit" title="Каркас ${mob.base} + МОТ ${mob.mot}${mob.gift ? ' + Дар ' + mob.gift : ''}${mob.load ? ' − нагрузка ' + mob.load : ''}"><small>МОБ</small><b class="kv-big2">${mob.total}</b><span class="kv-why">${mob.load ? 'нагрузка −' + mob.load : ''}</span></div>
         <button type="button" class="kv-vit kv-vit-btn" data-a="m-sensors" title="Проверка Сенсоров: к20 + бонус Сенсоров"><small>Сенсоры</small><b class="kv-big2">${plus(Pilot.sensorBonus(p))}</b><span class="kv-why">${esc(S.name)}</span></button>
       </div>
       ${down ? `<div class="kv-alert">0 СТК — каждое новое попадание наносит Критическое повреждение.</div>` : ''}
+      ${p.inWomb ? watchRow() : ''}
       ${f.fast || f.slow ? `<button type="button" class="kv-btn kv-wide" data-a="m-frame">${f.fast ? 'Рывок Скаута: +кР к МОБ на ход' : 'Ремонт Дредноута: +кР к СТК'}</button>` : ''}
       ${cons ? sec('Расходники', `<div class="kv-cons-row">${cons}</div>`) : ''}
       ${sec('Вооружение', ws.length ? `<div class="kv-cards">${ws.map(w=>weaponCard(w, 'm')).join('')}</div>` : '<div class="kv-empty">Нет вооружения</div>')}
@@ -100,10 +107,10 @@ const Tandem = (function(){
         ${it.kv ? UI.dots(int(it.marks), 3, 'm-mark', it.id) : ''}
         ${it.kr || it.kv ? `<button type="button" class="kv-btn kv-sm" data-a="m-use" data-id="${it.id}">${it.kv ? 'к6' : 'Включить'}</button>` : ''}</div>`).join('')}</div>`) : ''}
       ${m.crits.length ? sec('Критические повреждения', `<ul class="kv-list2">${m.crits.map(x=>`<li>${esc(x.text)}</li>`).join('')}</ul>`) : ''}
-      <div class="kv-load-line">${L.sl} СЛ · нагрузка ${L.eff} — ${L.name}${L.eff ? `, −${L.eff} МОБ` : ''}${L.krMod ? `, +${L.krMod} к броскам кР` : ''}</div>
-      ${fold('m-core', `Ядро · Отчуждённость ${core.alien}`, `<p class="kv-p">${esc(m.nature || 'Характер не определён')}</p>
+      <div class="kv-load-line">${L.sl} СЛ${L.free ? ` (Дар: +${L.free} доступный)` : ''} · нагрузка ${L.eff} — ${L.name}${L.eff ? `, −${L.eff} МОБ` : ''}${L.krMod ? `, +${L.krMod} к броскам кР` : ''}</div>
+      ${fold('m-core', `Ядро · Отчуждённость ${Pilot.alien(p)}`, `<p class="kv-p">${esc(m.nature || 'Характер не определён')}</p>
         <div class="kv-row2"><button type="button" class="kv-btn kv-primary" data-a="m-divesheet">${m.dive && m.dive.active ? 'Погружение: Измерение ' + m.dive.dim : 'Погружение в Ядро'}</button><button type="button" class="kv-btn" data-a="m-alien">Испытание Отчуждённости</button></div>
-        ${(m.giftList || []).length ? `<ul class="kv-list2">${m.giftList.map(g=>`<li>${esc(g.text)}${g.n > 1 ? ' <b>×' + g.n + '</b>' : ''}</li>`).join('')}</ul>` : ''}
+        ${(m.giftList || []).length ? `<ul class="kv-list2">${m.giftList.map(g=>{ const fx = Pilot.giftFx(g.text); return `<li>${esc(g.text)}${g.n > 1 ? ' <b>×' + g.n + '</b>' : ''}${fx ? ` <em class="kv-badge kv-auto" title="Учитывается в бросках автоматически">в бросках: ${esc(fx[2])}</em>` : ''}</li>`; }).join('')}</ul>` : ''}
         <dl class="kv-dl">${[['Дары Ядра (заметки)', m.gifts], ['Узлы', m.nodes]].filter(x=>x[1]).map(x=>`<dt>${x[0]}</dt><dd>${esc(x[1])}</dd>`).join('')}</dl>`)}
       ${fold('m-bio', 'Конструкция и детали', `<dl class="kv-dl">${[['Каркас', `${f.name} (${f.mass}), МОБ ${f.mob}${f.note ? '. ' + f.note : ''}`], ['Утроба', Pilot.womb(m).name + ': ' + Pilot.womb(m).text],
         ['Реактор', `${R.name}, ${R.sl} СЛ${R.note ? '. ' + R.note : ''}`], ['Сенсоры', `${S.name} ${plus(Pilot.sensorBonus(p))}, дистанция ${S.range}${m.sensorModules.length ? '. Модули: ' + m.sensorModules.join(', ') : ''}`],

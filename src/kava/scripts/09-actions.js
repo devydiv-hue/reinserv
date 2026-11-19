@@ -34,7 +34,7 @@ const Actions = (function(){
     const ammoLeft = Pilot.consumables(p, 'ammo').reduce((s, it)=>s + 3 - int(it.marks), 0);
     const usesAmmo = mech && (w.type==='kinetic' || w.type==='missile'), usesKr = mech && (w.type==='beam' || w.type==='melee');
     const others = list.filter(x=>x.id!==id);
-    UI.sheet({title:'Атака: ' + w.name, sub:`${w.dmg || '—'} · ${w.range || ''} ${KAVA.RANGES[w.range] || ''}${w.tags ? ' · ' + w.tags : ''}`, cls:'kv-sheet-attack', html:`
+    UI.sheet({help:'battle', title:'Атака: ' + w.name, sub:`${w.dmg || '—'} · ${w.range || ''} ${KAVA.RANGES[w.range] || ''}${w.tags ? ' · ' + w.tags : ''}`, cls:'kv-sheet-attack', html:`
       ${tg.length ? `<label class="kv-stepper kv-wide"><span>Цель</span><select name="target"><option value="">— без цели (МОБ вручную) —</option>${tg.map(t=>`<option value="${t.id}"${t.id===tSel ? ' selected' : ''}>${esc(t.name)} · ${Battle.DIST_NAME[t.dist]} дистанция${t.mob!=null ? ' · МОБ ' + t.mob : ''}</option>`).join('')}</select></label><div class="kv-note" data-tinfo>${esc(tInfo(tg.find(t=>t.id===tSel)))}</div>` : ''}
       <div class="kv-sheet-grid">${UI.stepper('mob', tSel ? tMob(tg.find(t=>t.id===tSel)) : lastMob, 0, 40, 'МОБ цели')}${UI.stepper('extra', 0, -20, 20, 'Доп. бонус')}</div>
       ${modeChips()}
@@ -81,7 +81,7 @@ const Actions = (function(){
     const armorLeft = mech ? Pilot.consumables(p, 'armor').reduce((s, it)=>s + 3 - int(it.marks), 0) : 0;
     const shields = mech ? m.items.filter(it=>it.kind==='module' && it.shield && !it.used && !it.off).length : 0;
     const pArmor = !mech ? Pilot.armorDice(p).map(a=>`${a.item.name} ${a.dice}`).join(', ') : '';
-    UI.sheet({title:mech ? 'Урон по Катафракту' : 'Урон по Спектру', sub:mech ? `СТК ${int(m.stk)} из ${int(m.stkMax)}` : `СТК ${int(p.stk)} из ${Pilot.stkMax(p)}`, html:`
+    UI.sheet({help:'death', title:mech ? 'Урон по Катафракту' : 'Урон по Спектру', sub:mech ? `СТК ${int(m.stk)} из ${int(m.stkMax)}` : `СТК ${int(p.stk)} из ${Pilot.stkMax(p)}`, html:`
       <div class="kv-sheet-grid">${UI.stepper('dmg', 1, 0, 200, 'Урон')}${!mech ? UI.stepper('reduce', 0, 0, 20, 'Снижение') : ''}</div>
       <div class="kv-chips2">${UI.chip('pierce', 'Бронебойное', false, 'Броня учитывает половину броска')}
         ${mech ? UI.chip('armor', `Бросить Броню (${armorLeft ? 'осталось ' + armorLeft : 'нет'})`, armorLeft > 0) + (shields ? UI.chip('shield', `Штурмовой щит (${shields})`, false, 'Проигнорировать атаку') : '')
@@ -101,7 +101,7 @@ const Actions = (function(){
   function krSheet(p){
     const m = p.mech, L = Pilot.mechLoad(p), R = Pilot.reactorOf(m), rad = Pilot.consumables(p, 'radiator').reduce((s, it)=>s + 3 - int(it.marks), 0);
     const mods = m.items.filter(it=>it.kind==='module' && it.kr && !it.off);
-    UI.sheet({title:`Реактор: к${m.kr}`, sub:`${R.name}${L.krMod ? ` · нагрузка +${L.krMod} к броску` : ''}${R.krMod ? ` · ${R.krMod} к броску` : ''}${int(m.explode) ? ` · шанс взрыва ${m.explode}-з-6` : ''}`, html:`
+    UI.sheet({help:'reactor', title:`Реактор: к${m.kr}`, sub:`${R.name}${L.krMod ? ` · нагрузка +${L.krMod} к броску` : ''}${R.krMod ? ` · ${R.krMod} к броску` : ''}${int(m.explode) ? ` · шанс взрыва ${m.explode}-з-6` : ''}`, html:`
       <p class="kv-note">Бросок кР: при 4+${Pilot.hasModule(p, 'reactor5') ? ' (с Изоляцией — 5+)' : ''} кость растёт на степень (к6 → к8 → к10 → к12); итог 7+ — перегрев. Энерговооружение и Удар — в карточке атаки.</p>
       <div class="kv-act-grid">
         <button type="button" class="kv-act" data-a="forsage"><b>Форсаж</b><span>ещё одно действие в раунде</span></button>
@@ -123,7 +123,7 @@ const Actions = (function(){
   }
   // ---------- синхронизация ----------
   function ksSheet(p){
-    UI.sheet({title:`Синхронизация: к${p.ks}`, sub:int(p.ksBonus) ? `+${p.ksBonus} к следующему броску роста` : '', html:`
+    UI.sheet({help:'sync', title:`Синхронизация: к${p.ks}`, sub:int(p.ksBonus) ? `+${p.ksBonus} к следующему броску роста` : '', html:`
       <div class="kv-act-grid">
         <button type="button" class="kv-act" data-a="connect"><b>Подключение</b><span>кС, соединение на 4+</span></button>
         <button type="button" class="kv-act" data-a="dive"><b>Погружение в Ядро</b><span>Узлы, Измерения, Дары</span></button>
@@ -132,7 +132,7 @@ const Actions = (function(){
         <button type="button" class="kv-act" data-a="grow" data-x="2"><b>Пожирание Ядра</b><span>полный ИИ: ×2</span></button>
         <button type="button" class="kv-act" data-a="grow" data-x="3"><b>Пожирание Супер-ИИ</b><span>×3, «1» — Удача или смерть</span></button>
       </div>
-      <div class="kv-sheet-grid">${UI.stepper('ot', 0, 0, 20, 'Сверхурочные вахты')}<button type="button" class="kv-btn kv-primary" data-a="backlash">Отдача</button></div>`,
+      <div class="kv-sheet-grid">${UI.stepper('ot', p.inWomb ? Pilot.wombLimit(p).over : 0, 0, 20, 'Сверхурочные вахты')}<button type="button" class="kv-btn kv-primary" data-a="backlash">Отдача</button></div>`,
       onAction(a, btn, close, panel){
         if(a==='dive'){ close(); Dive.sheet(p); return; }
         if(a==='connect') done(Rolls.connect(p));
@@ -141,16 +141,27 @@ const Actions = (function(){
       }});
   }
   function alienSheet(p, dive){
-    UI.sheet({title:dive ? 'Выход из погружения' : 'Испытание Отчуждённости', sub:`к20 + ЭМП против Отчуждённости ${Pilot.coreOf(p.mech).alien}${dive ? ' + Измерение' : ''}`, html:`
+    UI.sheet({help:'sync', title:dive ? 'Выход из погружения' : 'Испытание Отчуждённости', sub:`к20 + ЭМП против Отчуждённости ${Pilot.alien(p)}${dive ? ' + Измерение' : ''}`, html:`
       ${dive ? `<div class="kv-sheet-grid">${UI.stepper('depth', 1, 0, 20, 'Измерение')}</div>` : ''}${modeChips()}
       <div class="kv-sheet-btns"><button type="button" class="kv-btn kv-primary kv-grow2" data-a="go" autofocus>Бросить</button></div>`,
       onAction(a, btn, close, panel){ App.setMode('norm'); done(Rolls.alienation(p, dive ? UI.num(panel, 'depth', 0) : 0, pickMode(panel))); }});
+  }
+  // сверхурочная вахта в Утробе: пора бросать Отдачу (кС + сверхурочные)
+  function overtimeSheet(p){
+    const W = Pilot.wombLimit(p);
+    UI.sheet({help:'backlash', title:'Сверхурочная вахта', sub:`${p.watches} вахт в Утробе без перерыва · предел ${W.limit}`, html:`<p class="kv-p">После ${W.limit} вахт подключения Спектр бросает Отдачу ${W.everyText}: кС к${p.ks} + ${W.over} за сверхурочные вахты.</p>
+      ${p.ritual ? `<p class="kv-note">Ритуал декомпрессии, проведённый до наступления эффекта, преодолевает его: ${esc(p.ritual)}</p>` : '<p class="kv-note">Ритуал декомпрессии, проведённый до наступления эффекта, преодолевает Отдачу.</p>'}
+      <div class="kv-sheet-btns"><button type="button" class="kv-btn" data-a="leave">Выйти из Утробы</button><button type="button" class="kv-btn kv-primary kv-grow2" data-a="go" autofocus>Отдача: кС + ${W.over}</button></div>`,
+      onAction(a, b, close){
+        if(a==='go'){ close(); done(Rolls.backlash(p, W.over)); }
+        if(a==='leave'){ close(); App.leaveWomb(); }
+      }});
   }
   // ---------- предметы ----------
   function itemSheet(p, side, id){
     const list = side==='m' ? p.mech.items : p.items, it = list.find(x=>x.id===id); if(!it) return;
     const cap = Rolls.itemCap(it);
-    UI.sheet({title:it.name || 'Предмет', sub:`${int(it.sl)} СЛ${it.value ? ' · ' + it.value : ''}`, html:`
+    UI.sheet({help:'load', title:it.name || 'Предмет', sub:`${int(it.sl)} СЛ${it.value ? ' · ' + it.value : ''}`, html:`
       ${it.text || it.note ? `<p class="kv-p">${esc(it.text || it.note)}</p>` : ''}
       ${it.kind==='armor' ? `<p class="kv-p">${it.mob ? `+${it.mob} МОБ. ` : ''}${it.armor ? `Броня ${esc(it.armor)} кВ: кости вычитаются из урона, каждая на 4+ теряет метку.` : ''}</p>` : ''}
       <div class="kv-fe kv-wide"><span>Метки расхода (${int(it.marks)} из ${cap})</span>${UI.dots(int(it.marks), cap, 'mark', it.id)}</div>
@@ -182,20 +193,20 @@ const Actions = (function(){
   function consSheet(p, key){
     const c = MECH.CONSUMABLES.find(x=>x.ckey===key), list = Pilot.consumables(p, key);
     const act = key==='radiator' ? ['radiator', 'Снизить кР на степень'] : key==='repair' ? ['repair', 'Ремкассеты: +к6 СТК'] : null;
-    UI.sheet({title:c.name, sub:'Кость расхода к6 с тремя метками, метка — на 4+', html:`<p class="kv-p">${esc(c.text)}</p>
+    UI.sheet({help:'repair', title:c.name, sub:'Кость расхода к6 с тремя метками, метка — на 4+', html:`<p class="kv-p">${esc(c.text)}</p>
       ${list.map((it, i)=>`<div class="kv-fe kv-wide"><span>Блок ${i + 1}</span>${UI.dots(int(it.marks), 3, 'mark', it.id)}</div>`).join('')}
       <div class="kv-sheet-btns"><button type="button" class="kv-btn" data-a="fix">Пополнить (1 Мат за кость)</button>${act ? `<button type="button" class="kv-btn kv-primary kv-grow2" data-a="${act[0]}">${act[1]}</button>` : ''}</div>`,
-      onAction(a, btn){
+      onAction(a, btn, close){
         if(a==='radiator'){ done(Rolls.cool(p, false)); return; }
         if(a==='repair'){ done(Rolls.repairKit(p)); return; }
         if(a==='mark'){ const it = list.find(x=>x.id===btn.dataset.id); const i = +btn.dataset.i; it.marks = int(it.marks)===i + 1 ? i : i + 1; }
-        if(a==='fix') list.forEach(it=>{ it.marks = 0; });
+        if(a==='fix'){ const ids = list.filter(it=>int(it.marks) > 0).map(it=>it.id); if(!ids.length){ UI.toast('Все кости полны', 'ok'); return; } close(); Maint.refill(p, ids); return; }
         Pilot.save(); Tandem.render(); consSheet(p, key);
       }});
   }
   // ---------- броски по таблицам ----------
   function tablesSheet(p){
-    UI.sheet({title:'Броски', sub:'таблицы книги и свободный бросок', html:`
+    UI.sheet({help:'social', title:'Броски', sub:'таблицы книги и свободный бросок', html:`
       <div class="kv-act-grid">
         <button type="button" class="kv-act" data-a="reaction"><b>Реакция</b><span>2к6</span></button>
         <button type="button" class="kv-act" data-a="fame"><b>Слава</b><span>к20 + походы против сложности</span></button>
@@ -228,6 +239,11 @@ const Actions = (function(){
       case 'm-stk': p.mech.stk = Math.max(0, int(p.mech.stk) + int(b.dataset.d)); Pilot.save(); if(typeof Table!=='undefined') Table.pilotChanged(); return 'render';
       case 'p-hurt': hurtSheet(p, 'p'); return;
       case 'm-hurt': hurtSheet(p, 'm'); return;
+      case 'm-maint': Maint.sheet(p); return;
+      case 'watch': { p.watches = int(p.watches) + 1; Pilot.save(); const W = Pilot.wombLimit(p);
+        if(W.due) setTimeout(()=>overtimeSheet(p), 30); else UI.toast(p.watches===W.limit ? `Вахта ${p.watches} — предел: дальше Отдача ${W.everyText}` : W.over ? `Сверхурочная вахта ${W.over}; Отдача — на вахте ${W.next}` : `Вахта ${p.watches} из ${W.limit}`, W.over || p.watches===W.limit ? 'fail' : 'ok');
+        Table.pilotChanged(); return 'render'; }
+      case 'watch-reset': p.watches = 0; Pilot.save(); Table.pilotChanged(); UI.toast('Перерыв в подключении — вахты считаются заново', 'ok'); return 'render';
       case 'p-weapon': attackSheet(p, 'p', id); return;
       case 'm-weapon': attackSheet(p, 'm', id); return;
       case 'p-item': itemSheet(p, 'p', id); return;

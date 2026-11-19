@@ -8,6 +8,7 @@
      roll {entry}                — бросок всем (тайные броски Летописца не рассылаются)
      request {rid, kind, stat, dc, mode, note} — Летописец просит бросок; mods {mode} — преимущество/препятствие
      hurt {side, amount, pierce} — Летописец наносит урон; telemost {url}; lance {state} — Копьё
+     mat-req {rid, n, purpose, who} — игрок просит Материалы на ремонт; mat-ans {rid, ok} — ответ Летописца
    Команды Летописца принимаются только от того, кто прислал gm-hello. Связь проверяется сигналом hb раз в 20 с.
    ====================================================================== */
 const Table = (function(){
@@ -99,7 +100,9 @@ const Table = (function(){
       case 'battle': if(fromGm(m)) Battle.receive(m.state); break;
       case 'battle-move': if(S.role==='gm') Battle.onMove(from, m); break;
       case 'battle-hit': if(S.role==='gm') Battle.onHit(from, m); break;
-      case 'peer-left': delete S.peers[m.id]; if(m.id===S.gmId && S.role==='player'){ S.gmId = ''; UI.toast('Летописец отключился', 'fail'); } emit(); break;
+      case 'mat-req': if(S.role==='gm') Maint.request(from, m); break;
+      case 'mat-ans': if(fromGm(m) && S.role==='player') Maint.answer(m); break;
+      case 'peer-left': delete S.peers[m.id]; if(m.id===S.gmId && S.role==='player'){ S.gmId = ''; UI.toast('Летописец отключился', 'fail'); Maint.gmLeft(); } if(S.role==='gm') Maint.peerLeft(m.id); emit(); break;
     }
   }
   // ---- API для страницы ----
@@ -146,7 +149,7 @@ const Prompts = (function(){
         else if(m.kind==='sensors') e = Rolls.sensors(p, dc, mode);
         else if(m.kind==='alien') e = Rolls.alienation(p, 0, mode);
         else if(m.kind==='connect') e = Rolls.connect(p);
-        else if(m.kind==='backlash') e = Rolls.backlash(p, Pilot.int(m.overtime));
+        else if(m.kind==='backlash') e = Rolls.backlash(p, m.overtime!=null ? Pilot.int(m.overtime) : (p.inWomb ? Pilot.wombLimit(p).over : 0));
         else if(m.kind==='init') e = Rolls.initiative(p.name);
         if(e){ e.request = m.rid; Actions.done(e); }
       }});

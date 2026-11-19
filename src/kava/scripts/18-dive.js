@@ -51,7 +51,7 @@ const Dive = (function(){
   }
   // ---------- окно погружения ----------
   function sheet(p){
-    const d = state(p), cur = d.nodes.find(n=>n.id===d.cur), alien = Pilot.coreOf(p.mech).alien;
+    const d = state(p), cur = d.nodes.find(n=>n.id===d.cur), alien = Pilot.alien(p);
     const dims = [...new Set(d.nodes.map(n=>n.dim))].sort((a, b)=>a - b);
     const transitHere = d.nodes.filter(n=>n.dim===d.dim && n.depth);
     const card = cur ? `<div class="kv-node"><div class="kv-node-head"><b>${esc(cur.name)}</b><span>Измерение ${cur.dim}</span></div>
@@ -62,7 +62,7 @@ const Dive = (function(){
           ${cur.choose && !cur.claimed ? '<button type="button" class="kv-btn kv-primary" data-a="pickgift">Выбрать Дар</button>' : ''}
           ${cur.depth ? `<button type="button" class="kv-btn" data-a="descend" data-n="${cur.depth}">Спуститься: Измерение +${cur.depth}</button>` : ''}
           ${cur.fall ? '<button type="button" class="kv-btn" data-a="fall">Провалиться: Измерение +к4</button>' : ''}</div></div>` : '';
-    UI.sheet({title:'Погружение в Ядро', cls:'kv-wizard', sub:d.active ? `Измерение ${d.dim} · кС к${p.ks} · выход: к20 + ЭМП против ${alien + d.dim}` : `Отчуждённость Ядра ${alien}${d.nodes.length ? ` · открыто Узлов: ${d.nodes.length}` : ''}`, html:`
+    UI.sheet({help:'sync', title:'Погружение в Ядро', cls:'kv-wizard', sub:d.active ? `Измерение ${d.dim} · кС к${p.ks} · выход: к20 + ЭМП против ${alien + d.dim}` : `Отчуждённость Ядра ${alien}${d.nodes.length ? ` · открыто Узлов: ${d.nodes.length}` : ''}`, html:`
       ${d.active ? card : `<p class="kv-p">${d.nodes.length ? 'Повторное погружение: новый Узел — кС + Измерение (начинаете с нулевого). Открытые Узлы остаются на карте.' : 'Первое погружение: кС трижды — Узел, его детали и событие.'} Выход из погружения сбросит кС до к6.</p>`}
       <div class="kv-sheet-btns">${d.active ? `<button type="button" class="kv-btn kv-primary" data-a="node">Новый Узел (кС + ${d.dim})</button>
         ${!cur || !cur.depth ? transitHere.map(n=>`<button type="button" class="kv-btn" data-a="goto" data-id="${n.id}">К Переходу «${esc(n.name)}»</button>`).join('') : ''}

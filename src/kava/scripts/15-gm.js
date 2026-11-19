@@ -33,6 +33,14 @@ const Gm = (function(){
   function saveLance(L){ let all = {}; try{ all = JSON.parse(localStorage.getItem(LKEY) || '{}') || {}; }catch(e){} all[lanceKey()] = L; try{ localStorage.setItem(LKEY, JSON.stringify(all)); }catch(e){} Table.setLance(L); }
   let lance = null;
   const L = ()=>lance || (lance = loadLance());
+  // списать n Материалов из Копья: хватает — {ok:true}; нет — {ok:false, left} (force — списать до нуля); n = 0 — узнать остаток
+  function spendMat(n, force){
+    const l = L(), left = int(l.res.materials);
+    if(!n) return {ok:true, left};
+    if(left < n && !force) return {ok:false, left};
+    l.res.materials = Math.max(0, left - n); saveLance(l); if(tab==='lance') render();
+    return {ok:true, left:l.res.materials};
+  }
 
   // бросок Летописца: тайный — только у себя
   function roll(e){ if(!e) return; if(secret){ e.secret = true; } Fx.play(e); if(!secret) Table.rolled(e); }
@@ -45,7 +53,7 @@ const Gm = (function(){
     const m = p.mech, built = m.built || m.name || m.items.length, krIdx = Dice.STEPS.indexOf(+m.kr);
     const hp = (cur, max)=>`<span class="kv-hp"><i style="width:${max > 0 ? Math.max(0, Math.min(100, cur / max * 100)) : 0}%"></i></span>`;
     return `<div class="kv-gcard${p.inWomb ? ' womb' : ''}" data-pid="${id}">
-      <div class="kv-gcard-head"><b>${esc(p.name || x.name || 'Спектр')}</b>${built ? `<span>${esc(m.name || 'Катафракт')}</span>` : ''}${p.inWomb ? '<em class="kv-badge">в Утробе</em>' : ''}</div>
+      <div class="kv-gcard-head"><b>${esc(p.name || x.name || 'Спектр')}</b>${built ? `<span>${esc(m.name || 'Катафракт')}</span>` : ''}${p.inWomb ? (()=>{ const W = Pilot.wombLimit(p); return `<em class="kv-badge${W.over ? ' kv-over' : ''}" title="${esc('Предел вахт: ' + W.parts.join(' · '))}">в Утробе${int(p.watches) ? ` · вахта ${int(p.watches)}/${W.limit}` : ''}</em>`; })() : ''}</div>
       <div class="kv-gcard-grid">
         <div><small>СТК Спектра</small><b>${int(p.stk)}/${Pilot.stkMax(p)}</b>${hp(int(p.stk), Pilot.stkMax(p))}</div>
         ${built ? `<div><small>СТК Катафракта</small><b>${int(m.stk)}/${int(m.stkMax)}</b>${hp(int(m.stk), int(m.stkMax))}</div>` : ''}
@@ -68,7 +76,7 @@ const Gm = (function(){
   }
   function askSheet(ids){
     const one = ids.length===1 ? Table.S.peers[ids[0]] : null;
-    UI.sheet({title:'Запросить бросок', sub:one ? (one.pilot && one.pilot.name) || one.name : `всем игрокам (${ids.length})`, html:`
+    UI.sheet({help:'checks', title:'Запросить бросок', sub:one ? (one.pilot && one.pilot.name) || one.name : `всем игрокам (${ids.length})`, html:`
       <div class="kv-chips2" data-chips="one">${KAVA.STATS.map((s, i)=>UI.chip('check:' + s.key, 'Проверка ' + s.short, i===0)).join('')}${UI.chip('luck', 'Испытание Удачи')}${UI.chip('sensors', 'Сенсоры')}${UI.chip('alien', 'Отчуждённость')}${UI.chip('connect', 'Подключение')}${UI.chip('backlash', 'Отдача')}${UI.chip('init', 'Инициатива к6')}</div>
       <div class="kv-sheet-grid">${UI.stepper('dc', 13, 1, 40, 'Сложность')}<div class="kv-chips2" data-chips="mode">${UI.chip('adv', 'Преимущество')}${UI.chip('dis', 'Препятствие')}</div></div>
       <label class="kv-stepper kv-wide"><span>Пояснение игроку (необязательно)</span><input name="note" placeholder="Например: удержаться на обломке"></label>
@@ -114,8 +122,40 @@ const Gm = (function(){
         <div class="kv-units">${l.units.map(u=>`<div class="kv-unit"><input data-u="${u.id}" data-uf="name" value="${esc(u.name)}"><span class="kv-mini">СТК <input type="number" data-u="${u.id}" data-uf="stk" value="${int(u.stk)}"></span><span class="kv-mini">МОБ <input type="number" data-u="${u.id}" data-uf="mob" value="${int(u.mob)}"></span>
           <button type="button" class="kv-x" data-g="unit-del" data-id="${u.id}">✕</button>${u.note ? `<div class="kv-note">${esc(u.note)}</div>` : ''}</div>`).join('') || '<div class="kv-empty">Пусто. Копьё начинает с двумя отрядами оружейников, Ковчегом и оруженосцем для каждого Спектра.</div>'}</div>
         <div class="kv-row2"><select data-l="addunit" class="kv-grow2"><optgroup label="Свита">${RETINUE.map((u, i)=>`<option value="r${i}">${esc(u.name)} (СТК ${u.stk}, МОБ ${u.mob})</option>`).join('')}</optgroup><optgroup label="Техника">${TECH.map((u, i)=>`<option value="t${i}">${esc(u.name)} (СТК ${u.stk}, МОБ ${u.mob})</option>`).join('')}</optgroup></select><button type="button" class="kv-btn" data-g="unit-add">Добавить (СТК броском)</button></div></div>
+      ${travelView()}
       <label class="kv-fe kv-wide"><span>Заметки Копья: покровители, контракты, долги, Слава</span><textarea data-l="notes" rows="3">${esc(l.notes)}</textarea></label>`;
   }
+  // ---------- путешествие (часть 2: квадраты по 100 км, скорость за вахту) ----------
+  const SPEEDS = [['2', 'Скауты — 2 квадрата за вахту'], ['1.5', 'Истребители — 1,5'], ['1', 'Дредноуты, караваны, техника — 1'], ['0.25', 'Пешком — 0,25']];
+  let trip = {sq:3, speed:'1', rough:false, perDay:2, machines:null, enc:'day'};
+  function machinesGuess(){ const l = L(); const tech = (l.units || []).filter(u=>!/отряд|специалист|оруженосец/i.test(u.name)).length; const mechs = Object.values(Table.S.peers).filter(x=>x.pilot && x.pilot.mech && (x.pilot.mech.built || x.pilot.mech.name)).length; return tech + mechs; }
+  function tripCalc(){
+    const l = L(), sp = parseFloat(trip.speed) * (trip.rough ? 0.5 : 1), watches = Math.ceil(int(trip.sq) / sp), days = Math.ceil(watches / Math.max(1, int(trip.perDay, 2)));
+    const machines = trip.machines==null ? machinesGuess() : int(trip.machines), bat = int(trip.sq) * machines, sup = days * Math.ceil(int(l.res.people) / 10);
+    return {sp, watches, days, machines, bat, sup};
+  }
+  function travelView(){
+    const c = tripCalc(), l = L();
+    return `<div class="kv-sec2"><h3>Путешествие ${Ref.link('travel')}</h3>
+      <div class="kv-sheet-grid">${UI.stepper('t-sq', trip.sq, 1, 999, 'Квадратов (по 100 км)')}<label class="kv-stepper"><span>Самый медленный в колонне</span><select data-t="speed">${SPEEDS.map(([v, n])=>`<option value="${v}"${trip.speed===v ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
+        ${UI.stepper('t-machines', c.machines, 0, 99, 'Машин (Батареи)')}${UI.stepper('t-perday', trip.perDay, 1, 4, 'Вахт пути в сутки')}</div>
+      <div class="kv-row2"><label class="kv-chk"><input type="checkbox" data-t="rough"${trip.rough ? ' checked' : ''}> сложный ландшафт, прочёсывание, осторожно — вдвое медленнее</label>
+        <label class="kv-mini">встречи <select data-t="enc"><option value="day"${trip.enc==='day' ? ' selected' : ''}>1-з-6 в сутки</option><option value="sq"${trip.enc==='sq' ? ' selected' : ''}>1-з-6 за квадрат</option><option value="none"${trip.enc==='none' ? ' selected' : ''}>без бросков</option></select></label></div>
+      <div class="kv-p" data-trip>Путь: <b>${c.watches}</b> вахт (${c.sp} кв./вахту) ≈ <b>${c.days}</b> сут. · Батареи: <b>${c.bat}</b> из ${int(l.res.batteries)} · Запасы: <b>${c.sup}</b> из ${int(l.res.supplies)}</div>
+      <div class="kv-gm-tools"><button type="button" class="kv-btn kv-primary" data-g="trip-go">Отправиться: списать и бросить встречи</button></div></div>`;
+  }
+  function tripGo(){
+    const l = L(), c = tripCalc(), lines = [], dice = [];
+    const lackB = c.bat > int(l.res.batteries), lackS = c.sup > int(l.res.supplies);
+    l.res.batteries = Math.max(0, int(l.res.batteries) - c.bat); l.res.supplies = Math.max(0, int(l.res.supplies) - c.sup);
+    lines.push(`${trip.sq} кв. за ${c.watches} вахт (≈ ${c.days} сут.): −${c.bat} Батарей, −${c.sup} Запасов${lackB ? ' — Батарей не хватило!' : ''}${lackS ? ' — Запасов не хватило!' : ''}`);
+    const n = trip.enc==='sq' ? int(trip.sq) : trip.enc==='day' ? c.days : 0; let hits = 0;
+    for(let i = 0; i < n; i++){ const v = Dice.rnd(6); if(v===1){ hits++; const e = LORE.table('encounters'); lines.push(`${trip.enc==='sq' ? 'Квадрат' : 'Сутки'} ${i + 1}: встреча (2к6 = ${e.big}) — ${e.verdict}`); if(dice.length < 6) dice.push({sides:6, value:v, label:'встреча', tint:'bad'}); } }
+    if(n && !hits) lines.push(`Встреч нет (${n} бросков 1-з-6)`);
+    saveLance(l); render();
+    roll(Rolls.push({who:'Летописец', kind:'travel', title:'Путешествие Копья', tone:lackB || lackS ? 'fail' : hits ? 'crit' : 'ok', big:c.days + ' сут.', verdict:`${hits ? 'Встреч: ' + hits : 'Без встреч'} · Батарей ${l.res.batteries}, Запасов ${l.res.supplies}`, lines, dice}));
+  }
+
   // ---------- броски Летописца ----------
   function rollsView(){
     return `<div class="kv-gm-tools"><label class="kv-chk"><input type="checkbox" data-g="secret"${secret ? ' checked' : ''}> Тайно — броски видите только вы</label></div>
@@ -149,10 +189,12 @@ const Gm = (function(){
   function render(){
     if(!root) return;
     root.innerHTML = `<div class="kv-gm"><div class="kv-gm-tabs kv-seg">${[['battle', 'Бой'], ['tandems', 'Тандемы'], ['lance', 'Копьё'], ['rolls', 'Броски']].map(([k, n])=>`<button type="button" data-gtab="${k}" class="${tab===k ? 'on' : ''}">${n}</button>`).join('')}</div>
-      <div class="kv-gm-body">${tab==='battle' ? '<div data-battle-root></div>' : tab==='tandems' ? tandems() : tab==='lance' ? lanceView() : rollsView()}</div></div>`;
+      ${Maint.queueView()}<div class="kv-gm-body">${tab==='battle' ? '<div data-battle-root></div>' : tab==='tandems' ? tandems() : tab==='lance' ? lanceView() : rollsView()}</div></div>`;
     const br = root.querySelector('[data-battle-root]'); if(br) Battle.mount(br);
   }
   function onClick(e){
+    const st = e.target.closest('[data-step]');
+    if(st){ const inp = st.parentNode.querySelector('input'), mn = inp.min!=='' ? +inp.min : -999, mx = inp.max!=='' ? +inp.max : 999; inp.value = Math.max(mn, Math.min(mx, int(inp.value) + (+st.dataset.step))); inp.dispatchEvent(new Event('input', {bubbles:true})); return; }
     const t = e.target.closest('[data-gtab]'); if(t){ tab = t.dataset.gtab; render(); return; }
     const b = e.target.closest('[data-g]'); if(!b) return;
     const a = b.dataset.g, id = b.dataset.id, l = L();
@@ -183,18 +225,24 @@ const Gm = (function(){
       case 'r-crit': { const v = Dice.rnd(20); roll(Rolls.push({who:'Летописец', kind:'gm', title:'Критическая травма', tone:'crit', big:v, verdict:KAVA.CRIT_INJURIES[v - 1], lines:[], dice:[{sides:20, value:v, tint:'bad'}]})); return; }
       case 'r-mcrit': { const v = Dice.rnd(20); roll(Rolls.push({who:'Летописец', kind:'gm', title:'Критическое повреждение', tone:'crit', big:v, verdict:MECH.CRITS[v - 1], lines:[], dice:[{sides:20, value:v, tint:'bad'}]})); return; }
       case 'r-tables': Actions.tablesSheet(Tandem.pilot); return;
+      case 'mat-yes': case 'mat-no': Maint.decide(id, a==='mat-yes'); return;
+      case 'trip-go': if(confirm('Списать ресурсы и бросить встречи за путешествие?')) tripGo(); return;
       case 'lore-seed': case 'lore-system': case 'lore-relic-r': case 'lore-relic-m': case 'lore-t': {
         const x = a==='lore-seed' ? LORE.seed() : a==='lore-system' ? LORE.system() : a==='lore-t' ? LORE.table(b.dataset.k) : LORE.relic(a==='lore-relic-m' ? 'melee' : 'ranged');
         roll(Rolls.push({who:'Летописец', kind:'lore', title:x.title, tone:'info', big:x.big, verdict:x.verdict, lines:x.lines, dice:x.dice})); return; }
     }
   }
+  // пересчёт строки путешествия без перерисовки (фокус в поле не теряется)
+  function refreshTrip(){ const c = tripCalc(), l = L(), p = root.querySelector('[data-trip]'); if(p) p.innerHTML = `Путь: <b>${c.watches}</b> вахт (${c.sp} кв./вахту) ≈ <b>${c.days}</b> сут. · Батареи: <b>${c.bat}</b> из ${int(l.res.batteries)} · Запасы: <b>${c.sup}</b> из ${int(l.res.supplies)}`; }
   function unitFrom(u){ const r = Dice.roll(u.stk); return {id:Pilot.uid(), name:u.name, stk:r ? r.total : 0, mob:u.mob, note:u.note}; }
   function onInput(e){
     const l = L(), el = e.target;
+    if(el.name && el.name.startsWith('t-')){ const k = {'t-sq':'sq', 't-machines':'machines', 't-perday':'perDay'}[el.name]; trip[k] = int(el.value); refreshTrip(); return; }
+    if(el.dataset.t){ trip[el.dataset.t] = el.type==='checkbox' ? el.checked : el.value; refreshTrip(); return; }
     if(el.dataset.r){ l.res[el.dataset.r] = Math.max(0, int(el.value)); saveLance(l); return; }
     if(el.dataset.l==='name' || el.dataset.l==='notes'){ l[el.dataset.l] = el.value; clearTimeout(onInput.t); onInput.t = setTimeout(()=>saveLance(l), 600); return; }
     if(el.dataset.u){ const u = l.units.find(x=>x.id===el.dataset.u); if(u){ u[el.dataset.uf] = el.type==='number' ? int(el.value) : el.value; clearTimeout(onInput.t); onInput.t = setTimeout(()=>saveLance(l), 600); } }
   }
   function mount(el){ root = el; root.addEventListener('click', onClick); root.addEventListener('input', onInput); Table.onChange(()=>{ lance = null; if(document.body.classList.contains('gm-view') && tab!=='battle' && !root.contains(document.activeElement)) render(); }); render(); }
-  return {mount, render};
+  return {mount, render, spendMat};
 })();

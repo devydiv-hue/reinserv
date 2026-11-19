@@ -479,6 +479,34 @@ body.ep-shake .kv-main, body.ep-shake .kv-bar{ animation:kvShake .45s linear 3; 
 .kv-node-head b{ font-family:var(--font-display); font-size:20px; letter-spacing:.04em; color:#bfefff; }
 .kv-node-head span{ font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); }
 .kv-dim{ min-width:26px; height:26px; display:inline-grid; place-items:center; border-radius:50%; background:var(--accent2); color:#fff; font-size:13px; }
+
+/* справочник */
+.kv-help{ width:26px; height:26px; padding:0; border-radius:50%; border:1px solid var(--line2); background:var(--bg2); color:var(--accent); font-weight:700; flex-shrink:0; }
+.kv-help:hover{ border-color:var(--accent); }
+.kv-sheet-head .kv-help{ margin-left:auto; }
+.kv-ref-search{ width:100%; font-size:15px; padding:8px 10px; }
+.kv-ref{ border:1px solid var(--line); border-radius:10px; background:var(--bg2); }
+.kv-ref > summary{ cursor:pointer; padding:8px 12px; font-weight:700; list-style:none; }
+.kv-ref > summary::-webkit-details-marker{ display:none; }
+.kv-ref > summary::before{ content:"▸ "; color:var(--muted); } .kv-ref[open] > summary::before{ content:"▾ "; }
+.kv-ref p{ margin:0; padding:0 12px 8px; color:#c9d8dc; line-height:1.45; }
+.kv-ref-body{ display:flex; flex-direction:column; gap:6px; }
+.kv-ref-body mark{ background:rgba(242,201,76,.35); color:var(--fg); border-radius:3px; padding:0 1px; }
+
+/* ---------- ремонт за Материалы: ссылки под СТК, очередь запросов у Летописца ---------- */
+.kv-links{ display:flex; flex-wrap:wrap; gap:4px 14px; }
+.kv-matq{ display:flex; flex-direction:column; gap:6px; }
+.kv-matq-i{ display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:8px 10px; border-radius:10px; border:1px solid var(--accent); background:rgba(242,201,76,.08); }
+.kv-matq-i > span{ flex:1 1 220px; min-width:0; }
+.kv-badge.kv-auto{ background:rgba(126,200,160,.16); color:#9fdcb9; border:1px solid rgba(126,200,160,.4); margin-left:4px; white-space:normal; }
+
+/* ---------- вахты в Утробе ---------- */
+.kv-watch{ display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:8px 10px; border-radius:12px; border:1px solid var(--line); background:var(--bg2); }
+.kv-watch > div{ flex:1 1 200px; display:flex; flex-direction:column; gap:2px; min-width:0; }
+.kv-watch small{ color:var(--muted); font-size:12px; }
+.kv-watch.edge{ border-color:var(--accent); }
+.kv-watch.over{ border-color:var(--fail); box-shadow:0 0 0 1px var(--fail) inset; }
+.kv-badge.kv-over{ background:var(--fail); }
 </style>
 </head>
 <body data-tab="p">
@@ -501,6 +529,7 @@ body.ep-shake .kv-main, body.ep-shake .kv-bar{ animation:kvShake .45s linear 3; 
   <label class="kv-dc" title="Сложность проверок (по умолчанию — Испытание Удачи)"><span>Сложность</span><input id="kvDc" type="number" inputmode="numeric"><button type="button" id="kvDcReset" class="kv-x" hidden title="Вернуть = Удача">↺</button></label>
   <div class="kv-seg kv-rm" role="group" aria-label="Режим к20 на следующий бросок"><button type="button" data-rm="norm" class="on">к20</button><button type="button" data-rm="adv" title="Преимущество: 2к20, больший">Преим.</button><button type="button" data-rm="dis" title="Препятствие: 2к20, меньший">Препятст.</button></div>
   <button type="button" id="kvTables" class="kv-btn">⚄ Броски</button>
+  <button type="button" class="kv-btn" data-ref-open="checks" title="Правила, мир, советы Летописцу, словарь">? Справочник</button>
 </div>
 <div class="kv-room" id="kvRoom" hidden></div>
 <main class="kv-main">
@@ -1746,21 +1775,56 @@ const Pilot = (function(){
     p.mech.crits.forEach(x=>{ if(!x.id) x.id = uid(); });
     if(Dice.STEPS.indexOf(+p.mech.kr) < 0) p.mech.kr = 6;
     p.inWomb = !!p.inWomb;
+    p.watches = Math.max(0, int(p.watches));
     return p;
   }
+  // Вахты в Утробе (часть 2): после 3 + СОМ вахт подключения без перерыва — бросок Отдачи каждые СОМ вахт,
+  // +1 к броску за каждую сверхурочную вахту. Древняя Утроба, Полиорганическая мембрана, Нейрометаболический
+  // медиатор — +1 вахта; каприз «Удручающая тишина» — не дольше 3 вахт.
+  function wombLimit(p){
+    const som = stat(p, 'som', true), parts = [`3 + СОМ ${som}`];
+    let limit = 3 + som;
+    if(p.mech && p.mech.womb==='ancient'){ limit++; parts.push('Древняя Утроба +1'); }
+    if((p.items || []).some(it=>/полиорганическая мембрана/i.test(it.name || ''))){ limit++; parts.push('Полиорганическая мембрана +1'); }
+    if(/нейрометаболическ/i.test(p.augments || '')){ limit++; parts.push('Нейрометаболический медиатор +1'); }
+    if(p.mech && /^Удручающая тишина/i.test(p.mech.quirk || '') && limit > 3){ limit = 3; parts.push('Удручающая тишина: не больше 3'); }
+    limit = Math.max(0, limit);
+    const every = Math.max(1, som), over = Math.max(0, int(p.watches) - limit);
+    // бросок Отдачи на вахте limit + every, limit + 2·every…
+    const due = over > 0 && over % every===0;
+    const everyText = every===1 ? 'каждую вахту' : every < 5 ? `каждые ${every} вахты` : `каждые ${every} вахт`;
+    return {limit, every, everyText, over, due, parts, next:over ? limit + (Math.floor(over / every) + 1) * every : limit + every};
+  }
+
+  // ---- Дары Ядра (часть 8), которые учитываются в бросках: узнаются по началу текста; повторные получения
+  // складываются, если Дар это допускает. Характеристики (+1 МОТ/ЭМП/КОГ/СОМ) и Удача — только пока Спектр в Утробе.
+  const GIFT_FX = [[/^Рефлекторный катализатор/, 'mot', '+1 МОТ в Утробе'], [/^Эмпатичная инкапсуляция/, 'emp', '+1 ЭМП в Утробе'],
+    [/^Когнитивный субинтеллект/, 'kog', '+1 КОГ в Утробе'], [/^Соматический усилитель/, 'som', '+1 СОМ в Утробе'], [/^Второй умопоток/, 'mob', '+1 МОБ Катафракта'],
+    [/^Баллистический оракул/, 'ranged', '+1 к стрелковым атакам Катафракта'], [/^Боевое программирование/, 'melee', '+1 к атакам ближнего боя Катафракта'],
+    [/^Асинхронное распознавание/, 'sensors', '+1 к Сенсорам'], [/^Рациональная защита/, 'armor', '+1 к кости Брони'], [/^Эмпатический ИИ/, 'alien', 'Отчуждённость −1'],
+    [/^Отбор вероятностей/, 'luck', 'Удача −1 в Утробе'], [/^Оптимизация сверхпроводников/, 'beamKr', 'кР лучевого оружия −1'],
+    [/^Рекогнитивная баллистика/, 'crit19', 'крит на 19–20'], [/^Оптимизация наноструктуры/, 'sl', '+1 доступный СЛ', true]];
+  const giftFx = (text)=>GIFT_FX.find(([re])=>re.test(String(text || ''))) || null;
+  function gifts(p){
+    const g = {}; (p.mech && Array.isArray(p.mech.giftList) ? p.mech.giftList : []).forEach(x=>{ const f = giftFx(x.text); if(f) g[f[1]] = (g[f[1]] || 0) + (x.stack || f[3] ? Math.max(1, int(x.n, 1)) : 1); });
+    return g;
+  }
+  const gift = (p, k)=>gifts(p)[k] || 0;
 
   // ---- Катафракт: производные ----
   // СЛ: реактор + сенсоры + оборудование + критические повреждения (каждое занимает 1 СЛ)
   function mechSlots(p){ const m = p.mech; return reactorOf(m).sl + (int(m.sensorSl) || sensorOf(m).sl) + m.items.reduce((s, it)=>s + Math.max(0, int(it.sl)), 0) + m.crits.length; }
   function mechLoad(p){
-    const sl = mechSlots(p), points = KAVA.loadPoints(sl), ignore = frameOf(p.mech).ignore, eff = Math.max(0, points - ignore);
-    return {sl, points, ignore, eff, name:KAVA.LOAD[eff], penalty:eff, krMod:eff >= 6 ? 3 : eff >= 4 ? 2 : eff >= 2 ? 1 : 0};
+    const sl = mechSlots(p), free = gift(p, 'sl'), points = KAVA.loadPoints(Math.max(0, sl - free)), ignore = frameOf(p.mech).ignore, eff = Math.max(0, points - ignore);
+    return {sl, free, points, ignore, eff, name:KAVA.LOAD[eff], penalty:eff, krMod:eff >= 6 ? 3 : eff >= 4 ? 2 : eff >= 2 ? 1 : 0};
   }
+  // МОБ Катафракта считается для Спектра в Утробе: Дары на МОТ и МОБ учитываются всегда
   function mechMob(p){
-    const f = frameOf(p.mech), l = mechLoad(p), mot = stat(p, 'mot');
-    return {total:f.mob + mot - l.penalty + int(p.mech.mobMod), base:f.mob, mot, load:l.penalty, mod:int(p.mech.mobMod)};
+    const f = frameOf(p.mech), l = mechLoad(p), mot = stat(p, 'mot', true), g = gift(p, 'mob');
+    return {total:f.mob + mot - l.penalty + int(p.mech.mobMod) + g, base:f.mob, mot, load:l.penalty, mod:int(p.mech.mobMod), gift:g};
   }
-  const sensorBonus = (p)=>int(p.mech.sensorBonus) || sensorOf(p.mech).bonus;
+  const sensorBonus = (p)=>(int(p.mech.sensorBonus) || sensorOf(p.mech).bonus) + gift(p, 'sensors');
+  const alien = (p)=>Math.max(1, coreOf(p.mech).alien - gift(p, 'alien'));
   const mechWeapons = (p)=>p.mech.items.filter(it=>it.kind==='weapon');
   const consumables = (p, key)=>p.mech.items.filter(it=>it.kind==='consumable' && (!key || it.ckey===key));
   const hasModule = (p, flag)=>p.mech.items.some(it=>it.kind==='module' && it[flag] && !it.off);
@@ -1769,7 +1833,8 @@ const Pilot = (function(){
   function mechItemFrom(t){ const it = Object.assign({id:uid(), marks:0}, JSON.parse(JSON.stringify(t))); return it; }
 
   // ---- производные ----
-  const stat = (p, k)=>int(p.stats[k]) + int(p.bonus[k]);
+  // inside — считать как в Утробе (по умолчанию — как отмечено в листе)
+  const stat = (p, k, inside)=>int(p.stats[k]) + int(p.bonus[k]) + ((inside==null ? p.inWomb : inside) ? gift(p, k) : 0);
   function slotsUsed(p){ return p.items.reduce((s, it)=>s + Math.max(0, int(it.sl)), 0) + p.injuries.length; }
   function load(p){
     const sl = slotsUsed(p), points = KAVA.loadPoints(sl), ignore = KAVA.loadIgnore(int(p.stats.som));
@@ -1782,7 +1847,7 @@ const Pilot = (function(){
     return {total:10 + stat(p, 'mot') + armor - l.penalty + int(p.mobMod), base:10, mot:stat(p, 'mot'), armor, load:l.penalty, mod:int(p.mobMod)};
   }
   const stkMax = (p)=>6 + int(p.stats.som) + int(p.stkMaxMod);
-  const luck = (p)=>KAVA.LUCK_BASE + int(p.scars) + int(p.luckMod);
+  const luck = (p)=>KAVA.LUCK_BASE + int(p.scars) + int(p.luckMod) - (p.inWomb ? gift(p, 'luck') : 0);
   // кости брони надетых доспехов: [{item, dice:'2к6', left:3 - marks}]
   const armorDice = (p)=>worn(p).filter(it=>it.armor && Dice.parse(it.armor)).map(it=>({item:it, dice:it.armor, left:3 - int(it.marks)}));
   const weapons = (p)=>p.items.filter(it=>it.kind==='weapon');
@@ -1792,7 +1857,8 @@ const Pilot = (function(){
 
   return {blank, starter, itemFrom, current, setCurrent, add, remove, all, save, fix, uid, int,
     stat, slotsUsed, load, mob, stkMax, luck, armorDice, weapons, tagList, hasTag, cluster, worn,
-    blankMech, sensorOf, frameOf, reactorOf, coreOf, womb, mechSlots, mechLoad, mechMob, sensorBonus, mechWeapons, consumables, hasModule, freeConsumable, mechItemFrom};
+    blankMech, sensorOf, frameOf, reactorOf, coreOf, womb, mechSlots, mechLoad, mechMob, sensorBonus, mechWeapons, consumables, hasModule, freeConsumable, mechItemFrom,
+    gifts, gift, giftFx, alien, wombLimit};
 })();
 /* ======================================================================
    КАВАЛЕРИЯ — БРОСКИ ПО ПРАВИЛАМ КНИГИ и журнал. Каждый бросок — запись журнала:
@@ -1841,23 +1907,25 @@ const Rolls = (function(){
   function check(p, key, dc, mode, extra){
     const s = KAVA.STATS.find(x=>x.key===key), bonus = Pilot.stat(p, key) + (extra || 0), r = Dice.check(bonus, dc, mode);
     return push({who:who(p), kind:'check', title:`Проверка ${s.short}`, tone:r.ok ? 'ok' : 'fail', big:r.total, verdict:verdictOf(r) + ` (сложность ${dc})`,
-      lines:[d20Text(r) + ` (${s.short} ${Pilot.stat(p, key)}${extra ? ', бонус ' + extra : ''}) против ${dc}`], dice:d20Dice(r), fx:fxOf(r)});
+      lines:[d20Text(r) + ` (${s.short} ${Pilot.stat(p, key)}${extra ? ', бонус ' + extra : ''}) против ${dc}`].concat(giftNote(p, key)), dice:d20Dice(r), fx:fxOf(r)});
   }
+  // Дар Ядра, учтённый в характеристике (только в Утробе)
+  const giftNote = (p, key, inside)=>(inside || p.inWomb) && Pilot.gift(p, key) ? [`Дар Ядра: +${Pilot.gift(p, key)} ${KAVA.STATS.find(x=>x.key===key).short} в Утробе — уже в бонусе`] : [];
   function luck(p, mode){
     const dc = Pilot.luck(p), r = Dice.check(0, dc, mode);
     return push({who:who(p), kind:'luck', title:'Испытание Удачи', tone:r.ok ? 'ok' : 'fail', big:r.total, verdict:(r.ok ? 'Худшего удалось избежать' : 'Провал') + ` (сложность ${dc})`,
-      lines:[d20Text(r) + ` против ${dc}`], dice:d20Dice(r), fx:fxOf(r)});
+      lines:[d20Text(r) + ` против ${dc}`].concat(p.inWomb && Pilot.gift(p, 'luck') ? [`Дар Ядра «Отбор вероятностей»: сложность −${Pilot.gift(p, 'luck')} в Катафракте`] : []), dice:d20Dice(r), fx:fxOf(r)});
   }
   // испытание Отчуждённости / выход из погружения: к20 + ЭМП против Отчуждённости Ядра (+ Измерение)
   function alienation(p, depth, mode){
-    const dc = Pilot.coreOf(p.mech).alien + int(depth), r = Dice.check(Pilot.stat(p, 'emp'), dc, mode);
+    const dc = Pilot.alien(p) + int(depth), r = Dice.check(Pilot.stat(p, 'emp', true), dc, mode);
     return push({who:who(p), kind:'alien', title:depth ? `Выход из погружения (Измерение ${depth})` : 'Испытание Отчуждённости', tone:r.ok ? 'ok' : 'fail', big:r.total,
-      verdict:(r.ok ? 'Успех' : depth ? 'Выход с Отдачей' : 'Провал') + ` (Отчуждённость ${dc})`, lines:[d20Text(r) + ` (ЭМП) против ${dc}`, 'Выход из погружения сбрасывает кС до начального значения.'], dice:d20Dice(r), fx:fxOf(r)});
+      verdict:(r.ok ? 'Успех' : depth ? 'Выход с Отдачей' : 'Провал') + ` (Отчуждённость ${dc})`, lines:[d20Text(r) + ` (ЭМП) против ${dc}`, 'Выход из погружения сбрасывает кС до начального значения.'].concat(Pilot.gift(p, 'alien') ? [`Дар Ядра «Эмпатический ИИ»: Отчуждённость −${Pilot.gift(p, 'alien')}`] : [], giftNote(p, 'emp', true)), dice:d20Dice(r), fx:fxOf(r)});
   }
   function damageOf(w){ return Dice.roll(w.dmg || '1', {cascade:Pilot.hasTag(w, /^каскад/i)}) || {total:0, dice:[], text:'вред не задан'}; }
   // одна атака (Спектра или Катафракта). bonusDice — добавочные кости к атаке (боеприпасы, кР)
-  function strike(p, w, mob, mode, extra, addLines, scaleMul){
-    const bonus = Pilot.stat(p, w.stat || 'mot') + (extra || 0), r = Dice.check(bonus, mob, mode);
+  function strike(p, w, mob, mode, extra, addLines, scaleMul, crit19, mech){
+    const bonus = Pilot.stat(p, w.stat || 'mot', mech || undefined) + (extra || 0), r = Dice.check(bonus, mob, mode);
     const out = {w, r, hit:r.ok, dice:d20Dice(r, 'атака'), lines:[`${w.name}: ${d20Text(r)} против МОБ ${mob} — ${r.auto==='success' ? 'автопопадание (20)' : r.auto==='fail' ? 'промах (1)' : r.ok ? 'попадание' : 'промах'}`].concat(addLines || [])};
     if(!r.ok) return out;
     const dmg = damageOf(w), n = Pilot.cluster(w);
@@ -1873,6 +1941,7 @@ const Rolls = (function(){
     if(Pilot.hasTag(w, /^зона/i)) out.lines.push('Зона: поражает все цели в Зоне попадания');
     if(w.crit5 && r.total >= mob + 5) out.lines.push('На 5 выше МОБ цели — атака критическая');
     if(r.auto==='success') out.lines.push('20 — цель получает Критическую травму (или Критическое повреждение)');
+    else if(crit19 && r.nat===19){ out.crit = true; out.lines.push('19 — критическое попадание (Дар «Рекогнитивная баллистика»): Критическая травма или Критическое повреждение'); }
     return out;
   }
   // opts: {mob, mode, extra, contact, outOfRange, mech:true — оружие Катафракта, ammo — добавить кость боеприпасов, kr — добавить кР, personal — цель персонального масштаба}
@@ -1887,6 +1956,7 @@ const Rolls = (function(){
       const obstacle = !!opts.outOfRange || (opts.contact && ranged && !Pilot.hasTag(w, /^л[её]гкое/i));
       let add = mech ? 0 : (ranged ? int(p.atkRanged) : int(p.atkMelee));
       const lines = [];
+      if(mech){ const g = Pilot.gift(p, ranged ? 'ranged' : 'melee'); if(g){ add += g; lines.push(`Дар Ядра: +${g} к ${ranged ? 'стрелковой атаке' : 'атаке ближнего боя'}`); } }
       if(mech && opts.ammo && (w.type==='kinetic' || w.type==='missile')){
         const a = useConsumable(p, 'ammo', Pilot.hasModule(p, 'ammo5') ? 5 : 4);
         if(a){ add += a.value; lines.push(`Боеприпасы: к6 [${a.value}] → +${a.value}${a.spent ? `, метка (${a.item.marks}/3)` : ''}${a.empty ? ` — блок исчерпан, осталось выстрелов: ${a.value}` : ''}`); preDice.push({sides:6, value:a.value, label:'боеприп.'}); }
@@ -1897,18 +1967,18 @@ const Rolls = (function(){
         add += heat.value; lines.push(`кР ${heat.text} → +${heat.value} к атаке`); preDice.push({sides:heat.sides, value:heat.value, label:'кР', tint:heat.overheat ? 'heat' : ''});
         if(heat.lines.length) lines.push(...heat.lines);
       }
-      const x = strike(p, w, mob, combine(opts.mode, obstacle), extra + add, lines, mech && opts.personal ? 10 : 1);
+      const x = strike(p, w, mob, combine(opts.mode, obstacle), extra + add, lines, mech && opts.personal ? 10 : 1, mech && Pilot.gift(p, 'crit19') > 0, mech);
       if(obstacle) x.lines[0] += ' · препятствие';
       res.push(x);
     });
     const hits = res.filter(x=>x.hit), lines = [];
     res.forEach(x=>lines.push(...x.lines));
     let big, verdict, tone;
-    if(ws.length===1){ const x = res[0]; big = x.hit ? x.dmg : x.r.total; verdict = x.hit ? `Попадание: ${x.dmg} урона` : `Промах (${x.r.total} против МОБ ${mob})`; tone = x.hit ? (x.r.auto==='success' ? 'crit' : 'ok') : 'fail'; }
+    if(ws.length===1){ const x = res[0]; big = x.hit ? x.dmg : x.r.total; verdict = x.hit ? `Попадание: ${x.dmg} урона` : `Промах (${x.r.total} против МОБ ${mob})`; tone = x.hit ? (x.r.auto==='success' || x.crit ? 'crit' : 'ok') : 'fail'; }
     else if(!hits.length){ big = '—'; verdict = 'Залп: все промахнулись'; tone = 'fail'; }
     else {
       const top = Math.max(...hits.map(x=>x.dmg)), same = hits.filter(x=>x.dmg===top).length;
-      big = same > 1 ? top * 2 : top; verdict = same > 1 ? `Залп: наибольший вред ${top} совпал у ${same} — удвоение` : `Залп: наибольший вред ${top}`; tone = hits.some(x=>x.r.auto==='success') ? 'crit' : 'ok';
+      big = same > 1 ? top * 2 : top; verdict = same > 1 ? `Залп: наибольший вред ${top} совпал у ${same} — удвоение` : `Залп: наибольший вред ${top}`; tone = hits.some(x=>x.r.auto==='success' || x.crit) ? 'crit' : 'ok';
     }
     if(heat && heat.overheat) tone = 'heat';
     const dice = preDice.concat(...res.map(x=>x.dice)).slice(0, 8);
@@ -1919,11 +1989,12 @@ const Rolls = (function(){
   // Боевой маневр: атака с препятствием без урона — оба броска к20 против МОБ
   function maneuver(p, id, opts){
     const w = (opts.mech ? p.mech.items : p.items).find(it=>it.id===id); if(!w) return null;
-    const mob = int(opts.mob, 10), bonus = Pilot.stat(p, w.stat || 'som') + int(opts.extra), a = Dice.rnd(20), b = Dice.rnd(20);
+    const ranged = w.range && w.range!=='⁕', g = opts.mech ? Pilot.gift(p, ranged ? 'ranged' : 'melee') : 0;
+    const mob = int(opts.mob, 10), bonus = Pilot.stat(p, w.stat || 'som', opts.mech || undefined) + int(opts.extra) + g, a = Dice.rnd(20), b = Dice.rnd(20);
     const ok = (v)=>v===20 || (v!==1 && v + bonus >= mob), n = [a, b].filter(ok).length;
     return push({who:who(p), kind:'maneuver', title:'Боевой маневр', tone:n===2 ? 'ok' : n ? 'info' : 'fail', big:n + ' из 2',
       verdict:n===2 ? 'Маневр удался' : n ? 'Удался, но противник контратакует' : 'Маневр не удался',
-      lines:[`${w.name}: 2к20 [${a}, ${b}] ${sgn(bonus)} → ${a + bonus} и ${b + bonus} против МОБ ${mob}`], dice:[{sides:20, value:a, label:'1', tint:ok(a) ? 'good' : 'bad'}, {sides:20, value:b, label:'2', tint:ok(b) ? 'good' : 'bad'}]});
+      lines:[`${w.name}: 2к20 [${a}, ${b}] ${sgn(bonus)} → ${a + bonus} и ${b + bonus} против МОБ ${mob}`].concat(g ? [`Дар Ядра: +${g} к атаке`] : []), dice:[{sides:20, value:a, label:'1', tint:ok(a) ? 'good' : 'bad'}, {sides:20, value:b, label:'2', tint:ok(b) ? 'good' : 'bad'}]});
   }
   // урон по Спектру: кости брони надетых доспехов, СТК
   function takeDamage(p, dmg, opts){
@@ -2015,11 +2086,11 @@ const Rolls = (function(){
     const ds = [Dice.rnd(sides)]; if(adv) ds.push(Dice.rnd(sides));
     const value = adv ? Math.min(...ds) : ds[0];
     const need = Pilot.hasModule(p, 'reactor5') ? 5 : 4, grow = value >= need && sides < 12;
-    const mod = L.krMod + R.krMod, total = value + mod;
+    const gb = use==='energy' ? Pilot.gift(p, 'beamKr') : 0, mod = L.krMod + R.krMod - gb, total = value + mod;
     const row = total >= 7 ? Dice.pick(MECH.OVERHEAT, total) : null;
     if(grow) m.kr = Dice.stepUp(sides);
     const lines = [];
-    if(mod) lines.push(`кР к${sides}: [${ds.join(', ')}]${adv ? ' → ' + value + ' (Термостабилизатор)' : ''} ${mod > 0 ? '+ ' + mod : '− ' + (-mod)} (${[L.krMod ? 'нагрузка +' + L.krMod : '', R.krMod ? 'реактор ' + R.krMod : ''].filter(Boolean).join(', ')}) = ${total}`);
+    if(mod) lines.push(`кР к${sides}: [${ds.join(', ')}]${adv ? ' → ' + value + ' (Термостабилизатор)' : ''} ${mod > 0 ? '+ ' + mod : '− ' + (-mod)} (${[L.krMod ? 'нагрузка +' + L.krMod : '', R.krMod ? 'реактор ' + R.krMod : '', gb ? 'Дар −' + gb : ''].filter(Boolean).join(', ')}) = ${total}`);
     if(grow) lines.push(`Выпало ${value} ≥ ${need}: кР растёт к${sides} → к${m.kr}`);
     let fx = null;
     if(row){
@@ -2079,8 +2150,8 @@ const Rolls = (function(){
     let block = 0;
     if(opts.armor){
       const a = useConsumable(p, 'armor', 4);
-      if(a){ block = opts.pierce ? Math.floor(a.value / 2) : a.value; dice.push({sides:6, value:a.value, label:'броня'});
-        lines.push(`Броня: к6 [${a.value}]${opts.pierce ? ` → половина ${block} (Бронебойное)` : ''}${a.spent ? `, метка (${a.item.marks}/3)` : ''}`); }
+      if(a){ const g = Pilot.gift(p, 'armor'), v = a.value + g; block = opts.pierce ? Math.floor(v / 2) : v; dice.push({sides:6, value:a.value, label:'броня'});
+        lines.push(`Броня: к6 [${a.value}]${g ? ` + ${g} (Дар) = ${v}` : ''}${opts.pierce ? ` → половина ${block} (Бронебойное)` : ''}${a.spent ? `, метка (${a.item.marks}/3)` : ''}`); }
       else lines.push('Брони с незачёркнутыми метками нет');
     }
     const taken = Math.max(0, dmg - block), before = int(m.stk);
@@ -2317,7 +2388,7 @@ const UI = (function(){
     close();
     const back = document.createElement('div'); back.className = 'kv-sheet-back';
     back.innerHTML = `<div class="kv-sheet ${o.cls || ''}" role="dialog" aria-modal="true" aria-label="${kvEsc(o.title || '')}">
-      <div class="kv-sheet-head"><div class="kv-sheet-title">${o.title ? kvEsc(o.title) : ''}${o.sub ? `<small>${kvEsc(o.sub)}</small>` : ''}</div><button type="button" class="kv-x" data-a="close" aria-label="Закрыть">✕</button></div>
+      <div class="kv-sheet-head"><div class="kv-sheet-title">${o.title ? kvEsc(o.title) : ''}${o.sub ? `<small>${kvEsc(o.sub)}</small>` : ''}</div>${o.help ? `<button type="button" class="kv-help" data-ref-open="${o.help}" title="Правило в справочнике" aria-label="Правило в справочнике">?</button>` : ''}<button type="button" class="kv-x" data-a="close" aria-label="Закрыть">✕</button></div>
       <div class="kv-sheet-body">${o.html || ''}</div></div>`;
     document.body.appendChild(back);
     const panel = back.querySelector('.kv-sheet');
@@ -2431,6 +2502,12 @@ const Tandem = (function(){
       <button type="button" class="kv-die" data-a="${side}-kv" data-id="${it.id}" title="Кость расхода: к6, метка на 4+">⚄</button></div>`;
   }
 
+  // вахты подключения в Утробе: после предела — бросок Отдачи каждые СОМ вахт
+  function watchRow(){
+    const W = Pilot.wombLimit(p), n = int(p.watches);
+    return `<div class="kv-watch${W.over ? ' over' : n===W.limit ? ' edge' : ''}" title="${esc('Предел: ' + W.parts.join(' · '))}"><div><b>Вахт в Утробе: ${n} из ${W.limit}</b><small>${W.over ? `сверхурочных ${W.over} (+${W.over} к Отдаче) · следующий бросок — на вахте ${W.next}` : n===W.limit ? `предел: дальше Отдача ${W.everyText}` : `без Отдачи ещё ${W.limit - n}, затем бросок ${W.everyText}`}</small></div>
+      <button type="button" class="kv-btn kv-sm kv-primary" data-a="watch">+ вахта</button>${n ? '<button type="button" class="kv-btn kv-sm" data-a="watch-reset" title="Перерыв в подключении: счёт заново">Перерыв</button>' : ''}</div>`;
+  }
   // ---------- Катафракт: игра ----------
   function mechPlay(){
     const m = p.mech;
@@ -2447,11 +2524,12 @@ const Tandem = (function(){
         <div class="kv-sub">${esc([m.cls, f.name + (f.fast ? ' · Быстрый' : f.slow ? ' · Медленный' : ''), `Ядро ${core.name}`, R.name].filter(Boolean).join(' · '))}</div></div>
       <div class="kv-vitals2">
         <div class="kv-vit${down ? ' danger' : ''}"><small>СТК</small><div class="kv-vit-row"><button type="button" class="kv-mini-btn" data-a="m-stk" data-d="-1" aria-label="минус 1">−</button><b>${int(m.stk)}<span>/${int(m.stkMax)}</span></b><button type="button" class="kv-mini-btn" data-a="m-stk" data-d="1" aria-label="плюс 1">+</button></div>${bar(int(m.stk), int(m.stkMax))}
-          <button type="button" class="kv-link" data-a="m-hurt">Получить урон</button></div>
-        <div class="kv-vit" title="Каркас ${mob.base} + МОТ ${mob.mot}${mob.load ? ' − нагрузка ' + mob.load : ''}"><small>МОБ</small><b class="kv-big2">${mob.total}</b><span class="kv-why">${mob.load ? 'нагрузка −' + mob.load : ''}</span></div>
+          <span class="kv-links"><button type="button" class="kv-link" data-a="m-hurt">Получить урон</button><button type="button" class="kv-link" data-a="m-maint" title="Полевой и капитальный ремонт, пополнение расходников — за Материалы Копья">Ремонт</button></span></div>
+        <div class="kv-vit" title="Каркас ${mob.base} + МОТ ${mob.mot}${mob.gift ? ' + Дар ' + mob.gift : ''}${mob.load ? ' − нагрузка ' + mob.load : ''}"><small>МОБ</small><b class="kv-big2">${mob.total}</b><span class="kv-why">${mob.load ? 'нагрузка −' + mob.load : ''}</span></div>
         <button type="button" class="kv-vit kv-vit-btn" data-a="m-sensors" title="Проверка Сенсоров: к20 + бонус Сенсоров"><small>Сенсоры</small><b class="kv-big2">${plus(Pilot.sensorBonus(p))}</b><span class="kv-why">${esc(S.name)}</span></button>
       </div>
       ${down ? `<div class="kv-alert">0 СТК — каждое новое попадание наносит Критическое повреждение.</div>` : ''}
+      ${p.inWomb ? watchRow() : ''}
       ${f.fast || f.slow ? `<button type="button" class="kv-btn kv-wide" data-a="m-frame">${f.fast ? 'Рывок Скаута: +кР к МОБ на ход' : 'Ремонт Дредноута: +кР к СТК'}</button>` : ''}
       ${cons ? sec('Расходники', `<div class="kv-cons-row">${cons}</div>`) : ''}
       ${sec('Вооружение', ws.length ? `<div class="kv-cards">${ws.map(w=>weaponCard(w, 'm')).join('')}</div>` : '<div class="kv-empty">Нет вооружения</div>')}
@@ -2460,10 +2538,10 @@ const Tandem = (function(){
         ${it.kv ? UI.dots(int(it.marks), 3, 'm-mark', it.id) : ''}
         ${it.kr || it.kv ? `<button type="button" class="kv-btn kv-sm" data-a="m-use" data-id="${it.id}">${it.kv ? 'к6' : 'Включить'}</button>` : ''}</div>`).join('')}</div>`) : ''}
       ${m.crits.length ? sec('Критические повреждения', `<ul class="kv-list2">${m.crits.map(x=>`<li>${esc(x.text)}</li>`).join('')}</ul>`) : ''}
-      <div class="kv-load-line">${L.sl} СЛ · нагрузка ${L.eff} — ${L.name}${L.eff ? `, −${L.eff} МОБ` : ''}${L.krMod ? `, +${L.krMod} к броскам кР` : ''}</div>
-      ${fold('m-core', `Ядро · Отчуждённость ${core.alien}`, `<p class="kv-p">${esc(m.nature || 'Характер не определён')}</p>
+      <div class="kv-load-line">${L.sl} СЛ${L.free ? ` (Дар: +${L.free} доступный)` : ''} · нагрузка ${L.eff} — ${L.name}${L.eff ? `, −${L.eff} МОБ` : ''}${L.krMod ? `, +${L.krMod} к броскам кР` : ''}</div>
+      ${fold('m-core', `Ядро · Отчуждённость ${Pilot.alien(p)}`, `<p class="kv-p">${esc(m.nature || 'Характер не определён')}</p>
         <div class="kv-row2"><button type="button" class="kv-btn kv-primary" data-a="m-divesheet">${m.dive && m.dive.active ? 'Погружение: Измерение ' + m.dive.dim : 'Погружение в Ядро'}</button><button type="button" class="kv-btn" data-a="m-alien">Испытание Отчуждённости</button></div>
-        ${(m.giftList || []).length ? `<ul class="kv-list2">${m.giftList.map(g=>`<li>${esc(g.text)}${g.n > 1 ? ' <b>×' + g.n + '</b>' : ''}</li>`).join('')}</ul>` : ''}
+        ${(m.giftList || []).length ? `<ul class="kv-list2">${m.giftList.map(g=>{ const fx = Pilot.giftFx(g.text); return `<li>${esc(g.text)}${g.n > 1 ? ' <b>×' + g.n + '</b>' : ''}${fx ? ` <em class="kv-badge kv-auto" title="Учитывается в бросках автоматически">в бросках: ${esc(fx[2])}</em>` : ''}</li>`; }).join('')}</ul>` : ''}
         <dl class="kv-dl">${[['Дары Ядра (заметки)', m.gifts], ['Узлы', m.nodes]].filter(x=>x[1]).map(x=>`<dt>${x[0]}</dt><dd>${esc(x[1])}</dd>`).join('')}</dl>`)}
       ${fold('m-bio', 'Конструкция и детали', `<dl class="kv-dl">${[['Каркас', `${f.name} (${f.mass}), МОБ ${f.mob}${f.note ? '. ' + f.note : ''}`], ['Утроба', Pilot.womb(m).name + ': ' + Pilot.womb(m).text],
         ['Реактор', `${R.name}, ${R.sl} СЛ${R.note ? '. ' + R.note : ''}`], ['Сенсоры', `${S.name} ${plus(Pilot.sensorBonus(p))}, дистанция ${S.range}${m.sensorModules.length ? '. Модули: ' + m.sensorModules.join(', ') : ''}`],
@@ -2627,7 +2705,7 @@ const Actions = (function(){
     const ammoLeft = Pilot.consumables(p, 'ammo').reduce((s, it)=>s + 3 - int(it.marks), 0);
     const usesAmmo = mech && (w.type==='kinetic' || w.type==='missile'), usesKr = mech && (w.type==='beam' || w.type==='melee');
     const others = list.filter(x=>x.id!==id);
-    UI.sheet({title:'Атака: ' + w.name, sub:`${w.dmg || '—'} · ${w.range || ''} ${KAVA.RANGES[w.range] || ''}${w.tags ? ' · ' + w.tags : ''}`, cls:'kv-sheet-attack', html:`
+    UI.sheet({help:'battle', title:'Атака: ' + w.name, sub:`${w.dmg || '—'} · ${w.range || ''} ${KAVA.RANGES[w.range] || ''}${w.tags ? ' · ' + w.tags : ''}`, cls:'kv-sheet-attack', html:`
       ${tg.length ? `<label class="kv-stepper kv-wide"><span>Цель</span><select name="target"><option value="">— без цели (МОБ вручную) —</option>${tg.map(t=>`<option value="${t.id}"${t.id===tSel ? ' selected' : ''}>${esc(t.name)} · ${Battle.DIST_NAME[t.dist]} дистанция${t.mob!=null ? ' · МОБ ' + t.mob : ''}</option>`).join('')}</select></label><div class="kv-note" data-tinfo>${esc(tInfo(tg.find(t=>t.id===tSel)))}</div>` : ''}
       <div class="kv-sheet-grid">${UI.stepper('mob', tSel ? tMob(tg.find(t=>t.id===tSel)) : lastMob, 0, 40, 'МОБ цели')}${UI.stepper('extra', 0, -20, 20, 'Доп. бонус')}</div>
       ${modeChips()}
@@ -2674,7 +2752,7 @@ const Actions = (function(){
     const armorLeft = mech ? Pilot.consumables(p, 'armor').reduce((s, it)=>s + 3 - int(it.marks), 0) : 0;
     const shields = mech ? m.items.filter(it=>it.kind==='module' && it.shield && !it.used && !it.off).length : 0;
     const pArmor = !mech ? Pilot.armorDice(p).map(a=>`${a.item.name} ${a.dice}`).join(', ') : '';
-    UI.sheet({title:mech ? 'Урон по Катафракту' : 'Урон по Спектру', sub:mech ? `СТК ${int(m.stk)} из ${int(m.stkMax)}` : `СТК ${int(p.stk)} из ${Pilot.stkMax(p)}`, html:`
+    UI.sheet({help:'death', title:mech ? 'Урон по Катафракту' : 'Урон по Спектру', sub:mech ? `СТК ${int(m.stk)} из ${int(m.stkMax)}` : `СТК ${int(p.stk)} из ${Pilot.stkMax(p)}`, html:`
       <div class="kv-sheet-grid">${UI.stepper('dmg', 1, 0, 200, 'Урон')}${!mech ? UI.stepper('reduce', 0, 0, 20, 'Снижение') : ''}</div>
       <div class="kv-chips2">${UI.chip('pierce', 'Бронебойное', false, 'Броня учитывает половину броска')}
         ${mech ? UI.chip('armor', `Бросить Броню (${armorLeft ? 'осталось ' + armorLeft : 'нет'})`, armorLeft > 0) + (shields ? UI.chip('shield', `Штурмовой щит (${shields})`, false, 'Проигнорировать атаку') : '')
@@ -2694,7 +2772,7 @@ const Actions = (function(){
   function krSheet(p){
     const m = p.mech, L = Pilot.mechLoad(p), R = Pilot.reactorOf(m), rad = Pilot.consumables(p, 'radiator').reduce((s, it)=>s + 3 - int(it.marks), 0);
     const mods = m.items.filter(it=>it.kind==='module' && it.kr && !it.off);
-    UI.sheet({title:`Реактор: к${m.kr}`, sub:`${R.name}${L.krMod ? ` · нагрузка +${L.krMod} к броску` : ''}${R.krMod ? ` · ${R.krMod} к броску` : ''}${int(m.explode) ? ` · шанс взрыва ${m.explode}-з-6` : ''}`, html:`
+    UI.sheet({help:'reactor', title:`Реактор: к${m.kr}`, sub:`${R.name}${L.krMod ? ` · нагрузка +${L.krMod} к броску` : ''}${R.krMod ? ` · ${R.krMod} к броску` : ''}${int(m.explode) ? ` · шанс взрыва ${m.explode}-з-6` : ''}`, html:`
       <p class="kv-note">Бросок кР: при 4+${Pilot.hasModule(p, 'reactor5') ? ' (с Изоляцией — 5+)' : ''} кость растёт на степень (к6 → к8 → к10 → к12); итог 7+ — перегрев. Энерговооружение и Удар — в карточке атаки.</p>
       <div class="kv-act-grid">
         <button type="button" class="kv-act" data-a="forsage"><b>Форсаж</b><span>ещё одно действие в раунде</span></button>
@@ -2716,7 +2794,7 @@ const Actions = (function(){
   }
   // ---------- синхронизация ----------
   function ksSheet(p){
-    UI.sheet({title:`Синхронизация: к${p.ks}`, sub:int(p.ksBonus) ? `+${p.ksBonus} к следующему броску роста` : '', html:`
+    UI.sheet({help:'sync', title:`Синхронизация: к${p.ks}`, sub:int(p.ksBonus) ? `+${p.ksBonus} к следующему броску роста` : '', html:`
       <div class="kv-act-grid">
         <button type="button" class="kv-act" data-a="connect"><b>Подключение</b><span>кС, соединение на 4+</span></button>
         <button type="button" class="kv-act" data-a="dive"><b>Погружение в Ядро</b><span>Узлы, Измерения, Дары</span></button>
@@ -2725,7 +2803,7 @@ const Actions = (function(){
         <button type="button" class="kv-act" data-a="grow" data-x="2"><b>Пожирание Ядра</b><span>полный ИИ: ×2</span></button>
         <button type="button" class="kv-act" data-a="grow" data-x="3"><b>Пожирание Супер-ИИ</b><span>×3, «1» — Удача или смерть</span></button>
       </div>
-      <div class="kv-sheet-grid">${UI.stepper('ot', 0, 0, 20, 'Сверхурочные вахты')}<button type="button" class="kv-btn kv-primary" data-a="backlash">Отдача</button></div>`,
+      <div class="kv-sheet-grid">${UI.stepper('ot', p.inWomb ? Pilot.wombLimit(p).over : 0, 0, 20, 'Сверхурочные вахты')}<button type="button" class="kv-btn kv-primary" data-a="backlash">Отдача</button></div>`,
       onAction(a, btn, close, panel){
         if(a==='dive'){ close(); Dive.sheet(p); return; }
         if(a==='connect') done(Rolls.connect(p));
@@ -2734,16 +2812,27 @@ const Actions = (function(){
       }});
   }
   function alienSheet(p, dive){
-    UI.sheet({title:dive ? 'Выход из погружения' : 'Испытание Отчуждённости', sub:`к20 + ЭМП против Отчуждённости ${Pilot.coreOf(p.mech).alien}${dive ? ' + Измерение' : ''}`, html:`
+    UI.sheet({help:'sync', title:dive ? 'Выход из погружения' : 'Испытание Отчуждённости', sub:`к20 + ЭМП против Отчуждённости ${Pilot.alien(p)}${dive ? ' + Измерение' : ''}`, html:`
       ${dive ? `<div class="kv-sheet-grid">${UI.stepper('depth', 1, 0, 20, 'Измерение')}</div>` : ''}${modeChips()}
       <div class="kv-sheet-btns"><button type="button" class="kv-btn kv-primary kv-grow2" data-a="go" autofocus>Бросить</button></div>`,
       onAction(a, btn, close, panel){ App.setMode('norm'); done(Rolls.alienation(p, dive ? UI.num(panel, 'depth', 0) : 0, pickMode(panel))); }});
+  }
+  // сверхурочная вахта в Утробе: пора бросать Отдачу (кС + сверхурочные)
+  function overtimeSheet(p){
+    const W = Pilot.wombLimit(p);
+    UI.sheet({help:'backlash', title:'Сверхурочная вахта', sub:`${p.watches} вахт в Утробе без перерыва · предел ${W.limit}`, html:`<p class="kv-p">После ${W.limit} вахт подключения Спектр бросает Отдачу ${W.everyText}: кС к${p.ks} + ${W.over} за сверхурочные вахты.</p>
+      ${p.ritual ? `<p class="kv-note">Ритуал декомпрессии, проведённый до наступления эффекта, преодолевает его: ${esc(p.ritual)}</p>` : '<p class="kv-note">Ритуал декомпрессии, проведённый до наступления эффекта, преодолевает Отдачу.</p>'}
+      <div class="kv-sheet-btns"><button type="button" class="kv-btn" data-a="leave">Выйти из Утробы</button><button type="button" class="kv-btn kv-primary kv-grow2" data-a="go" autofocus>Отдача: кС + ${W.over}</button></div>`,
+      onAction(a, b, close){
+        if(a==='go'){ close(); done(Rolls.backlash(p, W.over)); }
+        if(a==='leave'){ close(); App.leaveWomb(); }
+      }});
   }
   // ---------- предметы ----------
   function itemSheet(p, side, id){
     const list = side==='m' ? p.mech.items : p.items, it = list.find(x=>x.id===id); if(!it) return;
     const cap = Rolls.itemCap(it);
-    UI.sheet({title:it.name || 'Предмет', sub:`${int(it.sl)} СЛ${it.value ? ' · ' + it.value : ''}`, html:`
+    UI.sheet({help:'load', title:it.name || 'Предмет', sub:`${int(it.sl)} СЛ${it.value ? ' · ' + it.value : ''}`, html:`
       ${it.text || it.note ? `<p class="kv-p">${esc(it.text || it.note)}</p>` : ''}
       ${it.kind==='armor' ? `<p class="kv-p">${it.mob ? `+${it.mob} МОБ. ` : ''}${it.armor ? `Броня ${esc(it.armor)} кВ: кости вычитаются из урона, каждая на 4+ теряет метку.` : ''}</p>` : ''}
       <div class="kv-fe kv-wide"><span>Метки расхода (${int(it.marks)} из ${cap})</span>${UI.dots(int(it.marks), cap, 'mark', it.id)}</div>
@@ -2775,20 +2864,20 @@ const Actions = (function(){
   function consSheet(p, key){
     const c = MECH.CONSUMABLES.find(x=>x.ckey===key), list = Pilot.consumables(p, key);
     const act = key==='radiator' ? ['radiator', 'Снизить кР на степень'] : key==='repair' ? ['repair', 'Ремкассеты: +к6 СТК'] : null;
-    UI.sheet({title:c.name, sub:'Кость расхода к6 с тремя метками, метка — на 4+', html:`<p class="kv-p">${esc(c.text)}</p>
+    UI.sheet({help:'repair', title:c.name, sub:'Кость расхода к6 с тремя метками, метка — на 4+', html:`<p class="kv-p">${esc(c.text)}</p>
       ${list.map((it, i)=>`<div class="kv-fe kv-wide"><span>Блок ${i + 1}</span>${UI.dots(int(it.marks), 3, 'mark', it.id)}</div>`).join('')}
       <div class="kv-sheet-btns"><button type="button" class="kv-btn" data-a="fix">Пополнить (1 Мат за кость)</button>${act ? `<button type="button" class="kv-btn kv-primary kv-grow2" data-a="${act[0]}">${act[1]}</button>` : ''}</div>`,
-      onAction(a, btn){
+      onAction(a, btn, close){
         if(a==='radiator'){ done(Rolls.cool(p, false)); return; }
         if(a==='repair'){ done(Rolls.repairKit(p)); return; }
         if(a==='mark'){ const it = list.find(x=>x.id===btn.dataset.id); const i = +btn.dataset.i; it.marks = int(it.marks)===i + 1 ? i : i + 1; }
-        if(a==='fix') list.forEach(it=>{ it.marks = 0; });
+        if(a==='fix'){ const ids = list.filter(it=>int(it.marks) > 0).map(it=>it.id); if(!ids.length){ UI.toast('Все кости полны', 'ok'); return; } close(); Maint.refill(p, ids); return; }
         Pilot.save(); Tandem.render(); consSheet(p, key);
       }});
   }
   // ---------- броски по таблицам ----------
   function tablesSheet(p){
-    UI.sheet({title:'Броски', sub:'таблицы книги и свободный бросок', html:`
+    UI.sheet({help:'social', title:'Броски', sub:'таблицы книги и свободный бросок', html:`
       <div class="kv-act-grid">
         <button type="button" class="kv-act" data-a="reaction"><b>Реакция</b><span>2к6</span></button>
         <button type="button" class="kv-act" data-a="fame"><b>Слава</b><span>к20 + походы против сложности</span></button>
@@ -2821,6 +2910,11 @@ const Actions = (function(){
       case 'm-stk': p.mech.stk = Math.max(0, int(p.mech.stk) + int(b.dataset.d)); Pilot.save(); if(typeof Table!=='undefined') Table.pilotChanged(); return 'render';
       case 'p-hurt': hurtSheet(p, 'p'); return;
       case 'm-hurt': hurtSheet(p, 'm'); return;
+      case 'm-maint': Maint.sheet(p); return;
+      case 'watch': { p.watches = int(p.watches) + 1; Pilot.save(); const W = Pilot.wombLimit(p);
+        if(W.due) setTimeout(()=>overtimeSheet(p), 30); else UI.toast(p.watches===W.limit ? `Вахта ${p.watches} — предел: дальше Отдача ${W.everyText}` : W.over ? `Сверхурочная вахта ${W.over}; Отдача — на вахте ${W.next}` : `Вахта ${p.watches} из ${W.limit}`, W.over || p.watches===W.limit ? 'fail' : 'ok');
+        Table.pilotChanged(); return 'render'; }
+      case 'watch-reset': p.watches = 0; Pilot.save(); Table.pilotChanged(); UI.toast('Перерыв в подключении — вахты считаются заново', 'ok'); return 'render';
       case 'p-weapon': attackSheet(p, 'p', id); return;
       case 'm-weapon': attackSheet(p, 'm', id); return;
       case 'p-item': itemSheet(p, 'p', id); return;
@@ -3073,6 +3167,7 @@ const Log = (function(){
      roll {entry}                — бросок всем (тайные броски Летописца не рассылаются)
      request {rid, kind, stat, dc, mode, note} — Летописец просит бросок; mods {mode} — преимущество/препятствие
      hurt {side, amount, pierce} — Летописец наносит урон; telemost {url}; lance {state} — Копьё
+     mat-req {rid, n, purpose, who} — игрок просит Материалы на ремонт; mat-ans {rid, ok} — ответ Летописца
    Команды Летописца принимаются только от того, кто прислал gm-hello. Связь проверяется сигналом hb раз в 20 с.
    ====================================================================== */
 const Table = (function(){
@@ -3164,7 +3259,9 @@ const Table = (function(){
       case 'battle': if(fromGm(m)) Battle.receive(m.state); break;
       case 'battle-move': if(S.role==='gm') Battle.onMove(from, m); break;
       case 'battle-hit': if(S.role==='gm') Battle.onHit(from, m); break;
-      case 'peer-left': delete S.peers[m.id]; if(m.id===S.gmId && S.role==='player'){ S.gmId = ''; UI.toast('Летописец отключился', 'fail'); } emit(); break;
+      case 'mat-req': if(S.role==='gm') Maint.request(from, m); break;
+      case 'mat-ans': if(fromGm(m) && S.role==='player') Maint.answer(m); break;
+      case 'peer-left': delete S.peers[m.id]; if(m.id===S.gmId && S.role==='player'){ S.gmId = ''; UI.toast('Летописец отключился', 'fail'); Maint.gmLeft(); } if(S.role==='gm') Maint.peerLeft(m.id); emit(); break;
     }
   }
   // ---- API для страницы ----
@@ -3211,7 +3308,7 @@ const Prompts = (function(){
         else if(m.kind==='sensors') e = Rolls.sensors(p, dc, mode);
         else if(m.kind==='alien') e = Rolls.alienation(p, 0, mode);
         else if(m.kind==='connect') e = Rolls.connect(p);
-        else if(m.kind==='backlash') e = Rolls.backlash(p, Pilot.int(m.overtime));
+        else if(m.kind==='backlash') e = Rolls.backlash(p, m.overtime!=null ? Pilot.int(m.overtime) : (p.inWomb ? Pilot.wombLimit(p).over : 0));
         else if(m.kind==='init') e = Rolls.initiative(p.name);
         if(e){ e.request = m.rid; Actions.done(e); }
       }});
@@ -3320,6 +3417,14 @@ const Gm = (function(){
   function saveLance(L){ let all = {}; try{ all = JSON.parse(localStorage.getItem(LKEY) || '{}') || {}; }catch(e){} all[lanceKey()] = L; try{ localStorage.setItem(LKEY, JSON.stringify(all)); }catch(e){} Table.setLance(L); }
   let lance = null;
   const L = ()=>lance || (lance = loadLance());
+  // списать n Материалов из Копья: хватает — {ok:true}; нет — {ok:false, left} (force — списать до нуля); n = 0 — узнать остаток
+  function spendMat(n, force){
+    const l = L(), left = int(l.res.materials);
+    if(!n) return {ok:true, left};
+    if(left < n && !force) return {ok:false, left};
+    l.res.materials = Math.max(0, left - n); saveLance(l); if(tab==='lance') render();
+    return {ok:true, left:l.res.materials};
+  }
 
   // бросок Летописца: тайный — только у себя
   function roll(e){ if(!e) return; if(secret){ e.secret = true; } Fx.play(e); if(!secret) Table.rolled(e); }
@@ -3332,7 +3437,7 @@ const Gm = (function(){
     const m = p.mech, built = m.built || m.name || m.items.length, krIdx = Dice.STEPS.indexOf(+m.kr);
     const hp = (cur, max)=>`<span class="kv-hp"><i style="width:${max > 0 ? Math.max(0, Math.min(100, cur / max * 100)) : 0}%"></i></span>`;
     return `<div class="kv-gcard${p.inWomb ? ' womb' : ''}" data-pid="${id}">
-      <div class="kv-gcard-head"><b>${esc(p.name || x.name || 'Спектр')}</b>${built ? `<span>${esc(m.name || 'Катафракт')}</span>` : ''}${p.inWomb ? '<em class="kv-badge">в Утробе</em>' : ''}</div>
+      <div class="kv-gcard-head"><b>${esc(p.name || x.name || 'Спектр')}</b>${built ? `<span>${esc(m.name || 'Катафракт')}</span>` : ''}${p.inWomb ? (()=>{ const W = Pilot.wombLimit(p); return `<em class="kv-badge${W.over ? ' kv-over' : ''}" title="${esc('Предел вахт: ' + W.parts.join(' · '))}">в Утробе${int(p.watches) ? ` · вахта ${int(p.watches)}/${W.limit}` : ''}</em>`; })() : ''}</div>
       <div class="kv-gcard-grid">
         <div><small>СТК Спектра</small><b>${int(p.stk)}/${Pilot.stkMax(p)}</b>${hp(int(p.stk), Pilot.stkMax(p))}</div>
         ${built ? `<div><small>СТК Катафракта</small><b>${int(m.stk)}/${int(m.stkMax)}</b>${hp(int(m.stk), int(m.stkMax))}</div>` : ''}
@@ -3355,7 +3460,7 @@ const Gm = (function(){
   }
   function askSheet(ids){
     const one = ids.length===1 ? Table.S.peers[ids[0]] : null;
-    UI.sheet({title:'Запросить бросок', sub:one ? (one.pilot && one.pilot.name) || one.name : `всем игрокам (${ids.length})`, html:`
+    UI.sheet({help:'checks', title:'Запросить бросок', sub:one ? (one.pilot && one.pilot.name) || one.name : `всем игрокам (${ids.length})`, html:`
       <div class="kv-chips2" data-chips="one">${KAVA.STATS.map((s, i)=>UI.chip('check:' + s.key, 'Проверка ' + s.short, i===0)).join('')}${UI.chip('luck', 'Испытание Удачи')}${UI.chip('sensors', 'Сенсоры')}${UI.chip('alien', 'Отчуждённость')}${UI.chip('connect', 'Подключение')}${UI.chip('backlash', 'Отдача')}${UI.chip('init', 'Инициатива к6')}</div>
       <div class="kv-sheet-grid">${UI.stepper('dc', 13, 1, 40, 'Сложность')}<div class="kv-chips2" data-chips="mode">${UI.chip('adv', 'Преимущество')}${UI.chip('dis', 'Препятствие')}</div></div>
       <label class="kv-stepper kv-wide"><span>Пояснение игроку (необязательно)</span><input name="note" placeholder="Например: удержаться на обломке"></label>
@@ -3401,8 +3506,40 @@ const Gm = (function(){
         <div class="kv-units">${l.units.map(u=>`<div class="kv-unit"><input data-u="${u.id}" data-uf="name" value="${esc(u.name)}"><span class="kv-mini">СТК <input type="number" data-u="${u.id}" data-uf="stk" value="${int(u.stk)}"></span><span class="kv-mini">МОБ <input type="number" data-u="${u.id}" data-uf="mob" value="${int(u.mob)}"></span>
           <button type="button" class="kv-x" data-g="unit-del" data-id="${u.id}">✕</button>${u.note ? `<div class="kv-note">${esc(u.note)}</div>` : ''}</div>`).join('') || '<div class="kv-empty">Пусто. Копьё начинает с двумя отрядами оружейников, Ковчегом и оруженосцем для каждого Спектра.</div>'}</div>
         <div class="kv-row2"><select data-l="addunit" class="kv-grow2"><optgroup label="Свита">${RETINUE.map((u, i)=>`<option value="r${i}">${esc(u.name)} (СТК ${u.stk}, МОБ ${u.mob})</option>`).join('')}</optgroup><optgroup label="Техника">${TECH.map((u, i)=>`<option value="t${i}">${esc(u.name)} (СТК ${u.stk}, МОБ ${u.mob})</option>`).join('')}</optgroup></select><button type="button" class="kv-btn" data-g="unit-add">Добавить (СТК броском)</button></div></div>
+      ${travelView()}
       <label class="kv-fe kv-wide"><span>Заметки Копья: покровители, контракты, долги, Слава</span><textarea data-l="notes" rows="3">${esc(l.notes)}</textarea></label>`;
   }
+  // ---------- путешествие (часть 2: квадраты по 100 км, скорость за вахту) ----------
+  const SPEEDS = [['2', 'Скауты — 2 квадрата за вахту'], ['1.5', 'Истребители — 1,5'], ['1', 'Дредноуты, караваны, техника — 1'], ['0.25', 'Пешком — 0,25']];
+  let trip = {sq:3, speed:'1', rough:false, perDay:2, machines:null, enc:'day'};
+  function machinesGuess(){ const l = L(); const tech = (l.units || []).filter(u=>!/отряд|специалист|оруженосец/i.test(u.name)).length; const mechs = Object.values(Table.S.peers).filter(x=>x.pilot && x.pilot.mech && (x.pilot.mech.built || x.pilot.mech.name)).length; return tech + mechs; }
+  function tripCalc(){
+    const l = L(), sp = parseFloat(trip.speed) * (trip.rough ? 0.5 : 1), watches = Math.ceil(int(trip.sq) / sp), days = Math.ceil(watches / Math.max(1, int(trip.perDay, 2)));
+    const machines = trip.machines==null ? machinesGuess() : int(trip.machines), bat = int(trip.sq) * machines, sup = days * Math.ceil(int(l.res.people) / 10);
+    return {sp, watches, days, machines, bat, sup};
+  }
+  function travelView(){
+    const c = tripCalc(), l = L();
+    return `<div class="kv-sec2"><h3>Путешествие ${Ref.link('travel')}</h3>
+      <div class="kv-sheet-grid">${UI.stepper('t-sq', trip.sq, 1, 999, 'Квадратов (по 100 км)')}<label class="kv-stepper"><span>Самый медленный в колонне</span><select data-t="speed">${SPEEDS.map(([v, n])=>`<option value="${v}"${trip.speed===v ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
+        ${UI.stepper('t-machines', c.machines, 0, 99, 'Машин (Батареи)')}${UI.stepper('t-perday', trip.perDay, 1, 4, 'Вахт пути в сутки')}</div>
+      <div class="kv-row2"><label class="kv-chk"><input type="checkbox" data-t="rough"${trip.rough ? ' checked' : ''}> сложный ландшафт, прочёсывание, осторожно — вдвое медленнее</label>
+        <label class="kv-mini">встречи <select data-t="enc"><option value="day"${trip.enc==='day' ? ' selected' : ''}>1-з-6 в сутки</option><option value="sq"${trip.enc==='sq' ? ' selected' : ''}>1-з-6 за квадрат</option><option value="none"${trip.enc==='none' ? ' selected' : ''}>без бросков</option></select></label></div>
+      <div class="kv-p" data-trip>Путь: <b>${c.watches}</b> вахт (${c.sp} кв./вахту) ≈ <b>${c.days}</b> сут. · Батареи: <b>${c.bat}</b> из ${int(l.res.batteries)} · Запасы: <b>${c.sup}</b> из ${int(l.res.supplies)}</div>
+      <div class="kv-gm-tools"><button type="button" class="kv-btn kv-primary" data-g="trip-go">Отправиться: списать и бросить встречи</button></div></div>`;
+  }
+  function tripGo(){
+    const l = L(), c = tripCalc(), lines = [], dice = [];
+    const lackB = c.bat > int(l.res.batteries), lackS = c.sup > int(l.res.supplies);
+    l.res.batteries = Math.max(0, int(l.res.batteries) - c.bat); l.res.supplies = Math.max(0, int(l.res.supplies) - c.sup);
+    lines.push(`${trip.sq} кв. за ${c.watches} вахт (≈ ${c.days} сут.): −${c.bat} Батарей, −${c.sup} Запасов${lackB ? ' — Батарей не хватило!' : ''}${lackS ? ' — Запасов не хватило!' : ''}`);
+    const n = trip.enc==='sq' ? int(trip.sq) : trip.enc==='day' ? c.days : 0; let hits = 0;
+    for(let i = 0; i < n; i++){ const v = Dice.rnd(6); if(v===1){ hits++; const e = LORE.table('encounters'); lines.push(`${trip.enc==='sq' ? 'Квадрат' : 'Сутки'} ${i + 1}: встреча (2к6 = ${e.big}) — ${e.verdict}`); if(dice.length < 6) dice.push({sides:6, value:v, label:'встреча', tint:'bad'}); } }
+    if(n && !hits) lines.push(`Встреч нет (${n} бросков 1-з-6)`);
+    saveLance(l); render();
+    roll(Rolls.push({who:'Летописец', kind:'travel', title:'Путешествие Копья', tone:lackB || lackS ? 'fail' : hits ? 'crit' : 'ok', big:c.days + ' сут.', verdict:`${hits ? 'Встреч: ' + hits : 'Без встреч'} · Батарей ${l.res.batteries}, Запасов ${l.res.supplies}`, lines, dice}));
+  }
+
   // ---------- броски Летописца ----------
   function rollsView(){
     return `<div class="kv-gm-tools"><label class="kv-chk"><input type="checkbox" data-g="secret"${secret ? ' checked' : ''}> Тайно — броски видите только вы</label></div>
@@ -3436,10 +3573,12 @@ const Gm = (function(){
   function render(){
     if(!root) return;
     root.innerHTML = `<div class="kv-gm"><div class="kv-gm-tabs kv-seg">${[['battle', 'Бой'], ['tandems', 'Тандемы'], ['lance', 'Копьё'], ['rolls', 'Броски']].map(([k, n])=>`<button type="button" data-gtab="${k}" class="${tab===k ? 'on' : ''}">${n}</button>`).join('')}</div>
-      <div class="kv-gm-body">${tab==='battle' ? '<div data-battle-root></div>' : tab==='tandems' ? tandems() : tab==='lance' ? lanceView() : rollsView()}</div></div>`;
+      ${Maint.queueView()}<div class="kv-gm-body">${tab==='battle' ? '<div data-battle-root></div>' : tab==='tandems' ? tandems() : tab==='lance' ? lanceView() : rollsView()}</div></div>`;
     const br = root.querySelector('[data-battle-root]'); if(br) Battle.mount(br);
   }
   function onClick(e){
+    const st = e.target.closest('[data-step]');
+    if(st){ const inp = st.parentNode.querySelector('input'), mn = inp.min!=='' ? +inp.min : -999, mx = inp.max!=='' ? +inp.max : 999; inp.value = Math.max(mn, Math.min(mx, int(inp.value) + (+st.dataset.step))); inp.dispatchEvent(new Event('input', {bubbles:true})); return; }
     const t = e.target.closest('[data-gtab]'); if(t){ tab = t.dataset.gtab; render(); return; }
     const b = e.target.closest('[data-g]'); if(!b) return;
     const a = b.dataset.g, id = b.dataset.id, l = L();
@@ -3470,20 +3609,26 @@ const Gm = (function(){
       case 'r-crit': { const v = Dice.rnd(20); roll(Rolls.push({who:'Летописец', kind:'gm', title:'Критическая травма', tone:'crit', big:v, verdict:KAVA.CRIT_INJURIES[v - 1], lines:[], dice:[{sides:20, value:v, tint:'bad'}]})); return; }
       case 'r-mcrit': { const v = Dice.rnd(20); roll(Rolls.push({who:'Летописец', kind:'gm', title:'Критическое повреждение', tone:'crit', big:v, verdict:MECH.CRITS[v - 1], lines:[], dice:[{sides:20, value:v, tint:'bad'}]})); return; }
       case 'r-tables': Actions.tablesSheet(Tandem.pilot); return;
+      case 'mat-yes': case 'mat-no': Maint.decide(id, a==='mat-yes'); return;
+      case 'trip-go': if(confirm('Списать ресурсы и бросить встречи за путешествие?')) tripGo(); return;
       case 'lore-seed': case 'lore-system': case 'lore-relic-r': case 'lore-relic-m': case 'lore-t': {
         const x = a==='lore-seed' ? LORE.seed() : a==='lore-system' ? LORE.system() : a==='lore-t' ? LORE.table(b.dataset.k) : LORE.relic(a==='lore-relic-m' ? 'melee' : 'ranged');
         roll(Rolls.push({who:'Летописец', kind:'lore', title:x.title, tone:'info', big:x.big, verdict:x.verdict, lines:x.lines, dice:x.dice})); return; }
     }
   }
+  // пересчёт строки путешествия без перерисовки (фокус в поле не теряется)
+  function refreshTrip(){ const c = tripCalc(), l = L(), p = root.querySelector('[data-trip]'); if(p) p.innerHTML = `Путь: <b>${c.watches}</b> вахт (${c.sp} кв./вахту) ≈ <b>${c.days}</b> сут. · Батареи: <b>${c.bat}</b> из ${int(l.res.batteries)} · Запасы: <b>${c.sup}</b> из ${int(l.res.supplies)}`; }
   function unitFrom(u){ const r = Dice.roll(u.stk); return {id:Pilot.uid(), name:u.name, stk:r ? r.total : 0, mob:u.mob, note:u.note}; }
   function onInput(e){
     const l = L(), el = e.target;
+    if(el.name && el.name.startsWith('t-')){ const k = {'t-sq':'sq', 't-machines':'machines', 't-perday':'perDay'}[el.name]; trip[k] = int(el.value); refreshTrip(); return; }
+    if(el.dataset.t){ trip[el.dataset.t] = el.type==='checkbox' ? el.checked : el.value; refreshTrip(); return; }
     if(el.dataset.r){ l.res[el.dataset.r] = Math.max(0, int(el.value)); saveLance(l); return; }
     if(el.dataset.l==='name' || el.dataset.l==='notes'){ l[el.dataset.l] = el.value; clearTimeout(onInput.t); onInput.t = setTimeout(()=>saveLance(l), 600); return; }
     if(el.dataset.u){ const u = l.units.find(x=>x.id===el.dataset.u); if(u){ u[el.dataset.uf] = el.type==='number' ? int(el.value) : el.value; clearTimeout(onInput.t); onInput.t = setTimeout(()=>saveLance(l), 600); } }
   }
   function mount(el){ root = el; root.addEventListener('click', onClick); root.addEventListener('input', onInput); Table.onChange(()=>{ lance = null; if(document.body.classList.contains('gm-view') && tab!=='battle' && !root.contains(document.activeElement)) render(); }); render(); }
-  return {mount, render};
+  return {mount, render, spendMat};
 })();
 /* ======================================================================
    КАВАЛЕРИЯ — БОЙ НА СХЕМЕ ЗОН (часть 2 книги). Поле боя — Зоны; дистанции абстрактные: в одной Зоне — ближняя (>)
@@ -3711,7 +3856,7 @@ const Battle = (function(){
       return;
     }
     const foes = B.units.filter(x=>x.side!==u.side && x.status!=='dead');
-    UI.sheet({title:v.name, sub:`${SIDES[u.side]}${u.kind==='enemy' ? ' · ' + (u.scale==='personal' ? 'персональный масштаб' : 'стратегический масштаб') : ''}`, html:`
+    UI.sheet({help:'battle', title:v.name, sub:`${SIDES[u.side]}${u.kind==='enemy' ? ' · ' + (u.scale==='personal' ? 'персональный масштаб' : 'стратегический масштаб') : ''}`, html:`
       ${u.kind!=='tandem' ? `<div class="kv-sheet-grid">${UI.stepper('stk', u.stk, 0, 999, `СТК (из ${u.stkMax})`)}${UI.stepper('mob', u.mob, 0, 40, 'МОБ')}${UI.stepper('bd', u.bd, 2, 12, 'БД')}${UI.stepper('atk', u.atk, -5, 15, 'АТК +')}</div>
         ${(u.weapons || []).length ? `<div class="kv-fe kv-wide"><span>Оружие</span>${u.weapons.map((w, i)=>`<label class="kv-mini">${esc(w.name)} <input data-w="${i}" value="${esc(w.dmg)}" size="5"></label>`).join('')}</div>` : ''}
         ${(u.feats || []).length ? `<ul class="kv-list2 kv-note">${u.feats.map(f=>`<li>${esc(f)}</li>`).join('')}</ul>` : ''}
@@ -3931,7 +4076,7 @@ const Dive = (function(){
   }
   // ---------- окно погружения ----------
   function sheet(p){
-    const d = state(p), cur = d.nodes.find(n=>n.id===d.cur), alien = Pilot.coreOf(p.mech).alien;
+    const d = state(p), cur = d.nodes.find(n=>n.id===d.cur), alien = Pilot.alien(p);
     const dims = [...new Set(d.nodes.map(n=>n.dim))].sort((a, b)=>a - b);
     const transitHere = d.nodes.filter(n=>n.dim===d.dim && n.depth);
     const card = cur ? `<div class="kv-node"><div class="kv-node-head"><b>${esc(cur.name)}</b><span>Измерение ${cur.dim}</span></div>
@@ -3942,7 +4087,7 @@ const Dive = (function(){
           ${cur.choose && !cur.claimed ? '<button type="button" class="kv-btn kv-primary" data-a="pickgift">Выбрать Дар</button>' : ''}
           ${cur.depth ? `<button type="button" class="kv-btn" data-a="descend" data-n="${cur.depth}">Спуститься: Измерение +${cur.depth}</button>` : ''}
           ${cur.fall ? '<button type="button" class="kv-btn" data-a="fall">Провалиться: Измерение +к4</button>' : ''}</div></div>` : '';
-    UI.sheet({title:'Погружение в Ядро', cls:'kv-wizard', sub:d.active ? `Измерение ${d.dim} · кС к${p.ks} · выход: к20 + ЭМП против ${alien + d.dim}` : `Отчуждённость Ядра ${alien}${d.nodes.length ? ` · открыто Узлов: ${d.nodes.length}` : ''}`, html:`
+    UI.sheet({help:'sync', title:'Погружение в Ядро', cls:'kv-wizard', sub:d.active ? `Измерение ${d.dim} · кС к${p.ks} · выход: к20 + ЭМП против ${alien + d.dim}` : `Отчуждённость Ядра ${alien}${d.nodes.length ? ` · открыто Узлов: ${d.nodes.length}` : ''}`, html:`
       ${d.active ? card : `<p class="kv-p">${d.nodes.length ? 'Повторное погружение: новый Узел — кС + Измерение (начинаете с нулевого). Открытые Узлы остаются на карте.' : 'Первое погружение: кС трижды — Узел, его детали и событие.'} Выход из погружения сбросит кС до к6.</p>`}
       <div class="kv-sheet-btns">${d.active ? `<button type="button" class="kv-btn kv-primary" data-a="node">Новый Узел (кС + ${d.dim})</button>
         ${!cur || !cur.depth ? transitHere.map(n=>`<button type="button" class="kv-btn" data-a="goto" data-id="${n.id}">К Переходу «${esc(n.name)}»</button>`).join('') : ''}
@@ -3969,6 +4114,244 @@ const Dive = (function(){
       onAction(a, b){ const g = CORE.GIFTS[+b.dataset.i]; addGift(p, g.from, g); n.claimed = true; Pilot.save(); Tandem.render(); show(Rolls.push({who:p.name, kind:'gift', title:'Дар Ядра (выбран)', tone:'ok', big:g.from, verdict:g.text, lines:[]})); setTimeout(()=>sheet(p), 50); }});
   }
   return {sheet, state};
+})();
+/* ======================================================================
+   КАВАЛЕРИЯ — СПРАВОЧНИК: краткие правила (по частям 2–8 книги), мир Предела (часть 1), принципы и темы Летописца
+   (часть 9) и словарь. Пересказ своими словами, без больших цитат. Открывается кнопкой «? Справочник» над листом
+   и ссылками «?» из карточек (Ref.open('reactor') и т. п.). Поиск — по всем разделам сразу.
+   ====================================================================== */
+const Ref = (function(){
+  const esc = kvEsc;
+  const S = (id, title, body)=>({id, title, body});
+  const RULES = [
+    S('dice', 'Кости', ['к3 — к6 пополам с округлением вверх. к66 — две к6: десятки и единицы. к100 — две к10, «0 и 0» = 100.',
+      'Х-з-6 — шанс: событие случается, если на к6 выпало Х или меньше.',
+      'Преимущество — 2к20, берётся больший; препятствие — 2к20, меньший. Их назначает Летописец; вместе они гасят друг друга.']),
+    S('checks', 'Проверки и Испытание Удачи', ['Проверка — только когда успех не гарантирован, а у провала есть последствия. Осматривать, искать, прятаться, убеждать — словами, без бросков.',
+      'к20 + характеристика ≥ сложности — успех. Вне боя сложность равна Испытанию Удачи (13). «20» без бонусов — всегда успех, «1» — провал.',
+      'Встречная проверка: побеждает больший итог.', 'Культура или Ремесло: тривиальное для такого опыта — без броска; полезный опыт — с преимуществом; уникальные знания без них невозможны.',
+      'Испытание Удачи — к20 против 13 (+1 за каждую травму, взятую вместо смерти), когда навыки не помогут.']),
+    S('scale', 'Масштаб и время', ['Персональный масштаб — Спектры, люди, лёгкая и гражданская техника. Стратегический — Катафракты, бронетехника, отряды с тяжёлым оружием.',
+      'Вахта — 6 часов (путь, отдых, ремонт), ход — 10 минут (исследование руин), раунд — 6 секунд (бой, погоня).']),
+    S('load', 'Снаряжение, нагрузка, кВ', ['Предметы занимают СЛ (тяжёлые — 2 и больше; мелочь не занимает).',
+      'Нагрузка: 4 СЛ — 1 пункт, затем +1 за каждые 3 СЛ (7, 10, 13…). Штраф — столько же к МОБ; у Катафракта на 2, 4 и 6 — ещё +1, +2, +3 к броскам кР.',
+      'СОМ 1–2 (Скаут) игнорирует 1 пункт, СОМ 3–4 (Истребитель) — 2, СОМ 5–6 (Дредноут) — 3.',
+      'Кость расхода (кВ) — к6 с тремя метками: используя ресурс, бросьте к6 и зачеркните метку на 4+. Три метки — ресурс кончился.']),
+    S('travel', 'Путешествия', ['Карта — квадраты по 100 км. За вахту: Дредноуты 1 квадрат, Истребители 1,5, Скауты 2, караваны и техника 1, пешком 0,25.',
+      'Сложный ландшафт, прочёсывание, осторожное движение и фуражирование — вдвое медленнее.',
+      'Каждая самостоятельная машина тратит 1 Батарею за квадрат; каждые 10 человек — 1 Запас в сутки.']),
+    S('social', 'Реакция, Слава, Торги', ['Реакция — 2к6: 2–3 враждебная, 4–5 настороженная, 6–8 неопределённая, 9–10 заинтересованная, 11–12 дружеская.',
+      'Слава — к20 + число законченных походов; успех — слава опередила Спектров. С преимуществом там, где их знают.',
+      'Торги: стороны бросают кости по ценности — Хлам к6, Находка 2к6, Редкость 3к6, Реликт 4к6; ±1 за каждую степень реакции и за славу. Больше у инициатора — сделка; иначе он доплачивает разницу или добавляет товар (и бросок).']),
+    S('pilot', 'Пилотирование', ['В Катафракте используются характеристики Спектра: МОТ — манёвры и кинетика, КОГ — лучевое и ракетное, точные расчёты, СОМ — ближний бой и нагрузки, ЭМП — Ядро и электроника.',
+      'Подключение в бою — бросок кС, соединение на 4+, длится раунд; отключение — тоже раунд.',
+      'После 3 + СОМ вахт без перерыва в Утробе Спектр бросает Отдачу каждые СОМ вахт.']),
+    S('reactor', 'Реактор (кР)', ['Начальная кость — к6. Бросок кР: Форсаж (ещё действие), энергооружие и удар (кР к атаке), модули. На 4+ кость растёт: к6 → к8 → к10 → к12.',
+      'Итог 7+ — перегрев: 7 — препятствие на ментальные проверки; 8 — −к3 МОБ и заметность; 9 — отключается модуль; 10 — отключается оружие; 11 — машина отключается; 12 — шанс взрыва 1-з-6 (+1 за раунд); 13+ — взрыв.',
+      'Радиаторы — действием снизить кР на степень. Вахта без нагрузки — кР возвращается к к6.']),
+    S('sensors', 'Сенсоры', ['Пассивный режим следит за целями, не противодействующими обнаружению, до дальней дистанции.',
+      'Активный — проверка к20 + Сенсоры находит тех, кто прячется, но выдаёт сам Катафракт.', 'Обнаруженную цель можно захватить и вести без прямой видимости. На средней дистанции — полные сведения, на дальней — частичные, дальше — приблизительные.']),
+    S('backlash', 'Отдача', ['Случается при резком разрыве синхронизации, вражеских системах и вирусах, ошибке погружения, отключении без оруженосца.',
+      'Бросьте кС + 1 за каждую сверхурочную вахту: 1–3 сенсорная перегрузка … 9 разорение … 11 нейрошок … 12+ неконтролируемый коллапс (Удача или смерть).',
+      'Ритуал декомпрессии, проведённый до наступления эффекта, отменяет его.']),
+    S('battle', 'Бой', ['Первым действует зачинщик; застигнутые врасплох пропускают первый раунд. Дальше каждый раунд лидеры сторон бросают к6 — от большего к меньшему. Внутри стороны раньше ходит тот, у кого выше МОБ.',
+      'За ход — одно действие (атака, переход между Зонами, предмет, проверка) и приказ Почёту. Катафракт может получить второе действие Форсажем.',
+      'Дистанции: ⁕ контактная, > ближняя (своя Зона), >> средняя (другие Зоны, переход — действие), >>> дальняя (края поля, два действия). Медленные тратят два действия на переход, быстрые двигаются в придачу к действию.',
+      'Атака: к20 + характеристика ≥ МОБ цели — попадание, вред бросается отдельно. Броня цели вычитает свой бросок. 20 — автопопадание и критическая травма/повреждение, 1 — промах.',
+      'Стрельба вплотную (не Лёгким) и за пределы дальности — с препятствием. Укрытие, из которого можно стрелять, — +3 МОБ против дальнобойных.',
+      'Мультиатака: отдельные броски всем оружием, берётся наибольший вред; совпали наибольшие — удвоение. Маневр (толчок, обезоружить, свалить) — атака с препятствием: оба броска удались — успех, один — успех и контратака.',
+      'Катафракт и тяжёлая техника по цели персонального масштаба — урон ×10. Персональный масштаб ранит стратегический только Тяжёлым оружием.',
+      'Боевой Дух — после гибели лидера, потери половины отряда или СТК, критического повреждения: 2к6 больше БД — отступает; после двух удачных проверок — до конца.',
+      'Отряд по одиночке — двойной урон; одиночка ранит отряд только Тяжёлым оружием; отряд разбит критическим повреждением или проваленным Боевым Духом.']),
+    S('death', 'Гибель, спасение, лечение', ['0 СТК — Спектр без сознания и умирает через СОМ раундов без помощи или от нового повреждения. Можно взять случайную Травму вместо смерти: +1 к сложности Удачи, травма занимает 1 СЛ.',
+      'Реанимация — оборудование и проверка со сложностью 13 + число раундов без сознания; после неё препятствие на всё до отдыха.',
+      'Лечение: 1 СТК за вахту отдыха, к3 — с медицинским уходом.',
+      'Катафракт при 0 СТК продолжает бой, но каждое попадание — Критическое повреждение (занимает СЛ, отключает модуль). Уничтоженный Катафракт — Испытание Удачи, чтобы выбраться с половиной СТК.',
+      'Эвакуация: Спектр может разорвать синхронизацию — Утроба выбросит его без сознания.']),
+    S('repair', 'Ремонт и Материалы', ['Полевой ремонт — вахта и 1 Мат: +к6 СТК; делают оружейники с ремонтной техникой.',
+      'Капитальный — к3 дня и 1 Мат: снять одно Критическое повреждение; только в Ковчеге, полевой оружейной машине или цехе.',
+      'Расходники: 1 Мат за кость. Модуль: обычный — 2к6 дней по 3 Мат, редкий — 3к6 дней по 4 Мат; реликтовые не создаются.',
+      'Уничтоженный Катафракт — оценка разрушений 2к6, новый СТК по каркасу; столько же недель работы отряда оружейников, 1 Мат в день.',
+      'Утилизация — вахта: обломки (к6) или Катафракт (2к6) дают Материалы и реликтовые детали.']),
+    S('sync', 'Синхронизация и Ядро', ['кС — от к6 до к12. Рост: изучение техники, анализ информации, пожирание ИИ (с преимуществом ×1–3; «1» при пожирании — Удача или смерть). Максимум на кости — степень вверх, иначе +1 к следующему броску роста.',
+      'Погружение: первое — кС трижды (Узел, детали, событие), затем кС + Измерение. Переход ведёт глубже.',
+      'Выход — к20 + ЭМП против Отчуждённости + Измерение; провал — выход с Отдачей. Выход сбрасывает кС до к6.']),
+    S('lance', 'Копьё', ['Ресурсы: Запасы (свита и быт; 1 в сутки на 10 человек), Батареи (техника, 1 за квадрат), Материалы (ремонт, расходники), Богатства (обмен, подкуп), Люди, Слава.',
+      'Старт: 6+2к6 Запасов, 6+2к6 Батарей, 6+3к6 Материалов, к6 Богатств, 40+2к6 Людей; два отряда оружейников, Ковчег, оруженосец каждому Спектру.',
+      'Свита: оружейники (+3 к ремонту), специалисты (офицер, целитель, толкователь, разведчик, кастелян, эмиссар, археотехник, купец, проводник), оруженосцы, отряды воинов.'])
+  ];
+  const WORLD = [
+    S('limit', 'Предел', ['Звёздное скопление на краю Молчаливого Пространства — последний рубеж Предков. После падения цивилизации Граница распалась на изолированные феодальные анклавы, где древние технологии, знания и ресурсы — главное сокровище.']),
+    S('history', 'История', ['Зенит — эпоха чудес сингулярности, когда человечество правило законами вселенной. Катастрофа — то, что перевернуло историю; никто не помнит, что случилось. Изоляция — связь со вселенной затихла, началась эпоха молчания. Затемнение — неустанный регресс: наука стала таинством, общества откатились в архаику.']),
+    S('life', 'Жизнь в Границе', ['Вечный кастовый порядок: Воины, Жрецы, Купцы и Ремесленники служат Знати, простонародье питает машину кровью и ресурсами.',
+      'Люди — единственный известный разумный вид, хотя легенды помнят встречи с другими. Власть в руках местных феодалов, генетика определяет касту, геном Пращуров — основа власти.',
+      'Экономика — бартер и ценные ресурсы; гексаграмм — деньги Стержня. Новости ходят со скоростью кораблей.']),
+    S('faith', 'Вера', ['Конкорд — древнее техногностическое учение о росте через технологии, основа местных религий. Кочевники пустоты чтят Зори, кланы — предков и Кровь; еретические секты Трёх (Казнённого, Пленного и Изгнанного Богов) преследуются.']),
+    S('tech', 'Технологии', ['Продвинутая техника воспринимается как мистика; уцелевшие машины — сакральные реликты, и чем дальше от Стержня, тем они ценнее. Процветают реверс-инжиниринг, техномародёрство и чёрные рынки.',
+      'Медицина и аугментации редки, клонирование граничит со знахарством; исправный робот — клад, достойный князя, а супер-ИИ равны божествам.']),
+    S('spectres', 'Спектры и Катафракты', ['Спектр — тот, чья кровь позволяет синхронизироваться с Ядром Катафракта. Их боятся, сторонятся, жалеют и уважают; синхронизировавшись хоть раз, обычным человеком уже не станешь.',
+      'Катафракт — древняя антропоморфная боевая машина весом 15–50 т и ростом 7–13 м, которую питает миниатюрная чёрная дыра. Технологии их создания утрачены; их немного и становится всё меньше.',
+      'Свободное Копьё — малое войско вокруг Катафрактов: само выбирает лидера, делит добычу, и его слово священно.'])
+  ];
+  const GM = [
+    S('honesty', 'Принципы Летописца', ['Летописец нейтрален: не враг игрокам и не подыгрывает. Бросайте открыто, не подтасовывайте, доверяйте случаю и толкуйте его логикой мира.',
+      'Давайте информацию: отвечайте на вопросы, вознаграждайте любопытство, предупреждайте об опасностях и последствиях.',
+      'Значимые выборы: без лёгких решений, с открытым концом; уважайте выбор, даже если это выбор не выбирать.',
+      'Влияние на мир: поступки оставляют след; избегайте конфликтов без последствий.',
+      'Смерть рядом: бои беспощадны, но гибель — следствие выбора; позволяйте бежать, сдаваться, отступать.',
+      'Решения, а не правила: где правил нет — решайте последовательно, награждайте хорошие идеи.',
+      'Ресурсы и время — ценность: дефицит рождает интересный выбор. Играйте, чтобы узнать, что будет: готовьте ситуации, а не сюжеты.']),
+    S('themes', 'Темы', ['Песни и легенды: горькие победы, великие и ужасные поступки, трудный выбор.', 'Предел: всё дышит древностью и упадком, быт полон ритуалов и предрассудков.',
+      'Спектры — чужие среди своих; Катафракты — реликты и страшное оружие; мистика всегда рядом, но никогда не очевидна.',
+      'Экзистенциальный ужас Ядра; вселенная живёт по своим законам — Копьё тоже герой истории.']),
+    S('prep', 'Подготовка', ['Ситуация — набор обстоятельств, провоцирующих действие: событие, исследование, локация или персоналии. Добавьте причины, крючки (слухи могут лгать), действующих лиц с целями и слабостями.',
+      'Место действия: система → планета → регион; помехи разнообразны (встречи 2к6, ловушки, загадки, социальные и логистические угрозы, природа).',
+      'Последствия: реакция фракций, изменение мира, цена провала; награды разбросаны по всему приключению.',
+      'Источники синхронизации: каждые 2–3 сессии давайте шанс погрузиться в Ядро — кластеры древних данных, образцы техники, поглощение вражеских Катафрактов; пусть за них соперничают другие.'])
+  ];
+  const GLOSSARY = [['Спектр', 'пилот Катафракта, способный к синхронизации с Ядром'], ['Катафракт', 'древняя боевая машина'], ['Утроба', 'кокон Спектра внутри Катафракта'],
+    ['Ядро', 'древний ИИ Катафракта'], ['Летописец', 'ведущий игры'], ['Копьё (Свободное Копьё)', 'малое войско вокруг Катафрактов'], ['кС', 'кость синхронизации (к6–к12)'],
+    ['кР', 'кость реактора (к6–к12)'], ['кВ', 'кость расхода: к6 с тремя метками'], ['СЛ', 'слот снаряжения'], ['СТК', 'устойчивость, «хиты»'], ['МОБ', 'мобильность — сложность попасть по цели'],
+    ['БД', 'Боевой Дух'], ['Мат', 'пункт Материалов (1 Мат = 1 СЛ)'], ['Вахта', '6 часов игрового времени'], ['НиП', 'неигровой персонаж'], ['Генолиния', 'династия, чья власть держится на генетике'],
+    ['Пращуры, Предки', 'древняя цивилизация эпохи Зенита'], ['Стержень', 'цивилизованные миры, центр Предела'], ['Отчуждённость', 'насколько Ядро чуждо Спектру (13–17)'],
+    ['Пустота (войд)', 'огромные почти пустые области космоса между звёздными структурами'], ['Технологическая сингулярность', 'момент, когда технический прогресс обгоняет человеческие возможности'],
+    ['Техногностицизм', 'вера в постижение природы и вселенной через технологии'], ['Суперинтеллект', 'ИИ, превосходящий человека во всём'], ['Двигатель Шкадова', 'зеркальная оболочка, двигающая звезду вместе с системой'],
+    ['Колония О’Нейла', 'вращающийся цилиндр-поселение с искусственной гравитацией'], ['Кольцо Нивена', 'кольцо вокруг звезды с площадью тысяч планет'], ['Экуменополис', 'планета-город'],
+    ['Диск Олдерсона', 'гигантский обитаемый диск вокруг звезды'], ['Рой Дайсона', 'мириады объектов на орбитах, собирающих энергию звезды']];
+
+  const TABS = [['rules', 'Правила', RULES], ['world', 'Мир', WORLD], ['gm', 'Летописцу', GM], ['words', 'Словарь', null]];
+  let tab = 'rules', query = '';
+  const hl = (t)=>{ const s = esc(t); if(!query) return s; const q = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); return s.replace(new RegExp('(' + q + ')', 'gi'), '<mark>$1</mark>'); };
+  const match = (sec)=>!query || (sec.title + ' ' + sec.body.join(' ')).toLowerCase().includes(query.toLowerCase());
+  function body(focus){
+    if(query){
+      const all = [].concat(RULES, WORLD, GM).filter(match);
+      const words = GLOSSARY.filter(([a, b])=>(a + ' ' + b).toLowerCase().includes(query.toLowerCase()));
+      return (all.map(s=>sec(s, true)).join('') + (words.length ? `<dl class="kv-dl">${words.map(([a, b])=>`<dt>${hl(a)}</dt><dd>${hl(b)}</dd>`).join('')}</dl>` : '')) || '<div class="kv-empty">Ничего не найдено</div>';
+    }
+    if(tab==='words') return `<dl class="kv-dl">${GLOSSARY.map(([a, b])=>`<dt>${esc(a)}</dt><dd>${esc(b)}</dd>`).join('')}</dl>`;
+    return TABS.find(t=>t[0]===tab)[2].map(s=>sec(s, s.id===focus)).join('');
+  }
+  const sec = (s, open)=>`<details class="kv-ref" data-ref="${s.id}"${open ? ' open' : ''}><summary>${hl(s.title)}</summary>${s.body.map(p=>`<p>${hl(p)}</p>`).join('')}</details>`;
+  function open(focus){
+    if(focus){ const t = TABS.find(x=>x[2] && x[2].some(s=>s.id===focus)); if(t) tab = t[0]; }
+    query = '';
+    const panel = UI.sheet({title:'Справочник', sub:'Кавалерия 0.44 — правила, мир, советы Летописцу, словарь', cls:'kv-wizard kv-ref-sheet', html:`
+      <input class="kv-ref-search" placeholder="Поиск: «Отдача», «укрытие», «Материалы»…" aria-label="Поиск по справочнику">
+      <div class="kv-chips2" data-reftabs>${TABS.map(t=>`<button type="button" class="kv-chip${t[0]===tab ? ' on' : ''}" data-a="tab" data-t="${t[0]}">${t[1]}</button>`).join('')}</div>
+      <div class="kv-ref-body">${body(focus)}</div>`,
+      onAction(a, b, close, p){ if(a==='tab'){ tab = b.dataset.t; query = ''; p.querySelector('.kv-ref-search').value = ''; p.querySelectorAll('[data-reftabs] .kv-chip').forEach(c=>c.classList.toggle('on', c===b)); p.querySelector('.kv-ref-body').innerHTML = body(); } }});
+    const s = panel.querySelector('.kv-ref-search');
+    s.addEventListener('input', ()=>{ query = s.value.trim(); panel.querySelector('.kv-ref-body').innerHTML = body(); });
+    if(focus){ const el = panel.querySelector(`[data-ref="${focus}"]`); if(el) setTimeout(()=>el.scrollIntoView({block:'start'}), 50); }
+  }
+  // ссылка «?» для карточек
+  const link = (id)=>`<button type="button" class="kv-help" data-ref-open="${id}" title="Правило в справочнике" aria-label="Правило в справочнике">?</button>`;
+  document.addEventListener('click', (e)=>{ const b = e.target.closest('[data-ref-open]'); if(b){ e.preventDefault(); e.stopPropagation(); open(b.dataset.refOpen); } }, true);
+  return {open, link};
+})();
+/* ======================================================================
+   КАВАЛЕРИЯ — ОБСЛУЖИВАНИЕ КАТАФРАКТА ЗА МАТЕРИАЛЫ КОПЬЯ (части 2 и 6): полевой ремонт (вахта, 1 Мат, +к6 СТК),
+   капитальный (к3 дня, 1 Мат, снять одно Критическое повреждение), пополнение расходников (1 Мат за кость).
+   Материалы лежат в Копье у Летописца. Игрок за столом шлёт запрос mat-req {rid, n, purpose, who}; у Летописца
+   запросы копятся в очереди (полоса над экраном Летописца и окно, если другое не открыто), он разрешает или
+   отказывает — mat-ans {rid, ok}; при разрешении Материалы списываются у него, и только тогда действие
+   выполняется у игрока. Летописец и игра без стола списывают с Копья этого браузера сами.
+   ====================================================================== */
+const Maint = (function(){
+  const esc = kvEsc, int = (v, d)=>Pilot.int(v, d);
+  const waiting = {};     // у игрока: rid → resolve
+  let queue = [];         // у Летописца: [{rid, from, n, purpose, who}]
+
+  // ---------- списать n Мат → Promise<boolean> ----------
+  function spend(n, purpose){
+    const S = Table.S;
+    if(S.role==='player'){
+      if(!S.gmId){ UI.toast('Летописца нет за столом — Материалы просить не у кого', 'fail'); return Promise.resolve(false); }
+      const rid = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      Table.send({type:'mat-req', rid, n, purpose, who:(Tandem.pilot && Tandem.pilot.name) || 'Спектр'}, S.gmId);
+      UI.toast(`Запрос Летописцу: ${n} Мат — ${purpose}`, 'ok');
+      return new Promise(res=>{ waiting[rid] = res; });
+    }
+    const r = Gm.spendMat(n);
+    if(r.ok) return Promise.resolve(true);
+    return Promise.resolve(confirm(`В Копье ${r.left} Мат, а нужно ${n}. Провести без списания?`));
+  }
+  // у игрока: ответ Летописца
+  function answer(m){
+    const f = waiting[m.rid];
+    if(!f){ if(m.ok) UI.toast('Летописец разрешил устаревший запрос Материалов — повторите действие', 'info'); return; }
+    delete waiting[m.rid]; if(!m.ok) UI.toast('Летописец отказал в Материалах', 'fail'); f(!!m.ok);
+  }
+  // у игрока: Летописец ушёл — все ожидающие запросы отменяются
+  function gmLeft(){ Object.keys(waiting).forEach(rid=>{ const f = waiting[rid]; delete waiting[rid]; f(false); }); }
+
+  // ---------- действия ----------
+  const show = (e)=>{ Fx.play(e); Tandem.render(); Table.rolled(e); Table.pilotChanged(); };
+  function field(p){
+    const m = p.mech;
+    spend(1, 'полевой ремонт').then(ok=>{ if(!ok) return;
+      const v = Dice.rnd(6), before = int(m.stk); m.stk = Math.min(int(m.stkMax), before + v); Pilot.save();
+      show(Rolls.push({who:p.name, kind:'repair', title:'Полевой ремонт', tone:'ok', big:'+' + (m.stk - before), verdict:`СТК ${before} → ${m.stk} · вахта, 1 Мат`,
+        lines:[`к6 = ${v}${before + v > int(m.stkMax) ? ` (сверх максимума ${int(m.stkMax)} не восстанавливается)` : ''}`, 'Делают оружейники с ремонтной техникой.'], dice:[{sides:6, value:v, tint:'good'}]})); });
+  }
+  function capital(p, critId){
+    const m = p.mech, c = m.crits.find(x=>x.id===critId); if(!c) return;
+    spend(1, 'капитальный ремонт').then(ok=>{ if(!ok) return;
+      const v = Dice.rnd(6), d = Math.ceil(v / 2); m.crits = m.crits.filter(x=>x.id!==critId); Pilot.save();
+      show(Rolls.push({who:p.name, kind:'repair', title:'Капитальный ремонт', tone:'ok', big:d + ' дн.', verdict:'Снято: ' + c.text,
+        lines:[`к3 = ${d} дн. работы, 1 Мат`, 'Только в Ковчеге, полевой оружейной машине или ремонтном цехе.'], dice:[{sides:6, value:v, label:'к3 = ' + d}]})); });
+  }
+  function refill(p, ids){
+    const list = p.mech.items.filter(it=>ids.includes(it.id)); if(!list.length) return;
+    spend(list.length, 'пополнение расходников').then(ok=>{ if(!ok) return;
+      list.forEach(it=>{ it.marks = 0; }); Pilot.save();
+      show(Rolls.push({who:p.name, kind:'repair', title:'Пополнение расходников', tone:'ok', big:'−' + list.length + ' Мат', verdict:list.map(it=>it.name).join(', '), lines:['1 Мат за каждую кость расходника.']})); });
+  }
+  function sheet(p){
+    const m = p.mech, used = m.items.filter(it=>(it.kind==='consumable' || it.kv) && int(it.marks) > 0), full = int(m.stk) >= int(m.stkMax);
+    const player = Table.S.role==='player', left = player ? (Table.S.lance && Table.S.lance.res ? int(Table.S.lance.res.materials) : null) : Gm.spendMat(0).left;
+    UI.sheet({help:'repair', title:'Ремонт и обслуживание', sub:`СТК ${int(m.stk)} из ${int(m.stkMax)} · ${left!=null ? `в Копье ${left} Мат` : 'Материалы Копья'}${player ? ' · с разрешения Летописца' : ''}`, html:`
+      <div class="kv-act-grid"><button type="button" class="kv-act" data-a="field"${full ? ' disabled' : ''}><b>Полевой ремонт</b><span>${full ? 'СТК и так полный' : 'вахта и 1 Мат: +к6 СТК'}</span></button></div>
+      ${m.crits.length ? `<div class="kv-fe kv-wide"><span>Капитальный ремонт — к3 дня и 1 Мат за одно повреждение</span><div class="kv-act-grid">${m.crits.map(c=>`<button type="button" class="kv-act" data-a="capital" data-id="${c.id}"><b>Снять</b><span>${esc(c.text)}</span></button>`).join('')}</div></div>` : '<p class="kv-note">Критических повреждений нет.</p>'}
+      ${used.length ? `<div class="kv-fe kv-wide"><span>Пополнить расходники — 1 Мат за кость</span><div class="kv-chips2">${used.map(it=>UI.chip(it.id, `${esc(it.name)} · ${int(it.marks)}/3`, true)).join('')}</div>
+        <div class="kv-sheet-btns"><button type="button" class="kv-btn kv-primary kv-grow2" data-a="refill">Пополнить отмеченные</button></div></div>` : '<p class="kv-note">Расходники полны.</p>'}
+      <p class="kv-note">Восстановление уничтоженного Катафракта и создание модулей — в справочнике (кнопка «?»): это недели работы, их ведёт Летописец.</p>`,
+      onAction(a, b, close, panel){
+        if(a==='field'){ close(); field(p); }
+        if(a==='capital'){ close(); capital(p, b.dataset.id); }
+        if(a==='refill'){ const ids = [...panel.querySelectorAll('[data-chip].on')].map(c=>c.dataset.chip); if(!ids.length){ UI.toast('Отметьте расходники', 'fail'); return; } close(); refill(p, ids); }
+      }});
+  }
+
+  // ---------- Летописец: очередь запросов ----------
+  function request(from, m){
+    const n = Math.max(0, Math.min(99, int(m.n))); if(!n || !m.rid) return;
+    queue.push({rid:String(m.rid).slice(0, 24), from, n, purpose:String(m.purpose || '').slice(0, 60), who:String(m.who || 'Игрок').slice(0, 40)});
+    UI.toast(`${m.who || 'Игрок'} просит ${n} Мат — ${m.purpose}`, 'info');
+    Gm.render();
+    if(!UI.isOpen) decideSheet(queue[queue.length - 1]);
+  }
+  function decide(rid, ok){
+    const q = queue.find(x=>x.rid===rid); if(!q) return;
+    queue = queue.filter(x=>x!==q);
+    if(ok) Gm.spendMat(q.n, true);
+    Table.send({type:'mat-ans', rid:q.rid, ok}, q.from);
+    UI.toast(ok ? `${q.who}: списано ${q.n} Мат` : `${q.who}: отказано`, ok ? 'ok' : 'fail');
+    Gm.render();
+  }
+  function decideSheet(q){
+    const left = Gm.spendMat(0).left;
+    UI.sheet({help:'repair', title:'Запрос Материалов', sub:`${q.who}: ${q.n} Мат — ${q.purpose}`, html:`<p class="kv-p">В Копье ${left} Мат${left < q.n ? ' — не хватает, разрешение спишет до нуля' : ''}. Закрыть окно — запрос останется в очереди на экране Летописца.</p>
+      <div class="kv-sheet-btns"><button type="button" class="kv-btn" data-a="no">Отказать</button><button type="button" class="kv-btn kv-primary kv-grow2" data-a="yes" autofocus>Разрешить: −${q.n} Мат</button></div>`,
+      onAction(a, b, close){ close(); decide(q.rid, a==='yes'); }});
+  }
+  // игрок ушёл — его запросы снимаются
+  function peerLeft(id){ const n = queue.length; queue = queue.filter(q=>q.from!==id); if(queue.length!==n) Gm.render(); }
+  const queueView = ()=>queue.length ? `<div class="kv-matq">${queue.map(q=>`<div class="kv-matq-i"><span><b>${esc(q.who)}</b> просит ${q.n} Мат — ${esc(q.purpose)}</span>
+      <button type="button" class="kv-btn kv-sm" data-g="mat-no" data-id="${esc(q.rid)}">Отказать</button><button type="button" class="kv-btn kv-sm kv-primary" data-g="mat-yes" data-id="${esc(q.rid)}">Разрешить −${q.n}</button></div>`).join('')}</div>` : '';
+
+  return {sheet, refill, spend, answer, gmLeft, request, decide, peerLeft, queueView};
 })();
 /* ======================================================================
    КАВАЛЕРИЯ — СТРАНИЦА: шапка (тандем, «Новый Спектр», меню), панель над листом (Игра/Правка, «В Утробе»,
@@ -4007,6 +4390,13 @@ const App = (function(){
     document.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('on', b.dataset.mode===Tandem.mode));
   }
   function show(x){ Tandem.render(x); names(); refresh(); if(typeof Table!=='undefined') Table.pilotChanged(); }
+  // выйти из Утробы: счёт вахт подключения сбрасывается; сверхурочные — напоминание о ритуале декомпрессии
+  function leaveWomb(){
+    const x = p(); if(!x) return; const W = Pilot.wombLimit(x), n = Pilot.int(x.watches);
+    x.inWomb = false; x.watches = 0; Pilot.save(); Tandem.render(); refresh();
+    UI.toast(n ? `Спектр вне Утробы после ${n} вахт${W.over ? ` (сверхурочных ${W.over}) — самое время для ритуала декомпрессии` : ''}` : 'Спектр вне Утробы', W.over ? 'fail' : 'info');
+    if(typeof Table!=='undefined') Table.pilotChanged();
+  }
   // Летописцу — «Лист» или «Летописец»
   function setView(v){ document.body.classList.toggle('gm-view', v==='gm'); document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('on', b.dataset.view===v)); if(v==='gm') Gm.render(); }
   // бой у игрока: «Лист / Бой» над листом, вкладка «Бой» на телефоне
@@ -4071,7 +4461,7 @@ const App = (function(){
     document.querySelectorAll('[data-mode]').forEach(b=>b.addEventListener('click', ()=>{ prefs.mode = b.dataset.mode; savePrefs(); Tandem.setMode(b.dataset.mode); }));
     document.querySelectorAll('[data-rm]').forEach(b=>b.addEventListener('click', ()=>setMode(b.dataset.rm===rollMode && b.dataset.rm!=='norm' ? 'norm' : b.dataset.rm)));
     document.querySelectorAll('[data-tab-btn]').forEach(b=>b.addEventListener('click', ()=>setTab(b.dataset.tabBtn)));
-    $('#kvWomb').addEventListener('click', ()=>{ const x = p(); x.inWomb = !x.inWomb; Pilot.save(); Tandem.render(); UI.toast(x.inWomb ? 'Спектр в Утробе: бой — Катафрактом' : 'Спектр вне Утробы'); if(typeof Table!=='undefined') Table.pilotChanged(); });
+    $('#kvWomb').addEventListener('click', ()=>{ const x = p(); if(x.inWomb){ leaveWomb(); return; } x.inWomb = true; x.watches = 0; Pilot.save(); Tandem.render(); refresh(); UI.toast('Спектр в Утробе: бой — Катафрактом; отмечайте вахты кнопкой «+ вахта»'); if(typeof Table!=='undefined') Table.pilotChanged(); });
     $('#kvDc').addEventListener('input', (e)=>{ dcOverride = e.target.value==='' ? null : Pilot.int(e.target.value, 13); refresh(); });
     $('#kvDcReset').addEventListener('click', ()=>{ dcOverride = null; refresh(); });
     $('#kvTables').addEventListener('click', ()=>Actions.tablesSheet(p()));
@@ -4084,7 +4474,7 @@ const App = (function(){
     Table.onChange((S)=>{ if(S.role!=='gm' && document.body.classList.contains('gm-view')) setView('sheet'); battleChanged(); });
     Table.init(); Battle.init(); battleChanged();
   }
-  return {init, names, refresh, show, pref, folded, fold, dc, mode, setMode, useMode, battleChanged};
+  return {init, names, refresh, show, leaveWomb, pref, folded, fold, dc, mode, setMode, useMode, battleChanged};
 })();
 document.addEventListener('DOMContentLoaded', App.init);
 </script>

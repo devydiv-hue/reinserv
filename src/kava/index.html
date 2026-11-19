@@ -40,6 +40,7 @@
   <label class="kv-dc" title="Сложность проверок (по умолчанию — Испытание Удачи)"><span>Сложность</span><input id="kvDc" type="number" inputmode="numeric"><button type="button" id="kvDcReset" class="kv-x" hidden title="Вернуть = Удача">↺</button></label>
   <div class="kv-seg kv-rm" role="group" aria-label="Режим к20 на следующий бросок"><button type="button" data-rm="norm" class="on">к20</button><button type="button" data-rm="adv" title="Преимущество: 2к20, больший">Преим.</button><button type="button" data-rm="dis" title="Препятствие: 2к20, меньший">Препятст.</button></div>
   <button type="button" id="kvTables" class="kv-btn">⚄ Броски</button>
+  <button type="button" class="kv-btn" data-ref-open="checks" title="Правила, мир, советы Летописцу, словарь">? Справочник</button>
 </div>
 <div class="kv-room" id="kvRoom" hidden></div>
 <main class="kv-main">
@@ -76,6 +77,8 @@
 /*@include kava/scripts/16-battle.js*/
 /*@include kava/scripts/17-epic.js*/
 /*@include kava/scripts/18-dive.js*/
+/*@include kava/scripts/19-ref.js*/
+/*@include kava/scripts/20-maint.js*/
 /*@include kava/scripts/12-app.js*/
 </script>
 </body>

@@ -105,3 +105,31 @@ body.ep-shake .kv-main, body.ep-shake .kv-bar{ animation:kvShake .45s linear 3; 
 .kv-node-head b{ font-family:var(--font-display); font-size:20px; letter-spacing:.04em; color:#bfefff; }
 .kv-node-head span{ font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); }
 .kv-dim{ min-width:26px; height:26px; display:inline-grid; place-items:center; border-radius:50%; background:var(--accent2); color:#fff; font-size:13px; }
+
+/* справочник */
+.kv-help{ width:26px; height:26px; padding:0; border-radius:50%; border:1px solid var(--line2); background:var(--bg2); color:var(--accent); font-weight:700; flex-shrink:0; }
+.kv-help:hover{ border-color:var(--accent); }
+.kv-sheet-head .kv-help{ margin-left:auto; }
+.kv-ref-search{ width:100%; font-size:15px; padding:8px 10px; }
+.kv-ref{ border:1px solid var(--line); border-radius:10px; background:var(--bg2); }
+.kv-ref > summary{ cursor:pointer; padding:8px 12px; font-weight:700; list-style:none; }
+.kv-ref > summary::-webkit-details-marker{ display:none; }
+.kv-ref > summary::before{ content:"▸ "; color:var(--muted); } .kv-ref[open] > summary::before{ content:"▾ "; }
+.kv-ref p{ margin:0; padding:0 12px 8px; color:#c9d8dc; line-height:1.45; }
+.kv-ref-body{ display:flex; flex-direction:column; gap:6px; }
+.kv-ref-body mark{ background:rgba(242,201,76,.35); color:var(--fg); border-radius:3px; padding:0 1px; }
+
+/* ---------- ремонт за Материалы: ссылки под СТК, очередь запросов у Летописца ---------- */
+.kv-links{ display:flex; flex-wrap:wrap; gap:4px 14px; }
+.kv-matq{ display:flex; flex-direction:column; gap:6px; }
+.kv-matq-i{ display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:8px 10px; border-radius:10px; border:1px solid var(--accent); background:rgba(242,201,76,.08); }
+.kv-matq-i > span{ flex:1 1 220px; min-width:0; }
+.kv-badge.kv-auto{ background:rgba(126,200,160,.16); color:#9fdcb9; border:1px solid rgba(126,200,160,.4); margin-left:4px; white-space:normal; }
+
+/* ---------- вахты в Утробе ---------- */
+.kv-watch{ display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:8px 10px; border-radius:12px; border:1px solid var(--line); background:var(--bg2); }
+.kv-watch > div{ flex:1 1 200px; display:flex; flex-direction:column; gap:2px; min-width:0; }
+.kv-watch small{ color:var(--muted); font-size:12px; }
+.kv-watch.edge{ border-color:var(--accent); }
+.kv-watch.over{ border-color:var(--fail); box-shadow:0 0 0 1px var(--fail) inset; }
+.kv-badge.kv-over{ background:var(--fail); }

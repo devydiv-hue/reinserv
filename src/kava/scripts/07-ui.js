@@ -10,7 +10,7 @@ const UI = (function(){
     close();
     const back = document.createElement('div'); back.className = 'kv-sheet-back';
     back.innerHTML = `<div class="kv-sheet ${o.cls || ''}" role="dialog" aria-modal="true" aria-label="${kvEsc(o.title || '')}">
-      <div class="kv-sheet-head"><div class="kv-sheet-title">${o.title ? kvEsc(o.title) : ''}${o.sub ? `<small>${kvEsc(o.sub)}</small>` : ''}</div><button type="button" class="kv-x" data-a="close" aria-label="Закрыть">✕</button></div>
+      <div class="kv-sheet-head"><div class="kv-sheet-title">${o.title ? kvEsc(o.title) : ''}${o.sub ? `<small>${kvEsc(o.sub)}</small>` : ''}</div>${o.help ? `<button type="button" class="kv-help" data-ref-open="${o.help}" title="Правило в справочнике" aria-label="Правило в справочнике">?</button>` : ''}<button type="button" class="kv-x" data-a="close" aria-label="Закрыть">✕</button></div>
       <div class="kv-sheet-body">${o.html || ''}</div></div>`;
     document.body.appendChild(back);
     const panel = back.querySelector('.kv-sheet');

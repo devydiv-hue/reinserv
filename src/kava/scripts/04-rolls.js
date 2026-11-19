@@ -45,23 +45,25 @@ const Rolls = (function(){
   function check(p, key, dc, mode, extra){
     const s = KAVA.STATS.find(x=>x.key===key), bonus = Pilot.stat(p, key) + (extra || 0), r = Dice.check(bonus, dc, mode);
     return push({who:who(p), kind:'check', title:`Проверка ${s.short}`, tone:r.ok ? 'ok' : 'fail', big:r.total, verdict:verdictOf(r) + ` (сложность ${dc})`,
-      lines:[d20Text(r) + ` (${s.short} ${Pilot.stat(p, key)}${extra ? ', бонус ' + extra : ''}) против ${dc}`], dice:d20Dice(r), fx:fxOf(r)});
+      lines:[d20Text(r) + ` (${s.short} ${Pilot.stat(p, key)}${extra ? ', бонус ' + extra : ''}) против ${dc}`].concat(giftNote(p, key)), dice:d20Dice(r), fx:fxOf(r)});
   }
+  // Дар Ядра, учтённый в характеристике (только в Утробе)
+  const giftNote = (p, key, inside)=>(inside || p.inWomb) && Pilot.gift(p, key) ? [`Дар Ядра: +${Pilot.gift(p, key)} ${KAVA.STATS.find(x=>x.key===key).short} в Утробе — уже в бонусе`] : [];
   function luck(p, mode){
     const dc = Pilot.luck(p), r = Dice.check(0, dc, mode);
     return push({who:who(p), kind:'luck', title:'Испытание Удачи', tone:r.ok ? 'ok' : 'fail', big:r.total, verdict:(r.ok ? 'Худшего удалось избежать' : 'Провал') + ` (сложность ${dc})`,
-      lines:[d20Text(r) + ` против ${dc}`], dice:d20Dice(r), fx:fxOf(r)});
+      lines:[d20Text(r) + ` против ${dc}`].concat(p.inWomb && Pilot.gift(p, 'luck') ? [`Дар Ядра «Отбор вероятностей»: сложность −${Pilot.gift(p, 'luck')} в Катафракте`] : []), dice:d20Dice(r), fx:fxOf(r)});
   }
   // испытание Отчуждённости / выход из погружения: к20 + ЭМП против Отчуждённости Ядра (+ Измерение)
   function alienation(p, depth, mode){
-    const dc = Pilot.coreOf(p.mech).alien + int(depth), r = Dice.check(Pilot.stat(p, 'emp'), dc, mode);
+    const dc = Pilot.alien(p) + int(depth), r = Dice.check(Pilot.stat(p, 'emp', true), dc, mode);
     return push({who:who(p), kind:'alien', title:depth ? `Выход из погружения (Измерение ${depth})` : 'Испытание Отчуждённости', tone:r.ok ? 'ok' : 'fail', big:r.total,
-      verdict:(r.ok ? 'Успех' : depth ? 'Выход с Отдачей' : 'Провал') + ` (Отчуждённость ${dc})`, lines:[d20Text(r) + ` (ЭМП) против ${dc}`, 'Выход из погружения сбрасывает кС до начального значения.'], dice:d20Dice(r), fx:fxOf(r)});
+      verdict:(r.ok ? 'Успех' : depth ? 'Выход с Отдачей' : 'Провал') + ` (Отчуждённость ${dc})`, lines:[d20Text(r) + ` (ЭМП) против ${dc}`, 'Выход из погружения сбрасывает кС до начального значения.'].concat(Pilot.gift(p, 'alien') ? [`Дар Ядра «Эмпатический ИИ»: Отчуждённость −${Pilot.gift(p, 'alien')}`] : [], giftNote(p, 'emp', true)), dice:d20Dice(r), fx:fxOf(r)});
   }
   function damageOf(w){ return Dice.roll(w.dmg || '1', {cascade:Pilot.hasTag(w, /^каскад/i)}) || {total:0, dice:[], text:'вред не задан'}; }
   // одна атака (Спектра или Катафракта). bonusDice — добавочные кости к атаке (боеприпасы, кР)
-  function strike(p, w, mob, mode, extra, addLines, scaleMul){
-    const bonus = Pilot.stat(p, w.stat || 'mot') + (extra || 0), r = Dice.check(bonus, mob, mode);
+  function strike(p, w, mob, mode, extra, addLines, scaleMul, crit19, mech){
+    const bonus = Pilot.stat(p, w.stat || 'mot', mech || undefined) + (extra || 0), r = Dice.check(bonus, mob, mode);
     const out = {w, r, hit:r.ok, dice:d20Dice(r, 'атака'), lines:[`${w.name}: ${d20Text(r)} против МОБ ${mob} — ${r.auto==='success' ? 'автопопадание (20)' : r.auto==='fail' ? 'промах (1)' : r.ok ? 'попадание' : 'промах'}`].concat(addLines || [])};
     if(!r.ok) return out;
     const dmg = damageOf(w), n = Pilot.cluster(w);
@@ -77,6 +79,7 @@ const Rolls = (function(){
     if(Pilot.hasTag(w, /^зона/i)) out.lines.push('Зона: поражает все цели в Зоне попадания');
     if(w.crit5 && r.total >= mob + 5) out.lines.push('На 5 выше МОБ цели — атака критическая');
     if(r.auto==='success') out.lines.push('20 — цель получает Критическую травму (или Критическое повреждение)');
+    else if(crit19 && r.nat===19){ out.crit = true; out.lines.push('19 — критическое попадание (Дар «Рекогнитивная баллистика»): Критическая травма или Критическое повреждение'); }
     return out;
   }
   // opts: {mob, mode, extra, contact, outOfRange, mech:true — оружие Катафракта, ammo — добавить кость боеприпасов, kr — добавить кР, personal — цель персонального масштаба}
@@ -91,6 +94,7 @@ const Rolls = (function(){
       const obstacle = !!opts.outOfRange || (opts.contact && ranged && !Pilot.hasTag(w, /^л[её]гкое/i));
       let add = mech ? 0 : (ranged ? int(p.atkRanged) : int(p.atkMelee));
       const lines = [];
+      if(mech){ const g = Pilot.gift(p, ranged ? 'ranged' : 'melee'); if(g){ add += g; lines.push(`Дар Ядра: +${g} к ${ranged ? 'стрелковой атаке' : 'атаке ближнего боя'}`); } }
       if(mech && opts.ammo && (w.type==='kinetic' || w.type==='missile')){
         const a = useConsumable(p, 'ammo', Pilot.hasModule(p, 'ammo5') ? 5 : 4);
         if(a){ add += a.value; lines.push(`Боеприпасы: к6 [${a.value}] → +${a.value}${a.spent ? `, метка (${a.item.marks}/3)` : ''}${a.empty ? ` — блок исчерпан, осталось выстрелов: ${a.value}` : ''}`); preDice.push({sides:6, value:a.value, label:'боеприп.'}); }
@@ -101,18 +105,18 @@ const Rolls = (function(){
         add += heat.value; lines.push(`кР ${heat.text} → +${heat.value} к атаке`); preDice.push({sides:heat.sides, value:heat.value, label:'кР', tint:heat.overheat ? 'heat' : ''});
         if(heat.lines.length) lines.push(...heat.lines);
       }
-      const x = strike(p, w, mob, combine(opts.mode, obstacle), extra + add, lines, mech && opts.personal ? 10 : 1);
+      const x = strike(p, w, mob, combine(opts.mode, obstacle), extra + add, lines, mech && opts.personal ? 10 : 1, mech && Pilot.gift(p, 'crit19') > 0, mech);
       if(obstacle) x.lines[0] += ' · препятствие';
       res.push(x);
     });
     const hits = res.filter(x=>x.hit), lines = [];
     res.forEach(x=>lines.push(...x.lines));
     let big, verdict, tone;
-    if(ws.length===1){ const x = res[0]; big = x.hit ? x.dmg : x.r.total; verdict = x.hit ? `Попадание: ${x.dmg} урона` : `Промах (${x.r.total} против МОБ ${mob})`; tone = x.hit ? (x.r.auto==='success' ? 'crit' : 'ok') : 'fail'; }
+    if(ws.length===1){ const x = res[0]; big = x.hit ? x.dmg : x.r.total; verdict = x.hit ? `Попадание: ${x.dmg} урона` : `Промах (${x.r.total} против МОБ ${mob})`; tone = x.hit ? (x.r.auto==='success' || x.crit ? 'crit' : 'ok') : 'fail'; }
     else if(!hits.length){ big = '—'; verdict = 'Залп: все промахнулись'; tone = 'fail'; }
     else {
       const top = Math.max(...hits.map(x=>x.dmg)), same = hits.filter(x=>x.dmg===top).length;
-      big = same > 1 ? top * 2 : top; verdict = same > 1 ? `Залп: наибольший вред ${top} совпал у ${same} — удвоение` : `Залп: наибольший вред ${top}`; tone = hits.some(x=>x.r.auto==='success') ? 'crit' : 'ok';
+      big = same > 1 ? top * 2 : top; verdict = same > 1 ? `Залп: наибольший вред ${top} совпал у ${same} — удвоение` : `Залп: наибольший вред ${top}`; tone = hits.some(x=>x.r.auto==='success' || x.crit) ? 'crit' : 'ok';
     }
     if(heat && heat.overheat) tone = 'heat';
     const dice = preDice.concat(...res.map(x=>x.dice)).slice(0, 8);
@@ -123,11 +127,12 @@ const Rolls = (function(){
   // Боевой маневр: атака с препятствием без урона — оба броска к20 против МОБ
   function maneuver(p, id, opts){
     const w = (opts.mech ? p.mech.items : p.items).find(it=>it.id===id); if(!w) return null;
-    const mob = int(opts.mob, 10), bonus = Pilot.stat(p, w.stat || 'som') + int(opts.extra), a = Dice.rnd(20), b = Dice.rnd(20);
+    const ranged = w.range && w.range!=='⁕', g = opts.mech ? Pilot.gift(p, ranged ? 'ranged' : 'melee') : 0;
+    const mob = int(opts.mob, 10), bonus = Pilot.stat(p, w.stat || 'som', opts.mech || undefined) + int(opts.extra) + g, a = Dice.rnd(20), b = Dice.rnd(20);
     const ok = (v)=>v===20 || (v!==1 && v + bonus >= mob), n = [a, b].filter(ok).length;
     return push({who:who(p), kind:'maneuver', title:'Боевой маневр', tone:n===2 ? 'ok' : n ? 'info' : 'fail', big:n + ' из 2',
       verdict:n===2 ? 'Маневр удался' : n ? 'Удался, но противник контратакует' : 'Маневр не удался',
-      lines:[`${w.name}: 2к20 [${a}, ${b}] ${sgn(bonus)} → ${a + bonus} и ${b + bonus} против МОБ ${mob}`], dice:[{sides:20, value:a, label:'1', tint:ok(a) ? 'good' : 'bad'}, {sides:20, value:b, label:'2', tint:ok(b) ? 'good' : 'bad'}]});
+      lines:[`${w.name}: 2к20 [${a}, ${b}] ${sgn(bonus)} → ${a + bonus} и ${b + bonus} против МОБ ${mob}`].concat(g ? [`Дар Ядра: +${g} к атаке`] : []), dice:[{sides:20, value:a, label:'1', tint:ok(a) ? 'good' : 'bad'}, {sides:20, value:b, label:'2', tint:ok(b) ? 'good' : 'bad'}]});
   }
   // урон по Спектру: кости брони надетых доспехов, СТК
   function takeDamage(p, dmg, opts){
@@ -219,11 +224,11 @@ const Rolls = (function(){
     const ds = [Dice.rnd(sides)]; if(adv) ds.push(Dice.rnd(sides));
     const value = adv ? Math.min(...ds) : ds[0];
     const need = Pilot.hasModule(p, 'reactor5') ? 5 : 4, grow = value >= need && sides < 12;
-    const mod = L.krMod + R.krMod, total = value + mod;
+    const gb = use==='energy' ? Pilot.gift(p, 'beamKr') : 0, mod = L.krMod + R.krMod - gb, total = value + mod;
     const row = total >= 7 ? Dice.pick(MECH.OVERHEAT, total) : null;
     if(grow) m.kr = Dice.stepUp(sides);
     const lines = [];
-    if(mod) lines.push(`кР к${sides}: [${ds.join(', ')}]${adv ? ' → ' + value + ' (Термостабилизатор)' : ''} ${mod > 0 ? '+ ' + mod : '− ' + (-mod)} (${[L.krMod ? 'нагрузка +' + L.krMod : '', R.krMod ? 'реактор ' + R.krMod : ''].filter(Boolean).join(', ')}) = ${total}`);
+    if(mod) lines.push(`кР к${sides}: [${ds.join(', ')}]${adv ? ' → ' + value + ' (Термостабилизатор)' : ''} ${mod > 0 ? '+ ' + mod : '− ' + (-mod)} (${[L.krMod ? 'нагрузка +' + L.krMod : '', R.krMod ? 'реактор ' + R.krMod : '', gb ? 'Дар −' + gb : ''].filter(Boolean).join(', ')}) = ${total}`);
     if(grow) lines.push(`Выпало ${value} ≥ ${need}: кР растёт к${sides} → к${m.kr}`);
     let fx = null;
     if(row){
@@ -283,8 +288,8 @@ const Rolls = (function(){
     let block = 0;
     if(opts.armor){
       const a = useConsumable(p, 'armor', 4);
-      if(a){ block = opts.pierce ? Math.floor(a.value / 2) : a.value; dice.push({sides:6, value:a.value, label:'броня'});
-        lines.push(`Броня: к6 [${a.value}]${opts.pierce ? ` → половина ${block} (Бронебойное)` : ''}${a.spent ? `, метка (${a.item.marks}/3)` : ''}`); }
+      if(a){ const g = Pilot.gift(p, 'armor'), v = a.value + g; block = opts.pierce ? Math.floor(v / 2) : v; dice.push({sides:6, value:a.value, label:'броня'});
+        lines.push(`Броня: к6 [${a.value}]${g ? ` + ${g} (Дар) = ${v}` : ''}${opts.pierce ? ` → половина ${block} (Бронебойное)` : ''}${a.spent ? `, метка (${a.item.marks}/3)` : ''}`); }
       else lines.push('Брони с незачёркнутыми метками нет');
     }
     const taken = Math.max(0, dmg - block), before = int(m.stk);
