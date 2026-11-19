@@ -15,6 +15,7 @@
     .brand-sub-text{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .boosty-link{ flex-shrink:0; padding:1px; }
     .boosty-link svg{ width:15px; height:15px; }
+    .system-link{ flex-shrink:0; padding:1px 3px; }
     .topbar > .tab-tail{ position:absolute; top:0; right:0; margin:0; gap:6px; }
     .topbar > .tab-tail .play-toggle{ width:30px; height:30px; }
     .topbar > .tab-tail .play-toggle svg{ width:19px; height:19px; }

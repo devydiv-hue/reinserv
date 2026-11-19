@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="ru">
+<!-- Собрано из исходников src/ командой «node build.js». Правьте src/kava/, а не этот файл (см. README.txt). -->
+<!-- «Кавалерия» (Александр Трифан, плейтест 0.44) — страница системы по адресу /kava/ и /kava/КОД.
+     Тандем Спектр + Катафракт как на чарнике, режимы «Игра» и «Правка», броски по книге с 3D-костями (src/shared/dice3d.js).
+     Скрипты — обычные, общая глобальная область: кости → таблицы книги → модель → броски → создание → показ броска →
+     элементы интерфейса → лист тандема → действия → мастер создания → журнал → страница. -->
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0d1418">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<title>Кавалерия</title>
+<style>
+/*@include styles/00-fonts.css*/
+/*@include shared/dice3d.css*/
+/*@include kava/styles/kava.css*/
+/*@include kava/styles/battle.css*/
+</style>
+</head>
+<body data-tab="p">
+<header class="kv-top">
+  <a class="kv-brand" href="/" title="Выбор системы">КАВАЛЕРИЯ <small>0.44</small></a>
+  <div class="kv-top-actions">
+    <select id="kvPilotSel" aria-label="Тандем"></select>
+    <button type="button" id="kvNew" class="kv-btn kv-primary">+ Новый Спектр</button>
+    <button type="button" id="kvMenu" class="kv-btn" aria-label="Меню" title="Файл, анимация, удаление">⋯</button>
+    <span id="kvTableSlot"></span>
+    <a class="kv-sys" href="/" title="Другая игровая система">⇄ Системы</a>
+  </div>
+  <input type="file" id="kvImport" accept=".json,application/json" hidden>
+</header>
+<div class="kv-bar">
+  <div class="kv-seg kv-view" id="kvView" role="group" aria-label="Экран Летописца" hidden><button type="button" data-view="sheet" class="on">Лист</button><button type="button" data-view="gm">Летописец</button></div>
+  <div class="kv-seg kv-bview" id="kvBView" role="group" aria-label="Бой" hidden><button type="button" data-bview="sheet" class="on">Лист</button><button type="button" data-bview="battle">Бой</button></div>
+  <div class="kv-seg" role="group" aria-label="Режим листа"><button type="button" data-mode="play" class="on">Игра</button><button type="button" data-mode="edit">Правка</button></div>
+  <button type="button" id="kvWomb" class="kv-womb" aria-pressed="false" title="В Утробе атаки, урон и МОБ — у Катафракта"><span class="kv-switch"></span>В Утробе</button>
+  <label class="kv-dc" title="Сложность проверок (по умолчанию — Испытание Удачи)"><span>Сложность</span><input id="kvDc" type="number" inputmode="numeric"><button type="button" id="kvDcReset" class="kv-x" hidden title="Вернуть = Удача">↺</button></label>
+  <div class="kv-seg kv-rm" role="group" aria-label="Режим к20 на следующий бросок"><button type="button" data-rm="norm" class="on">к20</button><button type="button" data-rm="adv" title="Преимущество: 2к20, больший">Преим.</button><button type="button" data-rm="dis" title="Препятствие: 2к20, меньший">Препятст.</button></div>
+  <button type="button" id="kvTables" class="kv-btn">⚄ Броски</button>
+</div>
+<div class="kv-room" id="kvRoom" hidden></div>
+<main class="kv-main">
+  <section id="kvTandem" class="kv-tandem" aria-label="Тандем"></section>
+  <section id="kvGm" class="kv-gm-wrap" aria-label="Экран Летописца"></section>
+  <section id="kvBattle" class="kv-battle-wrap" aria-label="Бой"></section>
+  <aside id="kvLog" class="kv-log" aria-label="Журнал бросков"></aside>
+</main>
+<nav class="kv-tabs" aria-label="Разделы">
+  <button type="button" data-tab-btn="p">Спектр</button><button type="button" data-tab-btn="m">Катафракт</button><button type="button" data-tab-btn="battle" class="kv-tab-battle" hidden>Бой</button><button type="button" data-tab-btn="log">Журнал</button>
+</nav>
+<script>
+/*@include shared/dice3d.js*/
+</script>
+<script>
+/*@include kava/scripts/01-dice.js*/
+/*@include kava/scripts/02-tables.js*/
+/*@include kava/scripts/02b-mech-tables.js*/
+/*@include kava/scripts/02c-enemies.js*/
+/*@include kava/scripts/02d-core.js*/
+/*@include kava/scripts/02e-lore.js*/
+/*@include kava/scripts/03-pilot.js*/
+/*@include kava/scripts/04-rolls.js*/
+/*@include kava/scripts/05-create.js*/
+/*@include kava/scripts/06-fx.js*/
+/*@include kava/scripts/07-ui.js*/
+/*@include kava/scripts/08-tandem.js*/
+/*@include kava/scripts/09-actions.js*/
+/*@include kava/scripts/10-wizard.js*/
+/*@include kava/scripts/11-log.js*/
+/*@include kava/scripts/13-table.js*/
+/*@include kava/scripts/14-table-ui.js*/
+/*@include kava/scripts/15-gm.js*/
+/*@include kava/scripts/16-battle.js*/
+/*@include kava/scripts/17-epic.js*/
+/*@include kava/scripts/18-dive.js*/
+/*@include kava/scripts/12-app.js*/
+</script>
+</body>
+</html>

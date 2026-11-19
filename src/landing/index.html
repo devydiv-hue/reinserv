@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="ru">
+<!-- Собрано из исходников src/ командой «node build.js». Правьте src/landing/index.html, а не этот файл (см. README.txt). -->
+<!-- Страница выбора игровой системы — адрес без префикса (/). У каждой системы свой адрес, свои столы и ссылки:
+     /rein/ — Реинкарнатор, /kava/ — Кавалерия (см. SYSTEMS в server.js). Ссылка Мастера ведёт сразу к системе и столу. -->
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#120e16">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Выбор системы — НРИ инструментарий</title>
+<style>
+/*@include styles/00-fonts.css*/
+  :root{
+    --void:#120d16; --void-deep:#09070c; --vellum:#f6ecd4; --vellum-muted:#b7a688; --stamp:#c4472f;
+    --font:'Roboto Condensed', 'Arial Narrow', Arial, sans-serif; --font-display:'Cinzel', 'Roboto Condensed', serif;
+  }
+  *{ box-sizing:border-box; }
+  html, body{ margin:0; min-height:100%; }
+  body{ background:radial-gradient(120% 90% at 50% 0%, #241a2c 0%, var(--void) 55%, var(--void-deep) 100%) fixed; color:var(--vellum);
+    font-family:var(--font); display:flex; flex-direction:column; align-items:center; padding:48px 16px 32px; min-height:100vh; }
+  h1{ font-family:var(--font-display); font-weight:600; letter-spacing:.06em; font-size:clamp(24px, 5vw, 34px); margin:0 0 6px; text-align:center; }
+  .sub{ font-family:'Cormorant Garamond', 'Times New Roman', serif; font-style:italic; font-weight:600; font-size:19px; color:var(--vellum-muted); margin:0 0 32px; text-align:center; }
+  .systems{ display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:18px; width:100%; max-width:760px; }
+  .sys{ position:relative; display:flex; flex-direction:column; gap:10px; padding:22px 22px 20px; border-radius:14px; text-decoration:none; color:inherit;
+    border:1px solid rgba(246,236,212,.16); background:linear-gradient(160deg, rgba(255,255,255,.06), rgba(255,255,255,.015));
+    box-shadow:0 10px 30px rgba(0,0,0,.35); transition:transform .15s ease, border-color .15s ease, box-shadow .15s ease; }
+  .sys:hover, .sys:focus-visible{ transform:translateY(-2px); border-color:var(--accent); box-shadow:0 14px 36px rgba(0,0,0,.45), 0 0 0 1px var(--accent) inset; outline:none; }
+  .sys-rein{ --accent:#c4472f; }
+  .sys-kava{ --accent:#5fb4c9; }
+  .sys-mark{ width:44px; height:44px; border-radius:10px; display:grid; place-items:center; font-family:var(--font-display); font-weight:700; font-size:22px;
+    background:var(--accent); color:#120d16; }
+  .sys-name{ font-family:var(--font-display); font-weight:700; font-size:22px; letter-spacing:.04em; }
+  .sys-genre{ font-size:13px; text-transform:uppercase; letter-spacing:.12em; color:var(--accent); font-weight:700; }
+  .sys-desc{ font-size:15px; line-height:1.4; color:#dccfb2; }
+  .sys-author{ font-size:13px; color:var(--vellum-muted); margin-top:auto; }
+  .sys-badge{ position:absolute; top:14px; right:14px; font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
+    padding:3px 8px; border-radius:999px; border:1px solid var(--accent); color:var(--accent); }
+  .sys-last{ position:absolute; bottom:14px; right:14px; font-size:11px; color:var(--vellum-muted); }
+  .hint{ max-width:760px; margin:28px 0 0; font-size:14px; line-height:1.45; color:var(--vellum-muted); text-align:center; }
+  @media (max-width:480px){ body{ padding-top:32px; } .sub{ font-size:17px; margin-bottom:24px; } }
+</style>
+</head>
+<body>
+  <h1>НРИ инструментарий</h1>
+  <p class="sub">Лист персонажа и виртуальный стол — выберите игровую систему</p>
+  <div class="systems">
+    <a class="sys sys-rein" href="/rein/" data-sys="rein">
+      <span class="sys-mark" aria-hidden="true">Р</span>
+      <span class="sys-name">Реинкарнатор</span>
+      <span class="sys-genre">Готово к игре</span>
+      <span class="sys-desc">Лист персонажа, игровой стол с картой и туманом войны, бестиарий, редактор карт, саундпад, голос и видео.</span>
+      <span class="sys-author">Книга Алексея Иващенко</span>
+    </a>
+    <a class="sys sys-kava" href="/kava/" data-sys="kava">
+      <span class="sys-badge">в разработке</span>
+      <span class="sys-mark" aria-hidden="true">К</span>
+      <span class="sys-name">Кавалерия</span>
+      <span class="sys-genre">Меха и тёмная научная фантастика</span>
+      <span class="sys-desc">Спектры — пилоты Катафрактов, древних боевых машин. Готовы лист Спектра и броски по книге; Катафракт и стол — в разработке.</span>
+      <span class="sys-author">Книга Александра Трифана · плейтест 0.44</span>
+    </a>
+  </div>
+  <p class="hint">Есть ссылка от Мастера? Откройте её — она ведёт сразу к нужной системе и столу. У каждой системы свои столы, персонажи и ссылки.</p>
+<script>
+// Последняя открытая система — пометка на карточке (запоминают и сами страницы систем, ключ общий)
+(function(){
+  var KEY = 'reincarnator_last_system_v1', last = '';
+  try{ last = localStorage.getItem(KEY) || ''; }catch(e){}
+  var card = last && document.querySelector('.sys[data-sys="' + last.replace(/[^a-z]/g, '') + '"]');
+  if(card){ var s = document.createElement('span'); s.className = 'sys-last'; s.textContent = 'вы были здесь в прошлый раз'; card.appendChild(s); }
+  document.querySelectorAll('.sys').forEach(function(a){ a.addEventListener('click', function(){ try{ localStorage.setItem(KEY, a.getAttribute('data-sys')); }catch(e){} }); });
+  if('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) window.addEventListener('load', function(){ navigator.serviceWorker.register('/sw.js').catch(function(){}); });
+})();
+</script>
+</body>
+</html>

@@ -6,9 +6,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- PWA: установка как приложение и работа без сети (файлы — папка pwa/, раздаёт server.js) -->
 <meta name="theme-color" content="#120e16">
-<link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
-<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -235,7 +235,12 @@ var Theme = (function(){
     letter-spacing:.04em; text-transform:uppercase; color:#ffb08f; padding:2px 8px 2px 3px; border-radius:999px; background:rgba(241,95,44,.12); border:1px solid rgba(241,95,44,.45); }
   .boosty-link svg{ width:18px; height:18px; display:block; }
   .boosty-link:hover{ background:rgba(241,95,44,.28); color:#fff6e4; }
-  @media (max-width:640px){ .brand-sub{ font-size:16px; } .boosty-link span{ display:none; } }
+  /* Выбор игровой системы (страница /) — рядом с Boosty, тем же «камешком», только нейтральным */
+  .system-link{ display:inline-flex; align-items:center; gap:4px; text-decoration:none; font-family:var(--font); font-style:normal; font-size:11px; font-weight:700;
+    letter-spacing:.04em; text-transform:uppercase; color:var(--vellum-bright, #f6ecd4); padding:2px 8px 2px 4px; border-radius:999px; background:rgba(246,236,212,.08); border:1px solid rgba(246,236,212,.32); }
+  .system-link svg{ width:15px; height:15px; display:block; }
+  .system-link:hover{ background:rgba(246,236,212,.2); }
+  @media (max-width:640px){ .brand-sub{ font-size:16px; } .boosty-link span, .system-link span{ display:none; } }
   /* Обучение: кнопка «ЧЗХ», подсветка шага, карточка шага, подсказки */
   button.chzh-btn{ margin-left:auto; padding:5px 11px; font-size:11px; letter-spacing:.04em; white-space:nowrap; }
   .gt-topline button.chzh-btn, .me-topline button.chzh-btn{ margin-left:auto; font-size:10px; padding:4px 10px; }
@@ -2405,6 +2410,7 @@ html[data-theme="dark"] .gs-dock-btn.active{ color:#ff9b7f; }
     .brand-sub-text{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .boosty-link{ flex-shrink:0; padding:1px; }
     .boosty-link svg{ width:15px; height:15px; }
+    .system-link{ flex-shrink:0; padding:1px 3px; }
     .topbar > .tab-tail{ position:absolute; top:0; right:0; margin:0; gap:6px; }
     .topbar > .tab-tail .play-toggle{ width:30px; height:30px; }
     .topbar > .tab-tail .play-toggle svg{ width:19px; height:19px; }
@@ -2724,6 +2730,7 @@ html[data-theme="dark"] .gs-dock-btn.active{ color:#ff9b7f; }
       <h1 class="brand-title">Реинкарнатор<span class="brand-mask" aria-hidden="true" title="НРИ инструментарий"><span class="bm-meat"></span><span class="bm-bone"></span></span><span class="brand-tool">НРИ инструментарий</span></h1>
       <div class="brand-sub"><span class="brand-sub-text">Виртуальный стол для НРИ за авторством Алексея Иващенко</span>
         <a class="boosty-link" href="https://boosty.to/the.histori.factor" target="_blank" rel="noopener noreferrer" title="Поддержать автора книги на Boosty" aria-label="Boosty — поддержать автора"><svg viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6" fill="#f15f2c"/><path d="M8.2 4.6h3.3l-1.2 4.3c.6-.2 1.2-.3 1.9-.3 2.8 0 4.6 1.9 4.6 4.5 0 3.1-2.5 5.6-6 5.6-2.5 0-4.3-1.4-4.3-3.6 0-.5.1-1 .2-1.5zm2.6 7.1c-.7 0-1.3.2-1.8.6l-.6 2.2c-.1.2-.1.4-.1.6 0 .8.7 1.4 1.7 1.4 1.6 0 2.8-1.2 2.8-2.7 0-1.3-.8-2.1-2-2.1z" fill="#fff"/></svg><span>Boosty</span></a>
+        <a class="system-link" href="/" title="Другая игровая система — у каждой свои столы, персонажи и ссылки" aria-label="Выбор игровой системы"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h13l-3.5-3.5M20 16H7l3.5 3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Системы</span></a>
       </div>
     </div>
   </div>
@@ -15822,12 +15829,18 @@ function getOrCreateClientId(){
 // вкладка вытесняла первую, а сообщения стола «самому себе» сервер не пересылает. Id игрока не меняется —
 // к нему привязаны его жетон на столе и очередь выдач Мастера.
 function sessionClientId(role){ const base = getOrCreateClientId(); return role==='gm' ? base + '-gm' : base; }
-// ---- Столы: у каждой группы свой стол по ссылке https://адрес/КОД (КОД — 6 символов). Сервер держит
+// ---- Столы: у каждой группы свой стол по ссылке https://адрес/rein/КОД (КОД — 6 символов). Сервер держит
 // сообщения внутри стола. «Я — Мастер» на адресе без кода создаёт новый стол (адрес в строке браузера
 // меняется на ссылку стола, без перезагрузки). Роль Мастера стола защищена ключом из этого браузера
 // (см. server.js: первый Мастер задаёт ключ, с другим ключом — отказ 'gm-denied').
+// Игровые системы: у каждой свой адрес, свои столы и ссылки (SYSTEMS в server.js). Реинкарнатор — /rein/;
+// старые ссылки без префикса (/КОД) сервер перенаправляет на /rein/КОД, их столы те же. Адрес / — выбор системы.
+const GAME_SYSTEM = 'rein';
+const SYSTEM_PREFIXES = {rein:'Реинкарнатор', kava:'Кавалерия'}; // префикс системы кодом стола не бывает
+try{ localStorage.setItem('reincarnator_last_system_v1', GAME_SYSTEM); }catch(e){}
 const ROOM_CODE_RE = /^[a-z0-9]{4,16}$/;
-let currentRoomCode = (function(){ const m = location.pathname.match(/^\/([a-z0-9]{4,16})\/?$/); return m ? m[1] : ''; })();
+const isRoomCode = (c)=>ROOM_CODE_RE.test(c) && !SYSTEM_PREFIXES[c];
+let currentRoomCode = (function(){ const m = location.pathname.match(/^\/(?:rein\/)?([a-z0-9]{4,16})\/?$/); return m && isRoomCode(m[1]) ? m[1] : ''; })();
 function newRoomCode(){
   const abc = 'abcdefghjkmnpqrstuvwxyz23456789'; let c = '';
   const rnd = (typeof crypto!=='undefined' && crypto.getRandomValues) ? crypto.getRandomValues(new Uint8Array(6)) : Array.from({length:6}, ()=>Math.floor(Math.random()*256));
@@ -15836,9 +15849,9 @@ function newRoomCode(){
 }
 function setRoomCode(code){
   currentRoomCode = code || '';
-  try{ history.replaceState(null, '', '/' + currentRoomCode + location.hash); }catch(e){}
+  try{ history.replaceState(null, '', '/' + GAME_SYSTEM + '/' + currentRoomCode + location.hash); }catch(e){}
 }
-function roomLink(){ return location.origin + '/' + (currentRoomCode || ''); }
+function roomLink(){ return location.origin + '/' + GAME_SYSTEM + '/' + (currentRoomCode || ''); }
 function gmKeyFor(room){
   const KEY = 'reincarnator_gm_keys_v1', r = room || 'main';
   let keys = {}; try{ keys = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; }catch(e){}
@@ -15848,15 +15861,19 @@ function gmKeyFor(room){
   }
   return keys[r];
 }
-// Код стола из того, что ввёл игрок: сама ссылка Мастера или только код
-function parseRoomInput(t){
+// Стол из того, что ввёл игрок: сама ссылка Мастера (…/rein/КОД, …/kava/КОД, старая …/КОД) или только код.
+// → {sys, code} или null. Код без ссылки — стол этой системы.
+function parseRoomLink(t){
   t = String(t || '').trim().toLowerCase();
-  const m = t.match(/\/([a-z0-9]{4,16})\/?(?:[?#].*)?$/) || t.match(/^([a-z0-9]{4,16})$/);
-  return m && ROOM_CODE_RE.test(m[1]) ? m[1] : '';
+  const m = t.match(/\/(?:([a-z]{4})\/)?([a-z0-9]{4,16})\/?(?:[?#].*)?$/) || t.match(/^()([a-z0-9]{4,16})$/);
+  if(!m || !isRoomCode(m[2])) return null;
+  const sys = m[1] && SYSTEM_PREFIXES[m[1]] ? m[1] : GAME_SYSTEM;
+  return {sys, code:m[2]};
 }
+function parseRoomInput(t){ const r = parseRoomLink(t); return r && r.sys===GAME_SYSTEM ? r.code : ''; }
 function wsUrl(role){
   return (location.protocol==='https:' ? 'wss://' : 'ws://') + location.host + '/?cid=' + encodeURIComponent(sessionClientId(role)) +
-    '&room=' + encodeURIComponent(currentRoomCode) + (role==='gm' ? '&gmkey=' + gmKeyFor(currentRoomCode) : '');
+    '&sys=' + GAME_SYSTEM + '&room=' + encodeURIComponent(currentRoomCode) + (role==='gm' ? '&gmkey=' + gmKeyFor(currentRoomCode) : '');
 }
 // Уровень персонажа для новых игроков (экран Мастера → «Игроки») — уходит игрокам в приветствии Мастера
 function gmNewCharLevel(){ try{ const p = JSON.parse(localStorage.getItem('reincarnator_gm_screen_v1') || '{}'); return Math.min(20, Math.max(1, Math.round(+p.newLevel || 1))); }catch(e){ return 1; } }
@@ -15870,7 +15887,13 @@ async function startAsPlayer(){
   if(!currentRoomCode){
     const t = await uiPrompt('Вставьте ссылку на стол, которую прислал Мастер, или её код — 6 символов в конце ссылки.', '', {title:'Ваш стол', ok:'Войти', placeholder:'например, k7m2qx'});
     if(t===null) return;
-    const code = parseRoomInput(t);
+    const link = parseRoomLink(t);
+    if(link && link.sys!==GAME_SYSTEM){ // ссылка на стол другой системы — туда, там своя страница
+      const ok = await uiConfirm(`Это стол системы «${SYSTEM_PREFIXES[link.sys]}», а здесь — «${SYSTEM_PREFIXES[GAME_SYSTEM]}». Перейти к столу «${link.code}»?`, {title:'Другая система', ok:'Перейти'});
+      if(ok) location.href = '/' + link.sys + '/' + link.code;
+      return;
+    }
+    const code = link ? link.code : '';
     if(!code){ uiAlert('Не похоже на ссылку стола: в конце ссылки Мастера должен быть код из латинских букв и цифр, например …/k7m2qx.', {title:'Ваш стол', icon:'?'}); return; }
     setRoomCode(code);
   }
@@ -31507,7 +31530,7 @@ const Pwa = (function(){
   const standalone = ()=>(window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone===true;
   const ios = ()=>/iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints > 1);
   if('serviceWorker' in navigator && /^https?:$/.test(location.protocol)){
-    window.addEventListener('load', ()=>{ navigator.serviceWorker.register('sw.js').catch(e=>console.warn('[PWA] сервис-воркер не зарегистрирован', e)); });
+    window.addEventListener('load', ()=>{ navigator.serviceWorker.register('/sw.js').catch(e=>console.warn('[PWA] сервис-воркер не зарегистрирован', e)); });
   }
   window.addEventListener('beforeinstallprompt', (e)=>{ e.preventDefault(); deferred = e; });
   window.addEventListener('appinstalled', ()=>{ deferred = null; if(typeof uiToast==='function') uiToast('Реинкарнатор установлен как приложение', {icon:'📲'}); });

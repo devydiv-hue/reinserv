@@ -863,12 +863,18 @@ function getOrCreateClientId(){
 // вкладка вытесняла первую, а сообщения стола «самому себе» сервер не пересылает. Id игрока не меняется —
 // к нему привязаны его жетон на столе и очередь выдач Мастера.
 function sessionClientId(role){ const base = getOrCreateClientId(); return role==='gm' ? base + '-gm' : base; }
-// ---- Столы: у каждой группы свой стол по ссылке https://адрес/КОД (КОД — 6 символов). Сервер держит
+// ---- Столы: у каждой группы свой стол по ссылке https://адрес/rein/КОД (КОД — 6 символов). Сервер держит
 // сообщения внутри стола. «Я — Мастер» на адресе без кода создаёт новый стол (адрес в строке браузера
 // меняется на ссылку стола, без перезагрузки). Роль Мастера стола защищена ключом из этого браузера
 // (см. server.js: первый Мастер задаёт ключ, с другим ключом — отказ 'gm-denied').
+// Игровые системы: у каждой свой адрес, свои столы и ссылки (SYSTEMS в server.js). Реинкарнатор — /rein/;
+// старые ссылки без префикса (/КОД) сервер перенаправляет на /rein/КОД, их столы те же. Адрес / — выбор системы.
+const GAME_SYSTEM = 'rein';
+const SYSTEM_PREFIXES = {rein:'Реинкарнатор', kava:'Кавалерия'}; // префикс системы кодом стола не бывает
+try{ localStorage.setItem('reincarnator_last_system_v1', GAME_SYSTEM); }catch(e){}
 const ROOM_CODE_RE = /^[a-z0-9]{4,16}$/;
-let currentRoomCode = (function(){ const m = location.pathname.match(/^\/([a-z0-9]{4,16})\/?$/); return m ? m[1] : ''; })();
+const isRoomCode = (c)=>ROOM_CODE_RE.test(c) && !SYSTEM_PREFIXES[c];
+let currentRoomCode = (function(){ const m = location.pathname.match(/^\/(?:rein\/)?([a-z0-9]{4,16})\/?$/); return m && isRoomCode(m[1]) ? m[1] : ''; })();
 function newRoomCode(){
   const abc = 'abcdefghjkmnpqrstuvwxyz23456789'; let c = '';
   const rnd = (typeof crypto!=='undefined' && crypto.getRandomValues) ? crypto.getRandomValues(new Uint8Array(6)) : Array.from({length:6}, ()=>Math.floor(Math.random()*256));
@@ -877,9 +883,9 @@ function newRoomCode(){
 }
 function setRoomCode(code){
   currentRoomCode = code || '';
-  try{ history.replaceState(null, '', '/' + currentRoomCode + location.hash); }catch(e){}
+  try{ history.replaceState(null, '', '/' + GAME_SYSTEM + '/' + currentRoomCode + location.hash); }catch(e){}
 }
-function roomLink(){ return location.origin + '/' + (currentRoomCode || ''); }
+function roomLink(){ return location.origin + '/' + GAME_SYSTEM + '/' + (currentRoomCode || ''); }
 function gmKeyFor(room){
   const KEY = 'reincarnator_gm_keys_v1', r = room || 'main';
   let keys = {}; try{ keys = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; }catch(e){}
@@ -889,15 +895,19 @@ function gmKeyFor(room){
   }
   return keys[r];
 }
-// Код стола из того, что ввёл игрок: сама ссылка Мастера или только код
-function parseRoomInput(t){
+// Стол из того, что ввёл игрок: сама ссылка Мастера (…/rein/КОД, …/kava/КОД, старая …/КОД) или только код.
+// → {sys, code} или null. Код без ссылки — стол этой системы.
+function parseRoomLink(t){
   t = String(t || '').trim().toLowerCase();
-  const m = t.match(/\/([a-z0-9]{4,16})\/?(?:[?#].*)?$/) || t.match(/^([a-z0-9]{4,16})$/);
-  return m && ROOM_CODE_RE.test(m[1]) ? m[1] : '';
+  const m = t.match(/\/(?:([a-z]{4})\/)?([a-z0-9]{4,16})\/?(?:[?#].*)?$/) || t.match(/^()([a-z0-9]{4,16})$/);
+  if(!m || !isRoomCode(m[2])) return null;
+  const sys = m[1] && SYSTEM_PREFIXES[m[1]] ? m[1] : GAME_SYSTEM;
+  return {sys, code:m[2]};
 }
+function parseRoomInput(t){ const r = parseRoomLink(t); return r && r.sys===GAME_SYSTEM ? r.code : ''; }
 function wsUrl(role){
   return (location.protocol==='https:' ? 'wss://' : 'ws://') + location.host + '/?cid=' + encodeURIComponent(sessionClientId(role)) +
-    '&room=' + encodeURIComponent(currentRoomCode) + (role==='gm' ? '&gmkey=' + gmKeyFor(currentRoomCode) : '');
+    '&sys=' + GAME_SYSTEM + '&room=' + encodeURIComponent(currentRoomCode) + (role==='gm' ? '&gmkey=' + gmKeyFor(currentRoomCode) : '');
 }
 // Уровень персонажа для новых игроков (экран Мастера → «Игроки») — уходит игрокам в приветствии Мастера
 function gmNewCharLevel(){ try{ const p = JSON.parse(localStorage.getItem('reincarnator_gm_screen_v1') || '{}'); return Math.min(20, Math.max(1, Math.round(+p.newLevel || 1))); }catch(e){ return 1; } }
@@ -911,7 +921,13 @@ async function startAsPlayer(){
   if(!currentRoomCode){
     const t = await uiPrompt('Вставьте ссылку на стол, которую прислал Мастер, или её код — 6 символов в конце ссылки.', '', {title:'Ваш стол', ok:'Войти', placeholder:'например, k7m2qx'});
     if(t===null) return;
-    const code = parseRoomInput(t);
+    const link = parseRoomLink(t);
+    if(link && link.sys!==GAME_SYSTEM){ // ссылка на стол другой системы — туда, там своя страница
+      const ok = await uiConfirm(`Это стол системы «${SYSTEM_PREFIXES[link.sys]}», а здесь — «${SYSTEM_PREFIXES[GAME_SYSTEM]}». Перейти к столу «${link.code}»?`, {title:'Другая система', ok:'Перейти'});
+      if(ok) location.href = '/' + link.sys + '/' + link.code;
+      return;
+    }
+    const code = link ? link.code : '';
     if(!code){ uiAlert('Не похоже на ссылку стола: в конце ссылки Мастера должен быть код из латинских букв и цифр, например …/k7m2qx.', {title:'Ваш стол', icon:'?'}); return; }
     setRoomCode(code);
   }

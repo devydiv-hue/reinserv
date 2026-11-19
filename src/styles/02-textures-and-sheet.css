@@ -83,7 +83,12 @@
     letter-spacing:.04em; text-transform:uppercase; color:#ffb08f; padding:2px 8px 2px 3px; border-radius:999px; background:rgba(241,95,44,.12); border:1px solid rgba(241,95,44,.45); }
   .boosty-link svg{ width:18px; height:18px; display:block; }
   .boosty-link:hover{ background:rgba(241,95,44,.28); color:#fff6e4; }
-  @media (max-width:640px){ .brand-sub{ font-size:16px; } .boosty-link span{ display:none; } }
+  /* Выбор игровой системы (страница /) — рядом с Boosty, тем же «камешком», только нейтральным */
+  .system-link{ display:inline-flex; align-items:center; gap:4px; text-decoration:none; font-family:var(--font); font-style:normal; font-size:11px; font-weight:700;
+    letter-spacing:.04em; text-transform:uppercase; color:var(--vellum-bright, #f6ecd4); padding:2px 8px 2px 4px; border-radius:999px; background:rgba(246,236,212,.08); border:1px solid rgba(246,236,212,.32); }
+  .system-link svg{ width:15px; height:15px; display:block; }
+  .system-link:hover{ background:rgba(246,236,212,.2); }
+  @media (max-width:640px){ .brand-sub{ font-size:16px; } .boosty-link span, .system-link span{ display:none; } }
   /* Обучение: кнопка «ЧЗХ», подсветка шага, карточка шага, подсказки */
   button.chzh-btn{ margin-left:auto; padding:5px 11px; font-size:11px; letter-spacing:.04em; white-space:nowrap; }
   .gt-topline button.chzh-btn, .me-topline button.chzh-btn{ margin-left:auto; font-size:10px; padding:4px 10px; }

@@ -8,7 +8,7 @@ const Pwa = (function(){
   const standalone = ()=>(window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone===true;
   const ios = ()=>/iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints > 1);
   if('serviceWorker' in navigator && /^https?:$/.test(location.protocol)){
-    window.addEventListener('load', ()=>{ navigator.serviceWorker.register('sw.js').catch(e=>console.warn('[PWA] сервис-воркер не зарегистрирован', e)); });
+    window.addEventListener('load', ()=>{ navigator.serviceWorker.register('/sw.js').catch(e=>console.warn('[PWA] сервис-воркер не зарегистрирован', e)); });
   }
   window.addEventListener('beforeinstallprompt', (e)=>{ e.preventDefault(); deferred = e; });
   window.addEventListener('appinstalled', ()=>{ deferred = null; if(typeof uiToast==='function') uiToast('Реинкарнатор установлен как приложение', {icon:'📲'}); });

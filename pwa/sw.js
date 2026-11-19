@@ -3,8 +3,16 @@
 // сохранённая. Иконки и шрифты — из кэша. Звуки (/user-sounds, /assets/sounds) не кэшируются — они большие;
 // карты и картинки своих объектов (/user-maps, /user-assets) — «сначала сеть», копия на случай обрыва.
 // WebSocket, загрузки (POST) и /healthz сервис-воркер не трогает.
+// Страниц несколько: выбор системы (/) и у каждой системы своя (/rein/…, /kava/…; старые ссылки /КОД — Реинкарнатор).
+// Каждая хранится в кэше под своим адресом — без сети открывается страница именно той системы.
 'use strict';
-const VERSION = 'reinc-v6';
+const VERSION = 'reinc-v7';
+const SYSTEMS = {rein:1, kava:1}; // см. SYSTEMS в server.js
+function pageKey(p){
+  const m = p.match(/^\/([a-z]{4})(\/|$)/);
+  if(m && SYSTEMS[m[1]]) return '/' + m[1] + '/';
+  return /^\/[a-z0-9]{4,16}\/?$/.test(p) ? '/rein/' : '/';
+}
 const SHELL = ['./', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png', 'icons/favicon-32.png'];
 
 self.addEventListener('install', (e)=>{
@@ -18,7 +26,7 @@ function networkFirst(req, cacheKey){
   return fetch(req).then(res=>{
     if(res && res.ok){ const copy = res.clone(); caches.open(VERSION).then(c=>c.put(cacheKey || req, copy)).catch(()=>{}); }
     return res;
-  }).catch(()=>caches.match(cacheKey || req).then(hit=>hit || caches.match('./')));
+  }).catch(()=>caches.match(cacheKey || req).then(hit=>hit || caches.match('/')));
 }
 function cacheFirst(req){
   return caches.match(req).then(hit=>hit || fetch(req).then(res=>{
@@ -34,7 +42,7 @@ self.addEventListener('fetch', (e)=>{
   if(url.origin===self.location.origin){
     const p = url.pathname;
     if(p==='/healthz' || p.startsWith('/user-sounds/') || p.startsWith('/assets/sounds/')) return;
-    if(req.mode==='navigate' || p==='/' || p.endsWith('.html')){ e.respondWith(networkFirst(req, './')); return; }
+    if(req.mode==='navigate' || p==='/' || p.endsWith('.html')){ e.respondWith(networkFirst(req, pageKey(p))); return; }
     if(p.startsWith('/icons/') || p==='/manifest.webmanifest' || p.startsWith('/user-reactions/') || /^\/user-media\/[a-z0-9]+\.(gif|webp|png|jpg)$/.test(p)){ e.respondWith(cacheFirst(req)); return; }
     if(p.startsWith('/user-media/')) return; // ролики: браузер сам просит куски (Range) — мимо кэша
     if(p.startsWith('/user-maps/') || p.startsWith('/user-assets/')){ e.respondWith(networkFirst(req)); return; }

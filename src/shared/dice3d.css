@@ -1,0 +1,34 @@
+/* 3D-кости (src/shared/dice3d.js): слой поверх всего, модель 110×110 масштабируется под размер кости.
+   Цвета — переменные: --d3-rim (металл ободка), --d3-enamel, --d3-digit; страница может переопределить. */
+.d3-stage{ position:fixed; inset:0; z-index:400; pointer-events:none; display:none; }
+.d3-stage.show{ display:block; }
+.d3-stage.dim{ background:radial-gradient(ellipse at center, rgba(0,0,0,.35) 0%, rgba(0,0,0,.6) 100%); animation:d3Dim .3s ease; }
+@keyframes d3Dim{ from{ opacity:0; } to{ opacity:1; } }
+.d3-die{ position:fixed; top:0; left:0; will-change:transform; }
+.d3-icon{ width:100%; height:100%; perspective:900px; display:flex; align-items:center; justify-content:center; }
+.d3-spin{ width:110px; height:110px; position:relative; transform-style:preserve-3d; flex-shrink:0; }
+.d3-body{ position:absolute; inset:0; transform-style:preserve-3d; }
+.d3-face{ position:absolute; left:50%; top:50%; width:110px; height:110px; margin:-55px 0 0 -55px; backface-visibility:hidden;
+  background:var(--d3-rim, linear-gradient(135deg, #9fb8c2 0%, #5b7682 45%, #34474f 75%, #7d98a3 100%)); }
+.d3-face.shape-tri{ clip-path:polygon(50% 0%, 93.3% 75%, 6.7% 75%); }
+.d3-face.shape-square{ clip-path:polygon(10% 10%,90% 10%,90% 90%,10% 90%); }
+.d3-face.shape-penta{ clip-path:polygon(50% 0%, 97.55% 34.55%, 79.4% 90.45%, 20.6% 90.45%, 2.45% 34.55%); }
+.d3-enamel{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+  background:var(--d3-enamel, linear-gradient(160deg, #142229 0%, #070c0f 55%, #000 100%));
+  color:var(--d3-digit, #8fe0f0); font-family:var(--font-display, serif); font-weight:700; font-size:30px; }
+.d3-enamel.shape-tri{ clip-path:polygon(50% 10%, 84.64% 70%, 15.36% 70%); }
+.d3-enamel.shape-square{ clip-path:polygon(18% 18%,82% 18%,82% 82%,18% 82%); }
+.d3-enamel.shape-penta{ clip-path:polygon(50% 10%, 88.04% 37.64%, 73.52% 82.36%, 26.48% 82.36%, 11.96% 37.64%); }
+.d3-enamel span{ display:inline-block; }
+.d3-die.d3-dim{ opacity:.38; }
+.d3-die.d3-tint-good .d3-face.is-result .d3-enamel{ background:linear-gradient(160deg, #1f4a30 0%, #2c6a41 55%, #163723 100%); color:#d6ffe4; }
+.d3-die.d3-tint-bad .d3-face.is-result .d3-enamel{ background:linear-gradient(160deg, #5c150c 0%, #8a2a20 55%, #3d0f09 100%); color:#ffe0d8; }
+.d3-die.d3-tint-heat .d3-face.is-result .d3-enamel{ background:linear-gradient(160deg, #6a3a08 0%, #b8620f 55%, #4a2405 100%); color:#fff1d6; }
+.d3-die.d3-settled .d3-face.is-result{ box-shadow:0 0 26px 6px rgba(255,255,255,.2); }
+.d3-die.d3-settled .d3-face.is-result span{
+  background-image:linear-gradient(115deg, currentColor 35%, #fff 50%, currentColor 65%); background-size:280% 100%; background-position:170% 0;
+  -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; animation:d3Shine .6s ease-out; }
+@keyframes d3Shine{ from{ background-position:170% 0; } to{ background-position:-70% 0; } }
+.d3-label{ position:absolute; left:50%; bottom:-6px; transform:translate(-50%, 100%); white-space:nowrap; font:700 12px/1.2 var(--font, sans-serif);
+  letter-spacing:.08em; text-transform:uppercase; color:#e4eef0; text-shadow:0 1px 3px #000; opacity:0; transition:opacity .25s; }
+.d3-die.d3-settled .d3-label{ opacity:1; }

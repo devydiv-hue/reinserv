@@ -1,7 +1,7 @@
 // Реинкарнатор — сервер совместной сессии.
 // Не требует npm install и вообще никаких пакетов — только встроенные модули Node.js.
 // Делает две вещи:
-//   1. Отдаёт лист персонажа (первый .html файл в этой же папке) любому, кто открыл сервер в браузере.
+//   1. Отдаёт страницы: выбор системы (/), лист Реинкарнатора (/rein/…), Кавалерию (/kava/…) — см. SYSTEMS ниже.
 //   2. Разговаривает по WebSocket — но сам НЕ знает, что такое "бросок" или "Мастер": это просто
 //      тупая рассылка сообщений между подключёнными клиентами, вся игровая логика — в самом листе
 //      (в браузере). Сервер только: 1) даёт каждому клиенту id при подключении, 2) если в сообщении
@@ -22,12 +22,48 @@ const WS_MAGIC = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11'; // фиксирован
 // злонамеренное сообщение не заставило сервер копить в памяти сколько угодно байт.
 const MAX_FRAME_PAYLOAD = 4 * 1024 * 1024; // 4MB
 // Версия протокола сервера — страница сравнивает её со своей и предупреждает, если server.js не перезапущен после обновления.
-// 2 — комнаты столов, ключ Мастера, загрузка реакций.
-const SERVER_PROTOCOL = 2;
+// 2 — комнаты столов, ключ Мастера, загрузка реакций. 3 — игровые системы: ссылки /rein/КОД, /kava/КОД и свои столы.
+const SERVER_PROTOCOL = 3;
 
-function findSheetFile() {
-  const files = fs.readdirSync(DIR).filter(f => f.toLowerCase().endsWith('.html'));
+// ---- Игровые системы: у каждой своя страница, свои ссылки (/rein/КОД, /kava/КОД) и свои столы ----
+// Адрес без префикса (/) — выбор системы. Старые ссылки столов без префикса (/k7m2qx) ведут на Реинкарнатор.
+// Страницы собирает build.js из src/. Префикс — 4 строчные латинские буквы; коды столов с ним не путаются:
+// код — один кусок адреса после префикса, а сам префикс кодом стола не бывает (см. RESERVED_CODES в листе).
+const SYSTEMS = {
+  rein: { name: 'Реинкарнатор', file: 'reincarnator_sheet_27_psi_cultist_shaman_final.html' },
+  kava: { name: 'Кавалерия', file: path.join('pages', 'kava.html') }
+};
+const LEGACY_SYSTEM = 'rein';
+const LANDING_FILE = path.join('pages', 'index.html');
+// Файл страницы системы. У Реинкарнатора, как раньше, запасной вариант — первый .html рядом с server.js
+// (лист можно положить сюда вручную под любым именем).
+function systemFile(sys) {
+  const f = SYSTEMS[sys] && SYSTEMS[sys].file;
+  if (f && fs.existsSync(path.join(DIR, f))) return f;
+  if (sys !== LEGACY_SYSTEM) return null;
+  const files = fs.readdirSync(DIR).filter(n => n.toLowerCase().endsWith('.html'));
   return files[0] || null;
+}
+function findSheetFile() { return systemFile(LEGACY_SYSTEM); }
+// Адрес → какая страница: {file} или {redirect} (канонический вид: строчные буквы, /rein/ со слешем, /rein/код без)
+function routePage(urlPath, search) {
+  const segs = urlPath.split('/').filter(Boolean);
+  const to = (p) => ({ redirect: p + (search || '') });
+  if (!segs.length) {
+    if (fs.existsSync(path.join(DIR, LANDING_FILE))) return { file: LANDING_FILE };
+    const f = findSheetFile(); // страница выбора не собрана — сразу Реинкарнатор, как раньше
+    return f ? { file: f } : { missing: 'Рядом с server.js не найден ни один .html файл — положите сюда файл листа персонажа.' };
+  }
+  const s0 = segs[0].toLowerCase(), code = (segs[1] || '').toLowerCase();
+  if (SYSTEMS[s0] && segs.length <= 2 && (!code || ROOM_RE.test(code))) {
+    const canon = '/' + s0 + '/' + code;
+    if (urlPath !== canon) return to(canon);
+    const f = systemFile(s0);
+    return f ? { file: f } : { missing: 'Страница системы «' + SYSTEMS[s0].name + '» ещё не собрана (node build.js).' };
+  }
+  if (segs.length === 1 && ROOM_RE.test(segs[0])) return to('/' + LEGACY_SYSTEM + '/' + segs[0]); // старая ссылка стола
+  if (/\.[a-z0-9]+$/i.test(urlPath) && !/\.html?$/i.test(urlPath)) return { notFound: true }; // старые закладки на сам .html — на выбор системы
+  return to('/');
 }
 
 // ---- Саундпад: аудиофайлы по HTTP (не через WebSocket) ----
@@ -353,13 +389,12 @@ const httpServer = http.createServer((req, res) => {
     res.end('ok');
     return;
   }
-  const sheetFile = findSheetFile();
-  if (!sheetFile) {
-    res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
-    res.end('Рядом с server.js не найден ни один .html файл — положите сюда файл листа персонажа.');
-    return;
-  }
-  getSheet(path.join(DIR, sheetFile), (err, sh) => {
+  const qi = (req.url || '').indexOf('?');
+  const page = routePage(urlPath, qi >= 0 ? req.url.slice(qi) : '');
+  if (page.redirect) { res.writeHead(302, { 'Location': page.redirect, 'Cache-Control': 'no-cache' }); res.end(); return; }
+  if (page.notFound) { res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }); res.end('Нет такого файла'); return; }
+  if (page.missing) { res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' }); res.end(page.missing); return; }
+  getSheet(path.join(DIR, page.file), (err, sh) => {
     if (err) { res.writeHead(500); res.end('Ошибка чтения файла: ' + err.message); return; }
     // no-cache — браузер каждый раз спрашивает «не изменилась ли» (ETag); та же версия — 304 без тела
     const head = { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache', 'ETag': sh.etag, 'Vary': 'Accept-Encoding' };
@@ -372,22 +407,24 @@ const httpServer = http.createServer((req, res) => {
   });
 });
 
-// Страница листа (~3,8 МБ) — сжатая заранее и один раз на версию файла: gzip сразу (~0,1 с), brotli — в фоне
-// (~5 с, ещё на ~20% меньше; до его готовности отдаётся gzip). Новая сборка (сменились размер или время файла) —
-// всё заново. ETag — по содержимому: повторное открытие той же версии — ответ 304 без тела.
-let sheetCache = null;
+// Страница (лист Реинкарнатора ~3,8 МБ) — сжатая заранее и один раз на версию файла: gzip сразу (~0,1 с), brotli —
+// в фоне (~5 с, ещё на ~20% меньше; до его готовности отдаётся gzip). Новая сборка (сменились размер или время
+// файла) — всё заново. ETag — по содержимому: повторное открытие той же версии — ответ 304 без тела.
+// Кэш — у каждой страницы свой (лист каждой системы и страница выбора системы).
+const sheetCache = new Map(); // путь файла -> {key, raw, etag, gz, br}
 function getSheet(file, cb) {
   fs.stat(file, (e1, st) => {
     if (e1) { cb(e1); return; }
     const key = st.size + ':' + st.mtimeMs;
-    if (sheetCache && sheetCache.key === key) { cb(null, sheetCache); return; }
+    const hit = sheetCache.get(file);
+    if (hit && hit.key === key) { cb(null, hit); return; }
     fs.readFile(file, (e2, raw) => {
       if (e2) { cb(e2); return; }
       const sh = { key, raw, etag: '"' + crypto.createHash('sha1').update(raw).digest('base64').replace(/[^A-Za-z0-9]/g, '').slice(0, 20) + '"', gz: null, br: null };
       try { sh.gz = zlib.gzipSync(raw, { level: 9 }); } catch (e) {}
-      sheetCache = sh;
+      sheetCache.set(file, sh);
       zlib.brotliCompress(raw, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 11, [zlib.constants.BROTLI_PARAM_SIZE_HINT]: raw.length } }, (e3, br) => {
-        if (!e3 && sheetCache === sh) { sh.br = br; console.log('[Server] Страница сжата: ' + (raw.length / 1048576).toFixed(2) + ' МБ → gzip ' + (sh.gz ? (sh.gz.length / 1048576).toFixed(2) : '—') + ' МБ, brotli ' + (br.length / 1048576).toFixed(2) + ' МБ'); }
+        if (!e3 && sheetCache.get(file) === sh) { sh.br = br; if (raw.length > 262144) console.log('[Server] Страница ' + path.basename(file) + ' сжата: ' + (raw.length / 1048576).toFixed(2) + ' МБ → gzip ' + (sh.gz ? (sh.gz.length / 1048576).toFixed(2) : '—') + ' МБ, brotli ' + (br.length / 1048576).toFixed(2) + ' МБ'); }
       });
       cb(null, sh);
     });
@@ -549,7 +586,12 @@ httpServer.on('upgrade', (req, socket) => {
   const cid = parseClientId(req.url);
   const id = cid || crypto.randomBytes(6).toString('hex');
   const query = (() => { try { return new URL(req.url, 'http://x').searchParams; } catch (e) { return new URLSearchParams(); } })();
-  const roomName = ROOM_RE.test(query.get('room') || '') ? query.get('room') : DEFAULT_ROOM;
+  // Стол = система + код: столы разных систем не пересекаются, даже если коды совпали. Столы Реинкарнатора
+  // (и страницы без параметра sys — старые версии листа) — просто по коду, как раньше: живые столы не теряются.
+  const sysQ = String(query.get('sys') || '').toLowerCase();
+  const sys = SYSTEMS[sysQ] ? sysQ : LEGACY_SYSTEM;
+  const code = ROOM_RE.test(query.get('room') || '') ? query.get('room') : DEFAULT_ROOM;
+  const roomName = sys === LEGACY_SYSTEM ? code : sys + ':' + code;
   const room = getRoom(roomName);
   // Мастер (id оканчивается на -gm) — только с ключом этого стола; первый Мастер стола задаёт ключ
   let isGm = false;
@@ -586,7 +628,7 @@ httpServer.on('upgrade', (req, socket) => {
   // Вернулся до истечения grace-периода (см. pendingLeave выше) — остальные участники так и не узнают,
   // что было кратковременное отключение, их peer-соединение к этому id ни разу не рвалось с их стороны.
   if (pendingLeave.has(leaveKey)) { clearTimeout(pendingLeave.get(leaveKey)); pendingLeave.delete(leaveKey); }
-  send(socket, { type: 'welcome', id, room: roomName === DEFAULT_ROOM ? '' : roomName, ver: SERVER_PROTOCOL });
+  send(socket, { type: 'welcome', id, room: code === DEFAULT_ROOM ? '' : code, sys, ver: SERVER_PROTOCOL });
   console.log('[Server] Client connected', id, isGm ? '(Мастер)' : '', 'стол', roomName, '- за столом:', clients.size, ', всего:', totalClients());
 
   let buffer = Buffer.alloc(0);
@@ -657,10 +699,9 @@ httpServer.on('upgrade', (req, socket) => {
 });
 
 httpServer.listen(PORT, () => {
-  const sheetFile = findSheetFile();
   console.log('========================================================');
   console.log(' Reincarnator: shared session server is running.');
-  console.log(' Sheet file:', sheetFile || '(none found next to server.js - put a .html file here)');
+  Object.keys(SYSTEMS).forEach(s => console.log(' /' + s + '/ page:', systemFile(s) || '(not built - run node build.js)'));
   console.log(' Local: http://localhost:' + PORT);
   console.log(' For players outside your network - see the cloudflared window for a https://....trycloudflare.com link');
   console.log('========================================================');

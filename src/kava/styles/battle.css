@@ -1,0 +1,107 @@
+/* Кавалерия — бой на схеме зон и эпичные сцены. */
+.kv-battle-wrap{ display:none; }
+body.battle-view .kv-battle-wrap{ display:block; }
+body.battle-view .kv-tandem{ display:none; }
+.kv-battle{ display:flex; flex-direction:column; gap:12px; }
+.kv-b-top{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:10px 12px; border-radius:12px; border:1px solid var(--line); background:linear-gradient(170deg, var(--card2), var(--card)); }
+.kv-b-top > b{ font-family:var(--font-display); font-size:18px; letter-spacing:.06em; }
+.kv-zones{ display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:12px; align-items:start; }
+.kv-zone{ display:flex; flex-direction:column; gap:8px; min-height:150px; padding:10px; border-radius:14px; border:1.5px dashed var(--line2); background:rgba(95,180,201,.04); color:var(--fg); text-align:left; }
+.kv-zone.far{ border-style:dotted; background:rgba(255,255,255,.02); }
+.kv-zone.drop{ border-color:var(--accent); background:rgba(95,180,201,.12); }
+.kv-zone-add{ align-items:center; justify-content:center; font-size:16px; color:var(--muted); cursor:pointer; }
+.kv-zone-add:hover{ color:var(--fg); border-color:var(--accent); }
+.kv-zone-head{ display:flex; gap:6px; align-items:center; }
+.kv-zone-head input{ flex:1; font-weight:700; background:transparent; border-color:transparent; }
+.kv-zone-head input:hover, .kv-zone-head input:focus{ border-color:var(--line2); }
+.kv-zone-head b{ font-size:15px; }
+.kv-zone-props{ display:flex; gap:4px; flex-wrap:wrap; }
+.kv-zone-props .kv-chip{ padding:2px 8px; font-size:11.5px; }
+.kv-zone-units{ display:flex; flex-direction:column; gap:6px; }
+.kv-token{ position:relative; display:flex; flex-direction:column; gap:3px; text-align:left; padding:7px 10px; border-radius:10px; border:1px solid var(--line2); background:var(--bg2); color:var(--fg); cursor:grab; }
+.kv-token.side-lance{ border-left:4px solid var(--pilot); }
+.kv-token.side-enemy{ border-left:4px solid var(--fail); }
+.kv-token.mine{ box-shadow:0 0 0 2px var(--accent); }
+.kv-token.acted{ opacity:.6; }
+.kv-token.st-retreat{ opacity:.55; font-style:italic; }
+.kv-token.st-dead{ opacity:.35; text-decoration:line-through; }
+.kv-tk-name{ font-weight:700; font-size:14px; }
+.kv-tk-stats{ font-size:12px; color:var(--muted); }
+.kv-tk-due{ position:absolute; top:5px; right:6px; font-size:11px; font-weight:700; padding:1px 6px; border-radius:999px; background:var(--crit); color:#1a1300; animation:kvDue 1.4s ease-in-out infinite; }
+@keyframes kvDue{ 0%, 100%{ opacity:1; } 50%{ opacity:.45; } }
+.kv-token:hover{ border-color:var(--accent); }
+@media (max-width:1000px){
+  body[data-tab="battle"] .kv-col, body[data-tab="battle"] .kv-spine, body[data-tab="battle"] .kv-log{ display:none; }
+  body[data-tab="battle"] .kv-battle-wrap{ display:block; }
+  body:not([data-tab="battle"]) .kv-battle-wrap{ display:none; }
+  body:not([data-tab="battle"]).battle-view .kv-tandem{ display:grid; }
+  .kv-tabs{ grid-auto-flow:column; grid-auto-columns:1fr; grid-template-columns:none; }
+  .kv-zones{ grid-template-columns:1fr; }
+}
+
+/* эпичные сцены */
+.kv-epic{ position:fixed; inset:0; z-index:430; display:flex; flex-direction:column; align-items:center; justify-content:center; overflow:hidden; animation:epIn .25s ease; }
+.kv-epic.out{ opacity:0; transition:opacity .3s; }
+@keyframes epIn{ from{ opacity:0; } to{ opacity:1; } }
+.ep-bg{ position:absolute; inset:0; background:radial-gradient(circle at 50% 50%, rgba(0,0,0,.55), rgba(0,0,0,.88)); }
+.ep-num{ position:relative; font-family:var(--font-display); font-weight:700; font-size:min(34vmin, 260px); line-height:1; letter-spacing:.02em; }
+.ep-cap{ position:relative; display:flex; flex-direction:column; align-items:center; gap:4px; margin-top:12px; text-align:center; padding:0 16px; }
+.ep-cap b{ font-family:var(--font-display); font-size:clamp(22px, 5vw, 40px); letter-spacing:.14em; text-transform:uppercase; }
+.ep-cap span{ color:#d8e4e7; font-size:15px; }
+.ep-sparks{ position:absolute; left:50%; top:50%; }
+.ep-sparks i{ position:absolute; width:6px; height:6px; border-radius:50%; background:#ffe08a; box-shadow:0 0 10px #ffb02e; opacity:0; animation:epSpark var(--t) ease-out var(--s) forwards; }
+@keyframes epSpark{ 0%{ opacity:1; transform:rotate(var(--a)) translateX(0) scale(1.4); } 100%{ opacity:0; transform:rotate(var(--a)) translateX(var(--d)) scale(.3); } }
+/* натуральная 20 */
+.ep-nat20 .ep-bg{ background:radial-gradient(circle at 50% 50%, rgba(80,55,0,.65), rgba(0,0,0,.9) 70%); }
+.ep-rays{ position:absolute; left:50%; top:50%; width:180vmax; height:180vmax; margin:-90vmax 0 0 -90vmax;
+  background:repeating-conic-gradient(from 0deg, rgba(255,214,110,.22) 0 6deg, transparent 6deg 18deg);
+  -webkit-mask-image:radial-gradient(circle, #000 0, transparent 55%); mask-image:radial-gradient(circle, #000 0, transparent 55%);
+  animation:epSpin 6s linear infinite, epFade 2.3s ease forwards; }
+@keyframes epSpin{ to{ transform:rotate(360deg); } }
+@keyframes epFade{ 0%{ opacity:0; } 15%{ opacity:1; } 80%{ opacity:1; } 100%{ opacity:.3; } }
+.ep-nat20 .ep-num{ color:#ffe9a8; text-shadow:0 0 30px #ffb02e, 0 0 80px rgba(255,170,40,.7); animation:ep20 2.3s cubic-bezier(.2,1.4,.4,1) forwards; }
+@keyframes ep20{ 0%{ transform:scale(.2); opacity:0; } 25%{ transform:scale(1.12); opacity:1; } 40%{ transform:scale(1); } 100%{ transform:scale(1.04); } }
+.ep-nat20 .ep-cap b{ color:#ffd76a; }
+/* натуральная 1 */
+.ep-nat1 .ep-bg{ background:radial-gradient(circle at 50% 45%, rgba(90,10,0,.6), rgba(0,0,0,.92) 70%); }
+.ep-nat1 .ep-num{ display:grid; color:#ff6a50; text-shadow:0 0 30px rgba(255,40,20,.6); animation:ep1drop .5s cubic-bezier(.5,0,.9,.6) forwards; }
+.ep-nat1 .ep-num span{ grid-area:1 / 1; }
+.ep-nat1 .h1{ clip-path:polygon(0 0, 100% 0, 100% 38%, 40% 55%, 0 48%); animation:ep1a 1.4s ease .65s forwards; }
+.ep-nat1 .h2{ clip-path:polygon(0 48%, 40% 55%, 100% 38%, 100% 100%, 0 100%); animation:ep1b 1.4s ease .65s forwards; }
+@keyframes ep1drop{ 0%{ transform:translateY(-60vh); } 100%{ transform:translateY(0); } }
+@keyframes ep1a{ to{ transform:translate(-14%, -10%) rotate(-12deg); opacity:.4; } }
+@keyframes ep1b{ to{ transform:translate(10%, 16%) rotate(9deg); opacity:.4; } }
+.ep-nat1 .ep-cap b{ color:#ff7a62; }
+/* взрыв реактора */
+.ep-boom .ep-bg{ background:radial-gradient(circle at 50% 55%, rgba(255,120,30,.55), rgba(60,5,0,.9) 65%); }
+.ep-flash{ position:absolute; inset:0; background:#fff; animation:epFlash .7s ease-out forwards; }
+@keyframes epFlash{ 0%{ opacity:1; } 100%{ opacity:0; } }
+.ep-ring{ position:absolute; left:50%; top:55%; width:20vmin; height:20vmin; margin:-10vmin 0 0 -10vmin; border-radius:50%; border:6px solid rgba(255,230,180,.9);
+  box-shadow:0 0 40px rgba(255,160,60,.8), inset 0 0 40px rgba(255,160,60,.6); animation:epRing 1.6s ease-out forwards; }
+.ep-ring.r2{ animation-delay:.25s; border-width:3px; opacity:0; }
+@keyframes epRing{ 0%{ transform:scale(.1); opacity:1; } 100%{ transform:scale(9); opacity:0; } }
+.ep-fire{ position:absolute; left:50%; top:55%; width:60vmin; height:60vmin; margin:-30vmin 0 0 -30vmin; border-radius:50%;
+  background:radial-gradient(circle, rgba(255,250,220,.95), rgba(255,170,50,.8) 30%, rgba(200,40,0,.5) 60%, transparent 70%); animation:epFire 2.4s ease-out forwards; }
+@keyframes epFire{ 0%{ transform:scale(.2); opacity:1; } 40%{ transform:scale(1.1); opacity:1; } 100%{ transform:scale(1.4); opacity:0; } }
+.ep-boom .ep-cap b{ color:#fff1d6; text-shadow:0 0 20px #ff7a1a; }
+/* неконтролируемый коллапс */
+.ep-collapse .ep-bg{ background:#05080a; animation:epFlick .18s steps(2) 8; }
+@keyframes epFlick{ 50%{ background:#0b1a20; } }
+.ep-scan{ position:absolute; inset:0; background:repeating-linear-gradient(0deg, rgba(95,180,201,.08) 0 2px, transparent 2px 5px); animation:epScan 1s linear infinite; }
+@keyframes epScan{ to{ background-position:0 40px; } }
+.ep-collapse .ep-num{ font-size:min(15vmin, 130px); color:#9fe9ff; letter-spacing:.08em; animation:epGlitch .35s steps(2) infinite; }
+.ep-collapse .ep-num::before, .ep-collapse .ep-num::after{ content:attr(data-t); position:absolute; inset:0; }
+.ep-collapse .ep-num::before{ color:#ff2d55; transform:translate(-4px, 0); clip-path:inset(10% 0 55% 0); mix-blend-mode:screen; }
+.ep-collapse .ep-num::after{ color:#2dfcff; transform:translate(4px, 0); clip-path:inset(55% 0 8% 0); mix-blend-mode:screen; }
+@keyframes epGlitch{ 0%{ transform:translate(0); } 25%{ transform:translate(-3px, 2px) skewX(-6deg); } 50%{ transform:translate(3px, -2px); } 75%{ transform:translate(-2px, -1px) skewX(4deg); } }
+.ep-collapse .ep-cap b{ color:#9fe9ff; }
+body.ep-shake .kv-main, body.ep-shake .kv-bar{ animation:kvShake .45s linear 3; }
+@media (prefers-reduced-motion: reduce){ .kv-epic *{ animation:none !important; } }
+@media (max-width:1000px){ #kvBView{ display:none !important; } }
+
+/* погружение в Ядро */
+.kv-node{ display:flex; flex-direction:column; gap:8px; padding:12px 14px; border-radius:14px; border:1px solid var(--accent2); background:radial-gradient(120% 120% at 0% 0%, rgba(95,180,201,.12), rgba(0,0,0,.15)); }
+.kv-node-head{ display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
+.kv-node-head b{ font-family:var(--font-display); font-size:20px; letter-spacing:.04em; color:#bfefff; }
+.kv-node-head span{ font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); }
+.kv-dim{ min-width:26px; height:26px; display:inline-grid; place-items:center; border-radius:50%; background:var(--accent2); color:#fff; font-size:13px; }
